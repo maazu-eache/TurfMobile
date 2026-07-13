@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1043582916502",
+    "project_id": "rough-turf",
+    "storage_bucket": "rough-turf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1043582916502:android:fd9c5b90fde0b86cef2fb7",
+        "android_client_info": {
+          "package_name": "com.roughturf.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAD12hJdl3XRGwP46Q7W7z2D0iYdOU0D48"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

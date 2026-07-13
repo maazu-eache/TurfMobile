@@ -1,0 +1,36 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# React Native
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/ios/Pods/
+mobile/ios/build/
+mobile/android/build/
+mobile/.expo/
+*.so
+*.apk
+*.a
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.bundle
+
+# macOS
+.DS_Store
+
+# Secrets
+*.env
+*.pem
+*.key
+*-fbsvc-*.json
