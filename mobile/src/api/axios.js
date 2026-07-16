@@ -6,7 +6,7 @@ import { logout, setTokens } from '../features/auth/authSlice';
 
 export const BASE_URL = __DEV__
   ? (Platform.OS === 'ios' ? 'http://localhost:5001' : 'http://10.0.2.2:5001')
-  : 'https://api.roughturf.com';
+  : 'https://roughturf-backend-50044029462.development.catalystappsail.in';
 
 const API_URL = `${BASE_URL}/api`;
 

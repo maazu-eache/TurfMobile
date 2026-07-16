@@ -17,15 +17,17 @@ import { useFocusEffect } from '@react-navigation/native';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, searchGlobalTeams } from '../../team/teamSlice';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { getImageUrl } from '../../../api/axios';
+import AddTeamModal from '../../tournament/components/AddTeamModal';
 
 const MatchTeamSelectionScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
-  const { selectingFor, teamA, teamB, activeTab: initialActiveTab, onSelectTeam } = route.params;
+  const { selectingFor, teamA, teamB, tournamentDetails, activeTab: initialActiveTab, onSelectTeam } = route.params;
   
   const { myTeams, opponentTeams, followingTeams, globalSearchTeams, isLoading: isTeamLoading, searchLoading } = useSelector((state) => state.team);
 
   const [activeTeamTab, setActiveTeamTab] = useState(initialActiveTab || 'My Teams');
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
+  const [showAddTeamModal, setShowAddTeamModal] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -46,10 +48,31 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
 
   const getFilteredTeams = () => {
     let list = [];
-    if (activeTeamTab === 'My Teams') list = myTeams || [];
-    else if (activeTeamTab === 'Opponents') list = opponentTeams || [];
-    else if (activeTeamTab === 'Following') list = followingTeams || [];
-    else if (activeTeamTab === 'Search') list = globalSearchTeams || [];
+    if (tournamentDetails) {
+      const hasGroups = tournamentDetails.groups && tournamentDetails.groups.length > 0;
+      const getGroupName = (teamId) => {
+        if (!hasGroups) return 'Unassigned';
+        for (const g of tournamentDetails.groups) {
+          if (g.teams.some(t => t.toString() === teamId.toString())) return g.name;
+        }
+        return 'Unassigned';
+      };
+
+      list = (tournamentDetails.registeredTeams || []).map(rt => ({
+        ...rt.team,
+        tournamentGroupName: getGroupName(rt.team._id)
+      }));
+
+      // Only show grouped teams if groups exist
+      if (hasGroups) {
+        list = list.filter(team => team.tournamentGroupName !== 'Unassigned');
+      }
+    } else {
+      if (activeTeamTab === 'My Teams') list = myTeams || [];
+      else if (activeTeamTab === 'Opponents') list = opponentTeams || [];
+      else if (activeTeamTab === 'Following') list = followingTeams || [];
+      else if (activeTeamTab === 'Search') list = globalSearchTeams || [];
+    }
     
     const uniqueMap = {};
     let uniqueList = [];
@@ -66,8 +89,15 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
     if (activeTeamTab !== 'Search' && teamSearchQuery.trim()) {
       uniqueList = uniqueList.filter(t => t?.name?.toLowerCase().includes(teamSearchQuery.toLowerCase()));
     }
+
+    if (tournamentDetails) {
+      uniqueList.sort((a, b) => a.tournamentGroupName.localeCompare(b.tournamentGroupName));
+    }
+
     return uniqueList;
   };
+
+  const filteredTeams = getFilteredTeams();
 
 
 
@@ -90,19 +120,25 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
       <View style={styles.container}>
         <View style={styles.teamListContainer}>
             {/* Tabs for My Teams, Opponents, Following */}
-            <View style={styles.tabsRow}>
-              {['My Teams', 'Opponents', 'Following', 'Search'].map(tab => (
-                <TouchableOpacity 
-                  key={tab} 
-                  style={[styles.tabBtn, activeTeamTab === tab && styles.tabBtnActive]}
-                  onPress={() => setActiveTeamTab(tab)}
-                >
-                  <Text style={[styles.tabBtnText, activeTeamTab === tab && styles.tabBtnTextActive]}>
-                    {tab}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {!tournamentDetails ? (
+              <View style={styles.tabsRow}>
+                {['My Teams', 'Opponents', 'Following', 'Search'].map(tab => (
+                  <TouchableOpacity 
+                    key={tab} 
+                    style={[styles.tabBtn, activeTeamTab === tab && styles.tabBtnActive]}
+                    onPress={() => setActiveTeamTab(tab)}
+                  >
+                    <Text style={[styles.tabBtnText, activeTeamTab === tab && styles.tabBtnTextActive]}>
+                      {tab}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <View style={[styles.tabsRow, { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm }]}>
+                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Tournament Teams</Text>
+              </View>
+            )}
 
             <View style={styles.searchBarWrapper}>
               <Icon name="magnify" size={20} color={Colors.textTertiary} style={styles.searchIcon} />
@@ -115,45 +151,74 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
               />
             </View>
 
-            <TouchableOpacity style={styles.addInlineBtn} onPress={() => navigation.navigate('TeamCreate')}>
-              <Icon name="plus-circle" size={20} color={Colors.primary} />
-              <Text style={styles.addInlineBtnText}>Create New Team</Text>
-            </TouchableOpacity>
+            {!tournamentDetails ? (
+              <TouchableOpacity style={styles.addInlineBtn} onPress={() => navigation.navigate('TeamCreate')}>
+                <Icon name="plus-circle" size={20} color={Colors.primary} />
+                <Text style={styles.addInlineBtnText}>Create New Team</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.addInlineBtn} onPress={() => setShowAddTeamModal(true)}>
+                <Icon name="plus-circle" size={20} color={Colors.primary} />
+                <Text style={styles.addInlineBtnText}>Add Team to Tournament</Text>
+              </TouchableOpacity>
+            )}
             {activeTeamTab === 'Search' && searchLoading ? (
               <ActivityIndicator color={Colors.primary} style={{ marginTop: 20 }} />
             ) : (
               <FlatList
-                data={getFilteredTeams()}
+                data={filteredTeams}
               keyExtractor={(item) => item._id}
               showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.teamItemRow} onPress={() => handleSelectTeam(item)}>
-                  <View style={styles.teamAvatar}>
-                    {item.logo ? (
-                      <Image source={{ uri: getImageUrl(item.logo) }} style={styles.teamAvatarImg} />
-                    ) : (
-                      <Text style={styles.teamAvatarInitial}>
-                        {item.name ? item.name.substring(0, 1).toUpperCase() : 'T'}
-                      </Text>
+              renderItem={({ item, index }) => {
+                const isFirstInGroup = tournamentDetails && (index === 0 || filteredTeams[index - 1].tournamentGroupName !== item.tournamentGroupName);
+                return (
+                  <View>
+                    {isFirstInGroup && (
+                      <View style={{ backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, marginTop: index === 0 ? 0 : Spacing.md }}>
+                        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{item.tournamentGroupName}</Text>
+                      </View>
                     )}
+                    <TouchableOpacity style={styles.teamItemRow} onPress={() => handleSelectTeam(item)}>
+                      <View style={styles.teamAvatar}>
+                        {item.logo ? (
+                          <Image source={{ uri: getImageUrl(item.logo) }} style={styles.teamAvatarImg} />
+                        ) : (
+                          <Text style={styles.teamAvatarInitial}>
+                            {item.name ? item.name.substring(0, 1).toUpperCase() : 'T'}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={styles.teamItemInfo}>
+                        <Text style={styles.teamItemName}>{item.name}</Text>
+                        {item.city && <Text style={styles.teamItemCity}>{item.city}</Text>}
+                      </View>
+                      <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.teamItemInfo}>
-                    <Text style={styles.teamItemName}>{item.name}</Text>
-                    {item.city && <Text style={styles.teamItemCity}>{item.city}</Text>}
-                  </View>
-                  <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
-                </TouchableOpacity>
-              )}
+                );
+              }}
               ListEmptyComponent={
                 <View style={styles.emptyList}>
                   <Icon name="alert-circle-outline" size={40} color={Colors.textTertiary} />
-                  <Text style={styles.emptyListText}>No teams found matching search.</Text>
+                  <Text style={styles.emptyListText}>No teams found.</Text>
                 </View>
               }
             />
           )}
           </View>
       </View>
+      
+      {showAddTeamModal && tournamentDetails && (
+        <AddTeamModal
+          visible={showAddTeamModal}
+          onClose={() => setShowAddTeamModal(false)}
+          tournamentId={tournamentDetails._id}
+          registeredTeams={tournamentDetails.registeredTeams}
+          onRefresh={() => {
+            setShowAddTeamModal(false);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 };

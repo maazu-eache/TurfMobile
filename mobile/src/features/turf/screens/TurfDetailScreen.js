@@ -1,3 +1,4 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -153,7 +154,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
       >
         {/* ── Image Gallery ── */}
         <View style={styles.coverContainer}>
-          <ScrollView
+          <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled"
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
@@ -168,7 +169,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
                 resizeMode="cover"
               />
             ))}
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           {/* Gradient overlay */}
           <LinearGradient

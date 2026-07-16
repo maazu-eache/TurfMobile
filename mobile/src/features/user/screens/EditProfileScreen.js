@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -74,7 +75,7 @@ const EditProfileScreen = ({ navigation }) => {
         <View style={styles.backBtn} />
       </View>
 
-      <View style={styles.content}>
+      <KeyboardAwareScrollView style={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={handlePickImage} style={styles.avatarWrapper}>
             {photo ? (
@@ -141,8 +142,8 @@ const EditProfileScreen = ({ navigation }) => {
             <Text style={styles.saveBtnText}>Save Changes</Text>
           )}
         </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+      </KeyboardAwareScrollView>
+</SafeAreaView>
   );
 };
 

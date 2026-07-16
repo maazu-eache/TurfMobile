@@ -1,4 +1,6 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useState } from 'react';
+import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   Image, KeyboardAvoidingView, Platform, ActivityIndicator
@@ -121,6 +123,8 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
     formData.append('description', data.description);
     formData.append('address', data.address);
     formData.append('city', data.city);
+    if (data.latitude) formData.append('latitude', data.latitude);
+    if (data.longitude) formData.append('longitude', data.longitude);
     formData.append('state', data.state);
     formData.append('pincode', data.pincode);
     formData.append('size', data.size);
@@ -228,7 +232,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : null} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           
           {/* Media Section */}
           <Text style={styles.sectionTitle}>Turf Media</Text>
@@ -249,7 +253,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
           </TouchableOpacity>
 
           {gallery.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
+            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
               {gallery.map((img, index) => (
                 <View key={index} style={styles.galleryImageWrapper}>
                   <Image source={{ uri: getImageUrl(img.uri) }} style={styles.galleryImage} />
@@ -258,7 +262,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
                 </View>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           )}
 
           {/* Basic Info */}
@@ -269,7 +273,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Size</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+              <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
                 {SIZES.map(s => (
                   <TouchableOpacity 
                     key={s} 
@@ -279,14 +283,14 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                     <Text style={[styles.chipText, watch('size') === s && styles.chipTextActive]}>{s}</Text>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </View>
           </View>
 
           <View style={styles.row}>
             <View style={{ flex: 1, marginTop: Spacing.sm }}>
               <Text style={styles.label}>Type</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+              <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
                 {TYPES.map(t => (
                   <TouchableOpacity 
                     key={t} 
@@ -296,22 +300,118 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                     <Text style={[styles.chipText, watch('type') === t && styles.chipTextActive]}>{t}</Text>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </View>
           </View>
 
           {/* Location */}
-          <Text style={styles.sectionTitle}>Location</Text>
-          {renderInput('address', 'Street Address *', { required: 'Address is required' })}
+          <View style={styles.sectionHeader}>
+            <Icon name="map-marker-outline" size={20} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>Location</Text>
+          </View>
+
+          {/* Street Address */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Street Address *</Text>
+            <Controller
+              control={control}
+              name="address"
+              rules={{ required: 'Address is required' }}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <View style={[styles.inputWrapper, errors.address && styles.inputWrapperError]}>
+                  <Icon name="road" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.inputField}
+                    placeholder="e.g. 24 Main Road, Koramangala"
+                    placeholderTextColor={Colors.textTertiary}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    value={value}
+                  />
+                </View>
+              )}
+            />
+            {errors.address && <Text style={styles.errorText}>{errors.address.message}</Text>}
+          </View>
+
+          {/* City (Location Search) */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>City / Area *</Text>
+            <Controller
+              control={control}
+              name="city"
+              rules={{ required: 'City is required' }}
+              render={({ field: { onChange, value } }) => (
+                <View style={[styles.inputWrapper, errors.city && styles.inputWrapperError]}>
+                  <LocationAutocomplete
+                    value={value}
+                    variant="none"
+                    onChangeText={onChange}
+                    onSelectLocation={(loc) => {
+                      onChange(loc.name);
+                      setValue('latitude', String(loc.latitude));
+                      setValue('longitude', String(loc.longitude));
+                      if (loc.state) setValue('state', loc.state);
+                    }}
+                    placeholder="Search location..."
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              )}
+            />
+            {errors.city && <Text style={styles.errorText}>{errors.city.message}</Text>}
+          </View>
+
+          {/* State + Pincode Row */}
           <View style={styles.rowInputs}>
             <View style={{ flex: 1, marginRight: 8 }}>
-              {renderInput('city', 'City *', { required: 'City is required' })}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>State *</Text>
+                <Controller
+                  control={control}
+                  name="state"
+                  rules={{ required: 'State is required' }}
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <View style={[styles.inputWrapper, errors.state && styles.inputWrapperError]}>
+                      <Icon name="map" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.inputField}
+                        placeholder="State"
+                        placeholderTextColor={Colors.textTertiary}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        value={value}
+                      />
+                    </View>
+                  )}
+                />
+                {errors.state && <Text style={styles.errorText}>{errors.state.message}</Text>}
+              </View>
             </View>
             <View style={{ flex: 1, marginLeft: 8 }}>
-              {renderInput('state', 'State *', { required: 'State is required' })}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Pincode</Text>
+                <Controller
+                  control={control}
+                  name="pincode"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <View style={styles.inputWrapper}>
+                      <Icon name="numeric" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.inputField}
+                        placeholder="e.g. 560001"
+                        placeholderTextColor={Colors.textTertiary}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        value={value}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  )}
+                />
+              </View>
             </View>
           </View>
-          {renderInput('pincode', 'Pincode')}
 
           {/* Detailed Pricing */}
           <Text style={styles.sectionTitle}>Detailed Pricing (₹/hr)</Text>
@@ -362,7 +462,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
             {isLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.submitButtonText}>{isEditing ? 'Update Turf' : 'Register Turf'}</Text>}
           </TouchableOpacity>
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -380,6 +480,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: Spacing.xl, paddingBottom: 100 },
   sectionTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: Spacing.xl, marginBottom: Spacing.md },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.xl, marginBottom: Spacing.md },
   
   // Inputs
   inputGroup: { marginBottom: Spacing.md },
@@ -388,11 +489,21 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.lg, 
     height: 52, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium 
   },
+  inputWrapper: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg,
+    borderWidth: 1, borderColor: Colors.border, height: 52, paddingHorizontal: Spacing.md,
+  },
+  inputWrapperError: { borderColor: Colors.error },
+  inputIcon: { marginRight: 8 },
+  inputField: {
+    flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14,
+  },
   textArea: { height: 100, textAlignVertical: 'top', paddingTop: Spacing.md },
   inputError: { borderColor: Colors.error },
   errorText: { color: Colors.error, fontSize: 12, marginTop: 4, marginLeft: 4 },
   rowInputs: { flexDirection: 'row' },
-  label: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },
+  label: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 6 },
   
   // Chips
   chipScroll: { flexDirection: 'row' },

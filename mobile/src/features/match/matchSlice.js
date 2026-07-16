@@ -112,6 +112,25 @@ const matchSlice = createSlice({
       state.scorecard = null;
       state.ballHistory = [];
     },
+    updateLiveMatchScore: (state, action) => {
+      const { matchId, score, battingTeam, match } = action.payload;
+      const updateList = (list) => {
+        const index = list.findIndex(m => m._id === matchId);
+        if (index !== -1) {
+          const m = list[index];
+          if (battingTeam === m.teamA?._id || battingTeam?._id === m.teamA?._id) {
+            m.teamAScore = { ...m.teamAScore, ...score };
+          } else if (battingTeam === m.teamB?._id || battingTeam?._id === m.teamB?._id) {
+            m.teamBScore = { ...m.teamBScore, ...score };
+          }
+          if (match) {
+            m.status = match.status;
+          }
+        }
+      };
+      updateList(state.myMatches);
+      updateList(state.matches);
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -121,7 +140,14 @@ const matchSlice = createSlice({
       })
       .addCase(fetchMatches.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.matches = action.payload.data || [];
+        if (action.meta.arg.page > 1) {
+          // avoid duplicates if necessary, or just append
+          const existingIds = new Set(state.matches.map(m => m._id));
+          const newItems = (action.payload.data || []).filter(m => !existingIds.has(m._id));
+          state.matches = [...state.matches, ...newItems];
+        } else {
+          state.matches = action.payload.data || [];
+        }
       })
       .addCase(fetchMatches.rejected, (state, action) => {
         state.isLoading = false;
@@ -173,5 +199,5 @@ const matchSlice = createSlice({
   },
 });
 
-export const { setLiveState, addBallToHistory, setSocketConnected, resetMatch } = matchSlice.actions;
+export const { setLiveState, addBallToHistory, setSocketConnected, resetMatch, updateLiveMatchScore } = matchSlice.actions;
 export default matchSlice.reducer;

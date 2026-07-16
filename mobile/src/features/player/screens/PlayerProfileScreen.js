@@ -1,11 +1,13 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useEffect, useState, useCallback } from 'react';
+import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   ActivityIndicator, Modal, Platform, SafeAreaView, StatusBar,
   FlatList, Image, Dimensions,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchMyPlayer, updatePlayerProfile } from '../playerSlice';
+import { fetchMyPlayer, updatePlayerProfile, fetchMatchHistory } from '../playerSlice';
 import { Colors, Typography } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -40,13 +42,13 @@ const Dropdown = ({ label, value, options, onSelect }) => {
       <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setVisible(false)}>
           <View style={styles.modalContent}>
-            <ScrollView style={{ maxHeight: 300 }}>
+            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ maxHeight: 300 }}>
               {options.map(opt => (
                 <TouchableOpacity key={opt} style={styles.modalItem} onPress={() => { onSelect(opt); setVisible(false); }}>
                   <Text style={[styles.modalItemText, value === opt && styles.modalItemTextActive]}>{opt}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -55,8 +57,8 @@ const Dropdown = ({ label, value, options, onSelect }) => {
 };
 
 // ─── Stat Tile ───────────────────────────────────────────────────────────────
-const StatTile = ({ value, label, accent }) => (
-  <View style={[styles.statTile, { borderColor: accent ? `${accent}30` : Colors.border }]}>
+const StatTile = ({ value, label, accent, flex }) => (
+  <View style={[styles.statTile, { borderColor: accent ? `${accent}30` : Colors.border }, flex ? { flex, width: 'auto' } : {}]}>
     <Text style={[styles.statTileValue, { color: accent || Colors.primary }]}>{value ?? '-'}</Text>
     <Text style={styles.statTileLabel}>{label}</Text>
   </View>
@@ -74,7 +76,7 @@ const SectionHeading = ({ icon, title, color }) => (
 // ─── Real Wagon Wheel ─────────────────────────────────────────────────────────
 // Renders actual shot lines on a cricket ground image.
 // angle = 0 is straight (toward bowler end), clockwise positive.
-const WW_SIZE = SCREEN_WIDTH - 64;
+const WW_SIZE = SCREEN_WIDTH - 32 - 28; // content padding (16*2) + card padding (14*2)
 const WW_CENTER = WW_SIZE / 2;
 const WW_RADIUS = WW_SIZE / 2;
 
@@ -119,8 +121,8 @@ const RealWagonWheel = ({ shots, groundType, loading }) => {
   return (
     <View style={styles.wwOuter}>
       {/* Ground image with shot lines drawn on top */}
-      <View style={[styles.wwCircleWrap, { width: WW_W, height: WW_H, borderRadius: isTurf ? 16 : 150 }]}>
-        <Image source={groundImg} style={{ width: WW_W, height: WW_H }} resizeMode="cover" />
+      <View style={[styles.wwCircleWrap, { width: WW_W, height: WW_H, borderRadius: isTurf ? 16 : WW_W / 2 }]}>
+        <Image source={groundImg} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: WW_W, height: WW_H }} resizeMode="cover" />
         {/* Dark overlay to make lines pop */}
         <View style={styles.wwOverlay} />
 
@@ -158,13 +160,13 @@ const RealWagonWheel = ({ shots, groundType, loading }) => {
                   left: CX - distance,
                   top: CY_ACTUAL - 2,
                   width: distance * 2,
-                  height: 4,
+                  height: 1.5,
                   justifyContent: 'center',
                   alignItems: 'flex-end',
                   transform: [{ rotate: `${shot.angle}deg` }],
                   opacity: shot.isBoundary || shot.isSix ? 0.9 : 0.65,
                 }}>
-                <View style={{ width: distance, height: 4, backgroundColor: color }} />
+                <View style={{ width: distance, height: 1.5, backgroundColor: color }} />
               </View>
             );
           })
@@ -195,13 +197,14 @@ const RealWagonWheel = ({ shots, groundType, loading }) => {
 };
 
 // ─── Achievement Badge ────────────────────────────────────────────────────────
-const AchievementBadge = ({ icon, color, title, desc, earned }) => (
+const AchievementBadge = ({ icon, color, title, desc, earned, timesEarned }) => (
   <View style={[styles.achieveBadge, !earned && { opacity: 0.45 }]}>
     <View style={[styles.achieveIconWrap, { backgroundColor: earned ? `${color}20` : 'rgba(255,255,255,0.04)' }]}>
       <MCIcon name={icon} size={26} color={earned ? color : Colors.textTertiary} />
     </View>
     <Text style={[styles.achieveTitle, !earned && { color: Colors.textTertiary }]}>{title}</Text>
     <Text style={[styles.achieveDesc, !earned && { color: Colors.textTertiary }]}>{desc}</Text>
+    {earned && timesEarned > 0 && <Text style={[styles.achieveDesc, { color: Colors.primary, marginTop: 4, fontFamily: Typography.fontFamily.semiBold }]}>Awarded {timesEarned} times</Text>}
     {!earned && (
       <View style={styles.achieveLock}>
         <MCIcon name="lock" size={10} color={Colors.textTertiary} />
@@ -219,7 +222,7 @@ const AwardCard = ({ icon, color, title, count, matches }) => (
       </View>
       <Text style={[styles.awardCount, { color }]}>{count}</Text>
       <Text style={styles.awardTitle}>{title}</Text>
-      {matches != null && <Text style={styles.awardSub}>in {matches} matches</Text>}
+      {count > 0 && <Text style={styles.awardSub}>Awarded {count} times</Text>}
     </LinearGradient>
   </View>
 );
@@ -228,6 +231,7 @@ const AwardCard = ({ icon, color, title, count, matches }) => (
 const PlayerProfileScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
+  const matchHistory = useSelector(state => state.player.matchHistory || []);
   const { myProfile, isLoading } = useSelector(state => state.player);
 
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -242,6 +246,7 @@ const PlayerProfileScreen = ({ navigation }) => {
   const [socialList, setSocialList] = useState([]);
   const [socialLoading, setSocialLoading] = useState(false);
   const [activeStatTab, setActiveStatTab] = useState('Statistics');
+  const [scoringWindowOffset, setScoringWindowOffset] = useState(0); // 0 = show latest 7
   const [activeBallType, setActiveBallType] = useState('Overall');
   const [wwGroundType, setWwGroundType] = useState('outdoor'); // 'outdoor' | 'indoor'
   const [wagonWheelData, setWagonWheelData] = useState({ shots: [], totalShots: 0 });
@@ -283,6 +288,12 @@ const PlayerProfileScreen = ({ navigation }) => {
   };
 
   useEffect(() => { dispatch(fetchMyPlayer()); }, [dispatch]);
+  useEffect(() => {
+    if (myProfile?._id) {
+      dispatch(fetchMatchHistory({ playerId: myProfile._id, ballType: activeBallType }));
+      setScoringWindowOffset(0);
+    }
+  }, [dispatch, myProfile?._id, activeBallType]);
 
   // Fetch wagon wheel data when Analytics tab is opened or ball filter changes
   useEffect(() => {
@@ -369,16 +380,14 @@ const PlayerProfileScreen = ({ navigation }) => {
   const bowlOverDisplay = bowl.overs != null
     ? `${bowl.overs}.${bowl.balls || 0}`
     : '0.0';
-  const bestFig = (bowl.bestWickets != null && bowl.bestWickets > 0)
-    ? `${bowl.bestWickets}/${bowl.bestRuns}`
-    : (bowl.wickets ? `${bowl.wickets}/${bowl.runs}` : '—');
+  const bestFig = (bowl.bestWickets != null && bowl.bestWickets > 0) ? `${bowl.bestWickets}/${bowl.bestRuns}` : '—';
 
   const overallBat = getStats('Overall').batting || {};
   const overallBowl = getStats('Overall').bowling || {};
 
   // ── Ball Filter Strip ──────────────────────────────────────────────────────
   const BallFilter = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ballFilterRow}>
+    <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ballFilterRow}>
       {BALL_TYPES.map(b => (
         <TouchableOpacity
           key={b}
@@ -388,7 +397,7 @@ const PlayerProfileScreen = ({ navigation }) => {
           <Text style={[styles.ballChipText, activeBallType === b && styles.ballChipTextActive]}>{b}</Text>
         </TouchableOpacity>
       ))}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
   // ── Tab content ────────────────────────────────────────────────────────────
@@ -408,40 +417,40 @@ const PlayerProfileScreen = ({ navigation }) => {
               <StatTile value={bat.runs ?? 0} label="Runs" accent={Colors.primary} />
               <StatTile value={batAvg} label="Average" accent={Colors.primary} />
               <StatTile value={batSR} label="S/R" accent={Colors.primary} />
-              <StatTile value={bat.highestScore ?? '—'} label="H/S" accent={Colors.warning} />
-              <StatTile value={bat.fifties ?? 0} label="50s" accent={Colors.warning} />
-              <StatTile value={bat.hundreds ?? 0} label="100s" accent={Colors.warning} />
-              <StatTile value={bat.fours ?? 0} label="4s" accent={Colors.success} />
-              <StatTile value={bat.sixes ?? 0} label="6s" accent={Colors.success} />
-              <StatTile value={bat.notOuts ?? 0} label="Not Outs" accent={Colors.textSecondary} />
+              <StatTile value={bat.highestScore ?? '—'} label="H/S" accent={Colors.primary} />
+              <StatTile value={bat.fifties ?? 0} label="50s" accent={Colors.primary} />
+              <StatTile value={bat.hundreds ?? 0} label="100s" accent={Colors.primary} />
+              <StatTile value={bat.fours ?? 0} label="4s" accent={Colors.primary} />
+              <StatTile value={bat.sixes ?? 0} label="6s" accent={Colors.primary} />
+              <StatTile value={bat.notOuts ?? 0} label="Not Outs" accent={Colors.primary} />
             </View>
           </View>
 
           {/* Bowling */}
           <View style={styles.statsCard}>
-            <SectionHeading icon="bowling" title="Bowling" color={Colors.info} />
+            <SectionHeading icon="bowling" title="Bowling" color={Colors.primary} />
             <View style={styles.statGrid}>
-              <StatTile value={bowl.innings ?? 0} label="Innings" accent={Colors.info} />
-              <StatTile value={bowl.wickets ?? 0} label="Wickets" accent={Colors.info} />
-              <StatTile value={bowl.runs ?? 0} label="Runs" accent={Colors.info} />
-              <StatTile value={bowlOverDisplay} label="Overs" accent={Colors.info} />
-              <StatTile value={bowlAvg} label="Average" accent={Colors.warning} />
-              <StatTile value={bowlEcon} label="Economy" accent={Colors.warning} />
-              <StatTile value={bowlSR} label="S/R" accent={Colors.warning} />
-              <StatTile value={bestFig} label="Best" accent={Colors.error} />
-              <StatTile value={bowl.fiveWicketHauls ?? 0} label="5W" accent={Colors.error} />
-              <StatTile value={bowl.maidens ?? 0} label="Maidens" accent={Colors.textSecondary} />
+              <StatTile value={bowl.innings ?? 0} label="Innings" accent={Colors.primary} />
+              <StatTile value={bowl.wickets ?? 0} label="Wickets" accent={Colors.primary} />
+              <StatTile value={bowl.runs ?? 0} label="Runs" accent={Colors.primary} />
+              <StatTile value={bowlOverDisplay} label="Overs" accent={Colors.primary} />
+              <StatTile value={bowlAvg} label="Average" accent={Colors.primary} />
+              <StatTile value={bowlEcon} label="Economy" accent={Colors.primary} />
+              <StatTile value={bowlSR} label="S/R" accent={Colors.primary} />
+              <StatTile value={bestFig} label="Best" accent={Colors.primary} />
+              <StatTile value={bowl.fiveWicketHauls ?? 0} label="5W" accent={Colors.primary} />
+              <StatTile value={bowl.maidens ?? 0} label="Maidens" accent={Colors.primary} />
             </View>
           </View>
 
           {/* Fielding */}
           <View style={styles.statsCard}>
-            <SectionHeading icon="hand-back-right" title="Fielding" color="#FF9800" />
+            <SectionHeading icon="hand-back-right" title="Fielding" color={Colors.primary} />
             <View style={styles.fieldingRow}>
               {[
-                { icon: 'hand-back-right', color: '#FF9800', val: field.catches ?? 0, label: 'Catches' },
-                { icon: 'run-fast', color: '#29B6F6', val: field.runOuts ?? 0, label: 'Run Outs' },
-                { icon: 'target', color: '#AB47BC', val: field.stumpings ?? 0, label: 'Stumpings' },
+                { icon: 'hand-back-right', color: Colors.primary, val: field.catches ?? 0, label: 'Catches' },
+                { icon: 'run-fast', color: Colors.primary, val: field.runOuts ?? 0, label: 'Run Outs' },
+                { icon: 'target', color: Colors.primary, val: field.stumpings ?? 0, label: 'Stumpings' },
                 { icon: 'shield-star', color: Colors.success, val: (field.catches ?? 0) + (field.runOuts ?? 0) + (field.stumpings ?? 0), label: 'Total' },
               ].map(f => (
                 <View key={f.label} style={styles.fieldingBox}>
@@ -483,21 +492,148 @@ const PlayerProfileScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.statsCard}>
-            <SectionHeading icon="chart-line" title="Scoring Pattern" color="#29B6F6" />
-            <View style={styles.analyticsPlaceholder}>
-              <MCIcon name="chart-bar" size={38} color={`${Colors.info}45`} />
-              <Text style={styles.analyticsPlaceholderText}>Scoring Pattern Chart</Text>
-              <Text style={styles.analyticsPlaceholderSub}>Play more matches to see your trends</Text>
-            </View>
+            <SectionHeading icon="chart-line" title="Scoring Pattern" color={Colors.primary} />
+            {(() => {
+              const WINDOW = 7;
+              const total = matchHistory.length;
+
+              // Clamp offset: 0 = latest window, positive = further back in time
+              const maxOffset = Math.max(0, total - WINDOW);
+              const clampedOffset = Math.min(scoringWindowOffset, maxOffset);
+
+              // Slice window from the full sorted (oldest→newest) history
+              const startIdx = Math.max(0, total - WINDOW - clampedOffset);
+              const endIdx = startIdx + WINDOW;
+              const window = matchHistory.slice(startIdx, Math.min(endIdx, total));
+
+              const canGoPrev = clampedOffset < maxOffset; // older matches exist
+              const canGoNext = clampedOffset > 0;         // newer matches exist
+
+              // Compute stats for visible window only
+              const battingEntries = window.filter(m => m.runs !== null);
+              const windowInnings = battingEntries.length;
+              const windowRuns = battingEntries.reduce((s, m) => s + (m.runs || 0), 0);
+              const windowAvg = windowInnings > 0 ? Math.round(windowRuns / windowInnings) : 0;
+              const windowHS = battingEntries.reduce((mx, m) => Math.max(mx, m.runs || 0), 0);
+
+              const BAR_HEIGHT = 80;
+              const BAR_CONTAINER_H = 100;
+              const AVG_COLOR = '#FF9500';
+              const maxVal = Math.max(windowHS, 10);
+              const avgBarH = (windowAvg / maxVal) * BAR_HEIGHT;
+              const avgLineY = BAR_CONTAINER_H - avgBarH;
+
+              return (
+                <View style={{ paddingHorizontal: 4, paddingTop: 8, paddingBottom: 4 }}>
+                  {/* Summary stats row — dynamic for current window */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 14 }}>
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ color: Colors.primary, fontSize: 18, fontFamily: Typography.fontFamily.bold }}>{windowHS}</Text>
+                      <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>High Score</Text>
+                    </View>
+                    <View style={{ width: 1, backgroundColor: Colors.border, height: 34 }} />
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ color: Colors.primary, fontSize: 18, fontFamily: Typography.fontFamily.bold }}>{windowAvg}</Text>
+                      <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>Avg/Innings</Text>
+                    </View>
+                    <View style={{ width: 1, backgroundColor: Colors.border, height: 34 }} />
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ color: Colors.primary, fontSize: 18, fontFamily: Typography.fontFamily.bold }}>{windowInnings}</Text>
+                      <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>Innings</Text>
+                    </View>
+                  </View>
+
+                  {/* Nav + chart */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {/* Prev arrow */}
+                    <TouchableOpacity
+                      onPress={() => canGoPrev && setScoringWindowOffset(clampedOffset + 1)}
+                      style={{ padding: 6, opacity: canGoPrev ? 1 : 0.25 }}
+                    >
+                      <MCIcon name="chevron-left" size={22} color={Colors.primary} />
+                    </TouchableOpacity>
+
+                    {/* Chart */}
+                    <View style={{ flex: 1, height: BAR_CONTAINER_H + 18, position: 'relative' }}>
+                      {/* Avg line */}
+                      {windowInnings > 0 && (
+                        <View style={{ position: 'absolute', top: avgLineY, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', zIndex: 10 }}>
+                          <View style={{ flex: 1, height: 1, borderStyle: 'dashed', borderWidth: 1, borderColor: AVG_COLOR }} />
+                          <View style={{ backgroundColor: AVG_COLOR, borderRadius: 3, paddingHorizontal: 4, paddingVertical: 1, marginLeft: 3 }}>
+                            <Text style={{ color: '#000', fontSize: 8, fontFamily: Typography.fontFamily.bold }}>∅{windowAvg}</Text>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Bars row */}
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: BAR_CONTAINER_H, paddingHorizontal: 2 }}>
+                        {window.map((match, i) => {
+                          const isDnb = match.runs === null;
+                          const score = isDnb ? 0 : (match.runs || 0);
+                          const barH = isDnb ? 6 : Math.max(8, (score / maxVal) * BAR_HEIGHT);
+                          const isHS = score === windowHS && score > 0;
+                          return (
+                            <View key={i} style={{ alignItems: 'center', flex: 1, gap: 2 }}>
+                              <Text style={{ color: isHS ? Colors.primary : Colors.textSecondary, fontSize: 9, fontFamily: isHS ? Typography.fontFamily.bold : 'normal' }}>
+                                {isDnb ? '—' : score}{match.isNotOut && !isDnb ? '*' : ''}
+                              </Text>
+                              <View style={{ width: 18, height: barH, borderRadius: 5, overflow: 'hidden' }}>
+                                <LinearGradient
+                                  colors={isDnb ? ['#2A2A2A', '#1A1A1A'] : isHS ? [Colors.primary, Colors.primary + 'BB'] : [Colors.primary + 'CC', Colors.primary + '44']}
+                                  start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+                                  style={{ flex: 1 }}
+                                />
+                              </View>
+                            </View>
+                          );
+                        })}
+                        {/* Pad if fewer than WINDOW matches */}
+                        {Array.from({ length: Math.max(0, WINDOW - window.length) }).map((_, i) => (
+                          <View key={`pad-${i}`} style={{ flex: 1 }} />
+                        ))}
+                      </View>
+
+                      {/* X-axis labels */}
+                      <View style={{ flexDirection: 'row', paddingHorizontal: 2 }}>
+                        {window.map((_, i) => (
+                          <Text key={i} style={{ flex: 1, textAlign: 'center', color: Colors.whiteAlpha20, fontSize: 8 }}>
+                            #{startIdx + i + 1}
+                          </Text>
+                        ))}
+                        {Array.from({ length: Math.max(0, WINDOW - window.length) }).map((_, i) => (
+                          <View key={`lpad-${i}`} style={{ flex: 1 }} />
+                        ))}
+                      </View>
+                    </View>
+
+                    {/* Next arrow */}
+                    <TouchableOpacity
+                      onPress={() => canGoNext && setScoringWindowOffset(clampedOffset - 1)}
+                      style={{ padding: 6, opacity: canGoNext ? 1 : 0.25 }}
+                    >
+                      <MCIcon name="chevron-right" size={22} color={Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Footer label */}
+                  <Text style={{ color: Colors.dot, fontSize: 9, textAlign: 'center', marginTop: 6 }}>
+                    Showing innings #{startIdx + 1}–{Math.min(startIdx + window.length, total)} of {total} · Tap ‹ › to navigate
+                  </Text>
+                </View>
+              );
+            })()}
           </View>
 
+
+
+
           <View style={styles.statsCard}>
-            <SectionHeading icon="trophy-outline" title="Match Contribution" color="#FF9800" />
+            <SectionHeading icon="trophy-outline" title="Match Contribution" color={Colors.primary} />
             <View style={styles.statGrid}>
-              <StatTile value={bat.matchWinningKnocks ?? 0} label="Wins (Bat)" accent="#FF9800" />
-              <StatTile value={bowl.matchWinningSpells ?? 0} label="Wins (Bowl)" accent="#FF9800" />
-              <StatTile value={careerMatches} label="Matches" accent={Colors.primary} />
-              <StatTile value={myProfile?.career?.wins ?? 0} label="Wins" accent={Colors.success} />
+              <StatTile flex={1} value={myProfile?.career?.winsBattingFirst || 0} label="Batting 1st" accent={Colors.primary} />
+              <StatTile flex={1} value={myProfile?.career?.winsBowlingFirst || 0} label="Bowling 1st" accent={Colors.primary} />
+              <StatTile flex={1} value={careerMatches} label="Matches" accent={Colors.primary} />
+              <StatTile flex={1} value={myProfile?.career?.wins ?? 0} label="Wins" accent={Colors.primary} />
             </View>
           </View>
         </View>
@@ -511,34 +647,45 @@ const PlayerProfileScreen = ({ navigation }) => {
       return (
         <View>
           <View style={styles.statsCard}>
-            <SectionHeading icon="medal" title="Batting Milestones" color={Colors.warning} />
+            <SectionHeading icon="medal" title="Batting Milestones" color={Colors.primary} />
             <View style={styles.achieveGrid}>
-              <AchievementBadge icon="numeric-1-circle" color={Colors.warning} title="First Run" desc="Score your first run" earned={totalRuns >= 1} />
-              <AchievementBadge icon="counter" color={Colors.warning} title="Half Century" desc="Score 50+ runs" earned={totalRuns >= 50} />
-              <AchievementBadge icon="trophy" color="#FFD700" title="Century" desc="100+ runs in an innings" earned={(overallBat.hundreds || 0) > 0} />
-              <AchievementBadge icon="star" color="#FFD700" title="Run Machine" desc="500+ total runs" earned={totalRuns >= 500} />
-              <AchievementBadge icon="fire" color="#FF5722" title="Six Hitter" desc="Hit 10+ sixes" earned={(overallBat.sixes || 0) >= 10} />
-              <AchievementBadge icon="lightning-bolt" color="#FF5722" title="Powerhouse" desc="Strike Rate 150+" earned={parseFloat(batSR) >= 150} />
+              <AchievementBadge icon="numeric-1-circle" color={Colors.primary} title="First Run" desc="Score your first run" earned={totalRuns >= 1} />
+              <AchievementBadge icon="counter" color={Colors.primary} title="Half Century" desc="Score 50+ runs" earned={totalRuns >= 50} timesEarned={overallBat.fifties || 0} />
+              <AchievementBadge icon="trophy" color={Colors.primary} title="Century" desc="100+ runs in an innings" earned={(overallBat.hundreds || 0) > 0} timesEarned={overallBat.hundreds || 0} />
+              <AchievementBadge icon="star" color={Colors.primary} title="Run Machine" desc="500+ total runs" earned={totalRuns >= 500} />
+              <AchievementBadge icon="fire" color={Colors.primary} title="Six Hitter" desc="Hit 10+ sixes" earned={(overallBat.sixes || 0) >= 10} />
+              <AchievementBadge icon="lightning-bolt" color={Colors.primary} title="Powerhouse" desc="Strike Rate 150+" earned={parseFloat(batSR) >= 150} />
+              <AchievementBadge icon="flash" color={Colors.primary} title="Blaster" desc="Hit 25+ fours" earned={(overallBat.fours || 0) >= 25} timesEarned={Math.floor((overallBat.fours || 0)/25)} />
+              <AchievementBadge icon="shield" color={Colors.primary} title="The Wall" desc="Stay Not Out 10+ times" earned={(overallBat.notOuts || 0) >= 10} timesEarned={overallBat.notOuts || 0} />
+              <AchievementBadge icon="run-fast" color={Colors.primary} title="Boundary Rider" desc="Hit 50+ fours" earned={(overallBat.fours || 0) >= 50} timesEarned={Math.floor((overallBat.fours || 0)/50)} />
+
             </View>
           </View>
 
           <View style={styles.statsCard}>
-            <SectionHeading icon="medal-outline" title="Bowling Milestones" color={Colors.info} />
+            <SectionHeading icon="medal-outline" title="Bowling Milestones" color={Colors.primary} />
             <View style={styles.achieveGrid}>
-              <AchievementBadge icon="numeric-1-circle" color={Colors.info} title="First Wicket" desc="Take your first wicket" earned={totalWickets >= 1} />
-              <AchievementBadge icon="target" color={Colors.info} title="5-Wicket Haul" desc="Take a 5-for in an innings" earned={(overallBowl.fiveWickets || 0) > 0} />
-              <AchievementBadge icon="bowling" color="#9C27B0" title="Hat-Trick" desc="3 wickets in 3 balls" earned={false} />
-              <AchievementBadge icon="chart-line" color="#9C27B0" title="Economy King" desc="Economy below 6.0" earned={parseFloat(bowlEcon) > 0 && parseFloat(bowlEcon) < 6} />
+              <AchievementBadge icon="numeric-1-circle" color={Colors.primary} title="First Wicket" desc="Take your first wicket" earned={totalWickets >= 1} />
+              <AchievementBadge icon="target" color={Colors.primary} title="5-Wicket Haul" desc="Take a 5-for in an innings" earned={(overallBowl.fiveWickets || 0) > 0} timesEarned={overallBowl.fiveWickets || 0} />
+              <AchievementBadge icon="bowling" color={Colors.primary} title="Hat-Trick" desc="3 wickets in 3 balls" earned={false} />
+              <AchievementBadge icon="chart-line" color={Colors.primary} title="Economy King" desc="Economy below 6.0" earned={parseFloat(bowlEcon) > 0 && parseFloat(bowlEcon) < 6} />
+              <AchievementBadge icon="star-circle" color={Colors.primary} title="Golden Arm" desc="Take 50+ wickets" earned={totalWickets >= 50} />
+              <AchievementBadge icon="star" color={Colors.primary} title="Wicket Taker" desc="Take 25+ wickets" earned={totalWickets >= 25} />
+
             </View>
           </View>
 
           <View style={styles.statsCard}>
-            <SectionHeading icon="shield-star" title="General Milestones" color="#FF9800" />
+            <SectionHeading icon="shield-star" title="General Milestones" color={Colors.primary} />
             <View style={styles.achieveGrid}>
-              <AchievementBadge icon="cricket" color="#FF9800" title="Debut" desc="Play your first match" earned={careerMatches >= 1} />
-              <AchievementBadge icon="account-group" color="#FF9800" title="Veteran" desc="Play 10+ matches" earned={careerMatches >= 10} />
-              <AchievementBadge icon="crown" color="#FFD700" title="Legend" desc="Play 50+ matches" earned={careerMatches >= 50} />
-              <AchievementBadge icon="hand-back-right" color="#29B6F6" title="Safe Hands" desc="Take 5+ catches" earned={(field.catches || 0) >= 5} />
+              <AchievementBadge icon="cricket" color={Colors.primary} title="Debut" desc="Play your first match" earned={careerMatches >= 1} />
+              <AchievementBadge icon="account-group" color={Colors.primary} title="Veteran" desc="Play 10+ matches" earned={careerMatches >= 10} />
+              <AchievementBadge icon="crown" color={Colors.primary} title="Legend" desc="Play 50+ matches" earned={careerMatches >= 50} />
+              <AchievementBadge icon="hand-back-right" color={Colors.primary} title="Safe Hands" desc="Take 5+ catches" earned={(field.catches || 0) >= 5} />
+              <AchievementBadge icon="hand" color={Colors.primary} title="Magic Hands" desc="Take 10+ catches" earned={(field.catches || 0) >= 10} />
+              <AchievementBadge icon="bullseye" color={Colors.primary} title="Sniper" desc="Execute 5+ Run Outs" earned={(field.runOuts || 0) >= 5} />
+              <AchievementBadge icon="medal" color={Colors.primary} title="Centurion" desc="Play 100+ matches" earned={careerMatches >= 100} />
+
             </View>
           </View>
         </View>
@@ -554,12 +701,14 @@ const PlayerProfileScreen = ({ navigation }) => {
       return (
         <View>
           <View style={styles.statsCard}>
-            <SectionHeading icon="trophy" title="Match Awards" color={Colors.warning} />
+            <SectionHeading icon="trophy" title="Match Awards" color={Colors.primary} />
             <View style={styles.awardsGrid}>
-              <AwardCard icon="star" color={Colors.warning} title="Player of Match" count={potm} matches={careerMatches} />
-              <AwardCard icon="lightning-bolt" color="#FF4081" title="Fighter of Match" count={fotm} matches={careerMatches} />
+              <AwardCard icon="star" color={Colors.primary} title="Player of Match" count={potm} matches={careerMatches} />
+              <AwardCard icon="lightning-bolt" color={Colors.primary} title="Fighter of Match" count={fotm} matches={careerMatches} />
               <AwardCard icon="cricket" color={Colors.primary} title="Top Batter" count={topBatter} matches={careerMatches} />
-              <AwardCard icon="bowling" color={Colors.info} title="Top Bowler" count={topBowler} matches={careerMatches} />
+              <AwardCard icon="bowling" color={Colors.primary} title="Top Bowler" count={myProfile?.career?.topBowlerAwards || 0} matches={careerMatches} />
+              <AwardCard icon="shield-check" color={Colors.primary} title="Best Fielder" count={myProfile?.career?.bestFielderAwards || 0} matches={careerMatches} />
+              <AwardCard icon="crown" color={Colors.warning} title="MVP" count={myProfile?.career?.mvpAwards || 0} matches={careerMatches} />
             </View>
           </View>
 
@@ -605,7 +754,7 @@ const PlayerProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* Profile Card */}
         <View style={styles.card}>
@@ -686,7 +835,7 @@ const PlayerProfileScreen = ({ navigation }) => {
               { val: careerMatches, label: 'Matches', color: Colors.primary },
               { val: overallBat.runs ?? 0, label: 'Runs', color: Colors.primary },
               { val: overallBowl.wickets ?? 0, label: 'Wickets', color: Colors.primary },
-              { val: bestFig, label: 'Best', color: Colors.warning },
+              { val: (myProfile?.playingRole === 'Bowler' && bowl.bestWickets > 0) ? bestFig : ((overallBat.highestScore > 0) ? `${overallBat.highestScore}${overallBat.highestScoreNotOut ? '*' : ''}` : bestFig), label: (myProfile?.playingRole === 'Bowler' && bowl.bestWickets > 0) ? 'Best Bowl' : ((overallBat.highestScore > 0) ? 'High Score' : 'Best Bowl'), color: Colors.primary },
             ].map((s, i, arr) => (
               <View key={s.label} style={[styles.quickSummaryItem, i < arr.length - 1 && { borderRightWidth: 1, borderRightColor: Colors.border }]}>
                 <Text style={[styles.quickSummaryVal, { color: s.color }]}>{s.val}</Text>
@@ -696,19 +845,19 @@ const PlayerProfileScreen = ({ navigation }) => {
           </View>
 
           {/* Tab bar */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statTabsRow}>
+          <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statTabsRow}>
             {STAT_TABS.map(tab => (
               <TouchableOpacity key={tab} style={styles.statTab} onPress={() => setActiveStatTab(tab)}>
                 <Text style={[styles.statTabText, activeStatTab === tab && styles.statTabTextActive]}>{tab}</Text>
                 {activeStatTab === tab && <View style={styles.statTabUnderline} />}
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           {renderStatContent()}
         </View>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Edit Modal */}
       <Modal visible={isEditModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setIsEditModalVisible(false)}>
@@ -722,7 +871,7 @@ const PlayerProfileScreen = ({ navigation }) => {
               {isLoading ? <ActivityIndicator color={Colors.primary} size="small" /> : <Text style={styles.modalSaveText}>Save</Text>}
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={styles.content}>
+          <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Name</Text>
               <TextInput style={styles.input} value={form.name} onChangeText={t => setForm({ ...form, name: t })} />
@@ -754,14 +903,26 @@ const PlayerProfileScreen = ({ navigation }) => {
             </View>
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Location</Text>
-              <TextInput style={styles.input} value={form.location} placeholder="City or Area" placeholderTextColor={Colors.textSecondary} onChangeText={t => setForm({ ...form, location: t })} />
+              <LocationAutocomplete
+                value={form.location}
+                onChangeText={t => setForm({ ...form, location: t })}
+                onSelectLocation={(loc) => {
+                  setForm({
+                    ...form,
+                    location: loc.name,
+                    locationObj: { name: loc.name, latitude: loc.latitude, longitude: loc.longitude }
+                  });
+                }}
+                placeholder="City or Area"
+                style={{ backgroundColor: Colors.surfaceVariant, borderRadius: 8, paddingHorizontal: 12, height: 48, justifyContent: 'center' }}
+              />
             </View>
             <Dropdown label="Gender" value={form.gender} options={GENDERS} onSelect={val => setForm({ ...form, gender: val })} />
             <Dropdown label="Role" value={form.playingRole} options={ROLES} onSelect={val => setForm({ ...form, playingRole: val })} />
             <Dropdown label="Batting Order" value={form.battingOrder} options={BATTING_ORDERS} onSelect={val => setForm({ ...form, battingOrder: val })} />
             <Dropdown label="Batting Style" value={form.battingStyle} options={BATTING_STYLES} onSelect={val => setForm({ ...form, battingStyle: val })} />
             <Dropdown label="Bowling Style" value={form.bowlingStyle} options={BOWLING_STYLES} onSelect={val => setForm({ ...form, bowlingStyle: val })} />
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </SafeAreaView>
       </Modal>
 
@@ -912,7 +1073,7 @@ const styles = StyleSheet.create({
 
   // Wagon Wheel
   wwOuter: { alignItems: 'center', paddingVertical: 10, position: 'relative' },
-  wwCircleWrap: { borderRadius: WW_RADIUS, overflow: 'hidden', backgroundColor: '#0B231E', borderWidth: 2, borderColor: `${Colors.primary}40`, position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  wwCircleWrap: { overflow: 'hidden', backgroundColor: '#0B231E', borderWidth: 2, borderColor: `${Colors.primary}40`, position: 'relative' },
   wwGroundImage: { width: '100%', height: '100%', position: 'absolute' },
   wwOverlay: { position: 'absolute', width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.3)' }, // dim the ground a bit
   wwZoneLabel: { position: 'absolute', fontSize: 9, color: 'rgba(255,255,255,0.7)', fontFamily: Typography.fontFamily.semiBold },
@@ -932,9 +1093,9 @@ const styles = StyleSheet.create({
   wwToggleTextActive: { color: Colors.surface, fontFamily: Typography.fontFamily.bold },
 
   // Achievements
-  achieveGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  achieveGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   achieveBadge: {
-    width: (SCREEN_WIDTH - 32 - 28 - 8) / 2,
+    width: '48%', marginBottom: 12,
     backgroundColor: Colors.backgroundElevated,
     borderRadius: 14,
     padding: 14,
@@ -949,10 +1110,10 @@ const styles = StyleSheet.create({
   achieveLock: { position: 'absolute', top: 8, right: 8 },
 
   // Awards
-  awardsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  awardCard: { width: (SCREEN_WIDTH - 32 - 28 - 8) / 2, borderRadius: 14, overflow: 'hidden', borderWidth: 1 },
+  awardsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  awardCard: { width: '48%', marginBottom: 12, borderRadius: 14, overflow: 'hidden', borderWidth: 1 },
   awardGradient: { padding: 16, alignItems: 'center' },
-  awardIconCircle: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  awardIconCircle: { width: 42, height: 1.52, borderRadius: 21, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   awardCount: { fontSize: 28, fontFamily: Typography.fontFamily.bold, lineHeight: 32 },
   awardTitle: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, textAlign: 'center', marginTop: 4 },
   awardSub: { fontSize: 10, color: Colors.textSecondary, marginTop: 2 },
@@ -984,14 +1145,14 @@ const styles = StyleSheet.create({
   // Social modal
   socialModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   socialModalSheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, maxHeight: '85%', borderTopWidth: 1, borderColor: Colors.border },
-  socialModalHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  socialModalHandle: { width: 40, height: 1.5, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   socialModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   socialModalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   socialEmptyList: { alignItems: 'center', paddingVertical: 40 },
   socialEmptyText: { marginTop: 10, fontSize: 14, color: Colors.textTertiary },
   socialItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
   socialItemLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 },
-  socialAvatar: { width: 40, height: 40, borderRadius: 20 },
+  socialAvatar: { width: 40, height: 1.50, borderRadius: 20 },
   socialAvatarPlaceholder: { backgroundColor: Colors.primaryAlpha10, justifyContent: 'center', alignItems: 'center' },
   socialName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   socialRole: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 1 },

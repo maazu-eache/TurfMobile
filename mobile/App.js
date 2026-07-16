@@ -43,6 +43,31 @@ const App = () => {
       console.log('Firebase messaging is not configured:', err.message);
     }
   }, []);
+  const linking = {
+    prefixes: ['roughturf://', 'https://roughturf.com'],
+    config: {
+      screens: {
+        Customer: {
+          screens: {
+            'My Cricket': {
+              screens: {
+                TournamentDetail: 'tournament/:tournamentId',
+              }
+            }
+          }
+        },
+        Player: {
+          screens: {
+            'My Cricket': {
+              screens: {
+                TournamentDetail: 'tournament/:tournamentId',
+              }
+            }
+          }
+        }
+      }
+    }
+  };
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -50,7 +75,7 @@ const App = () => {
         <PersistGate loading={null} persistor={persistor}>
           <SafeAreaProvider>
             <PaperProvider theme={darkTheme}>
-              <NavigationContainer ref={navigationRef} theme={darkTheme}>
+              <NavigationContainer linking={linking} ref={navigationRef} theme={darkTheme}>
                 <StatusBar
                   barStyle="light-content"
                   backgroundColor="transparent"

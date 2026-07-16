@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  Platform, ActivityIndicator,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import LinearGradient from 'react-native-linear-gradient';
 import { useDispatch, useSelector } from 'react-redux';
 import { verifyOTP, sendOTP } from '../authSlice';
@@ -64,7 +65,7 @@ const OTPVerifyScreen = ({ navigation, route }) => {
 
   return (
     <LinearGradient colors={Colors.gradients.dark} style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.innerContent} style={styles.inner}>
         {/* Back */}
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
           <Text style={styles.backText}>← Back</Text>
@@ -91,26 +92,17 @@ const OTPVerifyScreen = ({ navigation, route }) => {
               onChangeText={(text) => handleChange(text, i)}
               onKeyPress={(e) => handleKeyPress(e, i)}
               selectTextOnFocus
-              caretHidden
+              textContentType="oneTimeCode"
+              autoComplete="sms-otp"
             />
           ))}
         </View>
 
         {error && <Text style={styles.error}>{error}</Text>}
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => handleVerify(otp.join(''))}
-          disabled={isLoading || otp.join('').length < OTP_LENGTH}
-        >
-          <LinearGradient
-            colors={otp.join('').length < OTP_LENGTH ? ['#333', '#333'] : Colors.gradients.primary}
-            style={styles.buttonGradient}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-          >
-            {isLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.buttonText}>Verify OTP</Text>}
-          </LinearGradient>
-        </TouchableOpacity>
+        <View style={styles.loaderContainer}>
+          {isLoading && <ActivityIndicator color={Colors.primary} size="large" />}
+        </View>
 
         {/* Resend */}
         <TouchableOpacity onPress={handleResend} disabled={countdown > 0}>
@@ -118,14 +110,15 @@ const OTPVerifyScreen = ({ navigation, route }) => {
             {countdown > 0 ? `Resend OTP in ${countdown}s` : 'Resend OTP'}
           </Text>
         </TouchableOpacity>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  inner: { flex: 1, justifyContent: 'center', padding: Spacing['2xl'] },
+  inner: { flex: 1 },
+  innerContent: { flexGrow: 1, justifyContent: 'center', padding: Spacing['2xl'] },
   back: { position: 'absolute', top: 60, left: Spacing['2xl'] },
   backText: { color: Colors.primary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.md },
   header: { alignItems: 'center', marginBottom: Spacing['3xl'] },
@@ -171,9 +164,12 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.medium,
     marginBottom: Spacing.base,
   },
-  button: { borderRadius: BorderRadius.lg, overflow: 'hidden', marginBottom: Spacing.base },
-  buttonGradient: { height: 54, justifyContent: 'center', alignItems: 'center' },
-  buttonText: { fontSize: Typography.fontSize.md, fontFamily: Typography.fontFamily.bold, color: '#000' },
+  loaderContainer: {
+    height: 54,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.base,
+  },
   resend: {
     textAlign: 'center',
     color: Colors.primary,

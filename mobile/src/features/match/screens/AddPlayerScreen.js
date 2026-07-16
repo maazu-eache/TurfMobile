@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -7,7 +8,7 @@ import api from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const AddPlayerScreen = ({ route, navigation }) => {
-  const { teamId, onPlayerAdded, roster = [], oppositionRoster = [], squad = [] } = route.params || {};
+  const { teamId, onPlayerAdded, onClose, roster = [], oppositionRoster = [], squad = [] } = route.params || {};
 
   const [mobile, setMobile] = useState('');
   const [name, setName] = useState('');
@@ -15,6 +16,15 @@ const AddPlayerScreen = ({ route, navigation }) => {
   
   const [searchResult, setSearchResult] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (onClose) {
+        onClose();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, onClose]);
 
   const nonSquadPlayers = roster.filter(p => !squad.some(s => s._id === p._id));
 
@@ -65,13 +75,14 @@ const AddPlayerScreen = ({ route, navigation }) => {
 
     setLoading(true);
     try {
-      const payload = {
-        mobile,
-        role: 'player'
-      };
-      if (!searchResult?.exists) {
-        payload.name = name.trim();
-      }
+    const payload = {
+      mobile,
+      role: 'player',
+      matchId: route.params?.matchId
+    };
+    if (!searchResult?.exists) {
+      payload.name = name.trim();
+    }
 
       const res = await api.post(`/teams/${teamId}/players`, payload);
       const newPlayer = res.data.data.player;
@@ -101,7 +112,7 @@ const AddPlayerScreen = ({ route, navigation }) => {
         <View style={{ width: 28 }} />
       </View>
 
-      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Mobile Number</Text>
         <View style={styles.inputContainer}>
           <Icon name="phone-outline" size={20} color={Colors.textTertiary} style={{ marginRight: Spacing.sm }} />
@@ -120,7 +131,6 @@ const AddPlayerScreen = ({ route, navigation }) => {
               }
             }}
             maxLength={10}
-            editable={!searchResult?.exists}
           />
           {isSearching && (
             <View style={{ paddingHorizontal: Spacing.md }}>
@@ -194,7 +204,7 @@ const AddPlayerScreen = ({ route, navigation }) => {
             )}
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity 

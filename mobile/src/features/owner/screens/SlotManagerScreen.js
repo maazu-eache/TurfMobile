@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Platform } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSelector } from 'react-redux';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -279,7 +280,7 @@ const SlotManagerScreen = ({ navigation }) => {
 
       {/* Turf Selector */}
       <View style={styles.turfSelector}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false}>
           {turfs.map(t => (
             <TouchableOpacity 
               key={t._id} 
@@ -289,7 +290,7 @@ const SlotManagerScreen = ({ navigation }) => {
               <Text style={[styles.turfChipText, selectedTurf === t._id && styles.turfChipTextActive]}>{t.name}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* Date Selector */}
@@ -303,7 +304,7 @@ const SlotManagerScreen = ({ navigation }) => {
         >
           <Icon name="calendar-month" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false}>
           {dates.map((d, i) => {
             const mDate = moment(d);
             const dateStr = mDate.format('YYYY-MM-DD');
@@ -329,7 +330,7 @@ const SlotManagerScreen = ({ navigation }) => {
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* Legend */}
@@ -342,7 +343,7 @@ const SlotManagerScreen = ({ navigation }) => {
       </View>
 
       {/* Slots Grid */}
-      <ScrollView contentContainerStyle={styles.slotsContainer}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.slotsContainer}>
         {loading ? (
           <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
         ) : slots.length === 0 ? (
@@ -396,7 +397,7 @@ const SlotManagerScreen = ({ navigation }) => {
             })}
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Floating Action Bar */}
       {selectedSlots.length > 0 && (
@@ -432,7 +433,7 @@ const SlotManagerScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: '85%' }} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ maxHeight: '85%' }} showsVerticalScrollIndicator={false}>
 
               {/* ── STEP 1: Criteria ── */}
               <Text style={styles.stepLabel}>1. Select Criteria</Text>
@@ -618,7 +619,7 @@ const SlotManagerScreen = ({ navigation }) => {
               )}
 
               <View style={{ height: 20 }} />
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>
@@ -678,7 +679,7 @@ const SlotManagerScreen = ({ navigation }) => {
                   <Icon name="close" size={24} color={Colors.textPrimary} />
                 </TouchableOpacity>
               </View>
-              <ScrollView style={{maxHeight: 300}} contentContainerStyle={styles.timeGrid}>
+              <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{maxHeight: 300}} contentContainerStyle={styles.timeGrid}>
                 {Array.from({length: 24}).map((_, i) => {
                   const hour = i.toString().padStart(2, '0');
                   const timeStr = `${hour}:00`;
@@ -697,7 +698,7 @@ const SlotManagerScreen = ({ navigation }) => {
                     </TouchableOpacity>
                   )
                 })}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </View>
           </View>
         </Modal>

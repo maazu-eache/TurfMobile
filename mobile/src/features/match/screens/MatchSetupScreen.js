@@ -1,3 +1,4 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -23,12 +24,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { createMatch } from '../matchSlice';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, createTeam } from '../../team/teamSlice';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
+import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import { getImageUrl } from '../../../api/axios';
+import api from '../../../api/axios';
+
+const IMG_TENNIS  = require('../../../../Tennis.jpeg');
+const IMG_LEATHER = require('../../../../Leather.jpeg');
+const IMG_OTHER   = require('../../../../Others.jpeg');
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const MATCH_FORMATS = ['LIMITED OVERS', 'BOX CRICKET', 'PAIR CRICKET', 'TEST MATCH', 'THE HUNDRED'];
+const MATCH_FORMATS = ['LIMITED OVERS', 'BOX CRICKET', 'PAIR CRICKET'];
 const PITCH_TYPES = ['ROUGH', 'CEMENT', 'TURF', 'ASTROTURF', 'MATTING'];
 const GROUND_TYPES = ['Open Ground', 'Indoor', 'Box Cricket', 'Other'];
 
@@ -37,6 +44,12 @@ const MatchSetupScreen = ({ navigation, route }) => {
   const { isLoading: isMatchLoading } = useSelector((state) => state.match);
   const { myTeams, opponentTeams, followingTeams, isLoading: isTeamLoading } = useSelector((state) => state.team);
   const { isAuthenticated } = useSelector((state) => state.auth);
+
+  const tournamentDetails = route.params?.tournamentDetails || null;
+  const tournamentId = route.params?.tournamentId || null;
+  const matchStage = route.params?.stage || null;
+  const matchData = route.params?.matchData || null;
+  const existingMatchId = route.params?.matchId || matchData?._id || null;
 
   const [teamA, setTeamA] = useState(null);
   const [teamB, setTeamB] = useState(null);
@@ -50,24 +63,57 @@ const MatchSetupScreen = ({ navigation, route }) => {
 
   // Match setup details matching CricHeroes fields
   const [format, setFormat] = useState('LIMITED OVERS');
-  const [overs, setOvers] = useState('5');
-  const [wickets, setWickets] = useState('10');
+  const [overs, setOvers] = useState(tournamentDetails?.overs ? tournamentDetails.overs.toString() : '5');
+  const [wickets, setWickets] = useState(tournamentDetails?.playersPerTeam ? (tournamentDetails.playersPerTeam - 1).toString() : '10');
   const [bowlerQuota, setBowlerQuota] = useState('1');
-  const [city, setCity] = useState('Ambur');
-  const [ground, setGround] = useState('');
+  const [city, setCity] = useState(tournamentDetails?.city || '');
+  const [cityObj, setCityObj] = useState(tournamentDetails?.locationObj || null);
+  const [ground, setGround] = useState(tournamentDetails?.groundName || '');
   const [matchDate, setMatchDate] = useState(() => {
     const d = new Date();
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + d.toTimeString().substring(0, 5);
   });
   
-  const [ballType, setBallType] = useState('Tennis');
+  const [ballType, setBallType] = useState(tournamentDetails?.ballType || 'Tennis');
   const [wagonWheel, setWagonWheel] = useState(true);
   const [pitchType, setPitchType] = useState('TURF');
-  const [groundType, setGroundType] = useState('Open Ground');
+  const [groundType, setGroundType] = useState(tournamentDetails?.groundType || 'Open Ground');
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState('date');
-  const [tempDate, setTempDate] = useState(new Date());
+  const [tempDate, setTempDate] = useState(matchData?.scheduledAt ? new Date(matchData.scheduledAt) : new Date());
+
+  // Auto-fill match details if editing existing match
+  useEffect(() => {
+    if (matchData) {
+      if (matchData.format) setFormat(matchData.format);
+      if (matchData.overs) setOvers(matchData.overs.toString());
+      if (matchData.wickets) setWickets(matchData.wickets.toString());
+      if (matchData.bowlerQuota) setBowlerQuota(matchData.bowlerQuota.toString());
+      if (matchData.city) setCity(matchData.city);
+      if (matchData.ground) setGround(matchData.ground);
+      if (matchData.ballType) setBallType(matchData.ballType);
+      if (matchData.pitchType) setPitchType(matchData.pitchType);
+      if (matchData.groundType) setGroundType(matchData.groundType);
+      if (matchData.wagonWheelEnabled !== undefined) setWagonWheel(matchData.wagonWheelEnabled);
+      
+      if (matchData.teamA) setTeamA(typeof matchData.teamA === 'object' ? matchData.teamA : { _id: matchData.teamA });
+      if (matchData.teamB) setTeamB(typeof matchData.teamB === 'object' ? matchData.teamB : { _id: matchData.teamB });
+
+      if (matchData.playingXI) {
+        if (matchData.playingXI.teamA) setPlayingXIA(matchData.playingXI.teamA);
+        if (matchData.playingXI.teamB) setPlayingXIB(matchData.playingXI.teamB);
+      }
+      if (matchData.captain) {
+        if (matchData.captain.teamA) setCaptainA(matchData.captain.teamA);
+        if (matchData.captain.teamB) setCaptainB(matchData.captain.teamB);
+      }
+      if (matchData.wicketKeeper) {
+        if (matchData.wicketKeeper.teamA) setWkA(matchData.wicketKeeper.teamA);
+        if (matchData.wicketKeeper.teamB) setWkB(matchData.wicketKeeper.teamB);
+      }
+    }
+  }, [matchData]);
 
   useEffect(() => {
     dispatch(fetchMyTeams());
@@ -124,6 +170,33 @@ const MatchSetupScreen = ({ navigation, route }) => {
       return showCustomAlert('Error', 'City, Ground Name, Ground Type, and Pitch Type are required.');
     }
 
+    if (existingMatchId) {
+      // Just set playing XI and update match details for an already scheduled match
+      try {
+        await api.post(`/matches/${existingMatchId}/playing-xi`, {
+          teamA: playingXIA,
+          teamB: playingXIB,
+          captain: { teamA: captainA, teamB: captainB },
+          wicketKeeper: { teamA: wkA, teamB: wkB },
+          overs: parseInt(overs, 10),
+          wickets: parseInt(wickets, 10),
+          bowlerQuota: parseInt(bowlerQuota, 10) || Math.ceil(parseInt(overs, 10) / 5),
+          format,
+          ballType,
+          pitchType,
+          groundType,
+          wagonWheelEnabled: wagonWheel,
+          city,
+          ground,
+          scheduledAt: tempDate.toISOString()
+        });
+        navigation.replace('Toss', { matchId: existingMatchId });
+      } catch (err) {
+        showCustomAlert('Error', err.response?.data?.message || 'Failed to update match details');
+      }
+      return;
+    }
+
     const payload = {
       teamA: teamA._id,
       teamB: teamB._id,
@@ -135,9 +208,11 @@ const MatchSetupScreen = ({ navigation, route }) => {
       pitchType,
       groundType,
       wagonWheelEnabled: wagonWheel,
+
       venueDetails: ground || 'Unknown Ground',
       city,
       ground,
+      locationObj: cityObj ? { name: cityObj.name, latitude: cityObj.latitude, longitude: cityObj.longitude } : null,
       scheduledAt: tempDate.toISOString(),
       playingXI: {
         teamA: playingXIA,
@@ -206,9 +281,11 @@ const MatchSetupScreen = ({ navigation, route }) => {
       ballType,
       pitchType,
       groundType,
+
       venueDetails: ground || 'Unknown Ground',
       city,
       ground,
+      locationObj: cityObj ? { name: cityObj.name, latitude: cityObj.latitude, longitude: cityObj.longitude } : null,
       playingXI: {
         teamA: playingXIA,
         teamB: playingXIB,
@@ -224,6 +301,13 @@ const MatchSetupScreen = ({ navigation, route }) => {
       scheduledAt: tempDate.toISOString(),
       status: 'scheduled'
     };
+
+    if (tournamentId) {
+      payload.tournament = tournamentId;
+      if (matchStage) {
+        payload.stage = matchStage;
+      }
+    }
 
     const res = await dispatch(createMatch(payload));
     if (createMatch.fulfilled.match(res)) {
@@ -244,7 +328,13 @@ const MatchSetupScreen = ({ navigation, route }) => {
     </TouchableOpacity>
   );
 
-  const renderBallOption = (label, value, color, iconName) => {
+  const BALL_OPTIONS = [
+    { label: 'Tennis',  value: 'Tennis',  img: IMG_TENNIS  },
+    { label: 'Leather', value: 'Leather', img: IMG_LEATHER },
+    { label: 'Other',   value: 'Other',   img: IMG_OTHER   },
+  ];
+
+  const renderBallOption = ({ label, value, img }) => {
     const isSelected = ballType === value;
     return (
       <TouchableOpacity
@@ -253,11 +343,16 @@ const MatchSetupScreen = ({ navigation, route }) => {
         onPress={() => setBallType(value)}
         activeOpacity={0.8}
       >
-        <View style={[styles.ballCircle, { backgroundColor: color }, isSelected && styles.ballCircleSelected]}>
-          <Icon name={iconName} size={28} color="#FFF" />
+        {/* Outer ring — no overflow:hidden so border + badge stay visible */}
+        <View style={[styles.ballRing, isSelected && styles.ballRingSelected]}>
+          {/* Inner clip circle for the image */}
+          <View style={styles.ballCircle}>
+            <Image source={img} style={styles.ballImage} resizeMode="cover" />
+          </View>
+          {/* Check badge in top-right */}
           {isSelected && (
             <View style={styles.ballCheckedBadge}>
-              <Icon name="check" size={10} color={Colors.background} />
+              <Icon name="check-circle" size={18} color={Colors.primary} />
             </View>
           )}
         </View>
@@ -274,11 +369,11 @@ const MatchSetupScreen = ({ navigation, route }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Start A Match</Text>
         <TouchableOpacity style={styles.settingsBtn}>
-          <Icon name="cog-outline" size={24} color={Colors.textPrimary} />
+          {/* <Icon name="cog-outline" size={24} color={Colors.textPrimary} /> */}
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.matchupContainer}>
           <View style={styles.teamsRow}>
             <View style={styles.teamCol}>
@@ -289,7 +384,8 @@ const MatchSetupScreen = ({ navigation, route }) => {
                     selectingFor: 'A',
                     teamA,
                     teamB,
-                    activeTab: 'My Teams',
+                    tournamentDetails,
+                    activeTab: tournamentDetails ? 'Tournament' : 'My Teams',
                     onSelectTeam: (team) => {
                       // Clear previous squad data for this team
                       setPlayingXIA([]);
@@ -351,7 +447,8 @@ const MatchSetupScreen = ({ navigation, route }) => {
                     selectingFor: 'B',
                     teamA,
                     teamB,
-                    activeTab: 'Opponents',
+                    tournamentDetails,
+                    activeTab: tournamentDetails ? 'Tournament' : 'Opponents',
                     onSelectTeam: (team) => {
                       // Clear previous squad data for this team
                       setPlayingXIB([]);
@@ -450,12 +547,14 @@ const MatchSetupScreen = ({ navigation, route }) => {
 
           <View style={styles.inputGroup}>
             <Text style={styles.fieldLabel}>City / Town*</Text>
-            <TextInput
-              style={styles.underlineInput}
+            <LocationAutocomplete
               value={city}
               onChangeText={setCity}
-              placeholder="Ambur"
-              placeholderTextColor={Colors.textTertiary}
+              onSelectLocation={(loc) => {
+                setCity(loc.name);
+                setCityObj(loc);
+              }}
+              placeholder="Search city..."
             />
           </View>
 
@@ -484,9 +583,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
           <View style={styles.inputGroup}>
             <Text style={styles.fieldLabel}>Ball Type</Text>
             <View style={styles.ballsRow}>
-              {renderBallOption('Tennis', 'Tennis', '#2ed573', 'softball')}
-              {renderBallOption('Leather', 'Leather', '#ff4757', 'baseball')}
-              {renderBallOption('Other', 'Other', '#ffa502', 'record-circle-outline')}
+              {BALL_OPTIONS.map(renderBallOption)}
             </View>
           </View>
 
@@ -516,17 +613,19 @@ const MatchSetupScreen = ({ navigation, route }) => {
             </View>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={styles.stickyBottomBar}>
-        <TouchableOpacity style={styles.scheduleBtn} onPress={handleScheduleMatch} disabled={isMatchLoading}>
-          <Text style={styles.scheduleBtnText}>Schedule Match</Text>
-        </TouchableOpacity>
+        {!existingMatchId && (
+          <TouchableOpacity style={styles.scheduleBtn} onPress={handleScheduleMatch} disabled={isMatchLoading}>
+            <Text style={styles.scheduleBtnText}>Schedule Match</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.nextBtn} onPress={handleStartMatch} disabled={isMatchLoading}>
           {isMatchLoading ? (
             <ActivityIndicator color={Colors.background} size="small" />
           ) : (
-            <Text style={styles.nextBtnText}>Next (Toss)</Text>
+            <Text style={styles.nextBtnText}>{existingMatchId ? 'Start Match' : 'Next (Toss)'}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -703,36 +802,49 @@ const styles = StyleSheet.create({
   },
   ballOption: {
     alignItems: 'center',
+    marginHorizontal: 8,
   },
-  ballCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    borderWidth: 2,
+  /* Outer ring — no overflow:hidden so border + badge are never clipped */
+  ballRing: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    padding: 3,
+    borderWidth: 3,
     borderColor: 'transparent',
-    elevation: 3,
+    position: 'relative',
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
-  ballCircleSelected: {
-    borderColor: '#FFF',
-    borderWidth: 2,
+  ballRingSelected: {
+    borderColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 8,
   },
+  /* Inner image clip circle */
+  ballCircle: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 25,
+    overflow: 'hidden',
+  },
+  ballImage: {
+    width: '100%',
+    height: '100%',
+  },
+  /* Check badge sits outside the clip circle */
   ballCheckedBadge: {
     position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#FFF',
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    top: -4,
+    right: -4,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    padding: 1,
   },
   ballLabel: {
     fontSize: 12,
@@ -741,7 +853,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   ballLabelSelected: {
-    color: Colors.textPrimary,
+    color: Colors.primary,
     fontFamily: Typography.fontFamily.bold,
   },
   toggleRow: {

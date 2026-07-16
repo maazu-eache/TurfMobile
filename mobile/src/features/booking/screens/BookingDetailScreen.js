@@ -164,7 +164,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {['pending', 'confirmed'].includes(booking.status) && (
+          {/* {['pending', 'confirmed'].includes(booking.status) && (
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity style={[styles.cancelBtn, { flex: 1 }]} onPress={handleCancel}>
                 <Text style={styles.cancelBtnText}>
@@ -189,7 +189,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
                 Cancellation Requested. Awaiting Owner Refund.
               </Text>
             </View>
-          )}
+          )} */}
 
         </View>
       </ScrollView>

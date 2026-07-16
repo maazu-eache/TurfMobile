@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import io from 'socket.io-client';
 import { Colors, Typography, BorderRadius, Spacing, Shadows } from '../../../theme/theme';
 import moment from 'moment';
 import { getPlayerTags } from '../../../utils/playerTags';
+import ConfettiCannon from 'react-native-confetti-cannon';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -75,14 +76,57 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const [analysisFilter, setAnalysisFilter] = useState('ALL');
   const [selectedAnalysisBatter, setSelectedAnalysisBatter] = useState(null);
 
+  const [celebration, setCelebration] = useState(null);
+  const celebrationAnim = React.useRef(new RNAnimated.Value(0)).current;
+  const lastBallRef = React.useRef(null);
+
+  const triggerCelebration = (type, text, color) => {
+    setCelebration({ type, text, color });
+    celebrationAnim.setValue(0);
+    RNAnimated.spring(celebrationAnim, {
+      toValue: 1,
+      friction: 4,
+      tension: 60,
+      useNativeDriver: true,
+    }).start();
+    
+    setTimeout(() => {
+      RNAnimated.timing(celebrationAnim, {
+        toValue: 0,
+        duration: 300,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }).start(() => setCelebration(null));
+    }, 2800);
+  };
+
   useEffect(() => {
     dispatch(fetchLiveState(matchId));
     const socket = io(BASE_URL, { transports: ['websocket'] });
     socket.emit('join_match', { matchId });
     socket.on('score_update', (data) => {
       dispatch(setLiveState(data));
-      if (activeTab === 'Comms' || activeTab === 'Analysis') {
-        fetchCommentary();
+      // Real-time synchronization
+      fetchCommentary();
+      fetchScorecards();
+
+      // Trigger Celebration Logic
+      if (data?.recentCommentary?.length > 0) {
+        const latestBall = data.recentCommentary[0];
+        if (latestBall._id && latestBall._id !== lastBallRef.current) {
+          lastBallRef.current = latestBall._id;
+          
+          if (data.isMatchComplete || data.match?.status === 'completed') {
+            const winnerName = data.result?.winner === data.match?.teamA?._id ? data.match?.teamA?.name : data.result?.winner === data.match?.teamB?._id ? data.match?.teamB?.name : 'TEAM';
+            triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
+          } else if (latestBall.isWicket) {
+            triggerCelebration('wicket', 'W', Colors.error);
+          } else if (latestBall.batsmanRuns === 6) {
+            triggerCelebration('six', '6!', '#1976D2');
+          } else if (latestBall.batsmanRuns === 4) {
+            triggerCelebration('four', '4!', '#4CAF50');
+          }
+        }
       }
     });
 
@@ -153,7 +197,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const creatorId = typeof match.creator === 'object' ? match.creator?._id : match.creator;
   const isCreator = String(creatorId) === String(currentUser?._id);
-  const isScorer = isCreator || match.scorers?.some(s => {
+  const tournamentOrganizerId = match.tournament?.organizer?._id || match.tournament?.organizer;
+  const isTournamentOrganizer = String(tournamentOrganizerId) === String(currentUser?._id);
+  const isTournamentCoOrganizer = match.tournament?.coOrganizers?.some(s => String(s?._id || s) === String(currentUser?._id));
+  const isTournamentScorer = match.tournament?.scorers?.some(s => String(s?._id || s) === String(currentUser?._id));
+
+  const isScorer = isCreator || isTournamentOrganizer || isTournamentCoOrganizer || isTournamentScorer || match.scorers?.some(s => {
     const sId = typeof s === 'object' ? s?._id : s;
     return String(sId) === String(currentUser?._id);
   });
@@ -201,7 +250,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const handleContinue = async () => {
     if (match.status === 'scheduled') {
-      navigation.navigate('Toss', { matchId: match._id });
+      navigation.navigate('MatchSetup', { matchId: match._id, matchData: match, tournamentDetails: match.tournament });
     } else if (match.status === 'toss_done') {
       try {
         await api.post(`/matches/${match._id}/start-innings`, { inningsNumber: 1 });
@@ -228,6 +277,16 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Info</Text>
         <View style={styles.infoRow}><Text style={styles.infoLabel}>Match</Text><Text style={styles.infoValue}>{teamA} vs {teamB}</Text></View>
+        {match.tournament && match.tournament.name && (
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Tournament</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('TournamentDetail', { tournamentId: match.tournament._id })}>
+              <Text style={[styles.infoValue, { color: Colors.primary, textDecorationLine: 'underline' }]}>
+                {match.tournament.name}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.infoRow}><Text style={styles.infoLabel}>Date</Text><Text style={styles.infoValue}>{dateStr}</Text></View>
         <View style={styles.infoRow}><Text style={styles.infoLabel}>Toss</Text><Text style={styles.infoValue}>{match.toss?.winner ? `${getTossWinnerName()} opt to ${match.toss.choice}` : 'Not done yet'}</Text></View>
         <View style={styles.infoRow}><Text style={styles.infoLabel}>Format</Text><Text style={styles.infoValue}>{formatStr}</Text></View>
@@ -329,7 +388,16 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       if (match.playerOfMatch) {
         const mvpId = typeof match.playerOfMatch === 'object' ? match.playerOfMatch._id : match.playerOfMatch;
         const allXI = [...(match.playingXI?.teamA || []), ...(match.playingXI?.teamB || [])];
-        mvp = allXI.find(p => p._id === mvpId);
+        mvp = allXI.find(p => String(p._id) === String(mvpId));
+        
+        // Fallback: If player was added mid-match and isn't in playingXI, find them in scorecards
+        if (!mvp) {
+          const scorecardPlayers = scorecards.flatMap(sc => [
+            ...sc.batting.map(b => b.player), 
+            ...sc.bowling.map(b => b.player)
+          ]).filter(Boolean);
+          mvp = scorecardPlayers.find(p => String(p._id) === String(mvpId));
+        }
       } else {
         mvp = bestBatter?.player; // fallback
       }
@@ -587,20 +655,23 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 <Text style={{ color: Colors.textSecondary }}> vs </Text>
                 <Text style={{ color: !isTeamABatting ? '#FFF' : Colors.textSecondary }}>{match?.teamB?.name}</Text>
               </Text>
-              <Text style={styles.battingTeamName}>{currentBattingName}</Text>
-              <View style={styles.mainScoreRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                  <Text style={styles.scoreNumber}>{runs}/{wickets}</Text>
-                  <Text style={styles.oversNumber}>({overs} Ov)</Text>
-                </View>
-                <View style={{ flex: 1 }} />
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.crrText}>CRR: {score?.runRate || '0.00'}</Text>
-                  {liveState?.requiredRunRate && (
-                    <Text style={[styles.crrText, { marginTop: 2 }]}>RRR: {liveState.requiredRunRate}</Text>
-                  )}
-                </View>
-              </View>
+              {match.status !== 'scheduled' && match.status !== 'toss_done' && (
+                <>
+                  <View style={styles.mainScoreRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                      <Text style={styles.scoreNumber}>{runs}/{wickets}</Text>
+                      <Text style={styles.oversNumber}>({overs} Ov)</Text>
+                    </View>
+                    <View style={{ flex: 1 }} />
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.crrText}>CRR: {score?.runRate || '0.00'}</Text>
+                      {liveState?.requiredRunRate && (
+                        <Text style={[styles.crrText, { marginTop: 2 }]}>RRR: {liveState.requiredRunRate}</Text>
+                      )}
+                    </View>
+                  </View>
+                </>
+              )}
 
               {liveState?.inningsNumber === 2 && liveState?.target && (
                 <View style={{ marginTop: 8, padding: 8, backgroundColor: Colors.primaryAlpha20, borderRadius: 6 }}>
@@ -730,6 +801,63 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 </View>
               </>
             )}
+            
+            {/* Recent Commentary section at the bottom of the summary */}
+            {liveState?.recentCommentary?.length > 0 && (
+              <View style={[styles.section, { paddingBottom: 16, marginTop: 12 }]}>
+                <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Recent Deliveries</Text>
+                {liveState.recentCommentary.map((ball) => {
+                  let display = `${ball.batsmanRuns}`;
+                  let bgColor = Colors.borderLight;
+                  let textColor = Colors.textPrimary;
+
+                  if (ball.isWicket) {
+                    display = 'W';
+                    bgColor = Colors.error;
+                    textColor = '#FFF';
+                  } else if (ball.isWide) display = `${ball.totalRuns}Wd`;
+                  else if (ball.isNoBall) display = `${ball.totalRuns}Nb`;
+                  else if (ball.isLegBye) display = `${ball.totalRuns}Lb`;
+                  else if (ball.isBye) display = `${ball.totalRuns}B`;
+                  else if (ball.batsmanRuns === 4) {
+                    bgColor = '#4CAF50';
+                    textColor = '#FFF';
+                  } else if (ball.batsmanRuns === 6) {
+                    bgColor = '#1976D2';
+                    textColor = '#FFF';
+                  }
+
+                  let text = `${ball.batsmanRuns} run(s)`;
+                  if (ball.isWicket) text = ball.wicket?.type ? ball.wicket.type.replace('_', ' ') : 'Wicket!';
+                  else if (ball.isWide) text = `${ball.totalRuns} Wide(s)`;
+                  else if (ball.isNoBall) text = `${ball.totalRuns} No Ball(s)`;
+                  else if (ball.batsmanRuns === 4) text = 'Four runs!';
+                  else if (ball.batsmanRuns === 6) text = 'Six runs!';
+                  else if (ball.batsmanRuns === 0) text = 'Dot ball';
+
+                  const bowlerName = ball.bowler?.name?.split(' ')[0] || 'Bowler';
+                  const batsmanName = ball.batsman?.name?.split(' ')[0] || 'Batsman';
+
+                  return (
+                    <View key={ball._id} style={{ flexDirection: 'row', marginBottom: 12, alignItems: 'flex-start' }}>
+                      <View style={{ width: 40 }}>
+                        <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary, fontSize: 13, marginTop: 6 }}>{ball.overNumber - 1}.{ball.ballNumber}</Text>
+                      </View>
+                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: bgColor, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: textColor, fontSize: 12 }}>{display}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary, fontSize: 14 }}>
+                          {bowlerName} to {batsmanName}
+                        </Text>
+                        <Text style={{ fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, fontSize: 13, marginTop: 2 }}>{text}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
           </>
         )}
       </ScrollView>
@@ -1911,9 +2039,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
           <View style={styles.headerCenter}>
             <Text style={styles.headerTeamVs} numberOfLines={1}>
-              Match Summary
+              {match.teamA?.shortName || match.teamA?.name || 'Team A'} vs {match.teamB?.shortName || match.teamB?.name || 'Team B'}
             </Text>
-            {match.status === 'completed' ? (
+            {match.status === 'scheduled' && match.scheduledAt ? (
+               <Text style={styles.headerVsText} numberOfLines={1}>
+                 {new Date(match.scheduledAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} • {match.tournament?.name || 'Match'}
+               </Text>
+            ) : match.status === 'completed' ? (
               <View style={styles.statusBadgeCompleted}>
                 <Icon name="check-circle" size={10} color="#fff" style={{ marginRight: 4 }} />
                 <Text style={styles.statusBadgeText}>Completed</Text>
@@ -2016,6 +2148,34 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Celebration Overlay */}
+      {celebration && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 999 }]} pointerEvents="none">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+            <RNAnimated.Text style={{
+              fontSize: celebration.type === 'won' ? 44 : 140,
+              fontFamily: Typography.fontFamily.bold,
+              color: celebration.color,
+              textAlign: 'center',
+              textShadowColor: 'rgba(0,0,0,0.8)',
+              textShadowOffset: { width: 0, height: 6 },
+              textShadowRadius: 15,
+              transform: [{ scale: celebrationAnim }],
+              paddingHorizontal: 20,
+            }}>
+              {celebration.text}
+            </RNAnimated.Text>
+            
+            {celebration.type === 'won' && (
+              <ConfettiCannon count={150} origin={{x: SCREEN_WIDTH/2, y: -20}} fadeOut={true} fallSpeed={2500} colors={['#FFD700', '#FF8C00', '#FF1493', '#00BFFF', '#32CD32']} />
+            )}
+            {(celebration.type === 'six' || celebration.type === 'four') && (
+              <ConfettiCannon count={80} origin={{x: SCREEN_WIDTH/2, y: -20}} fadeOut={true} fallSpeed={3000} colors={['#FFF', celebration.color, '#FFD700']} />
+            )}
+          </View>
+        </View>
+      )}
 
     </SafeAreaView>
   );

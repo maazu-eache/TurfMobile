@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Dimensions, Alert, Modal, TextInput, Image, ImageBackground, FlatList, BackHandler, Share } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -40,6 +41,26 @@ const LiveScorerScreen = ({ navigation, route }) => {
   // Scorer Modal
   const [showAddScorerModal, setShowAddScorerModal] = useState(false);
   const [newScorerMobile, setNewScorerMobile] = useState('');
+  const [scorerSearchResult, setScorerSearchResult] = useState(null);
+  const [isScorerSearching, setIsScorerSearching] = useState(false);
+
+  const handleSearchScorer = async (mobArg) => {
+    const searchMob = typeof mobArg === 'string' && mobArg.length === 10 ? mobArg : newScorerMobile;
+    if (!searchMob || searchMob.length < 10) return;
+    setIsScorerSearching(true);
+    setScorerSearchResult(null);
+    try {
+      const res = await api.get(`/users/lookup/${searchMob}`);
+      setScorerSearchResult(res.data.data);
+    } catch (e) {
+      showCustomAlert('Error', 'Failed to search player');
+    } finally {
+      setIsScorerSearching(false);
+    }
+  };
+
+  const [scorerTab, setScorerTab] = useState('teamA'); // 'teamA' | 'teamB' | 'search'
+  const [scorerAddingId, setScorerAddingId] = useState(null); // tracks loading per player
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showPenaltyModal, setShowPenaltyModal] = useState(false);
   const [penaltyRuns, setPenaltyRuns] = useState('5');
@@ -73,6 +94,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   // Navigation lock — prevents duplicate navigation calls when liveState fires rapidly
   const navLockRef = useRef(false);
+
+  // Scoring lock — prevents multiple rapid taps on scoring buttons
+  const scoringLockRef = useRef(false);
 
   // Socket.io for Realtime updates
   useEffect(() => {
@@ -140,8 +164,19 @@ const LiveScorerScreen = ({ navigation, route }) => {
       const sId = typeof s === 'object' ? s?._id : s;
       return String(sId) === String(currentUser?._id);
     });
-    return (creatorMatch || scorerMatch) && !['completed', 'abandoned'].includes(liveState?.match?.status);
-  }, [liveState?.match?.creator, liveState?.match?.scorers, liveState?.match?.status, currentUser?._id]);
+    
+    // Check tournament organizers/scorers
+    const t = liveState?.match?.tournament;
+    let tournamentScorer = false;
+    if (t) {
+      const isOrganizer = typeof t.organizer === 'object' ? String(t.organizer?._id) === String(currentUser?._id) : String(t.organizer) === String(currentUser?._id);
+      const isCoOrganizer = t.coOrganizers?.some(c => (typeof c === 'object' ? String(c?._id) : String(c)) === String(currentUser?._id));
+      const isTScorer = t.scorers?.some(s => (typeof s === 'object' ? String(s?._id) : String(s)) === String(currentUser?._id));
+      tournamentScorer = isOrganizer || isCoOrganizer || isTScorer;
+    }
+
+    return (creatorMatch || scorerMatch || tournamentScorer) && !['completed', 'abandoned'].includes(liveState?.match?.status);
+  }, [liveState?.match?.creator, liveState?.match?.scorers, liveState?.match?.status, liveState?.match?.tournament, currentUser?._id]);
 
   const getLocalMatchSummary = (completedReason) => {
     if (match?.result?.summary) return match.result.summary;
@@ -422,6 +457,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
   };
 
   const handleAddScorer = async () => {
+    if (!scorerSearchResult?.exists) {
+      showCustomAlert('Error', 'Please search for a valid user first');
+      return;
+    }
     if (!newScorerMobile) {
       showCustomAlert('Error', 'Please enter a mobile number');
       return;
@@ -436,16 +475,42 @@ const LiveScorerScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleAddScorerFromPlayer = async (player) => {
+    const mobile = player?.userId?.mobile || player?.mobile;
+    if (!mobile) {
+      showCustomAlert('Error', 'This player has no mobile number on record.');
+      return;
+    }
+    setScorerAddingId(player._id || player.userId?._id);
+    try {
+      const res = await dispatch(addMatchScorer({ matchId, mobile }));
+      if (addMatchScorer.fulfilled.match(res)) {
+        showCustomAlert('Success', `${player.name || player.userId?.name || 'Player'} added as scorer!`);
+        dispatch(fetchLiveState(matchId));
+      } else {
+        showCustomAlert('Error', res.payload || 'Could not add scorer');
+      }
+    } finally {
+      setScorerAddingId(null);
+    }
+  };
+
   const executeSettingsAction = async (action, extraParam) => {
     try {
       if (action === 'end_innings' || action === 'declare_innings') {
-        const reason = action === 'declare_innings' ? 'declared' : 'overs_completed';
+        const reason = action === 'declare_innings' ? 'declared' : (liveState?.completedReason || 'overs_completed');
         await api.put(`/matches/${matchId}/end-innings`, { reason });
         const res = await dispatch(fetchLiveState(matchId)).unwrap();
 
         if (isMatchComplete || res?.isMatchComplete) {
           showCustomAlert('Success', 'Match completed successfully');
-          navigation.replace('MatchSummary', { matchId });
+          navigation.reset({
+            index: 1,
+            routes: [
+              { name: 'MyCricketMain' },
+              { name: 'MatchSummary', params: { matchId } }
+            ]
+          });
         } else {
           showCustomAlert('Success', 'Innings completed');
         }
@@ -453,12 +518,21 @@ const LiveScorerScreen = ({ navigation, route }) => {
         await api.put(`/matches/${matchId}/abandon`, { reason: extraParam });
         dispatch(fetchLiveState(matchId));
         showCustomAlert('Success', 'Match abandoned');
-        navigation.goBack();
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MyCricketMain' }]
+        });
       } else if (action === 'declare_dls') {
         await api.put(`/matches/${matchId}/declare-dls`);
         const res = await dispatch(fetchLiveState(matchId)).unwrap();
         showCustomAlert('Success', res?.completedReason ? 'Match ended (DLS Method)' : 'Match ended (DLS Method)');
-        navigation.replace('MatchSummary', { matchId });
+        navigation.reset({
+          index: 1,
+          routes: [
+            { name: 'MyCricketMain' },
+            { name: 'MatchSummary', params: { matchId } }
+          ]
+        });
       } else if (action === 'toggle_single_wicket') {
         const newValue = !match?.isSingleWicketBatting;
         await api.put(`/matches/${matchId}/settings`, { isSingleWicketBatting: newValue });
@@ -660,6 +734,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   const handleScore = async (runs, options = {}) => {
     if (!liveState?.match) return;
+    // Prevent multiple rapid taps — ignore if a scoring action is already in progress
+    if (scoringLockRef.current) return;
+    scoringLockRef.current = true;
 
     // Wagon Wheel Interception Logic
     const match = liveState.match;
@@ -673,6 +750,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
         setPendingRuns(runs);
         setPendingScoreOptions(options);
         setShowWagonWheelModal(true);
+        scoringLockRef.current = false; // release — modal takes over
         return;
       }
     }
@@ -712,6 +790,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   dispatch(fetchLiveState(matchId));
                 } catch (e) {
                   showCustomAlert('Error', 'Could not record all out');
+                } finally {
+                  scoringLockRef.current = false;
                 }
             }},
             { text: 'Single Wicket Batting', onPress: async () => {
@@ -720,6 +800,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             }}
           ]
         );
+        scoringLockRef.current = false; // release — alert dialog takes over
         return;
       }
     }
@@ -746,6 +827,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
       await dispatch(scoreBall({ matchId, ballData: payload })).unwrap();
     } catch (e) {
       showCustomAlert('Scoring Error', e || 'Could not record ball');
+    } finally {
+      // Release the lock so the next ball can be scored
+      scoringLockRef.current = false;
     }
   };
 
@@ -753,7 +837,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     return (
       <View style={styles.overTimeline}>
         <Text style={styles.overTimelineLabel}>This Over:</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineScroll}>
+        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineScroll}>
           {currentOverBalls?.map((ball, i) => {
             const isWicket = ball.type === 'wicket' || ball.display === 'W';
             const isFour = ball.runs === 4;
@@ -772,7 +856,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
               </View>
             );
           })}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     );
   };
@@ -814,7 +898,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.content} showsVerticalScrollIndicator={false}>
         {/* ── Score Board ── */}
         <View style={styles.scoreBoard}>
           {/* Team Names Row */}
@@ -911,7 +995,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             return (
               <View style={{ width: '100%' }}>
                 <View style={styles.playersGridHeader}>
-                  <Icon name="bat" size={12} color={Colors.textTertiary} />
+                  <Icon name="cricket" size={12} color={Colors.textTertiary} />
                   <Text style={styles.playersGridHeaderText}>Batting</Text>
                 </View>
                 <View style={[styles.playerRowBordered, { borderBottomWidth: 0, padding: 0 }]}>
@@ -926,7 +1010,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     disabled={!isScorer}
                   >
                     <View style={styles.playerNameRow}>
-                      {isLeftStriker ? <Icon key="left-striker-bat-icon" name="bat" size={13} color={Colors.primary} style={{ marginRight: 3 }} /> : null}
+                      {isLeftStriker ? <Icon key="left-striker-bat-icon" name="cricket" size={13} color={Colors.primary} style={{ marginRight: 3 }} /> : null}
                       <Text key="left-striker-name-text" style={[
                         styles.playerName,
                         isLeftStriker && styles.strikerName,
@@ -957,7 +1041,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     disabled={!isScorer}
                   >
                     <View style={styles.playerNameRow}>
-                      {isRightStriker ? <Icon key="right-striker-bat-icon" name="bat" size={13} color={Colors.primary} style={{ marginRight: 3 }} /> : null}
+                      {isRightStriker ? <Icon key="right-striker-bat-icon" name="cricket" size={13} color={Colors.primary} style={{ marginRight: 3 }} /> : null}
                       <Text key="right-striker-name-text" style={[
                         styles.playerName,
                         isRightStriker && styles.strikerName,
@@ -1028,7 +1112,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {isScorer ? (
         <>
@@ -1174,32 +1258,175 @@ const LiveScorerScreen = ({ navigation, route }) => {
       ) : null}
 
 
-      {/* Add Scorer Modal */}
+      {/* Add / Change Scorer Modal */}
       {showAddScorerModal ? (
-        <Modal visible={true} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Add Scorer</Text>
-              <Text style={styles.modalSub}>Enter the mobile number of the user you want to assign as a co-scorer.</Text>
-
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Mobile Number"
-                placeholderTextColor={Colors.textTertiary}
-                keyboardType="phone-pad"
-                value={newScorerMobile}
-                onChangeText={setNewScorerMobile}
-                maxLength={10}
-              />
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setShowAddScorerModal(false)}>
-                  <Text style={styles.modalBtnTextCancel}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.modalBtnAdd} onPress={handleAddScorer} disabled={isLoading}>
-                  <Text style={styles.modalBtnTextAdd}>{isLoading ? 'Adding...' : 'Add Scorer'}</Text>
+        <Modal visible={true} transparent animationType="slide" onRequestClose={() => setShowAddScorerModal(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: Colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 30 }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>Add / Change Scorer</Text>
+                <TouchableOpacity onPress={() => { setShowAddScorerModal(false); setNewScorerMobile(''); }}>
+                  <Icon name="close" size={24} color={Colors.textSecondary} />
                 </TouchableOpacity>
               </View>
+
+              {/* Tab Bar */}
+              <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 14, backgroundColor: Colors.surface, borderRadius: 10, padding: 3 }}>
+                {[
+                  { key: 'teamA', label: match?.teamA?.name || 'Team A' },
+                  { key: 'teamB', label: match?.teamB?.name || 'Team B' },
+                  { key: 'search', label: '🔍 Search' },
+                ].map(tab => (
+                  <TouchableOpacity
+                    key={tab.key}
+                    onPress={() => setScorerTab(tab.key)}
+                    style={[
+                      { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+                      scorerTab === tab.key && { backgroundColor: Colors.primary },
+                    ]}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        fontSize: 11,
+                        fontFamily: Typography.fontFamily.semiBold,
+                        color: scorerTab === tab.key ? '#000' : Colors.textSecondary,
+                      }}
+                    >
+                      {tab.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Tab Content */}
+              {scorerTab === 'search' ? (
+                <View style={{ padding: 16 }}>
+                  <Text style={{ color: Colors.textSecondary, marginBottom: 10, fontSize: 13 }}>Enter mobile number to search and add scorer:</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border }}>
+                    <Icon name="phone-outline" size={20} color={Colors.textTertiary} />
+                    <TextInput
+                      style={{ flex: 1, color: Colors.textPrimary, fontSize: 15, paddingVertical: 12, marginLeft: 8 }}
+                      placeholder="10-digit mobile number"
+                      placeholderTextColor={Colors.textTertiary}
+                      keyboardType="phone-pad"
+                      value={newScorerMobile}
+                      onChangeText={(val) => {
+                        if (val === newScorerMobile) return;
+                        setNewScorerMobile(val);
+                        setScorerSearchResult(null);
+                        if (val.length === 10) {
+                          handleSearchScorer(val);
+                        }
+                      }}
+                      maxLength={10}
+                    />
+                    {isScorerSearching && <ActivityIndicator color={Colors.primary} size="small" />}
+                  </View>
+
+                  {scorerSearchResult && scorerSearchResult.exists && (
+                    <View style={{ marginTop: 16, backgroundColor: Colors.surfaceVariant, padding: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                        <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                          {(scorerSearchResult.user?.name || 'U').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>
+                          {scorerSearchResult.user?.name || 'Registered User'}
+                        </Text>
+                        <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Registered User</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {scorerSearchResult && !scorerSearchResult.exists && (
+                    <Text style={{ color: Colors.error, fontSize: 13, marginTop: 12, textAlign: 'center' }}>
+                      User not found. Please enter a registered user's number.
+                    </Text>
+                  )}
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modalBtnAdd, 
+                      { marginTop: 16, width: '100%', borderRadius: 10, height: 48, justifyContent: 'center', alignItems: 'center', opacity: (scorerSearchResult && scorerSearchResult.exists && !isLoading) ? 1 : 0.5 }
+                    ]}
+                    onPress={handleAddScorer}
+                    disabled={!scorerSearchResult?.exists || isLoading}
+                  >
+                    <Text style={[styles.modalBtnTextAdd, { fontSize: 15 }]}>{isLoading ? 'Adding...' : 'Add Scorer'}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <FlatList
+                  data={(() => {
+                    const squad = scorerTab === 'teamA'
+                      ? (match?.playingXI?.teamA || [])
+                      : (match?.playingXI?.teamB || []);
+                    // Exclude already-assigned scorers
+                    const existingScorers = (match?.scorers || []).map(s => {
+                      const id = typeof s === 'object' ? (s._id || s.userId?._id) : s;
+                      return String(id);
+                    });
+                    return squad.filter(p => {
+                      const userIdStr = String(p.userId?._id || p.userId || '');
+                      const playerIdStr = String(p._id || '');
+                      return !existingScorers.includes(userIdStr) && !existingScorers.includes(playerIdStr);
+                    });
+                  })()}
+                  keyExtractor={item => String(item._id || item.userId?._id || Math.random())}
+                  contentContainerStyle={{ padding: 16, gap: 10 }}
+                  showsVerticalScrollIndicator={false}
+                  ListEmptyComponent={() => (
+                    <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                      <Icon name="account-group-outline" size={48} color={Colors.textTertiary} />
+                      <Text style={{ color: Colors.textTertiary, marginTop: 10, fontSize: 14 }}>No players available</Text>
+                      <Text style={{ color: Colors.textTertiary, fontSize: 12, marginTop: 4 }}>All players may already be scorers</Text>
+                    </View>
+                  )}
+                  renderItem={({ item }) => {
+                    const name = item.name || item.userId?.name || 'Unknown';
+                    const role = item.playingRole || item.userId?.role || '';
+                    const photo = item.photo || item.userId?.photo;
+                    const pid = item._id || item.userId?._id;
+                    const isAdding = scorerAddingId === pid;
+                    return (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.border }}>
+                        {/* Avatar */}
+                        {photo ? (
+                          <Image source={{ uri: getImageUrl(photo) }} style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }} />
+                        ) : (
+                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                            <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 18 }}>{name.charAt(0).toUpperCase()}</Text>
+                          </View>
+                        )}
+                        {/* Name & Role */}
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>{name}</Text>
+                          {role ? <Text style={{ color: Colors.textSecondary, fontSize: 11, marginTop: 2 }}>{role}</Text> : null}
+                        </View>
+                        {/* Add Button */}
+                        <TouchableOpacity
+                          onPress={() => handleAddScorerFromPlayer(item)}
+                          disabled={isAdding}
+                          style={{
+                            backgroundColor: isAdding ? Colors.border : Colors.primary,
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
+                            borderRadius: 8,
+                          }}
+                        >
+                          {isAdding
+                            ? <Icon name="loading" size={16} color={Colors.textSecondary} />
+                            : <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Add</Text>
+                          }
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  }}
+                />
+              )}
             </View>
           </View>
         </Modal>
@@ -1375,7 +1602,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     <Text style={styles.modalTitle}>{advWicketType?.replace(/_/g, ' ').toUpperCase()}</Text>
                     <TouchableOpacity onPress={() => setShowAdvancedWicketModal(false)}><Icon name="close" size={24} color={Colors.textPrimary} /></TouchableOpacity>
                   </View>
-                  <ScrollView showsVerticalScrollIndicator={false} style={{ width: '100%' }}>
+                  <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ width: '100%' }}>
 
                     {/* Dismissed Batter Selection (For Run Out, Obstructing, Cheating, Retired) */}
                     {['run_out', 'obstructing_field', 'cheating', 'retired_hurt', 'retired_out'].includes(advWicketType) && (
@@ -1490,7 +1717,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     <TouchableOpacity style={styles.modalBtnAdd} onPress={submitAdvancedWicket}>
                       <Text style={styles.modalBtnTextAdd}>Save Wicket</Text>
                     </TouchableOpacity>
-                  </ScrollView>
+                  </KeyboardAwareScrollView>
                 </>
               )}
             </View>
@@ -1514,7 +1741,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 <Text style={{ fontSize: 20, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Match Settings</Text>
                 <TouchableOpacity onPress={() => setShowSettingsModal(false)}><Icon name="close" size={24} color={Colors.textSecondary} /></TouchableOpacity>
               </View>
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 <View style={{ gap: 12 }}>
                   <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('view_scoreboard')}>
                     <Icon name="clipboard-text-outline" size={20} color={Colors.primary} style={{ marginRight: 12 }} />
@@ -1523,7 +1750,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   {isCreator && isMatchActive ? (
                     <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('add_scorer')}>
                       <Icon name="account-plus-outline" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
-                      <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Add Scorer</Text>
+                      <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Add / Change Scorer</Text>
                     </TouchableOpacity>
                   ) : null}
                   {isCreator && isMatchActive ? (
@@ -1541,13 +1768,6 @@ const LiveScorerScreen = ({ navigation, route }) => {
                         <Icon name="plus-circle-outline" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
                         <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Add Penalty Runs</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('revise_overs')}>
-                        <Icon name="weather-lightning-rainy" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
-                        <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Revise Overs (Rain)</Text>
-                      </TouchableOpacity>
-                      
-                      <View style={{ height: 1, backgroundColor: Colors.border, marginVertical: 8 }} />
-                      
                       <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('retired_hurt')}>
                         <Icon name="medical-bag" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
                         <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Retired Hurt</Text>
@@ -1560,20 +1780,50 @@ const LiveScorerScreen = ({ navigation, route }) => {
                         <Icon name="stop-circle-outline" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
                         <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>End Innings Manually</Text>
                       </TouchableOpacity>
-                      {liveState?.inningsNumber === 2 && (
-                        <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_dls')}>
-                          <Icon name="scale-balance" size={20} color={Colors.info} style={{ marginRight: 12 }} />
-                          <Text style={[styles.bsBtnText, { color: Colors.info }]}>Declare Winner (DLS)</Text>
+
+                      {/* ── Between / 2nd Innings Settings ─────────────── */}
+                      {liveState?.inningsNumber >= 2 && (
+                        <>
+                          <View style={{ height: 1, backgroundColor: Colors.border, marginVertical: 8 }} />
+                          <Text style={{ fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 4, paddingHorizontal: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>2nd Innings Settings</Text>
+
+                          <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('revise_overs')}>
+                            <Icon name="weather-lightning-rainy" size={20} color='#29B6F6' style={{ marginRight: 12 }} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Revised Target (Rain / DLS)</Text>
+                              <Text style={{ fontSize: 10, color: Colors.textTertiary, marginTop: 1 }}>Reduce overs & set new target</Text>
+                            </View>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_dls')}>
+                            <Icon name="scale-balance" size={20} color={Colors.info} style={{ marginRight: 12 }} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.bsBtnText, { color: Colors.info }]}>Declare Winner via DLS</Text>
+                              <Text style={{ fontSize: 10, color: Colors.textTertiary, marginTop: 1 }}>End match now using DLS method</Text>
+                            </View>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16, borderWidth: 1, borderColor: `${Colors.error}40` }]} onPress={() => handleSettingsAction('abandon')}>
+                            <Icon name="cancel" size={20} color={Colors.error} style={{ marginRight: 12 }} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.bsBtnText, { color: Colors.error }]}>Abandon Match</Text>
+                              <Text style={{ fontSize: 10, color: `${Colors.error}99`, marginTop: 1 }}>Irreversible — match will be void</Text>
+                            </View>
+                          </TouchableOpacity>
+                        </>
+                      )}
+
+                      {/* Abandon always accessible in 1st innings too */}
+                      {liveState?.inningsNumber < 2 && (
+                        <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('abandon')}>
+                          <Icon name="cancel" size={20} color={Colors.error} style={{ marginRight: 12 }} />
+                          <Text style={[styles.bsBtnText, { color: Colors.error }]}>Abandon Match</Text>
                         </TouchableOpacity>
                       )}
-                      <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('abandon')}>
-                        <Icon name="cancel" size={20} color={Colors.error} style={{ marginRight: 12 }} />
-                        <Text style={[styles.bsBtnText, { color: Colors.error }]}>Match Abandoned</Text>
-                      </TouchableOpacity>
                     </>
                   ) : null}
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
         </Modal>

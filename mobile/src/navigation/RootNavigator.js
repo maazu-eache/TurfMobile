@@ -8,7 +8,7 @@ import OwnerNavigator from './OwnerNavigator';
 import PlayerNavigator from './PlayerNavigator';
 import AdminNavigator from './AdminNavigator';
 import SplashScreen from '../features/auth/screens/SplashScreen';
-import OwnerPaymentScreen from '../features/owner/screens/OwnerPaymentScreen';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -29,9 +29,6 @@ const RootNavigator = () => {
     if (roles.includes('admin')) return <Stack.Screen name="Admin" component={AdminNavigator} />;
     
     if (roles.includes('owner')) {
-      if (!user.hasPaidOwnerFee) {
-        return <Stack.Screen name="OwnerPayment" component={OwnerPaymentScreen} />;
-      }
       return <Stack.Screen name="Owner" component={OwnerNavigator} />;
     }
 

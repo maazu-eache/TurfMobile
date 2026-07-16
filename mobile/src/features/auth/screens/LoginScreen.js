@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Image,
+  Platform, ActivityIndicator, Image,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -42,7 +43,7 @@ const LoginScreen = ({ navigation }) => {
 
   return (
     <LinearGradient colors={Colors.gradients.dark} style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.innerContent} style={styles.inner}>
         
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Icon name="arrow-left" size={28} color="#FFFFFF" />
@@ -172,14 +173,15 @@ const LoginScreen = ({ navigation }) => {
           <Text style={styles.link}>Terms of Service</Text> and{' '}
           <Text style={styles.link}>Privacy Policy</Text>
         </Text>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  inner: { flex: 1, justifyContent: 'center', padding: Spacing.xl },
+  inner: { flex: 1 },
+  innerContent: { flexGrow: 1, justifyContent: 'center', padding: Spacing.xl },
   glassCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 32,

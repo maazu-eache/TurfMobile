@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, Modal, TextInput } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -324,7 +325,7 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
         </View>
       </View>
       <View style={styles.statusFilterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusScroll}>
+        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusScroll}>
           {['All', 'Pending', 'Confirmed', 'Completed', 'Cancelled', 'Cancellation Requested'].map(status => (
             <TouchableOpacity 
               key={status} 
@@ -334,7 +335,7 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
               <Text style={[styles.statusFilterText, statusFilter === status && styles.statusFilterTextActive]}>{status}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* Bookings List */}

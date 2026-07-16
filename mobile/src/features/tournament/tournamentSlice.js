@@ -20,7 +20,15 @@ const tournamentSlice = createSlice({
   reducers: { clearSelectedTournament: (state) => { state.selectedTournament = null; } },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchTournaments.fulfilled, (state, a) => { state.tournaments = a.payload.data || []; })
+      .addCase(fetchTournaments.fulfilled, (state, a) => {
+        if (a.meta.arg.page > 1) {
+          const existingIds = new Set(state.tournaments.map(t => t._id));
+          const newItems = (a.payload.data || []).filter(t => !existingIds.has(t._id));
+          state.tournaments = [...state.tournaments, ...newItems];
+        } else {
+          state.tournaments = a.payload.data || [];
+        }
+      })
       .addCase(fetchTournamentById.fulfilled, (state, a) => { state.selectedTournament = a.payload; })
       .addCase(createTournament.fulfilled, (state, a) => { state.tournaments.unshift(a.payload); });
   },

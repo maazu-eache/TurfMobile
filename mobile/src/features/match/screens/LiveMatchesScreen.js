@@ -88,7 +88,7 @@ const LiveMatchesScreen = () => {
         {item.toss?.winner && item.status !== 'scheduled' && (
           <View style={styles.tossRow}>
             <Text style={styles.tossText}>
-              {item.toss.winner.name} won the toss and elected to {item.toss.choice}
+              {item.toss.winner.name || (item.toss.winner?.toString() === item.teamA?._id?.toString() ? item.teamA?.name : item.teamB?.name)} won the toss and elected to {item.toss.choice}
             </Text>
           </View>
         )}

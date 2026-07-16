@@ -288,7 +288,7 @@ const AdminSettlementsScreen = ({ navigation }) => {
       {/* Action Modal */}
       <Modal visible={!!selectedReq} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <KeyboardAwareScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View style={[styles.modalIconBg, { backgroundColor: actionType === 'processed' ? Colors.primaryAlpha20 : 'rgba(255,71,87,0.15)' }]}>
@@ -353,8 +353,8 @@ const AdminSettlementsScreen = ({ navigation }) => {
                 )}
               </TouchableOpacity>
             </View>
+          </KeyboardAwareScrollView>
           </View>
-        </View>
       </Modal>
     </View>
   );

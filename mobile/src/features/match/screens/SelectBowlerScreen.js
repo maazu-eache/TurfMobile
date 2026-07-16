@@ -19,22 +19,10 @@ const SelectBowlerScreen = ({ route, navigation }) => {
 
   const [squad, setSquad] = useState([]);
   const [oppositionSquad, setOppositionSquad] = useState([]);
+  const [fullSquad, setFullSquad] = useState([]);
+  const [fullOppositionSquad, setFullOppositionSquad] = useState([]);
   const [loading, setLoading] = useState(false);
   const [scorecards, setScorecards] = useState([]);
-
-  useEffect(() => {
-    const backAction = () => {
-      // Return true to block hardware back button press
-      return true;
-    };
-
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      backAction
-    );
-
-    return () => backHandler.remove();
-  }, []);
 
   useEffect(() => {
     if (match) {
@@ -74,22 +62,13 @@ const SelectBowlerScreen = ({ route, navigation }) => {
       const bowlingXI = isTeamABatting ? (match.playingXI?.teamB || []) : (match.playingXI?.teamA || []);
       const battingXI = isTeamABatting ? (match.playingXI?.teamA || []) : (match.playingXI?.teamB || []);
       
-      const isPlayerInXI = (player, xiArray) => {
-        if (!player) return false;
-        return xiArray.some(xi => {
-          const xiId = typeof xi === 'object' && xi !== null ? xi._id : xi;
-          return String(xiId) === String(player._id);
-        });
-      };
-      
-      const filteredBowlPlayers = bowlPlayers.filter(p => isPlayerInXI(p, bowlingXI));
-      const filteredBatPlayers = batPlayers.filter(p => isPlayerInXI(p, battingXI));
-      
-      const finalBowl = bowlingXI.length > 0 ? filteredBowlPlayers : bowlPlayers;
-      const finalBat = battingXI.length > 0 ? filteredBatPlayers : batPlayers;
+      const finalBowl = bowlingXI.length > 0 ? bowlingXI.filter(Boolean) : bowlPlayers.filter(Boolean);
+      const finalBat = battingXI.length > 0 ? battingXI.filter(Boolean) : batPlayers.filter(Boolean);
       
       setSquad(finalBowl);
       setOppositionSquad(finalBat);
+      setFullSquad(bowlPlayers.filter(Boolean));
+      setFullOppositionSquad(batPlayers.filter(Boolean));
     } catch (e) {
       console.log('Error loading squad:', e);
     } finally {
@@ -115,7 +94,9 @@ const SelectBowlerScreen = ({ route, navigation }) => {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={{ width: 28 }} />
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Select Bowler</Text>
         <View style={{ width: 28 }} />
       </View>
@@ -196,11 +177,31 @@ const SelectBowlerScreen = ({ route, navigation }) => {
             const playingXI = isTeamABatting ? match?.playingXI?.teamB : match?.playingXI?.teamA;
             navigation.navigate('AddPlayer', { 
               teamId,
-              roster: squad,
-              oppositionRoster: oppositionSquad,
+              matchId,
+              roster: fullSquad,
+              oppositionRoster: fullOppositionSquad,
               squad: playingXI || [],
-              onPlayerAdded: () => {
-                loadBowlingSquad();
+              onPlayerAdded: async (newPlayer) => {
+                try {
+                  const currentTeamA_XI = match?.playingXI?.teamA?.map(p => p._id || p) || [];
+                  const currentTeamB_XI = match?.playingXI?.teamB?.map(p => p._id || p) || [];
+                  
+                  if (isTeamABatting) {
+                    currentTeamB_XI.push(newPlayer._id);
+                  } else {
+                    currentTeamA_XI.push(newPlayer._id);
+                  }
+                  
+                  await api.post(`/matches/${matchId}/playing-xi`, {
+                    teamA: currentTeamA_XI,
+                    teamB: currentTeamB_XI
+                  });
+                  
+                  const res = await api.get(`/matches/${matchId}/live`);
+                  dispatch(setLiveState(res.data.data));
+                } catch (e) {
+                  console.log('Error adding player to playing XI', e);
+                }
               }
             });
           }}

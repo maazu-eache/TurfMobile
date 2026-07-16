@@ -1,3 +1,4 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -11,6 +12,7 @@ import {
   ScrollView,
   Animated,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -23,8 +25,9 @@ import { fetchTournaments } from '../../tournament/tournamentSlice';
 import { toggleUserFavourite, setUserFavouriteStatus } from '../../auth/authSlice';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
-import api from '../../../api/axios';
+import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
+import LocationAutocomplete from '../../../components/LocationAutocomplete';
 
 // Ground (Turfs) is LAST
 const TABS = [
@@ -34,13 +37,6 @@ const TABS = [
   { id: 'turfs',       label: 'Ground',      icon: 'soccer-field' },
 ];
 
-const TURF_QUICK_FILTERS = [
-  { id: 'all',      icon: 'soccer-field',        label: 'All',      value: '' },
-  { id: 'verified', icon: 'check-decagram',       label: 'Verified', value: 'verified' },
-  { id: 'lights',   icon: 'lightbulb-on',         label: 'Floodlit', value: 'floodLights' },
-  { id: 'parking',  icon: 'parking',              label: 'Parking',  value: 'parking' },
-  { id: 'washroom', icon: 'shower',               label: 'Washroom', value: 'washroom' },
-];
 const PLAYER_QUICK_FILTERS = [
   { id: 'all',           icon: 'account',   label: 'All',          value: '' },
   { id: 'batsman',       icon: 'cricket',   label: 'Batsman',      value: 'Batsman' },
@@ -54,13 +50,6 @@ const MATCH_QUICK_FILTERS = [
   { id: 'scheduled', icon: 'calendar-clock',        label: 'Scheduled', value: 'scheduled' },
   { id: 'completed', icon: 'check-circle-outline',  label: 'Completed', value: 'completed' },
 ];
-const TOURNAMENT_QUICK_FILTERS = [
-  { id: 'all',       icon: 'trophy',             label: 'All',      value: '' },
-  { id: 'reg_open',  icon: 'lock-open-outline',   label: 'Reg Open', value: 'registration_open' },
-  { id: 'ongoing',   icon: 'play-circle-outline', label: 'Ongoing',  value: 'ongoing' },
-  { id: 'completed', icon: 'trophy-outline',      label: 'Finished', value: 'completed' },
-];
-
 const SearchScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
   const user = useSelector((s) => s.auth?.user);
@@ -73,14 +62,15 @@ const SearchScreen = ({ navigation, route }) => {
 
   const [activeTab, setActiveTab] = useState('players');
   const [isFilterVisible, setFilterVisible] = useState(false);
-  const [cityFilter, setCityFilter] = useState('');
+  
+  // Location State
+  const [selectedLocation, setSelectedLocation] = useState(null);
+
   const [minTrustScore, setMinTrustScore] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sortOrder, setSortOrder] = useState('');
-  const [activeTurfFilter, setActiveTurfFilter] = useState('all');
   const [playerRoleFilter, setPlayerRoleFilter] = useState('');
   const [matchStatusFilter, setMatchStatusFilter] = useState('');
-  const [tournamentStatusFilter, setTournamentStatusFilter] = useState('');
 
   const slideAnim = useRef(new Animated.Value(700)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
@@ -97,30 +87,55 @@ const SearchScreen = ({ navigation, route }) => {
   }, [route?.params?.tab, navigation]);
 
   useEffect(() => {
-    const city = myProfile?.city || user?.city || '';
-    if (city && !cityFilter) setCityFilter(city);
-  }, [myProfile, user]);
+    dispatch(setSearchQuery(''));
+  }, [activeTab, dispatch]);
 
   useEffect(() => {
+    // Initial location setup if available
+    const city = myProfile?.city || user?.city || '';
+    if (city && !selectedLocation) {
+      setSelectedLocation({ name: city, city: city });
+    }
+  }, [myProfile, user]);
+
+  // Reset to page 1 whenever search criteria change (not when page increments)
+  const [page, setPage] = useState(1);
+  const [isPaginating, setIsPaginating] = useState(false);
+  const isFirstMount = React.useRef(true);
+  const prevFiltersRef = React.useRef('');
+  
+  useEffect(() => {
+    if (!selectedLocation) return;
+    const filterKey = `${searchQuery}|${selectedLocation?.name}|${activeTab}|${minTrustScore}|${maxPrice}|${sortOrder}|${playerRoleFilter}|${matchStatusFilter}`;
+    if (prevFiltersRef.current !== filterKey) {
+      prevFiltersRef.current = filterKey;
+      setPage(1); // Reset page to 1 on any filter change
+    }
+  }, [searchQuery, selectedLocation, activeTab, minTrustScore, maxPrice, sortOrder, playerRoleFilter, matchStatusFilter]);
+
+  useEffect(() => {
+    if (!selectedLocation) return;
     const t = setTimeout(() => {
-      const city = cityFilter.trim();
+      const city = selectedLocation.city || selectedLocation.name || '';
+      const lat = selectedLocation.latitude;
+      const lng = selectedLocation.longitude;
+      const currentPage = page;
+
+      const commonQuery = { search: searchQuery?.trim() || undefined, city, lat, lng, page: currentPage, limit: 10 };
+
       if (activeTab === 'turfs') {
-        const queryParams = { search: searchQuery || undefined, city, minTrustScore, maxPrice, sort: sortOrder };
-        if (activeTurfFilter !== 'all') {
-          if (activeTurfFilter === 'verified') queryParams.isVerified = 'true';
-          else queryParams[activeTurfFilter] = 'true';
-        }
-        dispatch(fetchTurfs(queryParams));
+        const queryParams = { ...commonQuery, minTrustScore, maxPrice, sort: sortOrder };
+        dispatch(fetchTurfs(queryParams)).finally(() => setIsPaginating(false));
       } else if (activeTab === 'players') {
-        dispatch(fetchRankings({ search: searchQuery, city, role: playerRoleFilter || undefined }));
+        dispatch(fetchRankings({ ...commonQuery, role: playerRoleFilter || undefined })).finally(() => setIsPaginating(false));
       } else if (activeTab === 'matches') {
-        dispatch(fetchMatches({ search: searchQuery, city, status: matchStatusFilter || undefined }));
+        dispatch(fetchMatches({ ...commonQuery, status: matchStatusFilter || undefined })).finally(() => setIsPaginating(false));
       } else {
-        dispatch(fetchTournaments({ search: searchQuery, city, status: tournamentStatusFilter || undefined }));
+        dispatch(fetchTournaments(commonQuery)).finally(() => setIsPaginating(false));
       }
-    }, 450);
+    }, 400);
     return () => clearTimeout(t);
-  }, [searchQuery, cityFilter, activeTab, minTrustScore, maxPrice, sortOrder, activeTurfFilter, playerRoleFilter, matchStatusFilter, tournamentStatusFilter, dispatch]);
+  }, [searchQuery, selectedLocation, activeTab, minTrustScore, maxPrice, sortOrder, playerRoleFilter, matchStatusFilter, page, dispatch]);
 
   const openModal = () => {
     setFilterVisible(true);
@@ -138,12 +153,11 @@ const SearchScreen = ({ navigation, route }) => {
   };
 
   const resetFilters = () => {
-    setCityFilter(''); setMinTrustScore(''); setMaxPrice(''); setSortOrder('');
-    setPlayerRoleFilter(''); setMatchStatusFilter(''); setTournamentStatusFilter('');
-    setActiveTurfFilter('all');
+    setMinTrustScore(''); setMaxPrice(''); setSortOrder('');
+    setPlayerRoleFilter(''); setMatchStatusFilter('');
   };
 
-  const hasActiveFilters = cityFilter || minTrustScore || maxPrice || sortOrder || playerRoleFilter || matchStatusFilter || tournamentStatusFilter || activeTurfFilter !== 'all';
+  const hasActiveFilters = minTrustScore || maxPrice || sortOrder || playerRoleFilter || matchStatusFilter;
 
   const activeLoading = activeTab === 'turfs' ? turfLoading : activeTab === 'players' ? playerLoading : activeTab === 'matches' ? matchLoading : tournamentLoading;
   const activeDataList = activeTab === 'turfs' ? turfs : activeTab === 'players' ? players : activeTab === 'matches' ? matches : tournaments;
@@ -154,29 +168,23 @@ const SearchScreen = ({ navigation, route }) => {
     return p.length ? Math.min(...p) : 0;
   };
 
-  const getImageUrl = (path) => {
-    if (!path) return 'https://via.placeholder.com/400x200';
-    if (path.startsWith('http')) return path;
-    const base = api.defaults.baseURL.replace('/api', '');
-    return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
-  };
+  // getImageUrl imported from api/axios — handles both relative and absolute stored paths
 
   const getMatchScore = (match) => {
+    if (match.teamAScore && match.teamBScore) {
+       const teamAStr = `${match.teamA?.shortName || match.teamA?.name} ${match.teamAScore.runs}/${match.teamAScore.wickets} (${match.teamAScore.overs})`;
+       const teamBStr = `${match.teamB?.shortName || match.teamB?.name} ${match.teamBScore.runs}/${match.teamBScore.wickets} (${match.teamBScore.overs})`;
+       if (match.teamAScore.runs === 0 && match.teamAScore.wickets === 0 && match.teamBScore.runs === 0 && match.teamBScore.wickets === 0) return null;
+       return `${teamAStr} vs ${teamBStr}`;
+    }
+    
     if (!match.innings?.length) return null;
     return match.innings.map(inn => {
+      if (typeof inn === 'string') return null;
       const team = inn.battingTeam === match.teamA._id || inn.battingTeam?._id === match.teamA._id ? match.teamA : match.teamB;
-      return `${team?.shortName || team?.name || 'Team'} ${inn.runs}/${inn.wickets} (${inn.overs})`;
-    }).join(' vs ');
-  };
-
-  const getQuickFilters = () => activeTab === 'turfs' ? TURF_QUICK_FILTERS : activeTab === 'players' ? PLAYER_QUICK_FILTERS : activeTab === 'matches' ? MATCH_QUICK_FILTERS : TOURNAMENT_QUICK_FILTERS;
-  const getActiveQuickFilter = () => activeTab === 'turfs' ? activeTurfFilter : activeTab === 'players' ? (playerRoleFilter || 'all') : activeTab === 'matches' ? (matchStatusFilter || 'all') : (tournamentStatusFilter || 'all');
-
-  const handleQuickFilter = (qf) => {
-    if (activeTab === 'turfs') setActiveTurfFilter(qf.id);
-    else if (activeTab === 'players') setPlayerRoleFilter(qf.value);
-    else if (activeTab === 'matches') setMatchStatusFilter(qf.value);
-    else setTournamentStatusFilter(qf.value);
+      const overs = Math.floor((inn.totalBalls || 0) / 6) + '.' + ((inn.totalBalls || 0) % 6);
+      return `${team?.shortName || team?.name || 'Team'} ${inn.totalRuns || 0}/${inn.totalWickets || 0} (${overs})`;
+    }).filter(Boolean).join(' vs ');
   };
 
   // ─── Card Renderers ──────────────────────────────────────────────────────
@@ -283,7 +291,7 @@ const SearchScreen = ({ navigation, route }) => {
         }
         <View style={styles.playerMeta}>
           <Text style={styles.playerName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.playerRole} numberOfLines={1}>{item.playingRole || 'Cricket Player'} · {item.city || '—'}</Text>
+          <Text style={styles.playerRole} numberOfLines={1}>{item.playingRole || 'Cricket Player'} · {item.city || item.location || item.locationObj?.name || '—'}</Text>
           <View style={styles.playerStats}>
             <StatChip icon="account-group" label={`${item.followers?.length || 0} Followers`} />
             {item.ranking && <StatChip icon="trophy-outline" label={`Rank #${item.ranking}`} primary />}
@@ -297,61 +305,94 @@ const SearchScreen = ({ navigation, route }) => {
   const renderMatchItem = ({ item }) => {
     const STATUS = { scheduled: 'Scheduled', toss_done: 'Toss Done', in_progress: 'LIVE', innings_break: 'Break', super_over: 'Super Over', completed: 'Completed', abandoned: 'Abandoned', no_result: 'No Result' };
     const isLive = item.status === 'in_progress' || item.status === 'super_over';
-    const isDone = item.status === 'completed';
+    const isDone = item.status === 'completed' || item.status === 'abandoned' || item.status === 'no_result';
+    const isScheduled = !isLive && !isDone;
     const score = getMatchScore(item);
+    const venue = item.turf
+      ? `${item.turf.name}${item.turf.city ? ` · ${item.turf.city}` : ''}`
+      : `${item.ground || 'Open Ground'}${item.city ? ` · ${item.city}` : ''}`;
+
+    const handlePress = () => {
+      if (isLive) {
+        navigation.navigate('Spectator', { matchId: item._id });
+      } else {
+        navigation.navigate('MatchSummary', { matchId: item._id });
+      }
+    };
 
     return (
-      <TouchableOpacity
-        style={styles.matchCard}
-        onPress={() => navigation.navigate(isLive ? 'Spectator' : isDone ? 'Scorecard' : 'MatchSummary', { id: item._id })}
-        activeOpacity={0.9}
-      >
-        {/* Header row */}
-        <View style={styles.matchTopRow}>
-          <View style={styles.formatPill}>
-            <Text style={styles.formatText}>{item.format || 'Custom'} · {item.overs} Overs</Text>
-          </View>
-          <View style={[styles.statusPill, isLive && styles.statusPillLive, isDone && styles.statusPillDone]}>
+      <TouchableOpacity style={styles.matchCard} onPress={handlePress} activeOpacity={0.88}>
+        {/* Top: Format + Status */}
+        <View style={styles.matchCardHeader}>
+          <Text style={styles.matchFormat}>{item.format || 'Custom'} · {item.overs} Overs</Text>
+          <View style={[
+            styles.matchStatusBadge,
+            isLive && styles.matchStatusLive,
+            isDone && styles.matchStatusDone,
+          ]}>
             {isLive && <View style={styles.liveDot} />}
-            <Text style={[styles.statusText, isLive && styles.statusTextLive, isDone && styles.statusTextDone]}>
+            <Text style={[styles.matchStatusText, isLive && styles.matchStatusTextLive]}>
               {STATUS[item.status] || item.status}
             </Text>
           </View>
         </View>
 
-        {/* Teams */}
-        <View style={styles.teamsRow}>
-          <TeamBlock logo={item.teamA?.logo ? getImageUrl(item.teamA.logo) : null} name={item.teamA?.name} />
-          <View style={styles.vsBox}><Text style={styles.vsText}>VS</Text></View>
-          <TeamBlock logo={item.teamB?.logo ? getImageUrl(item.teamB.logo) : null} name={item.teamB?.name} right />
+        {/* Teams Row */}
+        <View style={styles.matchTeamsRow}>
+          {/* Team A */}
+          <View style={styles.matchTeam}>
+            {item.teamA?.logo
+              ? <Image source={{ uri: getImageUrl(item.teamA.logo) }} style={styles.matchTeamLogo} />
+              : (
+                <View style={styles.matchTeamLogoFallback}>
+                  <Text style={styles.matchTeamLogoLetter}>{item.teamA?.name?.[0]?.toUpperCase() || '?'}</Text>
+                </View>
+              )
+            }
+            <Text style={styles.matchTeamName} numberOfLines={2}>{item.teamA?.name || 'TBD'}</Text>
+          </View>
+
+          {/* VS + Score */}
+          <View style={styles.matchCenterBox}>
+            {score ? (
+              <Text style={styles.matchScoreText} numberOfLines={2}>{score}</Text>
+            ) : item.result?.summary ? (
+              <Text style={styles.matchResultText} numberOfLines={2}>{item.result.summary}</Text>
+            ) : (
+              <Text style={styles.matchVsText}>VS</Text>
+            )}
+          </View>
+
+          {/* Team B */}
+          <View style={[styles.matchTeam, { alignItems: 'flex-end' }]}>
+            {item.teamB?.logo
+              ? <Image source={{ uri: getImageUrl(item.teamB.logo) }} style={styles.matchTeamLogo} />
+              : (
+                <View style={styles.matchTeamLogoFallback}>
+                  <Text style={styles.matchTeamLogoLetter}>{item.teamB?.name?.[0]?.toUpperCase() || '?'}</Text>
+                </View>
+              )
+            }
+            <Text style={[styles.matchTeamName, { textAlign: 'right' }]} numberOfLines={2}>{item.teamB?.name || 'TBD'}</Text>
+          </View>
         </View>
 
-        {/* Score / venue */}
-        {score ? (
-          <View style={styles.scoreRow}>
-            <Icon name="scoreboard-outline" size={13} color={Colors.primary} />
-            <Text style={styles.scoreText} numberOfLines={1}>{score}</Text>
-          </View>
-        ) : item.result?.summary ? (
-          <View style={styles.scoreRow}>
-            <Text style={styles.resultText} numberOfLines={1}>{item.result.summary}</Text>
-          </View>
-        ) : (
-          <View style={styles.venueRow}>
-            <Icon name="map-marker-outline" size={13} color={Colors.textTertiary} />
-            <Text style={styles.venueText} numberOfLines={1}>{item.turf?.name || 'RoughTurf Ground'}{item.turf?.city ? ` · ${item.turf.city}` : ''}</Text>
-          </View>
-        )}
+        {/* Venue row */}
+        <View style={styles.matchVenueRow}>
+          <Icon name="map-marker-outline" size={12} color={Colors.textTertiary} />
+          <Text style={styles.matchVenueText} numberOfLines={1}>{venue}</Text>
+        </View>
       </TouchableOpacity>
     );
   };
+
 
   const renderTournamentItem = ({ item }) => {
     const statusLabel = item.status === 'registration_open' ? 'Reg Open' : item.status === 'ongoing' ? 'Ongoing' : 'Finished';
     const statusColor = item.status === 'registration_open' ? Colors.success : item.status === 'ongoing' ? Colors.warning : Colors.textTertiary;
 
     return (
-      <TouchableOpacity style={styles.tCard} onPress={() => navigation.navigate('TournamentDetail', { id: item._id })} activeOpacity={0.92}>
+      <TouchableOpacity style={styles.tCard} onPress={() => navigation.navigate('TournamentDetail', { tournamentId: item._id })} activeOpacity={0.92}>
         <View style={styles.tBannerWrap}>
           {item.banner
             ? <Image source={{ uri: getImageUrl(item.banner) }} style={styles.tBanner} />
@@ -371,12 +412,14 @@ const SearchScreen = ({ navigation, route }) => {
           <Text style={styles.tMeta}>{item.format} · {item.overs} Ov · {item.ballType} ball</Text>
           <View style={styles.tFooter}>
             <View style={styles.tInfoRow}>
-              <Icon name="gift-outline" size={13} color={Colors.primary} />
-              <Text style={styles.tPrize}>₹{item.winningPrize || 0} Prize</Text>
+              <Icon name="account-group-outline" size={13} color={Colors.textSecondary} />
+              <Text style={styles.tVenue}>{item.teamCount || item.teams?.length || 0} Teams</Text>
             </View>
             <View style={styles.tInfoRow}>
               <Icon name="map-marker-outline" size={13} color={Colors.textSecondary} />
-              <Text style={styles.tVenue} numberOfLines={1}>{item.turf?.name || 'Local Ground'}</Text>
+              <Text style={styles.tVenue} numberOfLines={1}>
+                {item.city || item.turf?.city || item.turf?.name || 'Local Ground'}
+              </Text>
             </View>
           </View>
         </View>
@@ -405,6 +448,13 @@ const SearchScreen = ({ navigation, route }) => {
   const emptyIcon = activeTab === 'turfs' ? 'soccer-field' : activeTab === 'players' ? 'account-multiple' : activeTab === 'matches' ? 'cricket' : 'trophy';
 
   // ─── Render ──────────────────────────────────────────────────────────────
+  const handleLoadMore = () => {
+    if (!activeLoading && !isPaginating && activeDataList.length >= 10) {
+      setIsPaginating(true);
+      setPage(p => p + 1);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor="#0A1F35" />
@@ -417,33 +467,41 @@ const SearchScreen = ({ navigation, route }) => {
             <Text style={styles.screenLabel}>SEARCH DIRECTORY</Text>
             <Text style={styles.screenTitle}>Find Turf & Cricket</Text>
           </View>
-          {cityFilter ? (
-            <TouchableOpacity style={styles.cityPill} onPress={() => setCityFilter('')} activeOpacity={0.8}>
-              <Icon name="map-marker" size={11} color={Colors.primary} />
-              <Text style={styles.cityPillText} numberOfLines={1}>{cityFilter}</Text>
-              <Icon name="close" size={9} color={Colors.primary} />
-            </TouchableOpacity>
-          ) : null}
+        </View>
+
+        {/* Location picker */}
+        <View style={styles.locationWrap}>
+          <LocationAutocomplete
+            value={selectedLocation ? selectedLocation.name || selectedLocation.city : ''}
+            onSelectLocation={setSelectedLocation}
+            placeholder="Select your city or location..."
+            variant="outlined"
+            style={styles.locationInput}
+          />
         </View>
 
         {/* Search bar */}
-        <View style={styles.searchBar}>
-          <Icon name="magnify" size={19} color={Colors.textTertiary} style={{ marginRight: 6 }} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={`Search ${activeTab === 'turfs' ? 'grounds' : activeTab}…`}
-            placeholderTextColor={Colors.textTertiary}
-            value={searchQuery}
-            onChangeText={t => dispatch(setSearchQuery(t))}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => dispatch(setSearchQuery(''))}>
-              <Icon name="close-circle" size={17} color={Colors.textTertiary} />
-            </TouchableOpacity>
-          )}
-          <View style={styles.searchDivider} />
-          <TouchableOpacity onPress={openModal} style={styles.filterBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-            <Icon name="tune-variant" size={19} color={hasActiveFilters ? Colors.primary : Colors.textSecondary} />
+        <View style={styles.searchRow}>
+          <View style={styles.searchBar}>
+            <Icon name="magnify" size={20} color={Colors.textTertiary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={`Search ${activeTab === 'turfs' ? 'grounds' : activeTab}…`}
+              placeholderTextColor={Colors.textTertiary}
+              value={searchQuery}
+              onChangeText={t => dispatch(setSearchQuery(t))}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => dispatch(setSearchQuery(''))} style={{ padding: 2 }}>
+                <Icon name="close-circle" size={18} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            )}
+          </View>
+          <TouchableOpacity onPress={openModal} style={[styles.filterIconBtn, hasActiveFilters && styles.filterIconBtnActive]} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            <Icon name="tune-variant" size={20} color={hasActiveFilters ? '#000' : Colors.textSecondary} />
             {hasActiveFilters && <View style={styles.filterDot} />}
           </TouchableOpacity>
         </View>
@@ -455,16 +513,32 @@ const SearchScreen = ({ navigation, route }) => {
             onPress={() => setActiveTab('players')}
             activeOpacity={0.8}
           >
-            <Icon name="cricket" size={16} color={(activeTab !== 'turfs') ? '#000' : Colors.textSecondary} />
-            <Text style={[styles.mainTabText, (activeTab !== 'turfs') && styles.mainTabTextActive]}>Cricket</Text>
+            {(activeTab !== 'turfs')
+              ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{x:0,y:0}} end={{x:1,y:0}}>
+                  <Icon name="cricket" size={15} color="#000" />
+                  <Text style={styles.mainTabTextActive}>Cricket</Text>
+                </LinearGradient>
+              : <View style={styles.mainTabGrad}>
+                  <Icon name="cricket" size={15} color={Colors.textSecondary} />
+                  <Text style={styles.mainTabText}>Cricket</Text>
+                </View>
+            }
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.mainTab, activeTab === 'turfs' && styles.mainTabActive]}
             onPress={() => setActiveTab('turfs')}
             activeOpacity={0.8}
           >
-            <Icon name="soccer-field" size={16} color={activeTab === 'turfs' ? '#000' : Colors.textSecondary} />
-            <Text style={[styles.mainTabText, activeTab === 'turfs' && styles.mainTabTextActive]}>Grounds</Text>
+            {activeTab === 'turfs'
+              ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{x:0,y:0}} end={{x:1,y:0}}>
+                  <Icon name="soccer-field" size={15} color="#000" />
+                  <Text style={styles.mainTabTextActive}>Grounds</Text>
+                </LinearGradient>
+              : <View style={styles.mainTabGrad}>
+                  <Icon name="soccer-field" size={15} color={Colors.textSecondary} />
+                  <Text style={styles.mainTabText}>Grounds</Text>
+                </View>
+            }
           </TouchableOpacity>
         </View>
 
@@ -475,6 +549,7 @@ const SearchScreen = ({ navigation, route }) => {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tabBarContent}
             style={styles.tabBarScroll}
+            keyboardShouldPersistTaps="always"
           >
             {TABS.filter(t => t.id !== 'turfs').map(tab => {
               const active = activeTab === tab.id;
@@ -485,7 +560,7 @@ const SearchScreen = ({ navigation, route }) => {
                   activeOpacity={0.75}
                   style={[styles.tab, active && styles.tabActive]}
                 >
-                  <Icon name={tab.icon} size={14} color={active ? '#000' : Colors.textSecondary} />
+                  <Icon name={tab.icon} size={13} color={active ? '#000' : Colors.textSecondary} />
                   <Text style={[styles.tabText, active && styles.tabTextActive]}>{tab.label}</Text>
                 </TouchableOpacity>
               );
@@ -493,53 +568,54 @@ const SearchScreen = ({ navigation, route }) => {
           </ScrollView>
         )}
 
-        {/* ── QUICK FILTER PILLS ── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.quickRow}
-        >
-          {getQuickFilters().map(qf => {
-            const curActive = getActiveQuickFilter();
-            const qfActive = curActive === qf.id || (qf.value !== '' && curActive === qf.value);
-            return (
-              <TouchableOpacity
-                key={qf.id}
-                style={[styles.qfPill, qfActive && styles.qfPillActive]}
-                onPress={() => handleQuickFilter(qf)}
-                activeOpacity={0.8}
-              >
-                <Icon name={qf.icon} size={11} color={qfActive ? '#000' : Colors.textSecondary} />
-                <Text style={[styles.qfText, qfActive && styles.qfTextActive]}>{qf.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
       </View>
 
       {/* ── CONTENT LIST ── */}
-      {activeLoading && activeDataList.length === 0 ? renderSkeleton() : (
-        <FlatList
-          data={activeDataList}
-          keyExtractor={item => item._id}
-          renderItem={
-            activeTab === 'turfs' ? renderTurfItem :
-            activeTab === 'players' ? renderPlayerItem :
-            activeTab === 'matches' ? renderMatchItem :
-            renderTournamentItem
-          }
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <LinearGradient colors={[Colors.primaryAlpha10, 'transparent']} style={styles.emptyCircle}>
-                <Icon name={emptyIcon} size={36} color={Colors.primary} />
-              </LinearGradient>
-              <Text style={styles.emptyTitle}>No {emptyTabLabel} found</Text>
-              <Text style={styles.emptySub}>Try adjusting your filters or location</Text>
-            </View>
-          }
-        />
+      {selectedLocation ? (
+        (activeLoading && page === 1) ? (
+          <View style={styles.loadingWrap}>
+            <SkeletonPlaceholder backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
+              <SkeletonPlaceholder.Item paddingHorizontal={20}>
+                {[...Array(5)].map((_, i) => (
+                  <SkeletonPlaceholder.Item key={i} width="100%" height={120} borderRadius={16} marginBottom={16} />
+                ))}
+              </SkeletonPlaceholder.Item>
+            </SkeletonPlaceholder>
+          </View>
+        ) : (
+          <FlatList
+            data={activeDataList}
+            keyExtractor={item => item._id || item.id}
+            renderItem={activeTab === 'turfs' ? renderTurfItem : activeTab === 'players' ? renderPlayerItem : activeTab === 'matches' ? renderMatchItem : renderTournamentItem}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              isPaginating ? (
+                <View style={styles.paginationLoader}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.paginationLoaderText}>Loading more…</Text>
+                </View>
+              ) : null
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyWrap}>
+                <Icon name="magnify" size={48} color={Colors.textTertiary} />
+                <Text style={styles.emptyText}>
+                  {searchQuery ? `No ${emptyTabLabel} exists with "${searchQuery}"` : `No ${emptyTabLabel} found in ${selectedLocation?.name || 'this location'}`}
+                </Text>
+                <Text style={styles.emptySub}>Try adjusting your search criteria</Text>
+              </View>
+            }
+          />
+        )
+      ) : (
+        <View style={styles.locationPromptWrap}>
+          <Icon name="map-marker-radius-outline" size={54} color={Colors.primary} />
+          <Text style={styles.locationPromptTitle}>Where do you play?</Text>
+          <Text style={styles.locationPromptSub}>Select your location to discover players, grounds, matches, and tournaments nearby.</Text>
+        </View>
       )}
 
       {/* ── FILTER MODAL ── */}
@@ -566,14 +642,8 @@ const SearchScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.sheetBody} showsVerticalScrollIndicator={false}>
-            <FilterSection icon="map-marker-outline" label="City Location">
-              <View style={styles.inputRow}>
-                <Icon name="city-variant-outline" size={17} color={Colors.textTertiary} />
-                <TextInput style={styles.input} placeholder="e.g. Ambur" placeholderTextColor={Colors.textTertiary} value={cityFilter} onChangeText={setCityFilter} />
-                {cityFilter.length > 0 && <TouchableOpacity onPress={() => setCityFilter('')}><Icon name="close-circle-outline" size={17} color={Colors.textTertiary} /></TouchableOpacity>}
-              </View>
-            </FilterSection>
+          <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.sheetBody} showsVerticalScrollIndicator={false}>
+
 
             {activeTab === 'turfs' && (
               <>
@@ -587,7 +657,14 @@ const SearchScreen = ({ navigation, route }) => {
                 <FilterSection icon="currency-inr" label="Max Hourly Price">
                   <View style={styles.inputRow}>
                     <Text style={styles.rupee}>₹</Text>
-                    <TextInput style={styles.input} placeholder="e.g. 1500" keyboardType="numeric" placeholderTextColor={Colors.textTertiary} value={maxPrice} onChangeText={setMaxPrice} />
+                    <TextInput
+                      style={styles.filterInput}
+                      value={maxPrice}
+                      onChangeText={setMaxPrice}
+                      placeholder="Max per hr (e.g. 1500)"
+                      placeholderTextColor={Colors.textTertiary}
+                      keyboardType="numeric"
+                    />
                   </View>
                 </FilterSection>
 
@@ -602,30 +679,30 @@ const SearchScreen = ({ navigation, route }) => {
 
             {activeTab === 'players' && (
               <FilterSection icon="baseball" label="Playing Role">
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+                <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
                   {PLAYER_QUICK_FILTERS.map(f => (
                     <TouchableOpacity key={f.id} style={[styles.roleChip, playerRoleFilter === f.value && styles.roleChipActive]} onPress={() => setPlayerRoleFilter(f.value)}>
                       <Text style={[styles.roleChipText, playerRoleFilter === f.value && styles.roleChipTextActive]}>{f.label}</Text>
                     </TouchableOpacity>
                   ))}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               </FilterSection>
             )}
 
             {activeTab === 'matches' && (
               <FilterSection icon="scoreboard-outline" label="Match Status">
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+                <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
                   {MATCH_QUICK_FILTERS.map(f => (
                     <TouchableOpacity key={f.id} style={[styles.roleChip, matchStatusFilter === f.value && styles.roleChipActive]} onPress={() => setMatchStatusFilter(f.value)}>
                       <Text style={[styles.roleChipText, matchStatusFilter === f.value && styles.roleChipTextActive]}>{f.label}</Text>
                     </TouchableOpacity>
                   ))}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               </FilterSection>
             )}
 
             <View style={{ height: 32 }} />
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           <View style={styles.sheetFooter}>
             <TouchableOpacity style={styles.resetBtn} onPress={resetFilters}>
@@ -700,118 +777,124 @@ const SortChip = ({ label, icon, active, onPress }) => (
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#0A1F35' },
 
-  /* Header */
   header: {
     backgroundColor: '#0A1F35',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    paddingBottom: 12,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 8,
   },
   screenLabel: {
     color: Colors.primary,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: 10,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
+    letterSpacing: 2,
+    marginBottom: 2,
+    opacity: 0.85,
   },
   screenTitle: {
     color: '#FFFFFF',
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 20,
-    marginTop: 1,
+    fontSize: 22,
   },
-  cityPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primaryAlpha10,
-    borderWidth: 1,
-    borderColor: Colors.primaryAlpha30,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    gap: 4,
-    maxWidth: 110,
+  locationWrap: {
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    zIndex: 999,
+    elevation: 999,
   },
-  cityPillText: {
-    color: Colors.primary,
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: 11,
-    flexShrink: 1,
+  locationInput: {
+    width: '100%',
   },
 
-  /* Search Bar */
-  searchBar: {
+  /* Search Row */
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundCard,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 10,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.07)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: 14,
-    paddingHorizontal: 14,
+    paddingHorizontal: 13,
     height: 46,
-    marginBottom: 10,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
     color: '#FFFFFF',
-    fontFamily: Typography.fontFamily.medium,
+    fontFamily: Typography.fontFamily.regular,
     fontSize: 14,
     height: '100%',
   },
-  searchDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    marginHorizontal: 10,
-  },
-  filterBtn: {
-    position: 'relative',
-    width: 28,
-    height: 28,
+  filterIconBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  filterIconBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
   filterDot: {
     position: 'absolute',
-    top: 1,
-    right: 0,
+    top: 6,
+    right: 6,
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#000',
     borderWidth: 1.5,
-    borderColor: Colors.backgroundCard,
+    borderColor: Colors.primary,
   },
 
   /* Main Tabs */
   mainTabContainer: {
     flexDirection: 'row',
     marginHorizontal: 16,
-    marginTop: 2,
-    marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 10,
-    padding: 4,
+    marginBottom: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   mainTab: {
     flex: 1,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  mainTabActive: {},
+  mainTabGrad: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  mainTabActive: {
-    backgroundColor: Colors.primary,
+    gap: 7,
+    paddingVertical: 10,
   },
   mainTabText: {
     color: Colors.textSecondary,
@@ -824,12 +907,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  /* Tab Bar — horizontal scroll so all 4 always visible */
+  /* Tab Bar */
   tabBarScroll: {
-    marginBottom: 8,
+    marginBottom: 4,
   },
   tabBarContent: {
-    paddingVertical: 4,
+    paddingVertical: 2,
     gap: 8,
     paddingLeft: 16,
     paddingRight: 16,
@@ -838,15 +921,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: Colors.backgroundCard,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
   tabActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primaryAlpha20,
     borderColor: Colors.primary,
   },
   tabText: {
@@ -855,7 +938,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   tabTextActive: {
-    color: '#000',
+    color: Colors.primary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 12,
   },
@@ -872,12 +955,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: Colors.backgroundCard,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   qfPillActive: {
     backgroundColor: Colors.primaryAlpha20,
@@ -897,7 +980,7 @@ const styles = StyleSheet.create({
   /* List */
   listContent: {
     padding: 14,
-    paddingBottom: 20,
+    paddingBottom: 90,
     gap: 14,
     backgroundColor: Colors.background,
     flexGrow: 1,
@@ -954,32 +1037,148 @@ const styles = StyleSheet.create({
   statChipText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 10 },
 
   /* ── Match Card ── */
-  matchCard: { backgroundColor: Colors.backgroundCard, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', padding: 14, gap: 10 },
-  matchTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  formatPill: { backgroundColor: Colors.backgroundElevated, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  formatText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 10 },
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.backgroundElevated, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  statusPillLive: { backgroundColor: Colors.errorLight },
-  statusPillDone: { backgroundColor: Colors.primaryAlpha10 },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.error },
-  statusText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 10 },
-  statusTextLive: { color: Colors.error },
-  statusTextDone: { color: Colors.primary },
+  matchCard: {
+    backgroundColor: Colors.backgroundCard,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 14,
+    gap: 10,
+    ...Shadows.sm,
+  },
+  matchCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  matchFormat: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  matchStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Colors.backgroundElevated,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  matchStatusLive: {
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderColor: 'rgba(239,68,68,0.4)',
+  },
+  matchStatusDone: {
+    backgroundColor: Colors.primaryAlpha10,
+    borderColor: Colors.primaryAlpha30,
+  },
+  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#EF4444' },
+  matchStatusText: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 10,
+  },
+  matchStatusTextLive: { color: '#EF4444' },
 
-  teamsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  teamBlock: { alignItems: 'flex-start', width: '38%' },
-  teamLogo: { width: 42, height: 42, borderRadius: 21, marginBottom: 5, borderWidth: 1, borderColor: Colors.primaryAlpha30 },
-  teamLogoFb: { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha30, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
-  teamLogoLetter: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
-  teamName: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 12, textAlign: 'left' },
-  vsBox: { alignItems: 'center', justifyContent: 'center', width: '24%' },
-  vsText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  matchTeamsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  matchTeam: {
+    alignItems: 'flex-start',
+    flex: 1,
+    gap: 6,
+  },
+  matchTeamLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: Colors.primaryAlpha30,
+  },
+  matchTeamLogoFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primaryAlpha10,
+    borderWidth: 1.5,
+    borderColor: Colors.primaryAlpha30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchTeamLogoLetter: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 16,
+  },
+  matchTeamName: {
+    color: '#FFFFFF',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  matchCenterBox: {
+    flex: 0,
+    width: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  matchVsText: {
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+  matchScoreText: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 10,
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  matchResultText: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 9,
+    textAlign: 'center',
+    lineHeight: 13,
+  },
+  matchVenueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    paddingTop: 8,
+  },
+  matchVenueText: {
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 11,
+    flex: 1,
+  },
 
-  scoreRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.backgroundElevated, borderRadius: 8, paddingVertical: 7, paddingHorizontal: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-  scoreText: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 11, flex: 1 },
-  resultText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 11 },
-  venueRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  venueText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11 },
+  /* ── Pagination Loader ── */
+  paginationLoader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  paginationLoaderText: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 13,
+  },
+
 
   /* ── Tournament Card ── */
   tCard: { backgroundColor: Colors.backgroundCard, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden', ...Shadows.sm },
@@ -998,10 +1197,19 @@ const styles = StyleSheet.create({
   tVenue: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11, maxWidth: 130 },
 
   /* ── Empty State ── */
-  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 72 },
+  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 72, paddingHorizontal: 32 },
   emptyCircle: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 16, borderWidth: 1, borderColor: Colors.primaryAlpha30 },
   emptyTitle: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
-  emptySub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginTop: 5, textAlign: 'center' },
+  emptyText: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 16, marginTop: 12 },
+  emptySub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 19 },
+
+  /* ── Location Prompt ── */
+  locationPromptWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingTop: 20 },
+  locationPromptTitle: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 18, marginTop: 16, textAlign: 'center' },
+  locationPromptSub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 20 },
+
+  /* ── Loading Wrap ── */
+  loadingWrap: { flex: 1, backgroundColor: Colors.background },
 
   /* ── Modal ── */
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' },

@@ -18,6 +18,9 @@ import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../the
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
+const IMG_BAT   = require('../../../../batting.jpeg');
+const IMG_BOWL  = require('../../../../bowling.jpeg');
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const TossScreen = ({ route, navigation }) => {
@@ -135,9 +138,29 @@ const TossScreen = ({ route, navigation }) => {
               },
             ]}
           >
-            <LinearGradient colors={['#FFD700', '#FFA500', '#B8860B']} style={styles.coin}>
-              <View style={styles.coinInner}>
-                <Text style={styles.coinText}>{coinResult[0]}</Text>
+            {/* Outer shadow ring */}
+            <LinearGradient
+              colors={['#FFE066', '#FFB800', '#A06800']}
+              style={styles.coinShadowRing}
+            />
+            {/* Main coin body */}
+            <LinearGradient
+              colors={['#FFE34F', '#FFC200', '#E69500', '#B87100']}
+              style={styles.coin}
+            >
+              {/* Shine overlay */}
+              <LinearGradient
+                colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']}
+                start={{ x: 0.1, y: 0 }}
+                end={{ x: 0.9, y: 0.6 }}
+                style={styles.coinShine}
+              />
+              {/* Inner embossed ring */}
+              <View style={styles.coinRing}>
+                <View style={styles.coinCenter}>
+                  <Text style={styles.coinText}>{coinResult[0]}</Text>
+                  <Text style={styles.coinSubText}>{coinResult === 'Heads' ? '★' : '✦'}</Text>
+                </View>
               </View>
             </LinearGradient>
           </Animated.View>
@@ -170,7 +193,7 @@ const TossScreen = ({ route, navigation }) => {
               onPress={() => setTossWinnerId(match.teamA?._id)}
             >
               {match.teamA?.logo ? (
-                <Image source={{ uri: getImageUrl(match.teamA.logo) }} style={styles.teamLogoSmall} />
+                <Image source={{ uri: getImageUrl(match.teamA.logo) }} style={styles.teamLogoFull} resizeMode="cover" />
               ) : (
                 <View style={styles.logoPlaceholder}>
                   <Text style={styles.logoPlaceholderText}>
@@ -178,12 +201,19 @@ const TossScreen = ({ route, navigation }) => {
                   </Text>
                 </View>
               )}
-              <Text
-                style={[styles.optionText, tossWinnerId === match.teamA?._id && styles.optionTextSelected]}
-                numberOfLines={1}
-              >
-                {match.teamA?.name || 'Team A'}
-              </Text>
+              <View style={styles.teamLabelBar}>
+                <Text
+                  style={[styles.optionText, tossWinnerId === match.teamA?._id && styles.optionTextSelected]}
+                  numberOfLines={1}
+                >
+                  {match.teamA?.name || 'Team A'}
+                </Text>
+              </View>
+              {tossWinnerId === match.teamA?._id && (
+                <View style={styles.selectedCheck}>
+                  <Icon name="check-circle" size={18} color={Colors.primary} />
+                </View>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -191,7 +221,7 @@ const TossScreen = ({ route, navigation }) => {
               onPress={() => setTossWinnerId(match.teamB?._id)}
             >
               {match.teamB?.logo ? (
-                <Image source={{ uri: getImageUrl(match.teamB.logo) }} style={styles.teamLogoSmall} />
+                <Image source={{ uri: getImageUrl(match.teamB.logo) }} style={styles.teamLogoFull} resizeMode="cover" />
               ) : (
                 <View style={styles.logoPlaceholder}>
                   <Text style={styles.logoPlaceholderText}>
@@ -199,12 +229,19 @@ const TossScreen = ({ route, navigation }) => {
                   </Text>
                 </View>
               )}
-              <Text
-                style={[styles.optionText, tossWinnerId === match.teamB?._id && styles.optionTextSelected]}
-                numberOfLines={1}
-              >
-                {match.teamB?.name || 'Team B'}
-              </Text>
+              <View style={styles.teamLabelBar}>
+                <Text
+                  style={[styles.optionText, tossWinnerId === match.teamB?._id && styles.optionTextSelected]}
+                  numberOfLines={1}
+                >
+                  {match.teamB?.name || 'Team B'}
+                </Text>
+              </View>
+              {tossWinnerId === match.teamB?._id && (
+                <View style={styles.selectedCheck}>
+                  <Icon name="check-circle" size={18} color={Colors.primary} />
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -215,31 +252,37 @@ const TossScreen = ({ route, navigation }) => {
                 <TouchableOpacity
                   style={[styles.decisionCard, tossDecision === 'bat' && styles.decisionCardSelected]}
                   onPress={() => setTossDecision('bat')}
+                  activeOpacity={0.85}
                 >
-                  <Icon
-                    name="cricket-bat"
-                    size={28}
-                    color={tossDecision === 'bat' ? Colors.primary : Colors.textSecondary}
-                    style={{ marginBottom: 6 }}
-                  />
-                  <Text style={[styles.decisionText, tossDecision === 'bat' && styles.decisionTextSelected]}>
-                    Bat First
-                  </Text>
+                  <Image source={IMG_BAT} style={styles.decisionImage} resizeMode="cover" />
+                  <View style={styles.decisionLabelBar}>
+                    <Text style={[styles.decisionText, tossDecision === 'bat' && styles.decisionTextSelected]}>
+                      Bat First
+                    </Text>
+                  </View>
+                  {tossDecision === 'bat' && (
+                    <View style={styles.decisionCheckBadge}>
+                      <Icon name="check-circle" size={20} color={Colors.primary} />
+                    </View>
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[styles.decisionCard, tossDecision === 'bowl' && styles.decisionCardSelected]}
                   onPress={() => setTossDecision('bowl')}
+                  activeOpacity={0.85}
                 >
-                  <Icon
-                    name="baseball"
-                    size={28}
-                    color={tossDecision === 'bowl' ? Colors.primary : Colors.textSecondary}
-                    style={{ marginBottom: 6 }}
-                  />
-                  <Text style={[styles.decisionText, tossDecision === 'bowl' && styles.decisionTextSelected]}>
-                    Bowl First
-                  </Text>
+                  <Image source={IMG_BOWL} style={styles.decisionImage} resizeMode="cover" />
+                  <View style={styles.decisionLabelBar}>
+                    <Text style={[styles.decisionText, tossDecision === 'bowl' && styles.decisionTextSelected]}>
+                      Bowl First
+                    </Text>
+                  </View>
+                  {tossDecision === 'bowl' && (
+                    <View style={styles.decisionCheckBadge}>
+                      <Icon name="check-circle" size={20} color={Colors.primary} />
+                    </View>
+                  )}
                 </TouchableOpacity>
               </View>
             </Animated.View>
@@ -302,42 +345,72 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: Spacing.xl,
   },
+  coinShadowRing: {
+    position: 'absolute',
+    width: 136,
+    height: 136,
+    borderRadius: 68,
+    top: -8,
+    left: -8,
+    opacity: 0.35,
+  },
   coinContainer: {
-    width: 100,
-    height: 100,
-    perspective: 1000,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
+    width: 120,
+    height: 120,
+    elevation: 16,
+    shadowColor: '#D4A017',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
   },
   coin: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     borderWidth: 4,
-    borderColor: '#D4AF37', // Gold border
+    borderColor: '#FFF3AA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  coinShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 60,
+  },
+  coinRing: {
+    width: 98,
+    height: 98,
+    borderRadius: 49,
+    borderWidth: 3,
+    borderColor: 'rgba(255,200,0,0.7)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  coinInner: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#DAA520',
-    borderWidth: 2,
-    borderColor: '#B8860B',
+  coinCenter: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    backgroundColor: 'rgba(160,100,0,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   coinText: {
-    fontSize: 36,
+    fontSize: 38,
     fontFamily: Typography.fontFamily.bold,
     color: '#FFF',
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    textShadowColor: 'rgba(120,60,0,0.7)',
+    textShadowOffset: { width: 1, height: 2 },
+    textShadowRadius: 4,
+    lineHeight: 42,
+  },
+  coinSubText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.75)',
+    marginTop: -4,
   },
   flipBtn: {
     marginTop: 20,
@@ -397,18 +470,40 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
+    height: 120,
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.backgroundElevated || '#0A1F35',
     borderWidth: 1,
     borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
   },
   optionCardSelected: {
-    backgroundColor: 'rgba(154, 188, 47, 0.12)',
+    borderWidth: 2,
     borderColor: Colors.primary,
+  },
+  teamLogoFull: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  teamLabelBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  selectedCheck: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 12,
   },
   teamLogoSmall: {
     width: 36,
@@ -417,27 +512,25 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   logoPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: '100%',
+    height: '70%',
     backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderWidth: 0,
   },
   logoPlaceholderText: {
     color: Colors.primary,
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 14,
+    fontSize: 28,
   },
   optionText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: '#fff',
     textAlign: 'center',
-    width: '90%',
+    width: '100%',
+    paddingHorizontal: 4,
   },
   optionTextSelected: {
     color: Colors.primary,
@@ -449,22 +542,42 @@ const styles = StyleSheet.create({
   },
   decisionCard: {
     flex: 1,
-    paddingVertical: 16,
+    height: 130,
     borderRadius: BorderRadius.md,
+    overflow: 'hidden',
     backgroundColor: Colors.backgroundElevated || '#0A1F35',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'relative',
   },
   decisionCardSelected: {
-    backgroundColor: 'rgba(154, 188, 47, 0.12)',
     borderColor: Colors.primary,
+  },
+  decisionImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  decisionLabelBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingVertical: 7,
+    alignItems: 'center',
+  },
+  decisionCheckBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
   },
   decisionText: {
     fontSize: 14,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: '#fff',
   },
   decisionTextSelected: {
     color: Colors.primary,

@@ -1,4 +1,6 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useState } from 'react';
+import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
   ActivityIndicator, Switch, ScrollView, Image, KeyboardAvoidingView, Platform,
@@ -91,6 +93,7 @@ const TeamCreateScreen = ({ navigation }) => {
   // Form fields
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
+  const [cityObj, setCityObj] = useState(null);
   const [stateName, setStateName] = useState('');
   const [logo, setLogo] = useState(null);
   const [addMyself, setAddMyself] = useState(true);
@@ -269,7 +272,7 @@ const TeamCreateScreen = ({ navigation }) => {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* ── Team Identity Card ── */}
         <View style={styles.identityCard}>
@@ -298,16 +301,23 @@ const TeamCreateScreen = ({ navigation }) => {
             error={errors.name}
             icon="shield-outline"
           />
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <InputField
-                label="City"
+          <View style={[styles.row, { alignItems: 'flex-start' }]}>
+            <View style={[fieldStyles.wrapper, { flex: 1 }]}>
+              <Text style={fieldStyles.label}>City <Text style={fieldStyles.required}>*</Text></Text>
+              <LocationAutocomplete
                 value={city}
                 onChangeText={setCity}
-                placeholder="Mumbai"
+                onSelectLocation={(loc) => {
+                  setCity(loc.name);
+                  setCityObj(loc);
+                  if (loc.state) setStateName(loc.state);
+                }}
+                placeholder="Search..."
+                variant="outlined"
                 error={errors.city}
                 icon="location-outline"
               />
+              {errors.city ? <Text style={fieldStyles.errorText}>{errors.city}</Text> : null}
             </View>
             <View style={{ width: 10 }} />
             <View style={{ flex: 1 }}>
@@ -633,7 +643,7 @@ const TeamCreateScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <View style={{ height: insets.bottom + 32 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </KeyboardAvoidingView>
   );
 };

@@ -1,3 +1,4 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
@@ -18,16 +19,17 @@ import { Colors, Typography, Spacing, Shadows, BorderRadius } from '../../../the
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { getImageUrl } from '../../../api/axios';
 import api from '../../../api/axios';
+import LocationAutocomplete from '../../../components/LocationAutocomplete';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
 const DETAIL_TABS = [
-  { id: 'players',      label: 'Players',      icon: 'account-multiple' },
-  { id: 'matches',      label: 'Matches',       icon: 'cricket' },
-  { id: 'stats',        label: 'Stats',         icon: 'chart-bar' },
-  { id: 'leaderboard',  label: 'Leaderboard',   icon: 'podium' },
-  { id: 'achievements', label: 'Achievements',  icon: 'star-circle' },
-  { id: 'analytics',    label: 'Analytics',     icon: 'trending-up' },
+  { id: 'players', label: 'Players', icon: 'account-multiple' },
+  { id: 'matches', label: 'Matches', icon: 'cricket' },
+  { id: 'stats', label: 'Stats', icon: 'chart-bar' },
+  { id: 'leaderboard', label: 'Leaderboard', icon: 'podium' },
+  { id: 'achievements', label: 'Achievements', icon: 'star-circle' },
+  { id: 'analytics', label: 'Analytics', icon: 'trending-up' },
 ];
 
 const ROLE_OPTIONS = ['player', 'captain', 'vice_captain', 'wicket_keeper', 'admin'];
@@ -35,13 +37,20 @@ const ROLE_LABELS = { player: 'Player', captain: 'Captain', vice_captain: 'Vice 
 const ROLE_ICONS = { player: 'account', captain: 'crown', vice_captain: 'star-half-full', wicket_keeper: 'handball', admin: 'shield-crown' };
 
 const ACHIEVEMENTS = [
-  { id: 'first_win',    icon: 'trophy',         label: 'First Win',       desc: 'Win your first match',          target: 1,  key: 'wins' },
-  { id: 'ten_wins',     icon: 'trophy-variant',  label: '10 Wins',         desc: 'Win 10 matches',                target: 10, key: 'wins' },
-  { id: 'fifty_wins',   icon: 'trophy-award',    label: 'Half Century',    desc: 'Win 50 matches',                target: 50, key: 'wins' },
-  { id: 'ten_matches',  icon: 'cricket',         label: 'Veterans',        desc: 'Play 10 matches',               target: 10, key: 'matches' },
-  { id: 'fifty_match',  icon: 'medal',           label: 'Match Masters',   desc: 'Play 50 matches',               target: 50, key: 'matches' },
-  { id: 'tour_played',  icon: 'tournament',      label: 'Tournament Ready',desc: 'Play in a tournament',          target: 1,  key: 'tournamentsPlayed' },
-  { id: 'tour_won',     icon: 'crown',           label: 'Champions',       desc: 'Win a tournament',              target: 1,  key: 'tournamentsWon' },
+  { id: 'first_win', icon: 'trophy', label: 'First Win', desc: 'Win your first match', target: 1, key: 'wins' },
+  { id: 'ten_wins', icon: 'trophy-variant', label: '10 Wins', desc: 'Win 10 matches', target: 10, key: 'wins' },
+  { id: 'fifty_wins', icon: 'trophy-award', label: 'Half Century', desc: 'Win 50 matches', target: 50, key: 'wins' },
+  { id: 'century_wins', icon: 'trophy-outline', label: 'Century of Wins', desc: 'Win 100 matches', target: 100, key: 'wins' },
+  { id: 'first_match', icon: 'cricket', label: 'The Beginning', desc: 'Play your first match', target: 1, key: 'matches' },
+  { id: 'ten_matches', icon: 'cricket', label: 'Veterans', desc: 'Play 10 matches', target: 10, key: 'matches' },
+  { id: 'fifty_match', icon: 'medal', label: 'Match Masters', desc: 'Play 50 matches', target: 50, key: 'matches' },
+  { id: 'century_match', icon: 'medal-outline', label: 'Centurions', desc: 'Play 100 matches', target: 100, key: 'matches' },
+  { id: 'tour_played', icon: 'tournament', label: 'Tournament Ready', desc: 'Play in a tournament', target: 1, key: 'tournamentsPlayed' },
+  { id: 'five_tours', icon: 'tournament', label: 'Tour Regulars', desc: 'Play 5 tournaments', target: 5, key: 'tournamentsPlayed' },
+  { id: 'tour_won', icon: 'crown', label: 'Champions', desc: 'Win a tournament', target: 1, key: 'tournamentsWon' },
+  { id: 'five_tour_wins', icon: 'crown-outline', label: 'Dynasty', desc: 'Win 5 tournaments', target: 5, key: 'tournamentsWon' },
+  { id: 'fifty_wickets', icon: 'baseball', label: 'Wicket Takers', desc: 'Take 50 wickets', target: 50, key: 'totalWickets' },
+  { id: 'five_hundred_runs', icon: 'fire', label: 'Run Machine', desc: 'Score 500 runs', target: 500, key: 'totalRuns' },
 ];
 
 const TeamDetailScreen = ({ navigation, route }) => {
@@ -77,6 +86,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const [editLogo, setEditLogo] = useState(null);
   const [updatingTeam, setUpdatingTeam] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [activeLeaderboardTab, setActiveLeaderboardTab] = useState('batters');
 
   useEffect(() => {
     if (id) {
@@ -108,10 +118,11 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const isMeCaptain = myMembership?.role === 'captain';
   const isMeAdmin = myMembership?.role === 'admin';
   const isCreator = selectedTeam?.createdBy?.toString() === myUserId || selectedTeam?.createdBy === user?._id;
-  // isManager: can edit team details (creator, captain, admin)
-  const isManager = isCreator || isMeCaptain || isMeAdmin;
-  // canManageRoster: ONLY captain or admin can change roles / remove players
-  const canManageRoster = isMeCaptain || isMeAdmin || isCreator;
+  const isMeVC = myMembership?.role === 'vice_captain';
+  // isManager: can edit team details
+  const isManager = isMeCaptain || isMeAdmin || isMeVC;
+  // canManageRoster: can change roles / remove players
+  const canManageRoster = isMeCaptain || isMeAdmin || isMeVC;
 
   // ── Tab switch animation ──────────────────────────────────────────────────
   const switchTab = (tabId) => {
@@ -139,10 +150,24 @@ const TeamDetailScreen = ({ navigation, route }) => {
     setLookupLoading(true); setLookedUpPlayer(null); setLookupDone(false);
     try {
       const res = await api.get(`/players/lookup/${mobile.trim()}`);
-      setLookedUpPlayer(res.data?.data || null);
+      if (res.data?.data?.exists && res.data?.data?.player) {
+        setLookedUpPlayer(res.data.data.player);
+      } else {
+        setLookedUpPlayer(null);
+      }
     } catch { setLookedUpPlayer(null); }
     finally { setLookupLoading(false); setLookupDone(true); }
   };
+
+  useEffect(() => {
+    const trimmed = mobile.trim();
+    if (trimmed.length === 10) {
+      handleLookup();
+    } else {
+      setLookedUpPlayer(null);
+      setLookupDone(false);
+    }
+  }, [mobile]);
 
   const handleAddPlayer = async () => {
     setAdding(true);
@@ -251,134 +276,135 @@ const TeamDetailScreen = ({ navigation, route }) => {
   // ── Tab contents ──────────────────────────────────────────────────────────
 
   const renderPlayersTab = () => (
-    <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
-      {/* Add Player — only captain/admin */}
-      {canManageRoster && (
-        <TouchableOpacity style={styles.addPlayerBtn} onPress={() => setAddModalVisible(true)}>
-          <Icon name="account-plus" size={18} color={Colors.primary} />
-          <Text style={styles.addPlayerBtnText}>Add Player</Text>
-        </TouchableOpacity>
-      )}
+    <View style={{ flex: 1, position: 'relative' }}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, canManageRoster && { paddingTop: 8 }]} showsVerticalScrollIndicator={false}>
 
-      {selectedTeam?.players?.map((member, i) => {
-        const p = member.player;
-        if (!p) return null;
-        const photo = p.photo || p.userId?.photo;
+        {selectedTeam?.players?.map((member, i) => {
+          const p = member.player;
+          if (!p) return null;
+          const photo = p.photo || p.userId?.photo;
 
-        // Reliable identity check: match via userId OR playerId
-        const playerUserId = p.userId?._id?.toString() || p.userId?.toString();
-        const playerDocId = p._id?.toString();
-        const isMe = (myUserId && playerUserId === myUserId) ||
-                     (myPlayerId && playerDocId === myPlayerId);
+          // Reliable identity check: match via userId OR playerId
+          const playerUserId = p.userId?._id?.toString() || p.userId?.toString();
+          const playerDocId = p._id?.toString();
+          const isMe = (myUserId && playerUserId === myUserId) ||
+            (myPlayerId && playerDocId === myPlayerId);
 
-        const isCap = member.role === 'captain';
-        const isVC = member.role === 'vice_captain';
-        const isWK = member.role === 'wicket_keeper';
+          const isCap = member.role === 'captain';
+          const isVC = member.role === 'vice_captain';
+          const isWK = member.role === 'wicket_keeper';
 
-        // Stats: show 0 instead of '—' when no innings played
-        const dismissals = (p.batting?.innings || 0) - (p.batting?.notOuts || 0);
-        const batAvg = dismissals > 0 ? (p.batting.runs / dismissals).toFixed(1) : '0';
-        const sr = p.batting?.balls > 0 ? ((p.batting.runs / p.batting.balls) * 100).toFixed(0) : '0';
+          // Stats: show 0 instead of '—' when no innings played
+          const dismissals = (p.batting?.innings || 0) - (p.batting?.notOuts || 0);
+          const batAvg = dismissals > 0 ? (p.batting.runs / dismissals).toFixed(1) : '0';
+          const sr = p.batting?.balls > 0 ? ((p.batting.runs / p.batting.balls) * 100).toFixed(0) : '0';
 
-        return (
-          <TouchableOpacity
-            key={member._id || String(i)}
-            style={[styles.playerRow, isMe && styles.playerRowMe]}
-            activeOpacity={0.82}
-            onPress={() => navigation.navigate('PlayerDetail', { id: p._id })}
-          >
-            {/* Avatar with role badge */}
-            <View style={styles.playerAvatarWrap}>
-              {photo
-                ? <Image source={{ uri: getImageUrl(photo) }} style={styles.playerAvatar} />
-                : (
-                  <View style={[styles.playerAvatarFb, isMe && styles.playerAvatarFbMe]}>
-                    <Text style={styles.playerAvatarLetter}>{p.name?.[0]?.toUpperCase() || '?'}</Text>
-                  </View>
-                )
-              }
-              {(isCap || isVC || isWK) && (
-                <View style={[styles.roleBadge,
+          return (
+            <TouchableOpacity
+              key={member._id || String(i)}
+              style={[styles.playerRow, isMe && styles.playerRowMe]}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('PlayerDetail', { id: p._id })}
+            >
+              {/* Avatar with role badge */}
+              <View style={styles.playerAvatarWrap}>
+                {photo
+                  ? <Image source={{ uri: getImageUrl(photo) }} style={styles.playerAvatar} />
+                  : (
+                    <View style={[styles.playerAvatarFb, isMe && styles.playerAvatarFbMe]}>
+                      <Text style={styles.playerAvatarLetter}>{p.name?.[0]?.toUpperCase() || '?'}</Text>
+                    </View>
+                  )
+                }
+                {(isCap || isVC || isWK) && (
+                  <View style={[styles.roleBadge,
                   isCap && styles.roleBadgeCap,
-                  isVC  && styles.roleBadgeVC,
-                  isWK  && styles.roleBadgeWK,
-                ]}>
-                  <Icon
-                    name={isCap ? 'crown' : isVC ? 'star-half-full' : 'shield-star'}
-                    size={8}
-                    color={isCap ? '#FFD700' : isVC ? '#90CAF9' : Colors.primary}
-                  />
-                </View>
-              )}
-            </View>
-
-            {/* Player info */}
-            <View style={styles.playerDetailsWrap}>
-              {/* Name row */}
-              <View style={styles.playerNameRow}>
-                <Text style={[styles.playerName, isMe && styles.playerNameMe]} numberOfLines={1}>
-                  {p.name}
-                  {isMe ? <Text style={styles.youBadge}> • You</Text> : ''}
-                </Text>
+                  isVC && styles.roleBadgeVC,
+                  isWK && styles.roleBadgeWK,
+                  ]}>
+                    <Icon
+                      name={isCap ? 'crown' : isVC ? 'star-half-full' : 'shield-star'}
+                      size={8}
+                      color={isCap ? '#FFD700' : isVC ? '#90CAF9' : Colors.primary}
+                    />
+                  </View>
+                )}
               </View>
 
-              {/* Role tag + playing style */}
-              <View style={styles.playerTagRow}>
-                <View style={[styles.playerRoleTag,
-                  isCap && styles.playerRoleTagCap,
-                  isVC  && styles.playerRoleTagVC,
-                ]}>
-                  <Icon
-                    name={ROLE_ICONS[member.role] || 'account'}
-                    size={9}
-                    color={isCap ? '#FFD700' : isVC ? '#90CAF9' : Colors.textTertiary}
-                  />
-                  <Text style={[styles.playerRoleTagText,
-                    isCap && { color: '#FFD700' },
-                    isVC  && { color: '#90CAF9' },
-                  ]}>
-                    {ROLE_LABELS[member.role] || member.role}
+              {/* Player info */}
+              <View style={styles.playerDetailsWrap}>
+                {/* Name row */}
+                <View style={styles.playerNameRow}>
+                  <Text style={[styles.playerName, isMe && styles.playerNameMe]} numberOfLines={1}>
+                    {p.name}
+                    {isMe ? <Text style={styles.youBadge}> • You</Text> : ''}
                   </Text>
                 </View>
-                <Text style={styles.playerStyleText} numberOfLines={1}>
-                  {p.playingRole || ''}
-                </Text>
+
+                {/* Role tag + playing style */}
+                <View style={styles.playerTagRow}>
+                  <View style={[styles.playerRoleTag,
+                  isCap && styles.playerRoleTagCap,
+                  isVC && styles.playerRoleTagVC,
+                  ]}>
+                    <Icon
+                      name={ROLE_ICONS[member.role] || 'account'}
+                      size={9}
+                      color={isCap ? '#FFD700' : isVC ? '#90CAF9' : Colors.textTertiary}
+                    />
+                    <Text style={[styles.playerRoleTagText,
+                    isCap && { color: '#FFD700' },
+                    isVC && { color: '#90CAF9' },
+                    ]}>
+                      {ROLE_LABELS[member.role] || member.role}
+                    </Text>
+                  </View>
+                  <Text style={styles.playerStyleText} numberOfLines={1}>
+                    {p.playingRole || ''}
+                  </Text>
+                </View>
+
+                {/* Mini stats */}
+                <View style={styles.playerMiniStats}>
+                  <MiniStat label="Runs" value={p.batting?.runs ?? 0} />
+                  <View style={styles.miniStatDivider} />
+                  <MiniStat label="Avg" value={batAvg} />
+                  <View style={styles.miniStatDivider} />
+                  <MiniStat label="SR" value={sr} />
+                  <View style={styles.miniStatDivider} />
+                  <MiniStat label="Wkts" value={p.bowling?.wickets ?? 0} />
+                </View>
               </View>
 
-              {/* Mini stats */}
-              <View style={styles.playerMiniStats}>
-                <MiniStat label="Runs" value={p.batting?.runs ?? 0} />
-                <View style={styles.miniStatDivider} />
-                <MiniStat label="Avg" value={batAvg} />
-                <View style={styles.miniStatDivider} />
-                <MiniStat label="SR" value={sr} />
-                <View style={styles.miniStatDivider} />
-                <MiniStat label="Wkts" value={p.bowling?.wickets ?? 0} />
-              </View>
-            </View>
+              {/* Action buttons — ONLY captain/admin can manage roster */}
+              {canManageRoster && !isMe && (
+                <View style={styles.playerActions}>
+                  <TouchableOpacity
+                    style={styles.actionIconBtn}
+                    onPress={(e) => { e.stopPropagation?.(); setSelectedPlayerToEdit(member); setRoleModalVisible(true); }}
+                  >
+                    <Icon name="account-edit" size={15} color={Colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionIconBtn, styles.actionIconBtnDanger]}
+                    onPress={(e) => { e.stopPropagation?.(); handleRemovePlayer(member); }}
+                  >
+                    <Icon name="account-remove" size={15} color={Colors.error} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </KeyboardAwareScrollView>
 
-            {/* Action buttons — ONLY captain/admin can manage roster */}
-            {canManageRoster && !isMe && (
-              <View style={styles.playerActions}>
-                <TouchableOpacity
-                  style={styles.actionIconBtn}
-                  onPress={(e) => { e.stopPropagation?.(); setSelectedPlayerToEdit(member); setRoleModalVisible(true); }}
-                >
-                  <Icon name="account-edit" size={15} color={Colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionIconBtn, styles.actionIconBtnDanger]}
-                  onPress={(e) => { e.stopPropagation?.(); handleRemovePlayer(member); }}
-                >
-                  <Icon name="account-remove" size={15} color={Colors.error} />
-                </TouchableOpacity>
-              </View>
-            )}
-          </TouchableOpacity>
-        );
-      })}
-
-    </ScrollView>
+      {/* Floating Add Player Button */}
+      {canManageRoster && (
+        <TouchableOpacity style={styles.addPlayerFloatingBtn} onPress={() => setAddModalVisible(true)}>
+          <Icon name="account-plus" size={24} color="#000" />
+        </TouchableOpacity>
+      )}
+    </View>
   );
 
   const renderMatchesTab = () => {
@@ -387,7 +413,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
     if (!recentMatches.length) return <EmptyState icon="cricket" label="No match history yet" />;
 
     return (
-      <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
         {recentMatches.map((m, i) => (
           <TouchableOpacity
             key={m._id || i}
@@ -422,7 +448,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     );
   };
 
@@ -434,7 +460,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
     const formats = teamStats?.formatBreakdown || {};
 
     return (
-      <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
         {/* Win/Loss overview */}
         <View style={styles.statsCard}>
           <Text style={styles.statsCardTitle}>Match Overview</Text>
@@ -456,15 +482,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Tournaments */}
-        <View style={styles.statsCard}>
-          <Text style={styles.statsCardTitle}>Tournament Record</Text>
-          <View style={styles.statsGrid}>
-            <BigStat label="Played" value={s.tournamentsPlayed || 0} />
-            <BigStat label="Won" value={s.tournamentsWon || 0} primary />
-            <BigStat label="Points" value={s.points || 0} primary />
-          </View>
-        </View>
+
 
         {/* Format Breakdown */}
         {Object.keys(formats).length > 0 && (
@@ -485,7 +503,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
             ))}
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     );
   };
 
@@ -493,74 +511,115 @@ const TeamDetailScreen = ({ navigation, route }) => {
     if (statsLoading && !teamStats) return <LoadingState />;
     const topBat = teamStats?.topScorers || [];
     const topBowl = teamStats?.topWicketTakers || [];
+    const topField = teamStats?.topFielders || [];
 
     return (
-      <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
-        {/* Top Scorers */}
-        <View style={styles.lbSection}>
-          <View style={styles.lbSectionHeader}>
-            <Icon name="bat" size={16} color={Colors.primary} />
-            <Text style={styles.lbSectionTitle}>Top Scorers</Text>
-          </View>
-          {topBat.length === 0 ? <EmptyState icon="bat" label="No batting data yet" small /> : topBat.map((p, i) => (
-            <View key={p.player?._id || i} style={styles.lbRow}>
-              <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
-                <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
-              </View>
-              <View style={styles.lbAvatar}>
-                {p.player?.photo
-                  ? <Image source={{ uri: getImageUrl(p.player.photo) }} style={styles.lbAvatarImg} />
-                  : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
-                }
-              </View>
-              <View style={styles.lbInfo}>
-                <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
-                <Text style={styles.lbMeta}>SR: {p.strikeRate} · Avg: {p.average}</Text>
-              </View>
-              <View style={styles.lbPrimaryVal}>
-                <Text style={styles.lbPrimaryValNum}>{p.runs}</Text>
-                <Text style={styles.lbPrimaryValLabel}>runs</Text>
-              </View>
-            </View>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.lbTabRow}>
+          {['batters', 'bowlers', 'fielders'].map(t => (
+            <TouchableOpacity key={t} onPress={() => setActiveLeaderboardTab(t)} style={[styles.lbTab, activeLeaderboardTab === t && styles.lbTabActive]}>
+              <Text style={[styles.lbTabText, activeLeaderboardTab === t && styles.lbTabTextActive]}>{t.charAt(0).toUpperCase() + t.slice(1)}</Text>
+            </TouchableOpacity>
           ))}
         </View>
 
-        {/* Top Wicket Takers */}
-        <View style={styles.lbSection}>
-          <View style={styles.lbSectionHeader}>
-            <Icon name="baseball" size={16} color={Colors.primary} />
-            <Text style={styles.lbSectionTitle}>Top Wicket Takers</Text>
-          </View>
-          {topBowl.length === 0 ? <EmptyState icon="baseball" label="No bowling data yet" small /> : topBowl.map((p, i) => (
-            <View key={p.player?._id || i} style={styles.lbRow}>
-              <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
-                <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
-              </View>
-              <View style={styles.lbAvatar}>
-                {p.player?.photo
-                  ? <Image source={{ uri: getImageUrl(p.player.photo) }} style={styles.lbAvatarImg} />
-                  : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
-                }
-              </View>
-              <View style={styles.lbInfo}>
-                <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
-                <Text style={styles.lbMeta}>Econ: {p.economy} · {p.overs} Overs</Text>
-              </View>
-              <View style={styles.lbPrimaryVal}>
-                <Text style={styles.lbPrimaryValNum}>{p.wickets}</Text>
-                <Text style={styles.lbPrimaryValLabel}>wkts</Text>
-              </View>
+        {activeLeaderboardTab === 'batters' && (
+          <View style={styles.lbSection}>
+            <View style={styles.lbSectionHeader}>
+              <Icon name="cricket" size={16} color={Colors.primary} />
+              <Text style={styles.lbSectionTitle}>Top Scorers</Text>
             </View>
-          ))}
-        </View>
-      </ScrollView>
+            {topBat.length === 0 ? <EmptyState icon="cricket" label="No batting data yet" small /> : topBat.map((p, i) => (
+              <View key={p.player?._id || i} style={styles.lbRow}>
+                <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
+                  <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
+                </View>
+                <View style={styles.lbAvatar}>
+                  {p.player?.photo
+                    ? <Image source={{ uri: getImageUrl(p.player.photo) }} style={styles.lbAvatarImg} />
+                    : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
+                  }
+                </View>
+                <View style={styles.lbInfo}>
+                  <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
+                  <Text style={styles.lbMeta}>SR: {p.strikeRate} · Avg: {p.average}</Text>
+                </View>
+                <View style={styles.lbPrimaryVal}>
+                  <Text style={styles.lbPrimaryValNum}>{p.runs}</Text>
+                  <Text style={styles.lbPrimaryValLabel}>runs</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {activeLeaderboardTab === 'bowlers' && (
+          <View style={styles.lbSection}>
+            <View style={styles.lbSectionHeader}>
+              <Icon name="baseball" size={16} color={Colors.primary} />
+              <Text style={styles.lbSectionTitle}>Top Wicket Takers</Text>
+            </View>
+            {topBowl.length === 0 ? <EmptyState icon="baseball" label="No bowling data yet" small /> : topBowl.map((p, i) => (
+              <View key={p.player?._id || i} style={styles.lbRow}>
+                <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
+                  <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
+                </View>
+                <View style={styles.lbAvatar}>
+                  {p.player?.photo
+                    ? <Image source={{ uri: getImageUrl(p.player.photo) }} style={styles.lbAvatarImg} />
+                    : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
+                  }
+                </View>
+                <View style={styles.lbInfo}>
+                  <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
+                  <Text style={styles.lbMeta}>Econ: {p.economy} · {p.overs} Overs</Text>
+                </View>
+                <View style={styles.lbPrimaryVal}>
+                  <Text style={styles.lbPrimaryValNum}>{p.wickets}</Text>
+                  <Text style={styles.lbPrimaryValLabel}>wkts</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {activeLeaderboardTab === 'fielders' && (
+          <View style={styles.lbSection}>
+            <View style={styles.lbSectionHeader}>
+              <Icon name="hand-back-right" size={16} color={Colors.primary} />
+              <Text style={styles.lbSectionTitle}>Top Fielders</Text>
+            </View>
+            {topField.length === 0 ? <EmptyState icon="hand-back-right" label="No fielding data yet" small /> : topField.map((p, i) => (
+              <View key={p.player?._id || i} style={styles.lbRow}>
+                <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
+                  <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
+                </View>
+                <View style={styles.lbAvatar}>
+                  {p.player?.photo
+                    ? <Image source={{ uri: getImageUrl(p.player.photo) }} style={styles.lbAvatarImg} />
+                    : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
+                  }
+                </View>
+                <View style={styles.lbInfo}>
+                  <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
+                  <Text style={styles.lbMeta}>Catches: {p.catches} · Run Outs: {p.runOuts} · Stumpings: {p.stumpings}</Text>
+                </View>
+                <View style={styles.lbPrimaryVal}>
+                  <Text style={styles.lbPrimaryValNum}>{p.total}</Text>
+                  <Text style={styles.lbPrimaryValLabel}>dismissals</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </KeyboardAwareScrollView>
     );
   };
 
   const renderAchievementsTab = () => {
     const s = selectedTeam?.stats || {};
     return (
-      <ScrollView contentContainerStyle={[styles.tabContent, { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }]} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }]} showsVerticalScrollIndicator={false}>
         {ACHIEVEMENTS.map(ach => {
           const current = s[ach.key] || 0;
           const unlocked = current >= ach.target;
@@ -590,7 +649,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
             </View>
           );
         })}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     );
   };
 
@@ -603,7 +662,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
     const nrPct = Math.max(0, 100 - winPct - lossPct);
 
     return (
-      <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
         {/* Donut-style result breakdown */}
         <View style={styles.analyticsCard}>
           <Text style={styles.statsCardTitle}>Result Breakdown</Text>
@@ -614,11 +673,11 @@ const TeamDetailScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Win trend — last 10 matches as W/L dots */}
+        {/* Win trend — last 5 matches as W/L dots */}
         <View style={styles.analyticsCard}>
-          <Text style={styles.statsCardTitle}>Recent Form (Last {Math.min(recent.length, 10)})</Text>
+          <Text style={styles.statsCardTitle}>Recent Form (Last {Math.min(recent.length, 5)})</Text>
           <View style={styles.formRow}>
-            {recent.slice(0, 10).map((m, i) => (
+            {recent.slice(0, 5).map((m, i) => (
               <View key={i} style={[
                 styles.formDot,
                 m.result === 'W' ? styles.formDotWin : m.result === 'L' ? styles.formDotLoss : styles.formDotNR
@@ -652,28 +711,20 @@ const TeamDetailScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        {/* Player count */}
-        <View style={styles.analyticsCard}>
-          <Text style={styles.statsCardTitle}>Squad Overview</Text>
-          <View style={styles.statsGrid}>
-            <BigStat label="Players" value={selectedTeam?.players?.length || 0} />
-            <BigStat label="Followers" value={selectedTeam?.followerCount || 0} primary />
-            <BigStat label="Total Points" value={s.points || 0} primary />
-          </View>
-        </View>
-      </ScrollView>
+
+      </KeyboardAwareScrollView>
     );
   };
 
   const renderActiveTab = () => {
     switch (activeTab) {
-      case 'players':     return renderPlayersTab();
-      case 'matches':     return renderMatchesTab();
-      case 'stats':       return renderStatsTab();
+      case 'players': return renderPlayersTab();
+      case 'matches': return renderMatchesTab();
+      case 'stats': return renderStatsTab();
       case 'leaderboard': return renderLeaderboardTab();
-      case 'achievements':return renderAchievementsTab();
-      case 'analytics':   return renderAnalyticsTab();
-      default:            return null;
+      case 'achievements': return renderAchievementsTab();
+      case 'analytics': return renderAnalyticsTab();
+      default: return null;
     }
   };
 
@@ -701,6 +752,11 @@ const TeamDetailScreen = ({ navigation, route }) => {
             <Icon name="arrow-left" size={22} color="#fff" />
           </TouchableOpacity>
           <View style={styles.navActions}>
+            {isMeMember && (
+              <TouchableOpacity style={styles.navBtn} onPress={handleLeaveTeam}>
+                <Icon name="logout" size={20} color={Colors.error} />
+              </TouchableOpacity>
+            )}
             {isManager && (
               <>
                 <TouchableOpacity style={styles.navBtn} onPress={openEditModal}>
@@ -761,7 +817,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
         </View>
 
         {/* ── Tab Bar (horizontal scroll) ── */}
-        <ScrollView
+        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled"
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.detailTabBar}
@@ -780,7 +836,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </LinearGradient>
 
       {/* ── TAB CONTENT ── */}
@@ -808,10 +864,8 @@ const TeamDetailScreen = ({ navigation, route }) => {
                   onChangeText={setMobile}
                   keyboardType="phone-pad"
                 />
+                {lookupLoading && <ActivityIndicator size="small" color={Colors.primary} style={{ marginLeft: 10 }} />}
               </View>
-              <TouchableOpacity style={styles.lookupBtn} onPress={handleLookup} disabled={lookupLoading}>
-                {lookupLoading ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.lookupBtnText}>Search</Text>}
-              </TouchableOpacity>
             </View>
 
             {lookupDone && (
@@ -835,7 +889,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
             )}
 
             <Text style={styles.modalLabel}>Role</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleRow}>
+            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleRow}>
               {ROLE_OPTIONS.map(r => (
                 <TouchableOpacity
                   key={r}
@@ -846,7 +900,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
                   <Text style={[styles.roleChipText, addRole === r && styles.roleChipTextActive]}>{ROLE_LABELS[r]}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             <TouchableOpacity onPress={handleAddPlayer} disabled={adding || (!lookupDone && !mobile)}>
               <LinearGradient colors={Colors.primaryGradient} style={styles.modalSubmitBtn}>
@@ -907,9 +961,17 @@ const TeamDetailScreen = ({ navigation, route }) => {
               <Icon name="shield" size={16} color={Colors.textTertiary} />
               <TextInput style={styles.modalInputText} placeholder="Team name" placeholderTextColor={Colors.textTertiary} value={editName} onChangeText={setEditName} />
             </View>
-            <View style={styles.modalInput}>
-              <Icon name="city-variant-outline" size={16} color={Colors.textTertiary} />
-              <TextInput style={styles.modalInputText} placeholder="City" placeholderTextColor={Colors.textTertiary} value={editCity} onChangeText={setEditCity} />
+            <View style={{ zIndex: 100, marginBottom: 10 }}>
+              <LocationAutocomplete
+                value={editCity}
+                onChangeText={setEditCity}
+                onSelectLocation={(loc) => {
+                  setEditCity(loc.name);
+                  if (loc.state) setEditState(loc.state);
+                }}
+                placeholder="Search City..."
+                variant="outlined"
+              />
             </View>
             <View style={styles.modalInput}>
               <Icon name="map" size={16} color={Colors.textTertiary} />
@@ -1032,6 +1094,7 @@ const styles = StyleSheet.create({
   },
   inviteCodeText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 12, letterSpacing: 1 },
   followBigBtn: {
+    flex: 1, justifyContent: 'center',
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderColor: Colors.primaryAlpha30,
     backgroundColor: Colors.primaryAlpha10,
@@ -1041,16 +1104,15 @@ const styles = StyleSheet.create({
   followBigBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
   // Detail Tab Bar
-  detailTabBar: { gap: 8, paddingVertical: 8, paddingRight: 4 },
+  detailTabBar: { gap: 20, paddingVertical: 8, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', marginBottom: 6 },
   detailTab: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 13, paddingVertical: 8,
-    borderRadius: 10, backgroundColor: Colors.backgroundCard,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingBottom: 10,
+    borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
-  detailTabActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  detailTabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 },
-  detailTabTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  detailTabActive: { borderBottomColor: Colors.primary },
+  detailTabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 },
+  detailTabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
   contentArea: { flex: 1, backgroundColor: Colors.background },
   tabContent: { padding: 14, paddingBottom: 30, gap: 10 },
@@ -1074,8 +1136,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   roleBadgeCap: { backgroundColor: 'rgba(255,215,0,0.2)' },
-  roleBadgeVC:  { backgroundColor: 'rgba(144,202,249,0.2)' },
-  roleBadgeWK:  { backgroundColor: Colors.primaryAlpha10 },
+  roleBadgeVC: { backgroundColor: 'rgba(144,202,249,0.2)' },
+  roleBadgeWK: { backgroundColor: Colors.primaryAlpha10 },
 
   playerDetailsWrap: { flex: 1, gap: 3 },
   playerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -1090,7 +1152,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
   },
   playerRoleTagCap: { borderColor: 'rgba(255,215,0,0.4)', backgroundColor: 'rgba(255,215,0,0.08)' },
-  playerRoleTagVC:  { borderColor: 'rgba(144,202,249,0.4)', backgroundColor: 'rgba(144,202,249,0.08)' },
+  playerRoleTagVC: { borderColor: 'rgba(144,202,249,0.4)', backgroundColor: 'rgba(144,202,249,0.08)' },
   playerRoleTagText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, fontSize: 9 },
   playerStyleText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 10, flexShrink: 1 },
 
@@ -1114,6 +1176,24 @@ const styles = StyleSheet.create({
     borderRadius: 14, paddingVertical: 14, backgroundColor: Colors.primaryAlpha10,
   },
   addPlayerBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 },
+
+  addPlayerFloatingBtn: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    zIndex: 10,
+  },
 
   // Matches tab
   matchRow: {
@@ -1160,8 +1240,12 @@ const styles = StyleSheet.create({
   formatBarBg: { height: 6, backgroundColor: Colors.backgroundElevated, borderRadius: 3, overflow: 'hidden' },
   formatBarFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 3 },
   formatStat: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 11, minWidth: 60, textAlign: 'right' },
-
   // Leaderboard
+  lbTabRow: { flexDirection: 'row', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  lbTab: { flex: 1, alignItems: 'center', paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  lbTabActive: { borderBottomColor: Colors.primary },
+  lbTabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 },
+  lbTabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
   lbSection: { marginBottom: 16 },
   lbSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   lbSectionTitle: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
@@ -1207,19 +1291,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundCard, borderRadius: 14, padding: 14,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
   },
-  resultBreakdownRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 100, marginTop: 8 },
-  resultBlock: { alignItems: 'center', flex: 1 },
-  resultBlockPct: { fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 },
-  resultBlockBar: { width: 36, height: 80, borderRadius: 8, justifyContent: 'flex-end', overflow: 'hidden' },
+  resultBreakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 110, marginTop: 12, paddingHorizontal: 10 },
+  resultBlock: { alignItems: 'center', width: 60 },
+  resultBlockPct: { fontFamily: Typography.fontFamily.bold, fontSize: 14, marginBottom: 6 },
+  resultBlockBar: { width: 40, height: 70, borderRadius: 8, justifyContent: 'flex-end', overflow: 'hidden' },
   resultBlockFill: { width: '100%', borderRadius: 8 },
-  resultBlockLabel: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 10, marginTop: 6 },
+  resultBlockLabel: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 11, marginTop: 8 },
 
-  formRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  formDot: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  formRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+  formDot: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   formDotWin: { backgroundColor: 'rgba(46,213,115,0.15)', borderWidth: 1, borderColor: Colors.success },
   formDotLoss: { backgroundColor: 'rgba(244,67,54,0.15)', borderWidth: 1, borderColor: Colors.error },
   formDotNR: { backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border },
-  formDotText: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 10 },
+  formDotText: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 11 },
   noDataText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginTop: 8 },
 
   barChartWrap: { flexDirection: 'row', alignItems: 'flex-end', gap: 14, height: 130, marginTop: 8, justifyContent: 'space-around' },

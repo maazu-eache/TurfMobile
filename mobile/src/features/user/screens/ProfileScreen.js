@@ -85,7 +85,7 @@ const ProfileScreen = ({ navigation }) => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Player Profile</Text>
             {renderOption('cricket', 'Cricket Stats', 'View your career and matches', () => navigation.navigate('PlayerProfile'))}
-            {renderOption('account-group', 'My Teams', 'Manage your teams', () => navigation.navigate('Matches', {screen: 'TeamList'}))}
+            {renderOption('account-group', 'My Teams', 'Manage your teams', () => navigation.navigate('TeamList'))}
           </View>
         )}
 

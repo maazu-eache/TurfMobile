@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Image, TextInput } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
-import { fetchMyMatches } from '../matchSlice';
+import { fetchMyMatches, updateLiveMatchScore } from '../matchSlice';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams } from '../../team/teamSlice';
 import { fetchTournaments } from '../../tournament/tournamentSlice';
-import { getImageUrl } from '../../../api/axios';
+import { getImageUrl, BASE_URL } from '../../../api/axios';
+import io from 'socket.io-client';
 import moment from 'moment';
 
-const TOP_TABS = ['Matches', 'Tournaments', 'Teams', 'Stats', 'Highlights'];
+const TOP_TABS = ['Matches', 'Tournaments', 'Teams'];
 const MATCH_SUB_TABS = ['My', 'Played', 'Network'];
 const TEAM_SUB_TABS = ['My', 'Opponents', 'Following'];
 const TOURNAMENT_SUB_TABS = ['My', 'Participate', 'Network'];
@@ -24,6 +25,7 @@ const MyCricketScreen = ({ route }) => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const isFocused = useIsFocused();
+  const socketRef = useRef(null);
 
   useEffect(() => {
     if (route?.params?.tab) {
@@ -36,29 +38,73 @@ const MyCricketScreen = ({ route }) => {
 
   const { myMatches } = useSelector(state => state.match);
   const { myTeams, opponentTeams, followingTeams } = useSelector(state => state.team);
-  const { list: tournaments } = useSelector(state => state.tournament);
+  const { tournaments } = useSelector(state => state.tournament);
+  const { user } = useSelector(state => state.auth);
 
   useEffect(() => {
     let intervalId;
+    
     if (isFocused) {
       if (activeTopTab === 'Matches') {
         dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
-        // Setup polling every 10 seconds for instant updates
+        
+        socketRef.current = io(BASE_URL, { transports: ['websocket'] });
+        
+        // Listen to score updates instantly!
+        socketRef.current.on('score_update', (data) => {
+          if (data && data.matchId && data.score) {
+            dispatch(updateLiveMatchScore({
+              matchId: data.matchId,
+              score: data.score,
+              battingTeam: data.battingTeam,
+              match: data.match
+            }));
+          }
+        });
+        
+        // Setup polling every 30 seconds for non-socket updates
         intervalId = setInterval(() => {
           dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
-        }, 10000);
+        }, 30000);
       }
       if (activeTopTab === 'Teams') {
         dispatch(fetchMyTeams());
         dispatch(fetchOpponentTeams());
         dispatch(fetchFollowingTeams());
       }
-      if (activeTopTab === 'Tournaments') dispatch(fetchTournaments({ limit: 10 }));
+      if (activeTopTab === 'Tournaments') {
+        const params = { limit: 20 };
+        if (activeSubTab === 'My') params.filterType = 'my';
+        else if (activeSubTab === 'Participate') params.filterType = 'participate';
+        dispatch(fetchTournaments(params));
+      }
     }
     return () => {
       if (intervalId) clearInterval(intervalId);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
   }, [isFocused, activeTopTab, activeSubTab, dispatch]);
+
+  // Join match rooms when myMatches changes
+  useEffect(() => {
+    if (isFocused && activeTopTab === 'Matches' && activeSubTab !== 'Played' && myMatches?.length > 0 && socketRef.current) {
+      myMatches.forEach(m => {
+        if (m.status === 'in_progress' || m.status === 'toss_done' || m.status === 'innings_break') {
+          socketRef.current.emit('join_match', { matchId: m._id });
+        }
+      });
+      return () => {
+        if (socketRef.current) {
+          myMatches.forEach(m => {
+            socketRef.current.emit('leave_match', { matchId: m._id });
+          });
+        }
+      };
+    }
+  }, [isFocused, activeTopTab, activeSubTab, myMatches]);
 
   // Handle Tab changes
   const handleTopTabChange = (tab) => {
@@ -66,6 +112,23 @@ const MyCricketScreen = ({ route }) => {
     if (tab === 'Matches') setActiveSubTab('My');
     if (tab === 'Teams') setActiveSubTab('My');
     if (tab === 'Tournaments') setActiveSubTab('My');
+  };
+
+  const handleFollowTournament = async (tournamentId, isFollowing) => {
+    try {
+      if (isFollowing) {
+        await api.post(`/tournaments/${tournamentId}/unfollow`);
+      } else {
+        await api.post(`/tournaments/${tournamentId}/follow`);
+      }
+      // Refresh tournaments
+      const params = { limit: 20 };
+      if (activeSubTab === 'My') params.filterType = 'my';
+      else if (activeSubTab === 'Participate') params.filterType = 'participate';
+      dispatch(fetchTournaments(params));
+    } catch (e) {
+      console.log('Error following/unfollowing tournament', e);
+    }
   };
 
   const renderTopTabBar = () => (
@@ -96,14 +159,14 @@ const MyCricketScreen = ({ route }) => {
         <Text style={styles.cardFormatText} numberOfLines={1}>
           {item.tournament ? item.tournament.name : 'Individual Match'} • {item.ground || item.venueDetails || 'Ground'}, {item.city || 'City'}
         </Text>
-        <View style={styles.resultBadge}>
-          <Text style={styles.resultBadgeText}>
-            {item.status === 'scheduled' ? 'Upcoming' : item.status === 'in_progress' ? 'Live' : 'Result'}
+        <View style={[styles.resultBadge, { backgroundColor: ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status) ? Colors.error : Colors.surface }]}>
+          <Text style={[styles.resultBadgeText, { color: ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status) ? Colors.white : Colors.textSecondary }]}>
+            {['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status) ? 'LIVE' : item.status === 'scheduled' ? 'Upcoming' : 'Result'}
           </Text>
         </View>
       </View>
       
-      <Text style={styles.cardSubText}>{item.format === 'test' ? 'Test' : item.format === 't20' ? 'T20' : item.format === 'odi' ? 'ODI' : item.format || 'Custom'} | {moment(item.scheduledAt || item.createdAt).format('DD MMM YYYY, h:mm a')} | {item.overs} Ov.</Text>
+      <Text style={styles.cardSubText}>{item.stage ? `${item.stage} | ` : ''}{item.format === 'test' ? 'Test' : item.format === 't20' ? 'T20' : item.format === 'odi' ? 'ODI' : item.format || 'Custom'} | {moment(item.scheduledAt || item.createdAt).format('DD MMM YYYY, h:mm a')} | {item.overs} Ov.</Text>
       
       <View style={styles.teamScoreRow}>
         <Text style={[styles.teamNameText, item.status === 'completed' && (item.result?.winner === item.teamA?._id || item.result?.winner?._id === item.teamA?._id) && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{item.teamA?.name}</Text>
@@ -136,7 +199,7 @@ const MyCricketScreen = ({ route }) => {
         </Text>
       ) : item.toss?.winner && item.status !== 'scheduled' ? (
         <Text style={[styles.matchStatusText, { color: Colors.textSecondary, fontSize: 12, marginTop: 4 }]}>
-          {item.toss.winner.name} won the toss and elected to {item.toss.choice}
+          {item.toss.winner.name || (item.toss.winner?.toString() === item.teamA?._id?.toString() ? item.teamA?.name : item.teamB?.name)} won the toss and elected to {item.toss.choice}
         </Text>
       ) : null}
       
@@ -145,7 +208,7 @@ const MyCricketScreen = ({ route }) => {
   );
 
   const renderTournamentCard = ({ item }) => (
-    <TouchableOpacity style={styles.tournamentCard} activeOpacity={0.9} onPress={() => navigation.navigate('TournamentDetail', { id: item._id })}>
+    <TouchableOpacity style={styles.tournamentCard} activeOpacity={0.9} onPress={() => navigation.navigate('TournamentDetail', { tournamentId: item._id })}>
       <View style={styles.tournamentImageContainer}>
         {item.banner ? (
           <Image source={{ uri: getImageUrl(item.banner) }} style={styles.tournamentImage} />
@@ -154,17 +217,35 @@ const MyCricketScreen = ({ route }) => {
             <Icon name="trophy" size={40} color={Colors.primary} />
           </View>
         )}
-        <View style={styles.tournamentStatusBadge}><Text style={styles.tournamentStatusText}>{item.status === 'upcoming' ? 'Upcoming' : 'Past'}</Text></View>
+        <View style={styles.tournamentStatusBadge}><Text style={styles.tournamentStatusText}>{
+          item.status === 'draft' ? 'Draft' : 
+          item.status === 'upcoming' ? 'Upcoming' : 
+          item.status === 'ongoing' ? 'Live' : 
+          item.status === 'completed' ? 'Completed' : 'Past'
+        }</Text></View>
         <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.tournamentGradient}>
           <Text style={styles.tournamentTitle}>{item.name}</Text>
         </LinearGradient>
       </View>
       <View style={styles.tournamentFooter}>
-        <View>
-          <Text style={styles.tournamentDate}>Date: {moment(item.startDate).format('DD MMM, YYYY')} to {moment(item.endDate).format('DD MMM, YYYY')}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.tournamentDate}>
+            {item.startDate ? `Starts: ${moment(item.startDate).format('DD MMM, YYYY')}` : 'Date TBD'}
+            {item.endDate ? ` to ${moment(item.endDate).format('DD MMM, YYYY')}` : ''}
+          </Text>
           <Text style={styles.tournamentCity}>{item.city || 'City'}</Text>
         </View>
-        <TouchableOpacity><Text style={styles.followBtnText}>Follow</Text></TouchableOpacity>
+        <TouchableOpacity 
+          onPress={(e) => { 
+            e.stopPropagation(); 
+            handleFollowTournament(item._id, item.followers?.includes(user?._id)); 
+          }}
+          style={{ padding: 8, paddingRight: 0 }}
+        >
+          <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>
+            {item.followers?.includes(user?._id) ? 'Following' : 'Follow'}
+          </Text>
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -200,7 +281,6 @@ const MyCricketScreen = ({ route }) => {
             <Text style={styles.teamMetaText}>{captainName || 'Captain'}</Text>
           </View>
         </View>
-        <Icon name="qrcode-scan" size={24} color={Colors.primary} style={{marginLeft: 'auto'}} />
       </TouchableOpacity>
     );
   };

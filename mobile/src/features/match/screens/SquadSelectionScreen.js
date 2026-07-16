@@ -1,3 +1,4 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useState, useMemo } from 'react';
 import {
   View,
@@ -412,7 +413,7 @@ const SquadSelectionScreen = () => {
             {pendingPlayers.length > 0 && (
                <View style={{ marginTop: 20, width: '100%' }}>
                   <Text style={{ color: Colors.textSecondary, marginBottom: 8, fontFamily: Typography.fontFamily.semiBold }}>Pending List ({pendingPlayers.length})</Text>
-                  <ScrollView style={{ maxHeight: 160 }} showsVerticalScrollIndicator={false}>
+                  <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ maxHeight: 160 }} showsVerticalScrollIndicator={false}>
                      {pendingPlayers.map((p, idx) => (
                         <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surface, padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: Colors.borderLight }}>
                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -433,7 +434,7 @@ const SquadSelectionScreen = () => {
                            </TouchableOpacity>
                         </View>
                      ))}
-                  </ScrollView>
+                  </KeyboardAwareScrollView>
                </View>
             )}
 

@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Image, ScrollView } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -415,7 +416,7 @@ const AdminDashboardScreen = ({ navigation }) => {
       {/* Settings Modal */}
       <Modal visible={showSettings} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <KeyboardAwareScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg }}>
               <Text style={styles.modalTitle}>Platform Settings</Text>
               <TouchableOpacity onPress={() => setShowSettings(false)}><Icon name="close" size={24} color={Colors.textPrimary}/></TouchableOpacity>
@@ -449,14 +450,14 @@ const AdminDashboardScreen = ({ navigation }) => {
                 <Text style={[styles.modalBtnText, { color: Colors.background }]}>Save</Text>
               </TouchableOpacity>
             </View>
+          </KeyboardAwareScrollView>
           </View>
-        </View>
       </Modal>
 
       {/* Verify Payment Modal */}
       <Modal visible={verifyModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <KeyboardAwareScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
               <Text style={styles.modalTitle}>Verify Payment</Text>
               <TouchableOpacity onPress={() => setVerifyModalVisible(false)}><Icon name="close" size={24} color={Colors.textPrimary}/></TouchableOpacity>
@@ -479,8 +480,8 @@ const AdminDashboardScreen = ({ navigation }) => {
                 <Text style={[styles.modalBtnText, { color: Colors.background }]}>Confirm</Text>
               </TouchableOpacity>
             </View>
+          </KeyboardAwareScrollView>
           </View>
-        </View>
       </Modal>
 
       {/* Tabs */}

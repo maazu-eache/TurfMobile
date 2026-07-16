@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Svg, { Circle } from 'react-native-svg';
 import axios from 'axios';
@@ -390,7 +391,7 @@ const WalletScreen = ({ navigation }) => {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Update Bank Details</Text>
             
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Account Holder Name</Text>
                 <TextInput
@@ -461,7 +462,7 @@ const WalletScreen = ({ navigation }) => {
                   )}
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>

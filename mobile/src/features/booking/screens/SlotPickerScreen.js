@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -325,7 +326,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
 
       {/* Date Picker */}
       <View style={styles.datePickerContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
+        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
           <TouchableOpacity 
             style={styles.calendarBtn}
             onPress={() => {
@@ -337,7 +338,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
             <Text style={styles.calendarBtnText}>More</Text>
           </TouchableOpacity>
           {dates.map(renderDateItem)}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* Legend */}
@@ -349,7 +350,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
       </View>
 
       {/* Slots List */}
-      <ScrollView contentContainerStyle={styles.slotsContainer}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.slotsContainer}>
         {isLoading ? (
           <ActivityIndicator size="large" color={Colors.primary} style={{marginTop: 50}}/>
         ) : slots.length === 0 ? (
@@ -359,7 +360,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
             {slots.map(renderSlot)}
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Footer / Checkout Button */}
       <View style={styles.footer}>
@@ -420,7 +421,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
               </View>
             ) : (
               <>
-                <ScrollView style={{maxHeight: 400}}>
+                <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{maxHeight: 400}}>
                   <Text style={styles.label}>Date Range (IST)</Text>
                   <View style={{flexDirection: 'row', gap: 10, marginBottom: 15}}>
                     <TouchableOpacity 
@@ -473,7 +474,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                       </Text>
                     </TouchableOpacity>
                   </View>
-                </ScrollView>
+                </KeyboardAwareScrollView>
 
                 <TouchableOpacity style={styles.searchBtn} onPress={handleBulkSearch} disabled={isBulkLoading}>
                   {isBulkLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.searchBtnText}>Search & Preview Cost</Text>}
@@ -494,7 +495,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                 <Icon name="close" size={24} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
-            <ScrollView style={{maxHeight: 300}} contentContainerStyle={styles.timeGrid}>
+            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{maxHeight: 300}} contentContainerStyle={styles.timeGrid}>
               {Array.from({length: 24}).map((_, i) => {
                 const hour = i.toString().padStart(2, '0');
                 const timeStr = `${hour}:00`;
@@ -513,7 +514,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                   </TouchableOpacity>
                 )
               })}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       )}

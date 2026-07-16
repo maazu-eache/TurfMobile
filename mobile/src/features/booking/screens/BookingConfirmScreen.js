@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -105,7 +106,7 @@ const BookingConfirmScreen = ({ route, navigation }) => {
         <View style={{width: 24}} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         {/* Turf Info Summary */}
         <View style={styles.card}>
           <Text style={styles.turfName}>{turf.name}</Text>
@@ -159,7 +160,7 @@ const BookingConfirmScreen = ({ route, navigation }) => {
             <Text style={styles.totalVal}>₹{total}</Text>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Footer */}
       <View style={styles.footer}>

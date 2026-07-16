@@ -83,7 +83,13 @@ const turfSlice = createSlice({
       .addCase(fetchTurfs.pending, (state) => { state.isLoading = true; state.error = null; })
       .addCase(fetchTurfs.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.turfs = action.payload.data || [];
+        if (action.meta.arg.page > 1) {
+          const existingIds = new Set(state.turfs.map(t => t._id));
+          const newItems = (action.payload.data || []).filter(t => !existingIds.has(t._id));
+          state.turfs = [...state.turfs, ...newItems];
+        } else {
+          state.turfs = action.payload.data || [];
+        }
         state.pagination = action.payload.pagination;
       })
       .addCase(fetchTurfs.rejected, (state, action) => {
