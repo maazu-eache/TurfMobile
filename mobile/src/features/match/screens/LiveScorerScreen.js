@@ -17,7 +17,9 @@ const { width } = Dimensions.get('window');
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const LiveScorerScreen = ({ navigation, route }) => {
-  const { matchId } = route.params;
+  const matchIdRaw = route.params?.matchId || route.params?.id || route.params?.match?._id || route.params?.match;
+  const cleanMatchId = typeof matchIdRaw === 'object' ? (matchIdRaw?._id?.toString() || matchIdRaw?.id?.toString()) : String(matchIdRaw || '').trim();
+  const matchId = cleanMatchId;
   const dispatch = useDispatch();
   const { liveState, isLoading } = useSelector((state) => state.match);
 
@@ -102,15 +104,24 @@ const LiveScorerScreen = ({ navigation, route }) => {
   // Socket.io for Realtime updates
   useEffect(() => {
     let active = true;
+    if (!cleanMatchId) return;
 
     const setupSocket = () => {
+      const roomName = `match:${cleanMatchId}`;
+
       if (socketRef.current) {
+        if (socketRef.current.connected) {
+          console.log('⚡ [Socket Scorer] Socket Connected | ID:', socketRef.current.id);
+          socketRef.current.emit('join_match', { matchId: cleanMatchId });
+          console.log(`⚡ [Socket Scorer] Joined Match Room: ${roomName}`);
+          return;
+        }
         socketRef.current.disconnect();
       }
 
       console.log('⚡ [Socket Scorer] Connecting to socket server at:', BASE_URL);
       const socket = io(BASE_URL, {
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         autoConnect: true,
         reconnection: true,
         reconnectionAttempts: Infinity,
@@ -122,9 +133,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
       socketRef.current = socket;
 
       socket.on('connect', () => {
-        console.log('⚡ [Socket Scorer] Connected to server, ID:', socket.id);
-        socket.emit('join_match', { matchId });
-        console.log(`⚡ [Socket Scorer] Joined room for matchId: ${matchId}`);
+        console.log('⚡ [Socket Scorer] Socket Connected | ID:', socket.id);
+        socket.emit('join_match', { matchId: cleanMatchId });
+        console.log(`⚡ [Socket Scorer] Joined Match Room: ${roomName}`);
       });
 
       socket.on('joined', (data) => {
@@ -136,28 +147,27 @@ const LiveScorerScreen = ({ navigation, route }) => {
       });
 
       socket.on('connect_error', (error) => {
-        console.error('⚡ [Socket Scorer] Connection error:', error.message);
+        console.warn('⚡ [Socket Scorer] Connection notice:', error?.message || error);
       });
 
-      socket.on('score_update', (data) => {
+      const handleScoreUpdate = (data) => {
         if (!active) return;
-        console.log('⚡ [Socket Scorer] Score update received:', data?.matchId || matchId);
+        const updateMatchId = String(data?.match?._id || data?.matchId || cleanMatchId);
+        console.log('⚡ [Socket Scorer] Score Updated | Match ID:', updateMatchId);
+        console.log('⚡ [Socket Scorer] Event Emitted | Event: score_update');
         dispatch(setLiveState(data));
-        console.log('⚡ [Socket Scorer] Scorer UI updated via Redux setLiveState');
-      });
+      };
 
-      socket.on('live_state_update', (data) => {
-        if (!active) return;
-        console.log('⚡ [Socket Scorer] Live state update received:', data?.matchId || matchId);
-        dispatch(setLiveState(data));
-        console.log('⚡ [Socket Scorer] Scorer UI updated via Redux setLiveState (live_state_update)');
-      });
+      socket.off('score_update');
+      socket.off('live_state_update');
+      socket.on('score_update', handleScoreUpdate);
+      socket.on('live_state_update', handleScoreUpdate);
     };
 
     const cleanupSocket = () => {
       if (socketRef.current) {
-        console.log('⚡ [Socket Scorer] Cleaning up socket connection for match:', matchId);
-        socketRef.current.emit('leave_match', { matchId });
+        console.log('⚡ [Socket Scorer] Cleaning up socket connection for match:', cleanMatchId);
+        socketRef.current.emit('leave_match', { matchId: cleanMatchId });
         socketRef.current.off('connect');
         socketRef.current.off('joined');
         socketRef.current.off('disconnect');
@@ -169,11 +179,12 @@ const LiveScorerScreen = ({ navigation, route }) => {
       }
     };
 
-    dispatch(fetchLiveState(matchId));
+    dispatch(fetchLiveState(cleanMatchId));
+    setupSocket();
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
       active = true;
-      dispatch(fetchLiveState(matchId));
+      dispatch(fetchLiveState(cleanMatchId));
       setupSocket();
     });
 
@@ -182,16 +193,13 @@ const LiveScorerScreen = ({ navigation, route }) => {
       cleanupSocket();
     });
 
-    // Run setup immediately since screen is focused on mount
-    setupSocket();
-
     return () => {
       active = false;
       unsubscribeFocus();
       unsubscribeBlur();
       cleanupSocket();
     };
-  }, [dispatch, matchId, navigation]);
+  }, [dispatch, cleanMatchId, navigation]);
 
   // Reset nav lock every time this screen comes into focus (e.g. after returning from player selection)
   useEffect(() => {
@@ -899,7 +907,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
         runReason: options.runReason || null,
         wagonWheel: options.wagonWheel || null,
       };
-      await dispatch(scoreBall({ matchId, ballData: payload })).unwrap();
+      console.log('⚡ [Socket Scorer] Score Updated | Match ID:', cleanMatchId);
+      console.log('⚡ [Socket Scorer] Event Emitted | Event: scoreBall');
+      await dispatch(scoreBall({ matchId: cleanMatchId, ballData: payload })).unwrap();
     } catch (e) {
       showCustomAlert('Scoring Error', e || 'Could not record ball');
     } finally {

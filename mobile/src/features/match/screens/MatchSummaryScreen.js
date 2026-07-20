@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,7 +53,10 @@ const AnalysisDropdown = ({ value, options, onSelect, placeholder }) => {
 };
 
 const MatchSummaryScreen = ({ navigation, route }) => {
-  const matchId = route.params?.matchId || route.params?.id || route.params?.match?._id;
+  const matchIdRaw = route.params?.matchId || route.params?.id || route.params?.match?._id || route.params?.match;
+  const cleanMatchId = typeof matchIdRaw === 'object' ? (matchIdRaw?._id?.toString() || matchIdRaw?.id?.toString()) : String(matchIdRaw || '').trim();
+  const matchId = cleanMatchId;
+
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
   const { liveState, isLoading } = useSelector((state) => state.match);
@@ -79,6 +82,33 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const [declareResultModalVisible, setDeclareResultModalVisible] = useState(false);
   const [declareConfirmation, setDeclareConfirmation] = useState(null);
   const [selectedAnalysisBatter, setSelectedAnalysisBatter] = useState(null);
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    if (!cleanMatchId) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        dispatch(fetchLiveState(cleanMatchId)).unwrap(),
+        fetchCommentary(),
+        fetchScorecards(),
+      ]);
+    } catch (e) {
+      console.log('Error refreshing match summary:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const getRefreshControl = () => (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      colors={[Colors.primary]}
+      tintColor={Colors.primary}
+    />
+  );
 
   const [celebration, setCelebration] = useState(null);
   const celebrationAnim = React.useRef(new RNAnimated.Value(0)).current;
@@ -107,15 +137,24 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     let active = true;
+    if (!cleanMatchId) return;
 
     const setupSocket = () => {
+      const roomName = `match:${cleanMatchId}`;
+
       if (socketRef.current) {
+        if (socketRef.current.connected) {
+          console.log('⚡ [Socket Viewer] Socket Connected | ID:', socketRef.current.id);
+          socketRef.current.emit('join_match', { matchId: cleanMatchId });
+          console.log(`⚡ [Socket Viewer] Joined Match Room: ${roomName}`);
+          return;
+        }
         socketRef.current.disconnect();
       }
 
       console.log('⚡ [Socket Viewer] Connecting to socket server at:', BASE_URL);
       const socket = io(BASE_URL, {
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         autoConnect: true,
         reconnection: true,
         reconnectionAttempts: Infinity,
@@ -127,9 +166,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       socketRef.current = socket;
 
       socket.on('connect', () => {
-        console.log('⚡ [Socket Viewer] Connected to server, ID:', socket.id);
-        socket.emit('join_match', { matchId });
-        console.log(`⚡ [Socket Viewer] Joined room for matchId: ${matchId}`);
+        console.log('⚡ [Socket Viewer] Socket Connected | ID:', socket.id);
+        socket.emit('join_match', { matchId: cleanMatchId });
+        console.log(`⚡ [Socket Viewer] Joined Match Room: ${roomName}`);
       });
 
       socket.on('joined', (data) => {
@@ -141,16 +180,18 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       });
 
       socket.on('connect_error', (error) => {
-        console.error('⚡ [Socket Viewer] Connection error:', error.message);
+        console.warn('⚡ [Socket Viewer] Connection notice:', error?.message || error);
       });
 
-      socket.on('score_update', (data) => {
+      const handleScoreUpdate = (data) => {
         if (!active) return;
-        console.log('⚡ [Socket Viewer] Score update received:', data?.matchId || matchId);
+        const updateMatchId = String(data?.match?._id || data?.matchId || cleanMatchId);
+        console.log('⚡ [Socket Viewer] Live Update Received | Match ID:', updateMatchId);
         dispatch(setLiveState(data));
-        console.log('⚡ [Socket Viewer] Viewer UI updated via Redux setLiveState');
+        console.log('⚡ [Socket Viewer] State Updated | Match ID:', updateMatchId);
+        console.log('⚡ [Socket Viewer] UI Updated');
 
-        // Real-time synchronization
+        // Real-time synchronization for sub-tabs
         fetchCommentary();
         fetchScorecards();
 
@@ -172,28 +213,35 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             }
           }
         }
-      });
+      };
+
+      socket.off('score_update');
+      socket.off('live_state_update');
+      socket.on('score_update', handleScoreUpdate);
+      socket.on('live_state_update', handleScoreUpdate);
     };
 
     const cleanupSocket = () => {
       if (socketRef.current) {
-        console.log('⚡ [Socket Viewer] Cleaning up socket connection for match:', matchId);
-        socketRef.current.emit('leave_match', { matchId });
+        console.log('⚡ [Socket Viewer] Cleaning up socket connection for match:', cleanMatchId);
+        socketRef.current.emit('leave_match', { matchId: cleanMatchId });
         socketRef.current.off('connect');
         socketRef.current.off('joined');
         socketRef.current.off('disconnect');
         socketRef.current.off('connect_error');
         socketRef.current.off('score_update');
+        socketRef.current.off('live_state_update');
         socketRef.current.disconnect();
         socketRef.current = null;
       }
     };
 
-    dispatch(fetchLiveState(matchId));
+    dispatch(fetchLiveState(cleanMatchId));
+    setupSocket();
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
       active = true;
-      dispatch(fetchLiveState(matchId));
+      dispatch(fetchLiveState(cleanMatchId));
       setupSocket();
     });
 
@@ -202,16 +250,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       cleanupSocket();
     });
 
-    // Run setup immediately since screen is focused on mount
-    setupSocket();
-
     return () => {
       active = false;
       unsubscribeFocus();
       unsubscribeBlur();
       cleanupSocket();
     };
-  }, [dispatch, matchId, navigation]);
+  }, [dispatch, cleanMatchId, navigation]);
 
   useEffect(() => {
     if (activeTab === 'Comms' || activeTab === 'Analysis') {
@@ -389,7 +434,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   );
 
   const renderMatchDetails = () => (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Info</Text>
         <View style={styles.infoRow}><Text style={styles.infoLabel}>Match</Text><Text style={styles.infoValue}>{teamA} vs {teamB}</Text></View>
@@ -421,7 +466,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const renderSummary = () => {
     if (match.status === 'abandoned') {
       return (
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
           <View style={[styles.section, { alignItems: 'center', paddingVertical: 48 }]}>
             <Icon name="alert-circle" size={56} color={Colors.error || '#D32F2F'} style={{ marginBottom: 16 }} />
             <Text style={{ color: Colors.error || '#D32F2F', fontFamily: Typography.fontFamily.bold, fontSize: 20, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -567,7 +612,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     };
 
     return (
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
         {match.status === 'completed' ? (
           <View>
             {/* Header Section (Scores & Result) */}
@@ -1332,7 +1377,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
 
     return (
-      <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: 0 }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: 0 }]} refreshControl={getRefreshControl()}>
 
         {/* Team Headers */}
         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight }}>
@@ -1530,7 +1575,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
 
     return (
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
         {displayScorecards.map((sc, index) => {
           const battingTeamName = sc.battingTeam?.name || (sc.battingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name);
           const isExpanded = expandedInnings[index] !== false; // expanded by default
@@ -1715,7 +1760,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
 
     return (
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
         <View style={styles.lbFilterRow}>
           {[
             { id: 'ALL', label: 'All' },
@@ -1848,7 +1893,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     const battersList = Object.values(battersMap);
 
     return (
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
 
         {/* Dropdown Filters */}
         <View style={{ flexDirection: 'row', marginBottom: 16, marginHorizontal: -4 }}>
@@ -2192,7 +2237,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     );
 
     return (
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 32 }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 32 }]} refreshControl={getRefreshControl()}>
 
         {/* Awards strip */}
         <View style={styles.section}>

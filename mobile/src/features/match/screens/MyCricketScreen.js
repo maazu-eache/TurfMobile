@@ -51,7 +51,7 @@ const MyCricketScreen = ({ route }) => {
         dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
         
         socketRef.current = io(BASE_URL, {
-          transports: ['websocket'],
+          transports: ['websocket', 'polling'],
           autoConnect: true,
           reconnection: true,
           reconnectionAttempts: Infinity,
@@ -82,7 +82,7 @@ const MyCricketScreen = ({ route }) => {
         });
 
         socketRef.current.on('connect_error', (error) => {
-          console.error('⚡ [Socket MyCricket] Connection error:', error.message);
+          console.warn('⚡ [Socket MyCricket] Connection notice:', error?.message || error);
         });
         
         // Listen to score updates instantly!
