@@ -1,24 +1,27 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyBookings } from '../bookingSlice';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { formatISTDateFull, formatISTTime } from '../../../utils/dateFormatter';
-import api from '../../../api/axios';
 
 const BookingHistoryScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { bookings, isLoading } = useSelector((state) => state.booking);
   
   const [activeTab, setActiveTab] = useState('Upcoming');
-  const tabs = ['Upcoming', 'Pending', 'Completed', 'Cancelled'];
+  const tabs = ['Upcoming', 'Completed', 'Cancelled'];
+
+  const onRefresh = useCallback(() => {
+    dispatch(fetchMyBookings({ limit: 100 }));
+  }, [dispatch]);
 
   useFocusEffect(
     useCallback(() => {
-      dispatch(fetchMyBookings({ limit: 100 })); 
-    }, [dispatch])
+      onRefresh(); 
+    }, [onRefresh])
   );
 
   const getStatusColor = (status) => {
@@ -33,7 +36,6 @@ const BookingHistoryScreen = ({ navigation }) => {
 
   const filteredBookings = bookings.filter(b => {
     if (activeTab === 'Upcoming') return b.status === 'confirmed';
-    if (activeTab === 'Pending') return b.status === 'pending';
     if (activeTab === 'Completed') return b.status === 'completed';
     if (activeTab === 'Cancelled') return b.status === 'cancelled';
     return true;
@@ -108,26 +110,23 @@ const BookingHistoryScreen = ({ navigation }) => {
         </ScrollView>
       </View>
 
-      {isLoading && bookings.length === 0 ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={filteredBookings}
-          keyExtractor={(item) => item._id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
+      <FlatList
+        data={filteredBookings}
+        keyExtractor={(item) => item._id}
+        renderItem={renderItem}
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        ListEmptyComponent={
+          !isLoading && (
             <View style={styles.center}>
               <Icon name="ticket-confirmation-outline" size={60} color={Colors.textTertiary} />
               <Text style={styles.emptyTitle}>No {activeTab} Bookings</Text>
               <Text style={styles.emptySub}>You don't have any {activeTab.toLowerCase()} bookings at the moment.</Text>
             </View>
-          }
-        />
-      )}
+          )
+        }
+      />
     </View>
   );
 };

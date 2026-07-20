@@ -21,7 +21,7 @@ import AddTeamModal from '../../tournament/components/AddTeamModal';
 
 const MatchTeamSelectionScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
-  const { selectingFor, teamA, teamB, tournamentDetails, activeTab: initialActiveTab, onSelectTeam } = route.params;
+  const { selectingFor, teamA, teamB, tournamentDetails, activeTab: initialActiveTab, onSelectTeam, matchStage } = route.params;
   
   const { myTeams, opponentTeams, followingTeams, globalSearchTeams, isLoading: isTeamLoading, searchLoading } = useSelector((state) => state.team);
 
@@ -91,7 +91,48 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
     }
 
     if (tournamentDetails) {
-      uniqueList.sort((a, b) => a.tournamentGroupName.localeCompare(b.tournamentGroupName));
+      const isKnockout = matchStage && !['League Match', 'Group Stage', 'Practice Match'].includes(matchStage);
+
+      if (isKnockout) {
+        // Find teams eliminated in previous knockouts
+        const eliminationStages = ['Super Knockout', 'Knockout', 'Pre Quarter Final', 'Quarter Final', 'Semi Final', 'Round of 16', 'Eliminator', 'Qualifier 2'];
+        const eliminatedIds = new Set();
+        
+        if (tournamentDetails.matches) {
+          tournamentDetails.matches.forEach(m => {
+            if (m.status === 'completed' && eliminationStages.includes(m.stage) && m.result?.winner) {
+              const winnerId = m.result.winner._id ? m.result.winner._id.toString() : m.result.winner.toString();
+              const teamAId = m.teamA?._id ? m.teamA._id.toString() : m.teamA?.toString();
+              const teamBId = m.teamB?._id ? m.teamB._id.toString() : m.teamB?.toString();
+              
+              if (teamAId && teamAId !== winnerId) eliminatedIds.add(teamAId);
+              if (teamBId && teamBId !== winnerId) eliminatedIds.add(teamBId);
+            }
+          });
+        }
+        
+        // Filter out eliminated teams
+        uniqueList = uniqueList.filter(t => !eliminatedIds.has(t._id.toString()));
+
+        // Attach points table info
+        uniqueList.forEach(t => {
+          const ptEntry = tournamentDetails.pointsTable?.find(pt => pt.team?._id === t._id);
+          t.points = ptEntry ? ptEntry.points : -1;
+          t.netRunRate = ptEntry ? ptEntry.netRunRate : -999;
+        });
+
+        uniqueList.sort((a, b) => {
+          // Sort by group name first
+          const groupCompare = a.tournamentGroupName.localeCompare(b.tournamentGroupName);
+          if (groupCompare !== 0) return groupCompare;
+          // Within same group, sort by points descending
+          if (b.points !== a.points) return b.points - a.points;
+          // If points are equal, sort by NRR descending
+          return b.netRunRate - a.netRunRate;
+        });
+      } else {
+        uniqueList.sort((a, b) => a.tournamentGroupName.localeCompare(b.tournamentGroupName));
+      }
     }
 
     return uniqueList;
@@ -192,6 +233,12 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
                         <Text style={styles.teamItemName}>{item.name}</Text>
                         {item.city && <Text style={styles.teamItemCity}>{item.city}</Text>}
                       </View>
+                      {item.points !== undefined && (
+                        <View style={styles.pointsBadge}>
+                          <Text style={styles.pointsText}>{item.points} PTS</Text>
+                          <Text style={styles.nrrText}>NRR: {item.netRunRate ? item.netRunRate.toFixed(2) : '0.00'}</Text>
+                        </View>
+                      )}
                       <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
                     </TouchableOpacity>
                   </View>

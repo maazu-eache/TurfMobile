@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
   ScrollView, Image, ActivityIndicator, TextInput, Modal,
-  Animated, ToastAndroid, Platform,
+  Animated, ToastAndroid, Platform, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -23,12 +23,23 @@ const TeamListScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { myTeams, opponentTeams, followingTeams = [], isLoading, opponentsLoading, followingLoading } = useSelector((s) => s.team);
   const [activeSection, setActiveSection] = useState('my');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     dispatch(fetchMyTeams());
     dispatch(fetchOpponentTeams());
     dispatch(fetchFollowingTeams());
   }, [dispatch]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      dispatch(fetchMyTeams()),
+      dispatch(fetchOpponentTeams()),
+      dispatch(fetchFollowingTeams())
+    ]);
+    setRefreshing(false);
+  };
 
   const handleFollow = async (teamId) => {
     try {
@@ -233,6 +244,14 @@ const TeamListScreen = ({ navigation }) => {
           renderItem={activeSection === 'opponents' ? renderOpponentTeam : renderMyTeam}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <LinearGradient colors={[Colors.primaryAlpha10, 'transparent']} style={styles.emptyCircle}>

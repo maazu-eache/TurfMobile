@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
   Image, ScrollView, ActivityIndicator, Animated,
-  Dimensions, Modal, TextInput, ToastAndroid, Platform,
+  Dimensions, Modal, TextInput, ToastAndroid, Platform, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -87,6 +87,19 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const [updatingTeam, setUpdatingTeam] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [activeLeaderboardTab, setActiveLeaderboardTab] = useState('batters');
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        dispatch(fetchTeamById(id)).unwrap(),
+        dispatch(fetchTeamStats(id)).unwrap()
+      ]);
+    } catch (e) {}
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     if (id) {
@@ -277,7 +290,10 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
   const renderPlayersTab = () => (
     <View style={{ flex: 1, position: 'relative' }}>
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, canManageRoster && { paddingTop: 8 }]} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView 
+        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, canManageRoster && { paddingTop: 8 }]} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+      >
 
         {selectedTeam?.players?.map((member, i) => {
           const p = member.player;
@@ -413,7 +429,10 @@ const TeamDetailScreen = ({ navigation, route }) => {
     if (!recentMatches.length) return <EmptyState icon="cricket" label="No match history yet" />;
 
     return (
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView 
+        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+      >
         {recentMatches.map((m, i) => (
           <TouchableOpacity
             key={m._id || i}
@@ -460,7 +479,10 @@ const TeamDetailScreen = ({ navigation, route }) => {
     const formats = teamStats?.formatBreakdown || {};
 
     return (
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView 
+        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+      >
         {/* Win/Loss overview */}
         <View style={styles.statsCard}>
           <Text style={styles.statsCardTitle}>Match Overview</Text>
@@ -514,7 +536,10 @@ const TeamDetailScreen = ({ navigation, route }) => {
     const topField = teamStats?.topFielders || [];
 
     return (
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView 
+        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+      >
         <View style={styles.lbTabRow}>
           {['batters', 'bowlers', 'fielders'].map(t => (
             <TouchableOpacity key={t} onPress={() => setActiveLeaderboardTab(t)} style={[styles.lbTab, activeLeaderboardTab === t && styles.lbTabActive]}>
@@ -619,7 +644,10 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const renderAchievementsTab = () => {
     const s = selectedTeam?.stats || {};
     return (
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }]} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView 
+        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }]} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+      >
         {ACHIEVEMENTS.map(ach => {
           const current = s[ach.key] || 0;
           const unlocked = current >= ach.target;
@@ -662,7 +690,10 @@ const TeamDetailScreen = ({ navigation, route }) => {
     const nrPct = Math.max(0, 100 - winPct - lossPct);
 
     return (
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView 
+        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+      >
         {/* Donut-style result breakdown */}
         <View style={styles.analyticsCard}>
           <Text style={styles.statsCardTitle}>Result Breakdown</Text>

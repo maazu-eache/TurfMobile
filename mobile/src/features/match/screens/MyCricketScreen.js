@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Image, TextInput, RefreshControl } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,11 +21,13 @@ const MyCricketScreen = ({ route }) => {
   const [activeTopTab, setActiveTopTab] = useState('Matches');
   const [activeSubTab, setActiveSubTab] = useState('My');
   const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const socketRef = useRef(null);
+  const myMatchesRef = useRef([]);
 
   useEffect(() => {
     if (route?.params?.tab) {
@@ -48,10 +50,44 @@ const MyCricketScreen = ({ route }) => {
       if (activeTopTab === 'Matches') {
         dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
         
-        socketRef.current = io(BASE_URL, { transports: ['websocket'] });
+        socketRef.current = io(BASE_URL, {
+          transports: ['websocket'],
+          autoConnect: true,
+          reconnection: true,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
+          timeout: 20000,
+        });
+
+        socketRef.current.on('connect', () => {
+          console.log('⚡ [Socket MyCricket] Connected, ID:', socketRef.current.id);
+          // Re-join all matches
+          if (myMatchesRef.current && myMatchesRef.current.length > 0) {
+            myMatchesRef.current.forEach(m => {
+              if (m.status === 'in_progress' || m.status === 'toss_done' || m.status === 'innings_break') {
+                socketRef.current.emit('join_match', { matchId: m._id });
+                console.log(`⚡ [Socket MyCricket] Joined/Re-joined room match:${m._id}`);
+              }
+            });
+          }
+        });
+
+        socketRef.current.on('joined', (data) => {
+          console.log('⚡ [Socket MyCricket] Confirmed joined room successfully:', data);
+        });
+
+        socketRef.current.on('disconnect', (reason) => {
+          console.log('⚡ [Socket MyCricket] Disconnected from server. Reason:', reason);
+        });
+
+        socketRef.current.on('connect_error', (error) => {
+          console.error('⚡ [Socket MyCricket] Connection error:', error.message);
+        });
         
         // Listen to score updates instantly!
         socketRef.current.on('score_update', (data) => {
+          console.log('⚡ [Socket MyCricket] Score update received:', data?.matchId);
           if (data && data.matchId && data.score) {
             dispatch(updateLiveMatchScore({
               matchId: data.matchId,
@@ -59,6 +95,7 @@ const MyCricketScreen = ({ route }) => {
               battingTeam: data.battingTeam,
               match: data.match
             }));
+            console.log('⚡ [Socket MyCricket] MyCricket UI updated via Redux updateLiveMatchScore');
           }
         });
         
@@ -82,6 +119,11 @@ const MyCricketScreen = ({ route }) => {
     return () => {
       if (intervalId) clearInterval(intervalId);
       if (socketRef.current) {
+        socketRef.current.off('connect');
+        socketRef.current.off('joined');
+        socketRef.current.off('disconnect');
+        socketRef.current.off('connect_error');
+        socketRef.current.off('score_update');
         socketRef.current.disconnect();
         socketRef.current = null;
       }
@@ -90,16 +132,19 @@ const MyCricketScreen = ({ route }) => {
 
   // Join match rooms when myMatches changes
   useEffect(() => {
+    myMatchesRef.current = myMatches || [];
     if (isFocused && activeTopTab === 'Matches' && activeSubTab !== 'Played' && myMatches?.length > 0 && socketRef.current) {
       myMatches.forEach(m => {
         if (m.status === 'in_progress' || m.status === 'toss_done' || m.status === 'innings_break') {
           socketRef.current.emit('join_match', { matchId: m._id });
+          console.log(`⚡ [Socket MyCricket] Joined room match:${m._id} (via myMatches update)`);
         }
       });
       return () => {
         if (socketRef.current) {
           myMatches.forEach(m => {
             socketRef.current.emit('leave_match', { matchId: m._id });
+            console.log(`⚡ [Socket MyCricket] Left room match:${m._id} (via cleanup)`);
           });
         }
       };
@@ -130,6 +175,25 @@ const MyCricketScreen = ({ route }) => {
       console.log('Error following/unfollowing tournament', e);
     }
   };
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    if (activeTopTab === 'Matches') {
+      dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
+    } else if (activeTopTab === 'Tournaments') {
+      const params = { limit: 20 };
+      if (activeSubTab === 'My') params.filterType = 'my';
+      else if (activeSubTab === 'Participate') params.filterType = 'participate';
+      dispatch(fetchTournaments(params));
+    } else if (activeTopTab === 'Teams') {
+      dispatch(fetchMyTeams());
+      dispatch(fetchOpponentTeams());
+      dispatch(fetchFollowingTeams());
+    }
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  }, [activeTopTab, activeSubTab, dispatch]);
 
   const renderTopTabBar = () => (
     <View style={{ paddingTop: insets.top }}>
@@ -302,6 +366,7 @@ const MyCricketScreen = ({ route }) => {
             renderItem={renderMatchCard}
             contentContainerStyle={styles.listContainer}
             ListEmptyComponent={<Text style={styles.emptyText}>No matches found</Text>}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
           />
         </>
       );
@@ -321,6 +386,7 @@ const MyCricketScreen = ({ route }) => {
             renderItem={renderTournamentCard}
             contentContainerStyle={styles.listContainer}
             ListEmptyComponent={<Text style={styles.emptyText}>No tournaments found</Text>}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
           />
         </>
       );
@@ -354,6 +420,7 @@ const MyCricketScreen = ({ route }) => {
             renderItem={renderTeamCard}
             contentContainerStyle={styles.listContainer}
             ListEmptyComponent={<Text style={styles.emptyText}>No teams found</Text>}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
           />
         </>
       );

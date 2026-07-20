@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { Colors, Typography, BorderRadius, Spacing, Shadows } from '../../../the
 import moment from 'moment';
 import { getPlayerTags } from '../../../utils/playerTags';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { showCustomAlert } from '../../../components/CustomAlert';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -74,11 +75,15 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const [leaderboardTab, setLeaderboardTab] = useState('MVP');
   const [commentaryFilter, setCommentaryFilter] = useState('ALL');
   const [analysisFilter, setAnalysisFilter] = useState('ALL');
+  const [partnershipFilter, setPartnershipFilter] = useState('ALL');
+  const [declareResultModalVisible, setDeclareResultModalVisible] = useState(false);
+  const [declareConfirmation, setDeclareConfirmation] = useState(null);
   const [selectedAnalysisBatter, setSelectedAnalysisBatter] = useState(null);
 
   const [celebration, setCelebration] = useState(null);
   const celebrationAnim = React.useRef(new RNAnimated.Value(0)).current;
   const lastBallRef = React.useRef(null);
+  const socketRef = React.useRef(null);
 
   const triggerCelebration = (type, text, color) => {
     setCelebration({ type, text, color });
@@ -101,40 +106,112 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   };
 
   useEffect(() => {
-    dispatch(fetchLiveState(matchId));
-    const socket = io(BASE_URL, { transports: ['websocket'] });
-    socket.emit('join_match', { matchId });
-    socket.on('score_update', (data) => {
-      dispatch(setLiveState(data));
-      // Real-time synchronization
-      fetchCommentary();
-      fetchScorecards();
+    let active = true;
 
-      // Trigger Celebration Logic
-      if (data?.recentCommentary?.length > 0) {
-        const latestBall = data.recentCommentary[0];
-        if (latestBall._id && latestBall._id !== lastBallRef.current) {
-          lastBallRef.current = latestBall._id;
-          
-          if (data.isMatchComplete || data.match?.status === 'completed') {
-            const winnerName = data.result?.winner === data.match?.teamA?._id ? data.match?.teamA?.name : data.result?.winner === data.match?.teamB?._id ? data.match?.teamB?.name : 'TEAM';
-            triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
-          } else if (latestBall.isWicket) {
-            triggerCelebration('wicket', 'W', Colors.error);
-          } else if (latestBall.batsmanRuns === 6) {
-            triggerCelebration('six', '6!', '#1976D2');
-          } else if (latestBall.batsmanRuns === 4) {
-            triggerCelebration('four', '4!', '#4CAF50');
+    const setupSocket = () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+
+      console.log('⚡ [Socket Viewer] Connecting to socket server at:', BASE_URL);
+      const socket = io(BASE_URL, {
+        transports: ['websocket'],
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+      });
+
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        console.log('⚡ [Socket Viewer] Connected to server, ID:', socket.id);
+        socket.emit('join_match', { matchId });
+        console.log(`⚡ [Socket Viewer] Joined room for matchId: ${matchId}`);
+      });
+
+      socket.on('joined', (data) => {
+        console.log('⚡ [Socket Viewer] Confirmed joined room successfully:', data);
+      });
+
+      socket.on('disconnect', (reason) => {
+        console.log('⚡ [Socket Viewer] Disconnected from server. Reason:', reason);
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('⚡ [Socket Viewer] Connection error:', error.message);
+      });
+
+      socket.on('score_update', (data) => {
+        if (!active) return;
+        console.log('⚡ [Socket Viewer] Score update received:', data?.matchId || matchId);
+        dispatch(setLiveState(data));
+        console.log('⚡ [Socket Viewer] Viewer UI updated via Redux setLiveState');
+
+        // Real-time synchronization
+        fetchCommentary();
+        fetchScorecards();
+
+        // Trigger Celebration Logic
+        if (data?.recentCommentary?.length > 0) {
+          const latestBall = data.recentCommentary[0];
+          if (latestBall._id && latestBall._id !== lastBallRef.current) {
+            lastBallRef.current = latestBall._id;
+            
+            if (data.isMatchComplete || data.match?.status === 'completed') {
+              const winnerName = data.result?.winner === data.match?.teamA?._id ? data.match?.teamA?.name : data.result?.winner === data.match?.teamB?._id ? data.match?.teamB?.name : 'TEAM';
+              triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
+            } else if (latestBall.isWicket) {
+              triggerCelebration('wicket', 'W', Colors.error);
+            } else if (latestBall.batsmanRuns === 6) {
+              triggerCelebration('six', '6!', '#1976D2');
+            } else if (latestBall.batsmanRuns === 4) {
+              triggerCelebration('four', '4!', '#4CAF50');
+            }
           }
         }
+      });
+    };
+
+    const cleanupSocket = () => {
+      if (socketRef.current) {
+        console.log('⚡ [Socket Viewer] Cleaning up socket connection for match:', matchId);
+        socketRef.current.emit('leave_match', { matchId });
+        socketRef.current.off('connect');
+        socketRef.current.off('joined');
+        socketRef.current.off('disconnect');
+        socketRef.current.off('connect_error');
+        socketRef.current.off('score_update');
+        socketRef.current.disconnect();
+        socketRef.current = null;
       }
+    };
+
+    dispatch(fetchLiveState(matchId));
+
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      active = true;
+      dispatch(fetchLiveState(matchId));
+      setupSocket();
     });
 
+    const unsubscribeBlur = navigation.addListener('blur', () => {
+      active = false;
+      cleanupSocket();
+    });
+
+    // Run setup immediately since screen is focused on mount
+    setupSocket();
+
     return () => {
-      socket.emit('leave_match', { matchId });
-      socket.disconnect();
+      active = false;
+      unsubscribeFocus();
+      unsubscribeBlur();
+      cleanupSocket();
     };
-  }, [dispatch, matchId]);
+  }, [dispatch, matchId, navigation]);
 
   useEffect(() => {
     if (activeTab === 'Comms' || activeTab === 'Analysis') {
@@ -248,6 +325,45 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
   };
 
+  const confirmDeclareResult = (resultType, teamId, teamName) => {
+    let title = '';
+    let message = '';
+    
+    if (resultType === 'walkover') {
+      title = 'Confirm Walkover';
+      message = `Are you sure you want to declare a walkover to ${teamName}? They will be awarded 2 points.`;
+    } else if (resultType === 'tie') {
+      title = 'Confirm Match Drawn';
+      message = 'Are you sure you want to declare this match as drawn? Both teams will receive 1 point.';
+    } else if (resultType === 'abandoned') {
+      title = 'Confirm Abandon Match';
+      message = 'Are you sure you want to abandon this match? Both teams will receive 1 point.';
+    }
+    
+    setDeclareConfirmation({ visible: true, title, message, resultType, teamId });
+  };
+
+  const executeDeclareResult = () => {
+    if (declareConfirmation) {
+      handleDeclareResult(declareConfirmation.resultType, declareConfirmation.teamId);
+      setDeclareConfirmation(null);
+    }
+  };
+
+  const handleDeclareResult = async (resultType, winnerTeamId = null) => {
+    try {
+      setDeclareResultModalVisible(false);
+      const res = await api.put(`/matches/${matchId}/declare-result`, { resultType, winnerTeamId });
+      if (res.data.success) {
+        showCustomAlert('Success', 'Match result has been declared.');
+        dispatch(fetchLiveState(matchId));
+      }
+    } catch (e) {
+      console.log('Error declaring result', e);
+      showCustomAlert('Error', e.response?.data?.message || 'Failed to declare result');
+    }
+  };
+
   const handleContinue = async () => {
     if (match.status === 'scheduled') {
       navigation.navigate('MatchSetup', { matchId: match._id, matchData: match, tournamentDetails: match.tournament });
@@ -263,7 +379,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const renderTabHeader = () => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
-      {['Info', 'Summary', 'Scorecard', 'Comms', 'Squads', 'Analysis', 'Leaderboard'].map(tab => (
+      {['Info', 'Summary', 'Scorecard', 'Comms', 'Squads', 'Analysis', 'Partnerships', 'Leaderboard'].map(tab => (
         <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={styles.tabItem}>
           {activeTab === tab && <View style={styles.tabActivePill} />}
           <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
@@ -1488,8 +1604,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
                         {/* Did Not Bat */}
                         {(() => {
-                          const battingTeamId = sc.battingTeam?._id || sc.battingTeam;
-                          const playingXI = match.playingXI?.teamA?.some(p => p._id === battingTeamId) ? match.playingXI?.teamA : match.playingXI?.teamB;
+                          const battingTeamIdStr = (sc.battingTeam?._id || sc.battingTeam)?.toString();
+                          const teamAIdStr = (match.teamA?._id || match.teamA)?.toString();
+                          const playingXI = battingTeamIdStr === teamAIdStr ? match.playingXI?.teamA : match.playingXI?.teamB;
                           if (!playingXI) return null;
                           const battedIds = sc.batting.map(b => b.player?._id?.toString() || b.player?.toString());
                           const dnb = playingXI.filter(p => !battedIds.includes(p._id?.toString()));
@@ -1530,13 +1647,15 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                             </View>
                           );
                         })()}
+
                       </>
                     ) : (
                       <View style={{ paddingVertical: 12 }}>
                         <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginBottom: 8 }}>Yet to bat</Text>
                         {(() => {
-                          const battingTeamId = sc.battingTeam?._id || sc.battingTeam;
-                          const playingXI = match.playingXI?.teamA?.some(p => p._id === battingTeamId) ? match.playingXI?.teamA : match.playingXI?.teamB;
+                          const battingTeamIdStr = (sc.battingTeam?._id || sc.battingTeam)?.toString();
+                          const teamAIdStr = (match.teamA?._id || match.teamA)?.toString();
+                          const playingXI = battingTeamIdStr === teamAIdStr ? match.playingXI?.teamA : match.playingXI?.teamB;
                           if (!playingXI) return null;
                           return (
                             <View style={{ marginTop: 4 }}>
@@ -1587,6 +1706,88 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       </ScrollView>
     );
   };
+  const renderPartnerships = () => {
+    let displayScorecards = [...(scorecards || [])];
+    if (partnershipFilter === 'A') {
+      displayScorecards = displayScorecards.filter(sc => (sc.battingTeam?._id || sc.battingTeam) === match.teamA?._id);
+    } else if (partnershipFilter === 'B') {
+      displayScorecards = displayScorecards.filter(sc => (sc.battingTeam?._id || sc.battingTeam) === match.teamB?._id);
+    }
+
+    return (
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.lbFilterRow}>
+          {[
+            { id: 'ALL', label: 'All' },
+            { id: 'A', label: teamA },
+            { id: 'B', label: teamB }
+          ].map(tab => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.lbFilterBtn, partnershipFilter === tab.id && styles.lbFilterBtnActive]}
+              onPress={() => setPartnershipFilter(tab.id)}
+            >
+              <Text style={[styles.lbFilterText, partnershipFilter === tab.id && styles.lbFilterTextActive, { textAlign: 'center' }]} numberOfLines={1}>{tab.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {displayScorecards.map((sc, index) => {
+          const inn = match.innings?.find(i => i.inningsNumber === sc.inningsNumber);
+          if (!inn || !inn.partnerships || inn.partnerships.length === 0) return null;
+          
+          const teamName = sc.battingTeam?.name || (sc.battingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name) || `Team ${sc.battingTeam}`;
+          
+          return (
+            <View key={index} style={[styles.section, { padding: 16, marginBottom: 16 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>{teamName}</Text>
+                <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>{sc.total?.runs || 0}/{sc.total?.wickets || 0} ({sc.total?.overs || '0.0'} Ov)</Text>
+              </View>
+              
+              {inn.partnerships.map((p, idx) => {
+                const p1Name = p.batsman1?.name || sc.batting.find(b => (b.player?._id || b.player)?.toString() === (p.batsman1?._id || p.batsman1)?.toString())?.player?.name || 'Unknown';
+                const p2Name = p.batsman2?.name || sc.batting.find(b => (b.player?._id || b.player)?.toString() === (p.batsman2?._id || p.batsman2)?.toString())?.player?.name || 'Unknown';
+                
+                const wicketNum = p.wicket || (idx + 1);
+                const suffix = ['st','nd','rd'][((wicketNum+90)%100-10)%10-1] || 'th';
+                
+                return (
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, paddingBottom: 12 }}>
+                    <View style={{ width: 60 }}>
+                      <Text style={{ color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>{wicketNum}{suffix} Wkt</Text>
+                    </View>
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium }} numberOfLines={1}>{p1Name}</Text>
+                      </View>
+                      <View style={{ paddingHorizontal: 12, alignItems: 'center' }}>
+                        <Text style={{ color: Colors.primary, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>{p.runs}</Text>
+                        <Text style={{ color: Colors.textTertiary, fontSize: 10 }}>({p.balls})</Text>
+                      </View>
+                      <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                        <Text style={{ color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium }} numberOfLines={1}>{p2Name}</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })}
+        
+        {displayScorecards.filter(sc => {
+          const inn = match.innings?.find(i => i.inningsNumber === sc.inningsNumber);
+          return inn && inn.partnerships && inn.partnerships.length > 0;
+        }).length === 0 && (
+          <View style={{ padding: 20, alignItems: 'center' }}>
+            <Text style={{ color: Colors.textSecondary }}>No partnerships available.</Text>
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
+
   const renderAnalysis = () => {
     if (loadingCommentary || loadingScorecards) {
       return <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />;
@@ -2080,11 +2281,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         {activeTab === 'Comms' && renderCommentary()}
         {activeTab === 'Squads' && renderSquads()}
         {activeTab === 'Analysis' && renderAnalysis()}
+        {activeTab === 'Partnerships' && renderPartnerships()}
         {activeTab === 'Leaderboard' && renderLeaderboard()}
       </View>
 
       {/* Action Button */}
-      {isScorer && match.status !== 'completed' && match.status !== 'abandoned' && (
+      {isScorer && match.status !== 'completed' && match.status !== 'abandoned' && match.status !== 'no_result' && (
         <View style={[styles.footer, { paddingBottom: insets.bottom + 8 }]}>
           <TouchableOpacity style={styles.continueBtn} onPress={handleContinue} activeOpacity={0.85}>
             <Icon
@@ -2097,8 +2299,81 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               {match.status === 'scheduled' ? 'Start Match' : 'Continue Scoring'}
             </Text>
           </TouchableOpacity>
+          {match.status === 'scheduled' && (
+            <TouchableOpacity 
+              style={{ marginTop: 12, paddingVertical: 10, alignItems: 'center' }}
+              onPress={() => setDeclareResultModalVisible(true)}
+            >
+              <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.semiBold }}>Declare Result (Walkover / Abandon)</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
+
+      {/* Declare Result Modal */}
+      <Modal visible={declareResultModalVisible} transparent animationType="slide" onRequestClose={() => setDeclareResultModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { padding: 0 }]}>
+            <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: Colors.borderLight }}>
+              <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, textAlign: 'center' }}>Declare Result</Text>
+            </View>
+            <ScrollView style={{ maxHeight: 300, width: '100%' }}>
+              <TouchableOpacity style={styles.declareResultOption} onPress={() => confirmDeclareResult('walkover', match.teamA?._id, match.teamA?.name)}>
+                <Icon name="flag-checkered" size={20} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <Text style={styles.declareResultOptionText}>Walkover to {match.teamA?.name}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.declareResultOption} onPress={() => confirmDeclareResult('walkover', match.teamB?._id, match.teamB?.name)}>
+                <Icon name="flag-checkered" size={20} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <Text style={styles.declareResultOptionText}>Walkover to {match.teamB?.name}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.declareResultOption} onPress={() => confirmDeclareResult('tie')}>
+                <Icon name="handshake-outline" size={20} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <Text style={styles.declareResultOptionText}>Match Drawn (Tie)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.declareResultOption, { borderBottomWidth: 0 }]} onPress={() => confirmDeclareResult('abandoned')}>
+                <Icon name="close-octagon-outline" size={20} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <Text style={styles.declareResultOptionText}>Abandon Match</Text>
+              </TouchableOpacity>
+            </ScrollView>
+            <View style={{ padding: 16, width: '100%', borderTopWidth: 1, borderTopColor: Colors.borderLight }}>
+              <TouchableOpacity 
+                style={{ paddingVertical: 12, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' }} 
+                onPress={() => setDeclareResultModalVisible(false)}
+              >
+                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirmation Modal */}
+      <Modal visible={!!declareConfirmation?.visible} transparent animationType="fade" onRequestClose={() => setDeclareConfirmation(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { padding: 24 }]}>
+            <Text style={{ fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 12, textAlign: 'center' }}>
+              {declareConfirmation?.title}
+            </Text>
+            <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, textAlign: 'center', marginBottom: 24, lineHeight: 22 }}>
+              {declareConfirmation?.message}
+            </Text>
+            <View style={{ flexDirection: 'row', width: '100%', gap: 12 }}>
+              <TouchableOpacity 
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' }} 
+                onPress={() => setDeclareConfirmation(null)}
+              >
+                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' }} 
+                onPress={executeDeclareResult}
+              >
+                <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Player Preview Modal */}
       {selectedPlayerPreview && (
@@ -2461,6 +2736,8 @@ const styles = StyleSheet.create({
   // ── Modals ───────────────────────────────────────────────────────────────────
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: Colors.surfaceVariant, borderRadius: BorderRadius.xl, padding: 24, width: '80%', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  declareResultOption: { flexDirection: 'row', justifyContent: 'flex-start', paddingVertical: 16, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, alignItems: 'center', width: '100%' },
+  declareResultOptionText: { fontSize: 16, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary },
   modalAvatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 2, borderColor: Colors.primary },
   modalAvatarText: { color: Colors.primary, fontSize: 32, fontFamily: Typography.fontFamily.bold },
   modalPlayerName: { color: Colors.textPrimary, fontSize: 20, fontFamily: Typography.fontFamily.bold, marginBottom: 24, textAlign: 'center' },

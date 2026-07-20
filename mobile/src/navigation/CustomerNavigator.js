@@ -161,6 +161,9 @@ const ProfileStack = () => (
     <Stack.Screen name="BookingConfirm" component={BookingConfirmScreen} />
 
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
+    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
+    <Stack.Screen name="Scorecard" component={ScorecardScreen} />
+    <Stack.Screen name="Spectator" component={SpectatorScreen} />
   </Stack.Navigator>
 );
 

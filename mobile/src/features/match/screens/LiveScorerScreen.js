@@ -97,26 +97,101 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   // Scoring lock — prevents multiple rapid taps on scoring buttons
   const scoringLockRef = useRef(false);
+  const socketRef = useRef(null);
 
   // Socket.io for Realtime updates
   useEffect(() => {
+    let active = true;
+
+    const setupSocket = () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+
+      console.log('⚡ [Socket Scorer] Connecting to socket server at:', BASE_URL);
+      const socket = io(BASE_URL, {
+        transports: ['websocket'],
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+      });
+
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        console.log('⚡ [Socket Scorer] Connected to server, ID:', socket.id);
+        socket.emit('join_match', { matchId });
+        console.log(`⚡ [Socket Scorer] Joined room for matchId: ${matchId}`);
+      });
+
+      socket.on('joined', (data) => {
+        console.log('⚡ [Socket Scorer] Confirmed joined room successfully:', data);
+      });
+
+      socket.on('disconnect', (reason) => {
+        console.log('⚡ [Socket Scorer] Disconnected from server. Reason:', reason);
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('⚡ [Socket Scorer] Connection error:', error.message);
+      });
+
+      socket.on('score_update', (data) => {
+        if (!active) return;
+        console.log('⚡ [Socket Scorer] Score update received:', data?.matchId || matchId);
+        dispatch(setLiveState(data));
+        console.log('⚡ [Socket Scorer] Scorer UI updated via Redux setLiveState');
+      });
+
+      socket.on('live_state_update', (data) => {
+        if (!active) return;
+        console.log('⚡ [Socket Scorer] Live state update received:', data?.matchId || matchId);
+        dispatch(setLiveState(data));
+        console.log('⚡ [Socket Scorer] Scorer UI updated via Redux setLiveState (live_state_update)');
+      });
+    };
+
+    const cleanupSocket = () => {
+      if (socketRef.current) {
+        console.log('⚡ [Socket Scorer] Cleaning up socket connection for match:', matchId);
+        socketRef.current.emit('leave_match', { matchId });
+        socketRef.current.off('connect');
+        socketRef.current.off('joined');
+        socketRef.current.off('disconnect');
+        socketRef.current.off('connect_error');
+        socketRef.current.off('score_update');
+        socketRef.current.off('live_state_update');
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+
     dispatch(fetchLiveState(matchId));
 
-    const socket = io(BASE_URL, { transports: ['websocket'] });
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      active = true;
+      dispatch(fetchLiveState(matchId));
+      setupSocket();
+    });
 
-    socket.emit('join_match', { matchId });
-    socket.on('score_update', (data) => {
-      dispatch(setLiveState(data));
+    const unsubscribeBlur = navigation.addListener('blur', () => {
+      active = false;
+      cleanupSocket();
     });
-    socket.on('live_state_update', (data) => {
-      dispatch(setLiveState(data));
-    });
+
+    // Run setup immediately since screen is focused on mount
+    setupSocket();
 
     return () => {
-      socket.emit('leave_match', { matchId });
-      socket.disconnect();
+      active = false;
+      unsubscribeFocus();
+      unsubscribeBlur();
+      cleanupSocket();
     };
-  }, [dispatch, matchId]);
+  }, [dispatch, matchId, navigation]);
 
   // Reset nav lock every time this screen comes into focus (e.g. after returning from player selection)
   useEffect(() => {
@@ -614,12 +689,12 @@ const LiveScorerScreen = ({ navigation, route }) => {
     setShowSettingsModal(false);
     
     if (action === 'view_scoreboard') {
-      navigation.navigate('Scorecard', { matchId });
+      navigation.navigate('MatchSummary', { matchId, initialTab: 'Scorecard' });
     } else if (action === 'add_scorer') {
       setShowAddScorerModal(true);
     } else if (action === 'toggle_single_wicket') {
       try {
-        await api.put(`${BASE_URL}/matches/${matchId}`, {
+        await api.put(`/matches/${matchId}/settings`, {
           isSingleWicketBatting: !match.isSingleWicketBatting
         });
         dispatch(fetchLiveState(matchId));
@@ -722,7 +797,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
   const submitAbandon = async () => {
     if (!abandonReason) return showCustomAlert('Error', 'Please enter a reason');
     try {
-      await api.put(`${BASE_URL}/matches/${matchId}/abandon`, { reason: abandonReason });
+      await api.put(`/matches/${matchId}/abandon`, { reason: abandonReason });
       setShowAbandonModal(false);
       dispatch(fetchLiveState(matchId));
       showCustomAlert('Success', 'Match abandoned');
@@ -1913,25 +1988,41 @@ const LiveScorerScreen = ({ navigation, route }) => {
               
               <Text style={{ color: Colors.textSecondary, marginBottom: 8, marginTop: 10 }}>Reason for abandoning:</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {['Rain', 'Bad Light', 'Pitch Unplayable', 'Other'].map(r => (
-                  <TouchableOpacity
-                    key={r}
-                    style={{ backgroundColor: abandonReason === r ? Colors.primary : Colors.surface, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: abandonReason === r ? Colors.primary : Colors.border }}
-                    onPress={() => setAbandonReason(r)}
-                  >
-                    <Text style={{ color: abandonReason === r ? '#000' : Colors.textPrimary, fontSize: 12 }}>{r}</Text>
-                  </TouchableOpacity>
-                ))}
+                {['Rain', 'Bad Light', 'Pitch Unplayable', 'Other'].map(r => {
+                  const presets = ['Rain', 'Bad Light', 'Pitch Unplayable'];
+                  const isPresetSelected = presets.includes(abandonReason);
+                  const isOtherSelected = !isPresetSelected && abandonReason !== '';
+                  const isSelected = r === 'Other' ? isOtherSelected : abandonReason === r;
+
+                  return (
+                    <TouchableOpacity
+                      key={r}
+                      style={{ 
+                        backgroundColor: isSelected ? Colors.primary : Colors.surface, 
+                        paddingVertical: 8, 
+                        paddingHorizontal: 12, 
+                        borderRadius: 16, 
+                        borderWidth: 1, 
+                        borderColor: isSelected ? Colors.primary : Colors.border 
+                      }}
+                      onPress={() => setAbandonReason(r === 'Other' ? 'Custom Reason' : r)}
+                    >
+                      <Text style={{ color: isSelected ? '#000' : Colors.textPrimary, fontSize: 12 }}>{r}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
-              <TextInput
-                style={[styles.modalInput, { height: 80 }]}
-                placeholder="Type custom reason here (Optional)"
-                placeholderTextColor={Colors.textTertiary}
-                value={abandonReason}
-                onChangeText={setAbandonReason}
-                multiline
-              />
+              {(!['Rain', 'Bad Light', 'Pitch Unplayable'].includes(abandonReason)) && (
+                <TextInput
+                  style={[styles.modalInput, { height: 80 }]}
+                  placeholder="Type custom reason here"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={abandonReason === 'Custom Reason' ? '' : abandonReason}
+                  onChangeText={setAbandonReason}
+                  multiline
+                />
+              )}
 
               <View style={styles.modalActions}>
                 <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setShowAbandonModal(false)}>

@@ -739,7 +739,6 @@ const SlotManagerScreen = ({ navigation }) => {
                       <TouchableOpacity 
                         key={`day-${i}`} 
                         style={[styles.calDay, isSel && styles.calDaySel]}
-                        disabled={isPast && activePicker === 'singleDate'} // Only disable past days for single date selection
                         onPress={() => {
                           if (activePicker === 'start') {
                             setBulkData({...bulkData, startDate: dStr});
@@ -753,7 +752,7 @@ const SlotManagerScreen = ({ navigation }) => {
                           setActivePicker('none');
                         }}
                       >
-                        <Text style={[styles.calDayText, isPast && activePicker === 'singleDate' && {color: Colors.textTertiary}, isSel && {color: '#000'}]}>{i}</Text>
+                        <Text style={[styles.calDayText, isSel && {color: '#000'}]}>{i}</Text>
                       </TouchableOpacity>
                     );
                   }

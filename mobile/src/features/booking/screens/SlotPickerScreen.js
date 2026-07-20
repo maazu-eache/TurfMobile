@@ -31,7 +31,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
   const dispatch = useDispatch();
   const { slots, isLoading, error } = useSelector((state) => state.slot);
   const { isAuthenticated } = useSelector((state) => state.auth);
-  
+
   // Date selection state (next 7 days)
   const today = moment();
   const [selectedDate, setSelectedDate] = useState(today.format('YYYY-MM-DD'));
@@ -53,8 +53,8 @@ const SlotPickerScreen = ({ route, navigation }) => {
   const [previewResult, setPreviewResult] = useState(null);
 
   // Generate 7 days for horizontal list
-  const dates = Array.from({length: 7}).map((_, i) => moment().add(i, 'days'));
-  
+  const dates = Array.from({ length: 7 }).map((_, i) => moment().add(i, 'days'));
+
   // Format time to AM/PM
   const formatTime = (timeStr) => formatISTTime(timeStr);
 
@@ -94,7 +94,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
       if (totalPrice !== oldTotalPrice) {
         return showCustomAlert('Price Mismatch', 'The total price of new slots must match exactly the old booking. Please cancel and rebook instead.');
       }
-      
+
       const res = await dispatch(rescheduleBooking({ id: reschedulingBookingId, newSlots: selectedSlots.map(s => s._id) }));
       if (rescheduleBooking.fulfilled.match(res)) {
         showCustomAlert('Success', 'Booking successfully rescheduled!');
@@ -132,8 +132,8 @@ const SlotPickerScreen = ({ route, navigation }) => {
       let fetchedSlots = [];
 
       if (isCrossMidnight) {
-        const nextDayDaysOfWeek = bulkParams.daysOfWeek.length > 0 
-          ? bulkParams.daysOfWeek.map(d => (d + 1) % 7) 
+        const nextDayDaysOfWeek = bulkParams.daysOfWeek.length > 0
+          ? bulkParams.daysOfWeek.map(d => (d + 1) % 7)
           : [];
 
         // Request 1 – evening slots (startTime → end of day)
@@ -149,7 +149,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
             ...bulkParams,
             startTime: '00:00',
             startDate: moment(startDate).add(1, 'day').format('YYYY-MM-DD'),
-            endDate:   moment(endDate).add(1, 'day').format('YYYY-MM-DD'),
+            endDate: moment(endDate).add(1, 'day').format('YYYY-MM-DD'),
             daysOfWeek: nextDayDaysOfWeek
           }),
         ]);
@@ -201,9 +201,9 @@ const SlotPickerScreen = ({ route, navigation }) => {
   const toggleDayOfWeek = (dayIndex) => {
     const current = bulkParams.daysOfWeek;
     if (current.includes(dayIndex)) {
-      setBulkParams({...bulkParams, daysOfWeek: current.filter(d => d !== dayIndex)});
+      setBulkParams({ ...bulkParams, daysOfWeek: current.filter(d => d !== dayIndex) });
     } else {
-      setBulkParams({...bulkParams, daysOfWeek: [...current, dayIndex]});
+      setBulkParams({ ...bulkParams, daysOfWeek: [...current, dayIndex] });
     }
   };
 
@@ -211,8 +211,8 @@ const SlotPickerScreen = ({ route, navigation }) => {
     const dateStr = dateObj.format('YYYY-MM-DD');
     const isSelected = dateStr === selectedDate;
     return (
-      <TouchableOpacity 
-        key={dateStr} 
+      <TouchableOpacity
+        key={dateStr}
         style={[styles.dateBox, isSelected && styles.dateBoxSelected]}
         onPress={() => setSelectedDate(dateStr)}
       >
@@ -327,7 +327,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
       {/* Date Picker */}
       <View style={styles.datePickerContainer}>
         <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.calendarBtn}
             onPress={() => {
               setActivePicker('none');
@@ -343,16 +343,16 @@ const SlotPickerScreen = ({ route, navigation }) => {
 
       {/* Legend */}
       <View style={styles.legendContainer}>
-        <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor: Colors.primary}]} /><Text style={styles.legendText}>Selected</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary}]} /><Text style={styles.legendText}>Available</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor: '#2196F3'}]} /><Text style={styles.legendText}>Booked</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, {backgroundColor: Colors.border}]} /><Text style={styles.legendText}>Past</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.primary }]} /><Text style={styles.legendText}>Selected</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary }]} /><Text style={styles.legendText}>Available</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#2196F3' }]} /><Text style={styles.legendText}>Booked</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.border }]} /><Text style={styles.legendText}>Past</Text></View>
       </View>
 
       {/* Slots List */}
       <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.slotsContainer}>
         {isLoading ? (
-          <ActivityIndicator size="large" color={Colors.primary} style={{marginTop: 50}}/>
+          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
         ) : slots.length === 0 ? (
           <Text style={styles.emptyText}>No slots generated for this date yet.</Text>
         ) : (
@@ -373,8 +373,8 @@ const SlotPickerScreen = ({ route, navigation }) => {
             </Text>
           )}
         </View>
-        <TouchableOpacity style={[styles.continueBtn, selectedSlots.length === 0 && {opacity: 0.5}]} onPress={handleContinue} disabled={selectedSlots.length === 0}>
-          <LinearGradient colors={Colors.gradients.primary} style={styles.continueBtnGrad} start={{x:0, y:0}} end={{x:1, y:0}}>
+        <TouchableOpacity style={[styles.continueBtn, selectedSlots.length === 0 && { opacity: 0.5 }]} onPress={handleContinue} disabled={selectedSlots.length === 0}>
+          <LinearGradient colors={Colors.gradients.primary} style={styles.continueBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
             <Text style={styles.continueBtnText}>{isRescheduling ? 'Reschedule' : 'Continue →'}</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -392,11 +392,11 @@ const SlotPickerScreen = ({ route, navigation }) => {
                 <Icon name="close" size={24} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
-            
+
             {previewResult ? (
               <View style={styles.previewContainer}>
                 <Text style={styles.previewTitle}>{previewResult.slots.length} Slots Found</Text>
-                
+
                 <View style={styles.previewRow}>
                   <Text style={styles.previewLabel}>Subtotal</Text>
                   <Text style={styles.previewValue}>₹{previewResult.subtotal}</Text>
@@ -405,38 +405,38 @@ const SlotPickerScreen = ({ route, navigation }) => {
                   <Text style={styles.previewLabel}>Platform Fee (5%)</Text>
                   <Text style={styles.previewValue}>₹{previewResult.platformFee}</Text>
                 </View>
-                <View style={[styles.previewRow, {borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10, marginTop: 10}]}>
-                  <Text style={[styles.previewLabel, {fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary}]}>Total Payable</Text>
-                  <Text style={[styles.previewValue, {fontFamily: Typography.fontFamily.bold, color: Colors.primary}]}>₹{previewResult.total}</Text>
+                <View style={[styles.previewRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10, marginTop: 10 }]}>
+                  <Text style={[styles.previewLabel, { fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }]}>Total Payable</Text>
+                  <Text style={[styles.previewValue, { fontFamily: Typography.fontFamily.bold, color: Colors.primary }]}>₹{previewResult.total}</Text>
                 </View>
 
-                <View style={{flexDirection: 'row', gap: 10, marginTop: 20}}>
-                  <TouchableOpacity style={[styles.searchBtn, {flex: 1, backgroundColor: Colors.surfaceVariant}]} onPress={() => setPreviewResult(null)}>
-                    <Text style={[styles.searchBtnText, {color: Colors.textPrimary}]}>Cancel</Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                  <TouchableOpacity style={[styles.searchBtn, { flex: 1, backgroundColor: Colors.surfaceVariant }]} onPress={() => setPreviewResult(null)}>
+                    <Text style={[styles.searchBtnText, { color: Colors.textPrimary }]}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.searchBtn, {flex: 1}]} onPress={confirmBulkAdd}>
+                  <TouchableOpacity style={[styles.searchBtn, { flex: 1 }]} onPress={confirmBulkAdd}>
                     <Text style={styles.searchBtnText}>Add to Cart</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             ) : (
               <>
-                <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{maxHeight: 400}}>
+                <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ maxHeight: 400 }}>
                   <Text style={styles.label}>Date Range (IST)</Text>
-                  <View style={{flexDirection: 'row', gap: 10, marginBottom: 15}}>
-                    <TouchableOpacity 
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
+                    <TouchableOpacity
                       style={styles.pickerInput}
                       onPress={() => { setActivePicker('start'); setShowCalendar(true); }}
                     >
-                      <Text style={[styles.pickerText, !bulkParams.startDate && {color: Colors.textTertiary}]}>
+                      <Text style={[styles.pickerText, !bulkParams.startDate && { color: Colors.textTertiary }]}>
                         {bulkParams.startDate ? moment(bulkParams.startDate).format('DD MMM YYYY') : 'Start Date'}
                       </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.pickerInput}
                       onPress={() => { setActivePicker('end'); setShowCalendar(true); }}
                     >
-                      <Text style={[styles.pickerText, !bulkParams.endDate && {color: Colors.textTertiary}]}>
+                      <Text style={[styles.pickerText, !bulkParams.endDate && { color: Colors.textTertiary }]}>
                         {bulkParams.endDate ? moment(bulkParams.endDate).format('DD MMM YYYY') : 'End Date'}
                       </Text>
                     </TouchableOpacity>
@@ -444,32 +444,32 @@ const SlotPickerScreen = ({ route, navigation }) => {
 
                   <Text style={styles.label}>Days of Week</Text>
                   <View style={styles.daysGrid}>
-                    {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => (
-                      <TouchableOpacity 
-                        key={i} 
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
+                      <TouchableOpacity
+                        key={i}
                         style={[styles.dayChip, bulkParams.daysOfWeek.includes(i) && styles.dayChipSel]}
                         onPress={() => toggleDayOfWeek(i)}
                       >
-                        <Text style={[styles.dayChipText, bulkParams.daysOfWeek.includes(i) && {color: '#000'}]}>{d}</Text>
+                        <Text style={[styles.dayChipText, bulkParams.daysOfWeek.includes(i) && { color: '#000' }]}>{d}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
 
                   <Text style={styles.label}>Time Window</Text>
-                  <View style={{flexDirection: 'row', gap: 10, marginBottom: 15}}>
-                    <TouchableOpacity 
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
+                    <TouchableOpacity
                       style={styles.pickerInput}
                       onPress={() => setActivePicker('startTime')}
                     >
-                      <Text style={[styles.pickerText, !bulkParams.startTime && {color: Colors.textTertiary}]}>
+                      <Text style={[styles.pickerText, !bulkParams.startTime && { color: Colors.textTertiary }]}>
                         {bulkParams.startTime ? formatTime(bulkParams.startTime) : 'Start Time'}
                       </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.pickerInput}
                       onPress={() => setActivePicker('endTime')}
                     >
-                      <Text style={[styles.pickerText, !bulkParams.endTime && {color: Colors.textTertiary}]}>
+                      <Text style={[styles.pickerText, !bulkParams.endTime && { color: Colors.textTertiary }]}>
                         {bulkParams.endTime ? formatTime(bulkParams.endTime) : 'End Time'}
                       </Text>
                     </TouchableOpacity>
@@ -488,29 +488,29 @@ const SlotPickerScreen = ({ route, navigation }) => {
       {/* Time Picker Modal */}
       {(activePicker === 'startTime' || activePicker === 'endTime') && (
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, {padding: Spacing.md}]}>
+          <View style={[styles.modalContent, { padding: Spacing.md }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Time</Text>
               <TouchableOpacity onPress={() => setActivePicker('none')}>
                 <Icon name="close" size={24} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
-            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{maxHeight: 300}} contentContainerStyle={styles.timeGrid}>
-              {Array.from({length: 24}).map((_, i) => {
+            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ maxHeight: 300 }} contentContainerStyle={styles.timeGrid}>
+              {Array.from({ length: 24 }).map((_, i) => {
                 const hour = i.toString().padStart(2, '0');
                 const timeStr = `${hour}:00`;
                 const isSelected = activePicker === 'startTime' ? bulkParams.startTime === timeStr : bulkParams.endTime === timeStr;
                 return (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     key={timeStr}
                     style={[styles.timeBox, isSelected && styles.timeBoxSel]}
                     onPress={() => {
-                      if (activePicker === 'startTime') setBulkParams({...bulkParams, startTime: timeStr});
-                      else setBulkParams({...bulkParams, endTime: timeStr});
+                      if (activePicker === 'startTime') setBulkParams({ ...bulkParams, startTime: timeStr });
+                      else setBulkParams({ ...bulkParams, endTime: timeStr });
                       setActivePicker('none');
                     }}
                   >
-                    <Text style={[styles.timeText, isSelected && {color: '#000'}]}>{formatTime(timeStr)}</Text>
+                    <Text style={[styles.timeText, isSelected && { color: '#000' }]}>{formatTime(timeStr)}</Text>
                   </TouchableOpacity>
                 )
               })}
@@ -532,33 +532,33 @@ const SlotPickerScreen = ({ route, navigation }) => {
                 <Icon name="chevron-right" size={30} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.calendarGrid}>
-              {['S','M','T','W','T','F','S'].map((d, i) => (
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
                 <Text key={i} style={styles.dayOfWeek}>{d}</Text>
               ))}
               {(() => {
                 const startDay = moment(calendarMonth).startOf('month').day();
                 const daysInMonth = moment(calendarMonth).daysInMonth();
                 const grid = [];
-                for(let i=0; i<startDay; i++) grid.push(<View key={`empty-${i}`} style={styles.calDay} />);
-                for(let i=1; i<=daysInMonth; i++) {
+                for (let i = 0; i < startDay; i++) grid.push(<View key={`empty-${i}`} style={styles.calDay} />);
+                for (let i = 1; i <= daysInMonth; i++) {
                   const d = moment(calendarMonth).date(i);
                   const dStr = d.format('YYYY-MM-DD');
                   const isPast = d.isBefore(moment(), 'day');
-                  const isSel = (activePicker === 'none' && selectedDate === dStr) || 
-                               (activePicker === 'start' && bulkParams.startDate === dStr) ||
-                               (activePicker === 'end' && bulkParams.endDate === dStr);
+                  const isSel = (activePicker === 'none' && selectedDate === dStr) ||
+                    (activePicker === 'start' && bulkParams.startDate === dStr) ||
+                    (activePicker === 'end' && bulkParams.endDate === dStr);
                   grid.push(
-                    <TouchableOpacity 
-                      key={`day-${i}`} 
+                    <TouchableOpacity
+                      key={`day-${i}`}
                       style={[styles.calDay, isSel && styles.calDaySel]}
                       disabled={isPast}
                       onPress={() => {
                         if (activePicker === 'start') {
-                          setBulkParams({...bulkParams, startDate: dStr});
+                          setBulkParams({ ...bulkParams, startDate: dStr });
                         } else if (activePicker === 'end') {
-                          setBulkParams({...bulkParams, endDate: dStr});
+                          setBulkParams({ ...bulkParams, endDate: dStr });
                         } else {
                           setSelectedDate(dStr);
                         }
@@ -566,7 +566,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                         setActivePicker('none');
                       }}
                     >
-                      <Text style={[styles.calDayText, isPast && {color: Colors.textTertiary}, isSel && {color: '#000'}]}>{i}</Text>
+                      <Text style={[styles.calDayText, isPast && { color: Colors.textTertiary }, isSel && { color: '#000' }]}>{i}</Text>
                     </TouchableOpacity>
                   );
                 }

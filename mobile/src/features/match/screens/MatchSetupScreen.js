@@ -385,6 +385,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
                     teamA,
                     teamB,
                     tournamentDetails,
+                    matchStage,
                     activeTab: tournamentDetails ? 'Tournament' : 'My Teams',
                     onSelectTeam: (team) => {
                       // Clear previous squad data for this team
@@ -448,6 +449,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
                     teamA,
                     teamB,
                     tournamentDetails,
+                    matchStage,
                     activeTab: tournamentDetails ? 'Tournament' : 'Opponents',
                     onSelectTeam: (team) => {
                       // Clear previous squad data for this team
