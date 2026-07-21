@@ -113,21 +113,42 @@ const matchSlice = createSlice({
       state.ballHistory = [];
     },
     updateLiveMatchScore: (state, action) => {
-      const { matchId, score, battingTeam, match } = action.payload;
+      const payload = action.payload || {};
+      const cleanMatchId = String(payload.matchId || payload.match?._id || '').trim();
+      if (!cleanMatchId) return;
+
       const updateList = (list) => {
-        const index = list.findIndex(m => m._id === matchId);
+        if (!Array.isArray(list)) return;
+        const index = list.findIndex(m => String(m._id || m.id).trim() === cleanMatchId);
         if (index !== -1) {
           const m = list[index];
-          if (battingTeam === m.teamA?._id || battingTeam?._id === m.teamA?._id) {
-            m.teamAScore = { ...m.teamAScore, ...score };
-          } else if (battingTeam === m.teamB?._id || battingTeam?._id === m.teamB?._id) {
-            m.teamBScore = { ...m.teamBScore, ...score };
+
+          if (payload.teamAScore) {
+            m.teamAScore = { ...m.teamAScore, ...payload.teamAScore };
           }
-          if (match) {
-            m.status = match.status;
+          if (payload.teamBScore) {
+            m.teamBScore = { ...m.teamBScore, ...payload.teamBScore };
+          }
+
+          if (payload.score && payload.battingTeam) {
+            const bTeamId = String(payload.battingTeam?._id || payload.battingTeam || '').trim();
+            const teamAId = String(m.teamA?._id || m.teamA || '').trim();
+            const teamBId = String(m.teamB?._id || m.teamB || '').trim();
+
+            if (bTeamId && bTeamId === teamAId) {
+              m.teamAScore = { ...m.teamAScore, ...payload.score };
+            } else if (bTeamId && bTeamId === teamBId) {
+              m.teamBScore = { ...m.teamBScore, ...payload.score };
+            }
+          }
+
+          const matchStatus = payload.match?.status || payload.status;
+          if (matchStatus) {
+            m.status = matchStatus;
           }
         }
       };
+
       updateList(state.myMatches);
       updateList(state.matches);
     },

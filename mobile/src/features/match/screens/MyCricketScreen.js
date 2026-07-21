@@ -9,7 +9,7 @@ import { fetchMyMatches, updateLiveMatchScore } from '../matchSlice';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams } from '../../team/teamSlice';
 import { fetchTournaments } from '../../tournament/tournamentSlice';
 import { getImageUrl, BASE_URL } from '../../../api/axios';
-import io from 'socket.io-client';
+import socketService from '../../../services/socketService';
 import moment from 'moment';
 
 const TOP_TABS = ['Matches', 'Tournaments', 'Teams'];
@@ -26,7 +26,6 @@ const MyCricketScreen = ({ route }) => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const isFocused = useIsFocused();
-  const socketRef = useRef(null);
   const myMatchesRef = useRef([]);
 
   useEffect(() => {
@@ -38,67 +37,36 @@ const MyCricketScreen = ({ route }) => {
   }, [route?.params?.tab, navigation]);
   const insets = useSafeAreaInsets();
 
-  const { myMatches } = useSelector(state => state.match);
+  const { myMatches, matches } = useSelector(state => state.match);
   const { myTeams, opponentTeams, followingTeams } = useSelector(state => state.team);
   const { tournaments } = useSelector(state => state.tournament);
   const { user } = useSelector(state => state.auth);
 
   useEffect(() => {
     let intervalId;
-    
+    let unsubscribeScore;
+
     if (isFocused) {
       if (activeTopTab === 'Matches') {
         dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
-        
-        socketRef.current = io(BASE_URL, {
-          transports: ['websocket', 'polling'],
-          autoConnect: true,
-          reconnection: true,
-          reconnectionAttempts: Infinity,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000,
-          timeout: 20000,
-        });
 
-        socketRef.current.on('connect', () => {
-          console.log('⚡ [Socket MyCricket] Connected, ID:', socketRef.current.id);
-          // Re-join all matches
-          if (myMatchesRef.current && myMatchesRef.current.length > 0) {
-            myMatchesRef.current.forEach(m => {
-              if (m.status === 'in_progress' || m.status === 'toss_done' || m.status === 'innings_break') {
-                socketRef.current.emit('join_match', { matchId: m._id });
-                console.log(`⚡ [Socket MyCricket] Joined/Re-joined room match:${m._id}`);
-              }
-            });
-          }
-        });
-
-        socketRef.current.on('joined', (data) => {
-          console.log('⚡ [Socket MyCricket] Confirmed joined room successfully:', data);
-        });
-
-        socketRef.current.on('disconnect', (reason) => {
-          console.log('⚡ [Socket MyCricket] Disconnected from server. Reason:', reason);
-        });
-
-        socketRef.current.on('connect_error', (error) => {
-          console.warn('⚡ [Socket MyCricket] Connection notice:', error?.message || error);
-        });
-        
-        // Listen to score updates instantly!
-        socketRef.current.on('score_update', (data) => {
-          console.log('⚡ [Socket MyCricket] Score update received:', data?.matchId);
-          if (data && data.matchId && data.score) {
+        unsubscribeScore = socketService.onScoreUpdate((data) => {
+          console.log('⚡ [Socket MyCricket] Score update received:', data?.matchId || data?.match?._id);
+          const mId = data?.matchId || data?.match?._id || data?.id;
+          if (mId && (data.score || data.teamAScore || data.teamBScore || data.match)) {
             dispatch(updateLiveMatchScore({
-              matchId: data.matchId,
+              matchId: mId,
               score: data.score,
+              teamAScore: data.teamAScore,
+              teamBScore: data.teamBScore,
               battingTeam: data.battingTeam,
-              match: data.match
+              match: data.match,
+              status: data.match?.status || data.status
             }));
             console.log('⚡ [Socket MyCricket] MyCricket UI updated via Redux updateLiveMatchScore');
           }
         });
-        
+
         // Setup polling every 30 seconds for non-socket updates
         intervalId = setInterval(() => {
           dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
@@ -116,40 +84,33 @@ const MyCricketScreen = ({ route }) => {
         dispatch(fetchTournaments(params));
       }
     }
+
     return () => {
       if (intervalId) clearInterval(intervalId);
-      if (socketRef.current) {
-        socketRef.current.off('connect');
-        socketRef.current.off('joined');
-        socketRef.current.off('disconnect');
-        socketRef.current.off('connect_error');
-        socketRef.current.off('score_update');
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      if (unsubscribeScore) unsubscribeScore();
     };
   }, [isFocused, activeTopTab, activeSubTab, dispatch]);
 
-  // Join match rooms when myMatches changes
+  // Join match rooms when myMatches or matches change
   useEffect(() => {
-    myMatchesRef.current = myMatches || [];
-    if (isFocused && activeTopTab === 'Matches' && activeSubTab !== 'Played' && myMatches?.length > 0 && socketRef.current) {
-      myMatches.forEach(m => {
-        if (m.status === 'in_progress' || m.status === 'toss_done' || m.status === 'innings_break') {
-          socketRef.current.emit('join_match', { matchId: m._id });
-          console.log(`⚡ [Socket MyCricket] Joined room match:${m._id} (via myMatches update)`);
+    const list = (myMatches && myMatches.length > 0) ? myMatches : matches;
+    myMatchesRef.current = list || [];
+
+    if (isFocused && activeTopTab === 'Matches' && activeSubTab !== 'Played' && list?.length > 0) {
+      list.forEach(m => {
+        if (['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(m.status)) {
+          socketService.joinMatch(m._id || m.id);
+          console.log(`⚡ [Socket MyCricket] Joined room match:${m._id || m.id} for live match card`);
         }
       });
       return () => {
-        if (socketRef.current) {
-          myMatches.forEach(m => {
-            socketRef.current.emit('leave_match', { matchId: m._id });
-            console.log(`⚡ [Socket MyCricket] Left room match:${m._id} (via cleanup)`);
-          });
-        }
+        list.forEach(m => {
+          socketService.leaveMatch(m._id || m.id);
+          console.log(`⚡ [Socket MyCricket] Left room match:${m._id || m.id}`);
+        });
       };
     }
-  }, [isFocused, activeTopTab, activeSubTab, myMatches]);
+  }, [isFocused, activeTopTab, activeSubTab, myMatches, matches]);
 
   // Handle Tab changes
   const handleTopTabChange = (tab) => {

@@ -9,7 +9,7 @@ import moment from 'moment';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl, BASE_URL } from '../../../api/axios';
 import { useSelector } from 'react-redux';
-import io from 'socket.io-client';
+import socketService from '../../../services/socketService';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import GroupManagementModal from '../components/GroupManagementModal';
 import RoleManagementModal from '../components/RoleManagementModal';
@@ -69,54 +69,31 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   );
 
   useEffect(() => {
-    let socket;
+    let unsubscribeScore;
     if (tournament?.matches && tournament.matches.length > 0) {
-      console.log('⚡ [Socket Tournament] Connecting to socket server at:', BASE_URL);
-      socket = io(BASE_URL, {
-        transports: ['websocket'],
-        autoConnect: true,
-        reconnection: true,
-        reconnectionAttempts: Infinity,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 20000,
-      });
-      
-      socket.on('connect', () => {
-        console.log('⚡ [Socket Tournament] Connected to server, ID:', socket.id);
-        if (matchesRef.current && matchesRef.current.length > 0) {
-          matchesRef.current.forEach(m => {
-            if (m.status === 'in_progress' || m.status === 'toss_done' || m.status === 'innings_break') {
-              socket.emit('join_match', { matchId: m._id });
-              console.log(`⚡ [Socket Tournament] Joined room: match:${m._id}`);
-            }
-          });
+      tournament.matches.forEach(m => {
+        if (m.status === 'in_progress' || m.status === 'toss_done' || m.status === 'innings_break') {
+          socketService.joinMatch(m._id);
+          console.log(`⚡ [Socket Tournament] Joined room: match:${m._id}`);
         }
       });
 
-      socket.on('joined', (data) => {
-        console.log('⚡ [Socket Tournament] Confirmed joined room successfully:', data);
-      });
-
-      socket.on('disconnect', (reason) => {
-        console.log('⚡ [Socket Tournament] Disconnected from server. Reason:', reason);
-      });
-
-      socket.on('connect_error', (error) => {
-        console.error('⚡ [Socket Tournament] Connection error:', error.message);
-      });
-      
-      socket.on('score_update', (data) => {
-        console.log('⚡ [Socket Tournament] Score update received:', data?.matchId);
-        if (data && data.matchId && data.score) {
+      unsubscribeScore = socketService.onScoreUpdate((data) => {
+        console.log('⚡ [Socket Tournament] Score update received:', data?.matchId || data?.match?._id);
+        const mId = data?.matchId || data?.match?._id;
+        if (data && mId && data.score) {
           setTournament(prev => {
             if (!prev) return prev;
             const updatedMatches = prev.matches.map(m => {
-              if (m._id === data.matchId) {
+              if (String(m._id || m.id).trim() === String(mId).trim()) {
                 const newM = { ...m };
-                if (data.battingTeam === newM.teamA?._id || data.battingTeam?._id === newM.teamA?._id) {
+                const bTeamId = String(data.battingTeam?._id || data.battingTeam || '').trim();
+                const teamAId = String(newM.teamA?._id || newM.teamA || '').trim();
+                const teamBId = String(newM.teamB?._id || newM.teamB || '').trim();
+
+                if (bTeamId && bTeamId === teamAId) {
                   newM.teamAScore = { ...newM.teamAScore, ...data.score };
-                } else if (data.battingTeam === newM.teamB?._id || data.battingTeam?._id === newM.teamB?._id) {
+                } else if (bTeamId && bTeamId === teamBId) {
                   newM.teamBScore = { ...newM.teamBScore, ...data.score };
                 }
                 if (data.match) {
@@ -132,24 +109,16 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         }
       });
     }
-    
+
     return () => {
-      if (socket) {
-        console.log('⚡ [Socket Tournament] Cleaning up socket connection');
-        if (tournament?.matches) {
-          tournament.matches.forEach(m => {
-            socket.emit('leave_match', { matchId: m._id });
-          });
-        }
-        socket.off('connect');
-        socket.off('joined');
-        socket.off('disconnect');
-        socket.off('connect_error');
-        socket.off('score_update');
-        socket.disconnect();
+      if (unsubscribeScore) unsubscribeScore();
+      if (tournament?.matches && tournament.matches.length > 0) {
+        tournament.matches.forEach(m => {
+          socketService.leaveMatch(m._id);
+        });
       }
     };
-  }, [tournament?.matches?.length]);
+  }, [tournament?.matches]);
 
   const fetchDashboard = async () => {
     try {

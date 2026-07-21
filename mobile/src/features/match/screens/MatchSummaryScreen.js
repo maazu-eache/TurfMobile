@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchLiveState, setLiveState } from '../matchSlice';
 import api, { BASE_URL, getImageUrl } from '../../../api/axios';
-import io from 'socket.io-client';
+import socketService from '../../../services/socketService';
 import { Colors, Typography, BorderRadius, Spacing, Shadows } from '../../../theme/theme';
 import moment from 'moment';
 import { getPlayerTags } from '../../../utils/playerTags';
@@ -61,7 +61,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { liveState, isLoading } = useSelector((state) => state.match);
   const currentUser = useSelector((state) => state.auth.user);
-  const [activeTab, setActiveTab] = useState(route.params?.initialTab || 'Info');
+  const [activeTab, setActiveTab] = useState(route.params?.initialTab || 'Summary');
   const [selectedPlayerPreview, setSelectedPlayerPreview] = useState(null);
   const [selectedTagDefinition, setSelectedTagDefinition] = useState(null);
   const [expandedInnings, setExpandedInnings] = useState({});
@@ -84,6 +84,32 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const [selectedAnalysisBatter, setSelectedAnalysisBatter] = useState(null);
 
   const [refreshing, setRefreshing] = useState(false);
+
+  const fetchScorecards = useCallback(async () => {
+    if (!cleanMatchId) return;
+    setLoadingScorecards(true);
+    try {
+      const res = await api.get(`/matches/${cleanMatchId}/scorecard`);
+      setScorecards(res.data?.data || []);
+    } catch (e) {
+      console.log('Error fetching scorecards', e);
+    } finally {
+      setLoadingScorecards(false);
+    }
+  }, [cleanMatchId]);
+
+  const fetchCommentary = useCallback(async () => {
+    if (!cleanMatchId) return;
+    setLoadingCommentary(true);
+    try {
+      const res = await api.get(`/matches/${cleanMatchId}/commentary`);
+      setCommentary(Array.isArray(res.data?.data) ? res.data.data : res.data?.data?.commentary || []);
+    } catch (e) {
+      console.log('Error fetching commentary', e);
+    } finally {
+      setLoadingCommentary(false);
+    }
+  }, [cleanMatchId]);
 
   const onRefresh = async () => {
     if (!cleanMatchId) return;
@@ -113,7 +139,6 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const [celebration, setCelebration] = useState(null);
   const celebrationAnim = React.useRef(new RNAnimated.Value(0)).current;
   const lastBallRef = React.useRef(null);
-  const socketRef = React.useRef(null);
 
   const triggerCelebration = (type, text, color) => {
     setCelebration({ type, text, color });
@@ -136,160 +161,78 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   };
 
   useEffect(() => {
-    let active = true;
     if (!cleanMatchId) return;
 
-    const setupSocket = () => {
-      const roomName = `match:${cleanMatchId}`;
+    console.log(`⚡ [Socket Viewer] Joining match room: match:${cleanMatchId}`);
+    socketService.joinMatch(cleanMatchId);
 
-      if (socketRef.current) {
-        if (socketRef.current.connected) {
-          console.log('⚡ [Socket Viewer] Socket Connected | ID:', socketRef.current.id);
-          socketRef.current.emit('join_match', { matchId: cleanMatchId });
-          console.log(`⚡ [Socket Viewer] Joined Match Room: ${roomName}`);
-          return;
-        }
-        socketRef.current.disconnect();
+    const handleScoreUpdate = (data) => {
+      const updateMatchId = String(data?.match?._id || data?.matchId || cleanMatchId);
+      if (cleanMatchId && updateMatchId && cleanMatchId !== updateMatchId) {
+        return; // Ignore updates for other matches
       }
 
-      console.log('⚡ [Socket Viewer] Connecting to socket server at:', BASE_URL);
-      const socket = io(BASE_URL, {
-        transports: ['websocket', 'polling'],
-        autoConnect: true,
-        reconnection: true,
-        reconnectionAttempts: Infinity,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 20000,
-      });
+      const runs = data?.score?.runs ?? data?.teamAScore?.runs ?? 0;
+      const wickets = data?.score?.wickets ?? data?.teamAScore?.wickets ?? 0;
+      const overs = data?.score?.overs ?? data?.teamAScore?.overs ?? '0.0';
+      const strikerName = data?.striker?.name || 'Striker';
+      const bowlerName = data?.bowler?.name || 'Bowler';
 
-      socketRef.current = socket;
+      console.log(`⚡ [Socket Viewer] 📥 LIVE SCORE UPDATE RECEIVED | Match ID: ${updateMatchId}`);
+      console.log(`⚡ [Socket Viewer] Live Score: ${runs}/${wickets} (${overs} Ov) | Batting: ${strikerName} | Bowling: ${bowlerName}`);
+      dispatch(setLiveState(data));
+      console.log(`⚡ [Socket Viewer] 🔄 Redux LiveState Updated -> Score Card UI Re-rendered!`);
 
-      socket.on('connect', () => {
-        console.log('⚡ [Socket Viewer] Socket Connected | ID:', socket.id);
-        socket.emit('join_match', { matchId: cleanMatchId });
-        console.log(`⚡ [Socket Viewer] Joined Match Room: ${roomName}`);
-      });
+      // Real-time synchronization for sub-tabs
+      fetchCommentary();
+      fetchScorecards();
 
-      socket.on('joined', (data) => {
-        console.log('⚡ [Socket Viewer] Confirmed joined room successfully:', data);
-      });
-
-      socket.on('disconnect', (reason) => {
-        console.log('⚡ [Socket Viewer] Disconnected from server. Reason:', reason);
-      });
-
-      socket.on('connect_error', (error) => {
-        console.warn('⚡ [Socket Viewer] Connection notice:', error?.message || error);
-      });
-
-      const handleScoreUpdate = (data) => {
-        if (!active) return;
-        const updateMatchId = String(data?.match?._id || data?.matchId || cleanMatchId);
-        console.log('⚡ [Socket Viewer] Live Update Received | Match ID:', updateMatchId);
-        dispatch(setLiveState(data));
-        console.log('⚡ [Socket Viewer] State Updated | Match ID:', updateMatchId);
-        console.log('⚡ [Socket Viewer] UI Updated');
-
-        // Real-time synchronization for sub-tabs
-        fetchCommentary();
-        fetchScorecards();
-
-        // Trigger Celebration Logic
-        if (data?.recentCommentary?.length > 0) {
-          const latestBall = data.recentCommentary[0];
-          if (latestBall._id && latestBall._id !== lastBallRef.current) {
-            lastBallRef.current = latestBall._id;
-            
-            if (data.isMatchComplete || data.match?.status === 'completed') {
-              const winnerName = data.result?.winner === data.match?.teamA?._id ? data.match?.teamA?.name : data.result?.winner === data.match?.teamB?._id ? data.match?.teamB?.name : 'TEAM';
-              triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
-            } else if (latestBall.isWicket) {
-              triggerCelebration('wicket', 'W', Colors.error);
-            } else if (latestBall.batsmanRuns === 6) {
-              triggerCelebration('six', '6!', '#1976D2');
-            } else if (latestBall.batsmanRuns === 4) {
-              triggerCelebration('four', '4!', '#4CAF50');
-            }
+      // Trigger Celebration Logic
+      if (data?.recentCommentary?.length > 0) {
+        const latestBall = data.recentCommentary[0];
+        if (latestBall._id && latestBall._id !== lastBallRef.current) {
+          lastBallRef.current = latestBall._id;
+          
+          if (data.isMatchComplete || data.match?.status === 'completed') {
+            const winnerName = data.result?.winner === data.match?.teamA?._id ? data.match?.teamA?.name : data.result?.winner === data.match?.teamB?._id ? data.match?.teamB?.name : 'TEAM';
+            triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
+          } else if (latestBall.isWicket) {
+            triggerCelebration('wicket', 'W', Colors.error);
+          } else if (latestBall.batsmanRuns === 6) {
+            triggerCelebration('six', '6!', '#1976D2');
+          } else if (latestBall.batsmanRuns === 4) {
+            triggerCelebration('four', '4!', '#4CAF50');
           }
         }
-      };
-
-      socket.off('score_update');
-      socket.off('live_state_update');
-      socket.on('score_update', handleScoreUpdate);
-      socket.on('live_state_update', handleScoreUpdate);
-    };
-
-    const cleanupSocket = () => {
-      if (socketRef.current) {
-        console.log('⚡ [Socket Viewer] Cleaning up socket connection for match:', cleanMatchId);
-        socketRef.current.emit('leave_match', { matchId: cleanMatchId });
-        socketRef.current.off('connect');
-        socketRef.current.off('joined');
-        socketRef.current.off('disconnect');
-        socketRef.current.off('connect_error');
-        socketRef.current.off('score_update');
-        socketRef.current.off('live_state_update');
-        socketRef.current.disconnect();
-        socketRef.current = null;
       }
     };
 
+    const unsubscribeScore = socketService.onScoreUpdate(handleScoreUpdate);
     dispatch(fetchLiveState(cleanMatchId));
-    setupSocket();
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
-      active = true;
+      socketService.joinMatch(cleanMatchId);
       dispatch(fetchLiveState(cleanMatchId));
-      setupSocket();
-    });
-
-    const unsubscribeBlur = navigation.addListener('blur', () => {
-      active = false;
-      cleanupSocket();
+      fetchCommentary();
+      fetchScorecards();
     });
 
     return () => {
-      active = false;
       unsubscribeFocus();
-      unsubscribeBlur();
-      cleanupSocket();
+      unsubscribeScore();
+      socketService.leaveMatch(cleanMatchId);
     };
-  }, [dispatch, cleanMatchId, navigation]);
+  }, [dispatch, cleanMatchId, navigation, fetchCommentary, fetchScorecards]);
 
   useEffect(() => {
+    if (!cleanMatchId) return;
     if (activeTab === 'Comms' || activeTab === 'Analysis') {
       fetchCommentary();
     }
-    if (activeTab === 'Summary' || activeTab === 'Scorecard' || activeTab === 'MVP' || activeTab === 'Analysis') {
+    if (activeTab === 'Scorecard' || activeTab === 'Analysis' || activeTab === 'Partnerships') {
       fetchScorecards();
     }
-  }, [activeTab]);
-
-  const fetchScorecards = async () => {
-    setLoadingScorecards(true);
-    try {
-      const res = await api.get(`/matches/${matchId}/scorecard`);
-      setScorecards(res.data.data || []);
-    } catch (e) {
-      console.log('Error fetching scorecards', e);
-    } finally {
-      setLoadingScorecards(false);
-    }
-  };
-
-  const fetchCommentary = async () => {
-    setLoadingCommentary(true);
-    try {
-      const res = await api.get(`/matches/${matchId}/commentary`);
-      setCommentary(res.data.data);
-    } catch (e) {
-      console.log('Error fetching commentary', e);
-    } finally {
-      setLoadingCommentary(false);
-    }
-  };
+  }, [activeTab, cleanMatchId, fetchCommentary, fetchScorecards]);
 
   if (isLoading && !liveState) {
     return (

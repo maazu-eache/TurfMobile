@@ -7,7 +7,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { scoreBall, undoBall, fetchLiveState, addMatchScorer, setInitialPlayers, setLiveState } from '../matchSlice';
 import api, { BASE_URL, getImageUrl } from '../../../api/axios';
-import io from 'socket.io-client';
+import socketService from '../../../services/socketService';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
@@ -99,105 +99,37 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   // Scoring lock — prevents multiple rapid taps on scoring buttons
   const scoringLockRef = useRef(false);
-  const socketRef = useRef(null);
 
   // Socket.io for Realtime updates
   useEffect(() => {
-    let active = true;
     if (!cleanMatchId) return;
 
-    const setupSocket = () => {
-      const roomName = `match:${cleanMatchId}`;
+    console.log(`⚡ [Socket Scorer] Joining match room: match:${cleanMatchId}`);
+    socketService.joinMatch(cleanMatchId);
 
-      if (socketRef.current) {
-        if (socketRef.current.connected) {
-          console.log('⚡ [Socket Scorer] Socket Connected | ID:', socketRef.current.id);
-          socketRef.current.emit('join_match', { matchId: cleanMatchId });
-          console.log(`⚡ [Socket Scorer] Joined Match Room: ${roomName}`);
-          return;
-        }
-        socketRef.current.disconnect();
-      }
+    const handleScoreUpdate = (data) => {
+      const updateMatchId = String(data?.match?._id || data?.matchId || cleanMatchId);
+      const runs = data?.score?.runs ?? data?.teamAScore?.runs ?? 0;
+      const wickets = data?.score?.wickets ?? data?.teamAScore?.wickets ?? 0;
+      const overs = data?.score?.overs ?? data?.teamAScore?.overs ?? '0.0';
 
-      console.log('⚡ [Socket Scorer] Connecting to socket server at:', BASE_URL);
-      const socket = io(BASE_URL, {
-        transports: ['websocket', 'polling'],
-        autoConnect: true,
-        reconnection: true,
-        reconnectionAttempts: Infinity,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 20000,
-      });
-
-      socketRef.current = socket;
-
-      socket.on('connect', () => {
-        console.log('⚡ [Socket Scorer] Socket Connected | ID:', socket.id);
-        socket.emit('join_match', { matchId: cleanMatchId });
-        console.log(`⚡ [Socket Scorer] Joined Match Room: ${roomName}`);
-      });
-
-      socket.on('joined', (data) => {
-        console.log('⚡ [Socket Scorer] Confirmed joined room successfully:', data);
-      });
-
-      socket.on('disconnect', (reason) => {
-        console.log('⚡ [Socket Scorer] Disconnected from server. Reason:', reason);
-      });
-
-      socket.on('connect_error', (error) => {
-        console.warn('⚡ [Socket Scorer] Connection notice:', error?.message || error);
-      });
-
-      const handleScoreUpdate = (data) => {
-        if (!active) return;
-        const updateMatchId = String(data?.match?._id || data?.matchId || cleanMatchId);
-        console.log('⚡ [Socket Scorer] Score Updated | Match ID:', updateMatchId);
-        console.log('⚡ [Socket Scorer] Event Emitted | Event: score_update');
-        dispatch(setLiveState(data));
-      };
-
-      socket.off('score_update');
-      socket.off('live_state_update');
-      socket.on('score_update', handleScoreUpdate);
-      socket.on('live_state_update', handleScoreUpdate);
+      console.log(`⚡ [Socket Scorer] 📥 LIVE SCORE UPDATE RECEIVED | Match ID: ${updateMatchId}`);
+      console.log(`⚡ [Socket Scorer] Live Score: ${runs}/${wickets} (${overs} Ov) -> UI Updated`);
+      dispatch(setLiveState(data));
     };
 
-    const cleanupSocket = () => {
-      if (socketRef.current) {
-        console.log('⚡ [Socket Scorer] Cleaning up socket connection for match:', cleanMatchId);
-        socketRef.current.emit('leave_match', { matchId: cleanMatchId });
-        socketRef.current.off('connect');
-        socketRef.current.off('joined');
-        socketRef.current.off('disconnect');
-        socketRef.current.off('connect_error');
-        socketRef.current.off('score_update');
-        socketRef.current.off('live_state_update');
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-    };
-
+    const unsubscribeScore = socketService.onScoreUpdate(handleScoreUpdate);
     dispatch(fetchLiveState(cleanMatchId));
-    setupSocket();
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
-      active = true;
+      socketService.joinMatch(cleanMatchId);
       dispatch(fetchLiveState(cleanMatchId));
-      setupSocket();
-    });
-
-    const unsubscribeBlur = navigation.addListener('blur', () => {
-      active = false;
-      cleanupSocket();
     });
 
     return () => {
-      active = false;
       unsubscribeFocus();
-      unsubscribeBlur();
-      cleanupSocket();
+      unsubscribeScore();
+      socketService.leaveMatch(cleanMatchId);
     };
   }, [dispatch, cleanMatchId, navigation]);
 

@@ -373,7 +373,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.matchupContainer}>
           <View style={styles.teamsRow}>
             <View style={styles.teamCol}>
