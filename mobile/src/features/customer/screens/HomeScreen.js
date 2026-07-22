@@ -420,9 +420,20 @@ const HomeScreen = ({ navigation }) => {
 
             {platformSettings?.bannerUrl ? (
               <View style={styles.bannerWrap}>
-                <Image source={{ uri: getImageUrl(platformSettings.bannerUrl) || 'https://via.placeholder.com/800x400' }} style={styles.bannerImg} resizeMode="cover" />
+                <Image
+                  source={{ uri: getImageUrl(platformSettings.bannerUrl) }}
+                  style={styles.bannerImg}
+                  resizeMode="cover"
+                  fadeDuration={300}
+                  onError={(e) => {
+                    console.log('⚡ [HomeScreen] Banner image load error:', e.nativeEvent?.error, 'URI:', getImageUrl(platformSettings.bannerUrl));
+                  }}
+                />
               </View>
-            ) : (
+            ) : null}
+
+            {/* Fallback Hero Header Content (Displayed when no banner or when text header is expected) */}
+            {!platformSettings?.bannerUrl && (
               <View style={styles.heroContent}>
                 <View style={styles.heroBadge}>
                   <PulseDot />
@@ -697,8 +708,8 @@ const styles = StyleSheet.create({
   heroSub: { fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginBottom: 22 },
   heroCTA: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 999 },
   heroCTATxt: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  bannerWrap: { marginHorizontal: Spacing.xl, borderRadius: BorderRadius.xl, overflow: 'hidden', marginBottom: 16 },
-  bannerImg: { width: '100%', height: 155 },
+  bannerWrap: { marginHorizontal: Spacing.lg, borderRadius: BorderRadius.xl, overflow: 'hidden', marginBottom: 12, marginTop: 4, elevation: 4 },
+  bannerImg: { width: '100%', height: Math.min(180, SW * 0.42), borderRadius: BorderRadius.xl },
 
   /* Pulse dot */
   pulseDotWrap: { width: 14, height: 14, justifyContent: 'center', alignItems: 'center' },

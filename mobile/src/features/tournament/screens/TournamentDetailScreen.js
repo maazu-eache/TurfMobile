@@ -73,19 +73,21 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     if (tournament?.matches && tournament.matches.length > 0) {
       tournament.matches.forEach(m => {
         if (m.status === 'in_progress' || m.status === 'toss_done' || m.status === 'innings_break') {
-          socketService.joinMatch(m._id);
-          console.log(`⚡ [Socket Tournament] Joined room: match:${m._id}`);
+          const cleanId = socketService.cleanId(m._id || m.id);
+          socketService.joinMatch(cleanId);
+          socketService.remoteLog('TournamentDetailScreen', `Joined tournament match room: match_${cleanId}`);
         }
       });
 
       unsubscribeScore = socketService.onScoreUpdate((data) => {
-        console.log('⚡ [Socket Tournament] Score update received:', data?.matchId || data?.match?._id);
-        const mId = data?.matchId || data?.match?._id;
-        if (data && mId && data.score) {
+        const mId = socketService.cleanId(data?.matchId || data?.match?._id || data?.id);
+        socketService.remoteLog('TournamentDetailScreen', `Score update received for match: ${mId}`, { score: data?.score });
+        if (data && mId && (data.score || data.teamAScore || data.teamBScore)) {
           setTournament(prev => {
             if (!prev) return prev;
             const updatedMatches = prev.matches.map(m => {
-              if (String(m._id || m.id).trim() === String(mId).trim()) {
+              const currentMId = socketService.cleanId(m._id || m.id);
+              if (currentMId === mId) {
                 const newM = { ...m };
                 const bTeamId = String(data.battingTeam?._id || data.battingTeam || '').trim();
                 const teamAId = String(newM.teamA?._id || newM.teamA || '').trim();
@@ -103,7 +105,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               }
               return m;
             });
-            console.log('⚡ [Socket Tournament] Tournament matches UI updated');
+            socketService.remoteLog('TournamentDetailScreen', 'Tournament matches UI updated');
             return { ...prev, matches: updatedMatches };
           });
         }
@@ -114,7 +116,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       if (unsubscribeScore) unsubscribeScore();
       if (tournament?.matches && tournament.matches.length > 0) {
         tournament.matches.forEach(m => {
-          socketService.leaveMatch(m._id);
+          socketService.leaveMatch(m._id || m.id);
         });
       }
     };

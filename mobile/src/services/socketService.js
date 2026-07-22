@@ -1,5 +1,5 @@
 import io from 'socket.io-client';
-import { BASE_URL } from '../api/axios';
+import api, { BASE_URL } from '../api/axios';
 
 class SocketService {
   constructor() {
@@ -10,73 +10,88 @@ class SocketService {
   }
 
   /**
+   * Send log messages directly to backend server logs for easy debugging
+   */
+  remoteLog(screen, message, data = null) {
+    const formattedMsg = `📱 [${screen}] ${message}`;
+    console.log(formattedMsg, data ? JSON.stringify(data) : '');
+
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('client_log', { screen, message, data });
+    } else {
+      api.post('/logs', { screen, message, data }).catch(() => { });
+    }
+  }
+
+  /**
+   * Helper to extract clean match ID without duplicate room prefixes
+   */
+  cleanId(data) {
+    if (!data) return '';
+    let str = '';
+    if (typeof data === 'string') str = data;
+    else if (typeof data === 'object') {
+      const raw = data.matchId || data._id || data.id || data;
+      str = typeof raw === 'object' ? (raw._id || raw.id || raw).toString() : String(raw);
+    } else {
+      str = String(data);
+    }
+    return str.replace(/^(match_|match:)/, '').trim();
+  }
+
+  /**
    * Get or initialize single Socket.IO connection across the app
    */
   getSocket() {
-    if (this.socket && (this.socket.connected || this.isConnecting)) {
+    if (this.socket) {
       return this.socket;
     }
 
-    if (this.socket) {
-      console.log('⚡ [Socket Client] Disconnecting stale socket instance before reconnecting');
-      this.socket.removeAllListeners();
-      this.socket.disconnect();
-      this.socket = null;
-    }
-
-    console.log('⚡ [Socket Client] Initializing single socket connection to:', BASE_URL);
+    console.log('⚡ [Socket Service] Initializing single global socket connection to:', BASE_URL);
     this.isConnecting = true;
 
     this.socket = io(BASE_URL, {
-      transports: ['polling', 'websocket'],
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      upgrade: true,
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000,
+      timeout: 10000,
     });
 
     this.socket.on('connect', () => {
       this.isConnecting = false;
-      console.log('⚡ [Socket Client] Socket Connected | Socket ID:', this.socket.id);
+      this.remoteLog('SocketService', `Connected | Socket ID: ${this.socket.id}`);
 
-      // Re-attach all registered listeners to the new socket instance
+      // Attach registered listeners to socket instance
       this.listeners.forEach((callbacksSet, eventName) => {
         callbacksSet.forEach((cb) => {
+          this.socket.off(eventName, cb);
           this.socket.on(eventName, cb);
         });
       });
 
       // Automatically re-join all active match rooms on connect/reconnect
       this.joinedMatchRooms.forEach((matchId) => {
-        console.log(`⚡ [Socket Client] Re-joining match room on connect: match:${matchId}`);
+        this.remoteLog('SocketService', `Reconnected | Room Rejoined: match_${matchId}`);
         this.socket.emit('join_match', { matchId });
       });
     });
 
     this.socket.on('joined', (data) => {
-      console.log('⚡ [Socket Client] Confirmed joined room successfully:', data);
+      this.remoteLog('SocketService', 'Confirmed joined room', data);
     });
 
     this.socket.on('disconnect', (reason) => {
       this.isConnecting = false;
-      console.log('⚡ [Socket Client] Socket Disconnected. Reason:', reason);
+      this.remoteLog('SocketService', `Disconnected. Reason: ${reason}`);
     });
 
     this.socket.on('connect_error', (error) => {
       this.isConnecting = false;
-      console.warn('⚡ [Socket Client] Connection Error:', error?.message || error);
-    });
-
-    // Re-attach all registered event listeners to new socket instance
-    this.listeners.forEach((callbacks, eventName) => {
-      callbacks.forEach((cb) => {
-        if (this.socket) {
-          this.socket.off(eventName, cb);
-          this.socket.on(eventName, cb);
-        }
-      });
+      this.remoteLog('SocketService', `Connection Error: ${error?.message || error}`);
     });
 
     return this.socket;
@@ -86,21 +101,17 @@ class SocketService {
    * Join a match room by ID
    */
   joinMatch(matchId) {
-    if (!matchId) return;
-    const cleanId = typeof matchId === 'object'
-      ? (matchId._id || matchId.id || matchId).toString().trim()
-      : String(matchId).trim();
-
+    const cleanId = this.cleanId(matchId);
     if (!cleanId) return;
 
     this.joinedMatchRooms.add(cleanId);
     const socket = this.getSocket();
 
     if (socket && socket.connected) {
-      console.log(`⚡ [Socket Client] Emitting join_match for matchId: ${cleanId}`);
+      this.remoteLog('SocketService', `Joined Match Room: match_${cleanId}`);
       socket.emit('join_match', { matchId: cleanId });
     } else {
-      console.log(`⚡ [Socket Client] Match room queued for join upon connection: match:${cleanId}`);
+      this.remoteLog('SocketService', `Match room queued for join upon connect: match_${cleanId}`);
     }
   }
 
@@ -108,16 +119,12 @@ class SocketService {
    * Leave a match room by ID
    */
   leaveMatch(matchId) {
-    if (!matchId) return;
-    const cleanId = typeof matchId === 'object'
-      ? (matchId._id || matchId.id || matchId).toString().trim()
-      : String(matchId).trim();
-
+    const cleanId = this.cleanId(matchId);
     if (!cleanId) return;
 
     this.joinedMatchRooms.delete(cleanId);
     if (this.socket && this.socket.connected) {
-      console.log(`⚡ [Socket Client] Emitting leave_match for matchId: ${cleanId}`);
+      console.log(`⚡ [Socket Service] Leaving Match Room: match_${cleanId}`);
       this.socket.emit('leave_match', { matchId: cleanId });
     }
   }
@@ -134,6 +141,7 @@ class SocketService {
 
     const socket = this.getSocket();
     if (socket) {
+      socket.off(eventName, callback);
       socket.on(eventName, callback);
     }
 
@@ -172,7 +180,7 @@ class SocketService {
   emit(eventName, data) {
     const socket = this.getSocket();
     if (socket) {
-      console.log(`⚡ [Socket Client] Emitting event: ${eventName} | Data:`, data);
+      console.log(`⚡ [Socket Service] Emitting event: ${eventName} | Data:`, data);
       socket.emit(eventName, data);
     }
   }
@@ -182,7 +190,7 @@ class SocketService {
    */
   disconnect() {
     if (this.socket) {
-      console.log('⚡ [Socket Client] Disconnecting socket instance');
+      console.log('⚡ [Socket Service] Disconnecting socket instance');
       this.joinedMatchRooms.clear();
       this.socket.removeAllListeners();
       this.socket.disconnect();

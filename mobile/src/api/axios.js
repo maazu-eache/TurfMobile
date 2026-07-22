@@ -16,17 +16,28 @@ export const BASE_URL = PROD_URL;
   const API_URL = `${BASE_URL}/api`;
 
 export const getImageUrl = (path) => {
-  if (!path) return null;
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  if (!path || typeof path !== 'string') return null;
   
-  // Fix previously uploaded absolute paths
+  // If already absolute HTTP(S) URL
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    // Replace legacy localhost / 10.0.2.2 URLs with active BASE_URL host
+    if (path.includes('localhost') || path.includes('10.0.2.2') || path.includes('127.0.0.1')) {
+      const idx = path.indexOf('/uploads/');
+      if (idx !== -1) {
+        return `${BASE_URL}${path.substring(idx)}`;
+      }
+    }
+    return path;
+  }
+  
+  // Fix previously uploaded absolute local paths (e.g. /Users/.../uploads/...)
   const uploadsIndex = path.indexOf('/uploads/');
   if (uploadsIndex !== -1) {
     path = path.substring(uploadsIndex);
   }
 
-  if (path.startsWith('/')) return `${BASE_URL}${path}`;
-  return `${BASE_URL}/${path}`;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${BASE_URL}${cleanPath}`;
 };
 
 const api = axios.create({

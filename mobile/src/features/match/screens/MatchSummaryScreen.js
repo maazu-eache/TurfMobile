@@ -54,7 +54,7 @@ const AnalysisDropdown = ({ value, options, onSelect, placeholder }) => {
 
 const MatchSummaryScreen = ({ navigation, route }) => {
   const matchIdRaw = route.params?.matchId || route.params?.id || route.params?.match?._id || route.params?.match;
-  const cleanMatchId = typeof matchIdRaw === 'object' ? (matchIdRaw?._id?.toString() || matchIdRaw?.id?.toString()) : String(matchIdRaw || '').trim();
+  const cleanMatchId = socketService.cleanId(matchIdRaw);
   const matchId = cleanMatchId;
 
   const dispatch = useDispatch();
@@ -149,7 +149,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       tension: 60,
       useNativeDriver: true,
     }).start();
-    
+
     setTimeout(() => {
       RNAnimated.timing(celebrationAnim, {
         toValue: 0,
@@ -163,36 +163,43 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   useEffect(() => {
     if (!cleanMatchId) return;
 
-    console.log(`⚡ [Socket Viewer] Joining match room: match:${cleanMatchId}`);
+    socketService.remoteLog('MatchSummaryScreen', `Joined Match Room: match_${cleanMatchId}`);
     socketService.joinMatch(cleanMatchId);
 
     const handleScoreUpdate = (data) => {
-      const updateMatchId = String(data?.match?._id || data?.matchId || cleanMatchId);
-      if (cleanMatchId && updateMatchId && cleanMatchId !== updateMatchId) {
+      const updateMatchId = socketService.cleanId(data?.match?._id || data?.matchId || data);
+      const activeCleanId = socketService.cleanId(cleanMatchId);
+      if (activeCleanId && updateMatchId && activeCleanId !== updateMatchId) {
+        socketService.remoteLog('MatchSummaryScreen', `Ignored update for different match. Expected: ${activeCleanId}, Received: ${updateMatchId}`);
         return; // Ignore updates for other matches
       }
 
       const runs = data?.score?.runs ?? data?.teamAScore?.runs ?? 0;
       const wickets = data?.score?.wickets ?? data?.teamAScore?.wickets ?? 0;
       const overs = data?.score?.overs ?? data?.teamAScore?.overs ?? '0.0';
-      const strikerName = data?.striker?.name || 'Striker';
-      const bowlerName = data?.bowler?.name || 'Bowler';
 
-      console.log(`⚡ [Socket Viewer] 📥 LIVE SCORE UPDATE RECEIVED | Match ID: ${updateMatchId}`);
-      console.log(`⚡ [Socket Viewer] Live Score: ${runs}/${wickets} (${overs} Ov) | Batting: ${strikerName} | Bowling: ${bowlerName}`);
+      socketService.remoteLog('MatchSummaryScreen', `Live Update Received | Score: ${runs}/${wickets} (${overs} Ov)`, { matchId: updateMatchId });
       dispatch(setLiveState(data));
-      console.log(`⚡ [Socket Viewer] 🔄 Redux LiveState Updated -> Score Card UI Re-rendered!`);
+      socketService.remoteLog('MatchSummaryScreen', 'State & UI Updated via Redux setLiveState');
 
       // Real-time synchronization for sub-tabs
-      fetchCommentary();
-      fetchScorecards();
+      if (data?.fullCommentary) {
+        setCommentary(data.fullCommentary);
+      } else {
+        fetchCommentary();
+      }
+      if (data?.scorecards) {
+        setScorecards(data.scorecards);
+      } else {
+        fetchScorecards();
+      }
 
       // Trigger Celebration Logic
       if (data?.recentCommentary?.length > 0) {
         const latestBall = data.recentCommentary[0];
         if (latestBall._id && latestBall._id !== lastBallRef.current) {
           lastBallRef.current = latestBall._id;
-          
+
           if (data.isMatchComplete || data.match?.status === 'completed') {
             const winnerName = data.result?.winner === data.match?.teamA?._id ? data.match?.teamA?.name : data.result?.winner === data.match?.teamB?._id ? data.match?.teamB?.name : 'TEAM';
             triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
@@ -211,6 +218,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     dispatch(fetchLiveState(cleanMatchId));
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
+      console.log(`⚡ [Frontend Viewer] Reconnected & Resubscribed | Room Rejoined: match_${cleanMatchId}`);
       socketService.joinMatch(cleanMatchId);
       dispatch(fetchLiveState(cleanMatchId));
       fetchCommentary();
@@ -234,10 +242,15 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
   }, [activeTab, cleanMatchId, fetchCommentary, fetchScorecards]);
 
-  if (isLoading && !liveState) {
+  const isCurrentMatchLoaded = liveState && String(liveState.match?._id || liveState.matchId || '').trim() === String(cleanMatchId).trim();
+
+  if (isLoading || !isCurrentMatchLoaded) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginTop: 14 }}>
+          Loading match details...
+        </Text>
       </View>
     );
   }
@@ -316,7 +329,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const confirmDeclareResult = (resultType, teamId, teamName) => {
     let title = '';
     let message = '';
-    
+
     if (resultType === 'walkover') {
       title = 'Confirm Walkover';
       message = `Are you sure you want to declare a walkover to ${teamName}? They will be awarded 2 points.`;
@@ -327,7 +340,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       title = 'Confirm Abandon Match';
       message = 'Are you sure you want to abandon this match? Both teams will receive 1 point.';
     }
-    
+
     setDeclareConfirmation({ visible: true, title, message, resultType, teamId });
   };
 
@@ -493,11 +506,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         const mvpId = typeof match.playerOfMatch === 'object' ? match.playerOfMatch._id : match.playerOfMatch;
         const allXI = [...(match.playingXI?.teamA || []), ...(match.playingXI?.teamB || [])];
         mvp = allXI.find(p => String(p._id) === String(mvpId));
-        
+
         // Fallback: If player was added mid-match and isn't in playingXI, find them in scorecards
         if (!mvp) {
           const scorecardPlayers = scorecards.flatMap(sc => [
-            ...sc.batting.map(b => b.player), 
+            ...sc.batting.map(b => b.player),
             ...sc.bowling.map(b => b.player)
           ]).filter(Boolean);
           mvp = scorecardPlayers.find(p => String(p._id) === String(mvpId));
@@ -905,7 +918,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 </View>
               </>
             )}
-            
+
             {/* Recent Commentary section at the bottom of the summary */}
             {liveState?.recentCommentary?.length > 0 && (
               <View style={[styles.section, { paddingBottom: 16, marginTop: 12 }]}>
@@ -1723,23 +1736,23 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         {displayScorecards.map((sc, index) => {
           const inn = match.innings?.find(i => i.inningsNumber === sc.inningsNumber);
           if (!inn || !inn.partnerships || inn.partnerships.length === 0) return null;
-          
+
           const teamName = sc.battingTeam?.name || (sc.battingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name) || `Team ${sc.battingTeam}`;
-          
+
           return (
             <View key={index} style={[styles.section, { padding: 16, marginBottom: 16 }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>{teamName}</Text>
                 <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>{sc.total?.runs || 0}/{sc.total?.wickets || 0} ({sc.total?.overs || '0.0'} Ov)</Text>
               </View>
-              
+
               {inn.partnerships.map((p, idx) => {
                 const p1Name = p.batsman1?.name || sc.batting.find(b => (b.player?._id || b.player)?.toString() === (p.batsman1?._id || p.batsman1)?.toString())?.player?.name || 'Unknown';
                 const p2Name = p.batsman2?.name || sc.batting.find(b => (b.player?._id || b.player)?.toString() === (p.batsman2?._id || p.batsman2)?.toString())?.player?.name || 'Unknown';
-                
+
                 const wicketNum = p.wicket || (idx + 1);
-                const suffix = ['st','nd','rd'][((wicketNum+90)%100-10)%10-1] || 'th';
-                
+                const suffix = ['st', 'nd', 'rd'][((wicketNum + 90) % 100 - 10) % 10 - 1] || 'th';
+
                 return (
                   <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, paddingBottom: 12 }}>
                     <View style={{ width: 60 }}>
@@ -1763,15 +1776,15 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             </View>
           );
         })}
-        
+
         {displayScorecards.filter(sc => {
           const inn = match.innings?.find(i => i.inningsNumber === sc.inningsNumber);
           return inn && inn.partnerships && inn.partnerships.length > 0;
         }).length === 0 && (
-          <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: Colors.textSecondary }}>No partnerships available.</Text>
-          </View>
-        )}
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: Colors.textSecondary }}>No partnerships available.</Text>
+            </View>
+          )}
       </ScrollView>
     );
   };
@@ -2231,9 +2244,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               {match.teamA?.shortName || match.teamA?.name || 'Team A'} vs {match.teamB?.shortName || match.teamB?.name || 'Team B'}
             </Text>
             {match.status === 'scheduled' && match.scheduledAt ? (
-               <Text style={styles.headerVsText} numberOfLines={1}>
-                 {new Date(match.scheduledAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} • {match.tournament?.name || 'Match'}
-               </Text>
+              <Text style={styles.headerVsText} numberOfLines={1}>
+                {new Date(match.scheduledAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} • {match.tournament?.name || 'Match'}
+              </Text>
             ) : match.status === 'completed' ? (
               <View style={styles.statusBadgeCompleted}>
                 <Icon name="check-circle" size={10} color="#fff" style={{ marginRight: 4 }} />
@@ -2288,7 +2301,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             </Text>
           </TouchableOpacity>
           {match.status === 'scheduled' && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{ marginTop: 12, paddingVertical: 10, alignItems: 'center' }}
               onPress={() => setDeclareResultModalVisible(true)}
             >
@@ -2324,8 +2337,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             </ScrollView>
             <View style={{ padding: 16, width: '100%', borderTopWidth: 1, borderTopColor: Colors.borderLight }}>
-              <TouchableOpacity 
-                style={{ paddingVertical: 12, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' }} 
+              <TouchableOpacity
+                style={{ paddingVertical: 12, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' }}
                 onPress={() => setDeclareResultModalVisible(false)}
               >
                 <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Cancel</Text>
@@ -2346,14 +2359,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               {declareConfirmation?.message}
             </Text>
             <View style={{ flexDirection: 'row', width: '100%', gap: 12 }}>
-              <TouchableOpacity 
-                style={{ flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' }} 
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' }}
                 onPress={() => setDeclareConfirmation(null)}
               >
                 <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={{ flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' }} 
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' }}
                 onPress={executeDeclareResult}
               >
                 <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Confirm</Text>
@@ -2429,12 +2442,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             }}>
               {celebration.text}
             </RNAnimated.Text>
-            
+
             {celebration.type === 'won' && (
-              <ConfettiCannon count={150} origin={{x: SCREEN_WIDTH/2, y: -20}} fadeOut={true} fallSpeed={2500} colors={['#FFD700', '#FF8C00', '#FF1493', '#00BFFF', '#32CD32']} />
+              <ConfettiCannon count={150} origin={{ x: SCREEN_WIDTH / 2, y: -20 }} fadeOut={true} fallSpeed={2500} colors={['#FFD700', '#FF8C00', '#FF1493', '#00BFFF', '#32CD32']} />
             )}
             {(celebration.type === 'six' || celebration.type === 'four') && (
-              <ConfettiCannon count={80} origin={{x: SCREEN_WIDTH/2, y: -20}} fadeOut={true} fallSpeed={3000} colors={['#FFF', celebration.color, '#FFD700']} />
+              <ConfettiCannon count={80} origin={{ x: SCREEN_WIDTH / 2, y: -20 }} fadeOut={true} fallSpeed={3000} colors={['#FFF', celebration.color, '#FFD700']} />
             )}
           </View>
         </View>

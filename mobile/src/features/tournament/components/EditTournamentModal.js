@@ -145,7 +145,7 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
             </TouchableOpacity>
           </View>
           
-          <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Tournament Name *</Text>
               <TextInput style={styles.input} value={form.name} onChangeText={t => handleChange('name', t)} placeholderTextColor={Colors.textTertiary} />

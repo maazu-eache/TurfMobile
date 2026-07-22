@@ -51,7 +51,7 @@ const MyCricketScreen = ({ route }) => {
         dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
 
         unsubscribeScore = socketService.onScoreUpdate((data) => {
-          console.log('⚡ [Socket MyCricket] Score update received:', data?.matchId || data?.match?._id);
+          socketService.remoteLog('MyCricketScreen', 'Score update event received', { matchId: data?.matchId || data?.match?._id, score: data?.score });
           const mId = data?.matchId || data?.match?._id || data?.id;
           if (mId && (data.score || data.teamAScore || data.teamBScore || data.match)) {
             dispatch(updateLiveMatchScore({
@@ -63,7 +63,7 @@ const MyCricketScreen = ({ route }) => {
               match: data.match,
               status: data.match?.status || data.status
             }));
-            console.log('⚡ [Socket MyCricket] MyCricket UI updated via Redux updateLiveMatchScore');
+            socketService.remoteLog('MyCricketScreen', 'Redux updateLiveMatchScore dispatched', { matchId: mId });
           }
         });
 
@@ -99,14 +99,16 @@ const MyCricketScreen = ({ route }) => {
     if (isFocused && activeTopTab === 'Matches' && activeSubTab !== 'Played' && list?.length > 0) {
       list.forEach(m => {
         if (['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(m.status)) {
-          socketService.joinMatch(m._id || m.id);
-          console.log(`⚡ [Socket MyCricket] Joined room match:${m._id || m.id} for live match card`);
+          const cleanId = socketService.cleanId(m._id || m.id);
+          socketService.joinMatch(cleanId);
+          socketService.remoteLog('MyCricketScreen', `Joined live match room: match_${cleanId}`);
         }
       });
       return () => {
         list.forEach(m => {
-          socketService.leaveMatch(m._id || m.id);
-          console.log(`⚡ [Socket MyCricket] Left room match:${m._id || m.id}`);
+          const cleanId = socketService.cleanId(m._id || m.id);
+          socketService.leaveMatch(cleanId);
+          socketService.remoteLog('MyCricketScreen', `Left live match room: match_${cleanId}`);
         });
       };
     }

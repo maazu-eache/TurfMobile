@@ -18,7 +18,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const LiveScorerScreen = ({ navigation, route }) => {
   const matchIdRaw = route.params?.matchId || route.params?.id || route.params?.match?._id || route.params?.match;
-  const cleanMatchId = typeof matchIdRaw === 'object' ? (matchIdRaw?._id?.toString() || matchIdRaw?.id?.toString()) : String(matchIdRaw || '').trim();
+  const cleanMatchId = socketService.cleanId(matchIdRaw);
   const matchId = cleanMatchId;
   const dispatch = useDispatch();
   const { liveState, isLoading } = useSelector((state) => state.match);
@@ -104,17 +104,19 @@ const LiveScorerScreen = ({ navigation, route }) => {
   useEffect(() => {
     if (!cleanMatchId) return;
 
-    console.log(`⚡ [Socket Scorer] Joining match room: match:${cleanMatchId}`);
+    socketService.remoteLog('LiveScorerScreen', `Joined Match Room: match_${cleanMatchId}`);
     socketService.joinMatch(cleanMatchId);
 
     const handleScoreUpdate = (data) => {
-      const updateMatchId = String(data?.match?._id || data?.matchId || cleanMatchId);
+      const updateMatchId = socketService.cleanId(data?.match?._id || data?.matchId || data);
+      const activeCleanId = socketService.cleanId(cleanMatchId);
+      if (activeCleanId && updateMatchId && activeCleanId !== updateMatchId) return;
+
       const runs = data?.score?.runs ?? data?.teamAScore?.runs ?? 0;
       const wickets = data?.score?.wickets ?? data?.teamAScore?.wickets ?? 0;
       const overs = data?.score?.overs ?? data?.teamAScore?.overs ?? '0.0';
 
-      console.log(`⚡ [Socket Scorer] 📥 LIVE SCORE UPDATE RECEIVED | Match ID: ${updateMatchId}`);
-      console.log(`⚡ [Socket Scorer] Live Score: ${runs}/${wickets} (${overs} Ov) -> UI Updated`);
+      socketService.remoteLog('LiveScorerScreen', `Socket Score Update Received | Score: ${runs}/${wickets} (${overs} Ov)`, { matchId: updateMatchId });
       dispatch(setLiveState(data));
     };
 
@@ -122,6 +124,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     dispatch(fetchLiveState(cleanMatchId));
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
+      console.log(`⚡ [Frontend Scorer] Re-joining Match Room on focus: match_${cleanMatchId}`);
       socketService.joinMatch(cleanMatchId);
       dispatch(fetchLiveState(cleanMatchId));
     });
@@ -839,9 +842,27 @@ const LiveScorerScreen = ({ navigation, route }) => {
         runReason: options.runReason || null,
         wagonWheel: options.wagonWheel || null,
       };
-      console.log('⚡ [Socket Scorer] Score Updated | Match ID:', cleanMatchId);
-      console.log('⚡ [Socket Scorer] Event Emitted | Event: scoreBall');
+
+      socketService.remoteLog('LiveScorerScreen', 'Score Submitted', payload);
+
+      // Optimistic UI Update (Instant 0ms Scorer Feedback)
+      if (liveState) {
+        const addedRuns = runs + (options.extraRuns || 0) + ((options.isWide || options.isNoBall) ? 1 : 0);
+        const currentRuns = liveState.score?.runs || 0;
+        const currentWickets = (liveState.score?.wickets || 0) + (options.isWicket ? 1 : 0);
+        const optimisticState = {
+          ...liveState,
+          score: {
+            ...liveState.score,
+            runs: currentRuns + addedRuns,
+            wickets: currentWickets,
+          }
+        };
+        dispatch(setLiveState(optimisticState));
+      }
+
       await dispatch(scoreBall({ matchId: cleanMatchId, ballData: payload })).unwrap();
+      socketService.remoteLog('LiveScorerScreen', 'Database Update Success');
     } catch (e) {
       showCustomAlert('Scoring Error', e || 'Could not record ball');
     } finally {
