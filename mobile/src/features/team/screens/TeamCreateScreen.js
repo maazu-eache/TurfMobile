@@ -142,7 +142,14 @@ const TeamCreateScreen = ({ navigation }) => {
 
   const handlePickImage = async () => {
     const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
-    if (result.assets?.length > 0) setLogo(result.assets[0]);
+    if (result.assets?.length > 0) {
+      const selected = result.assets[0];
+      if (selected.fileSize && selected.fileSize > 1 * 1024 * 1024) {
+        showCustomAlert('File Too Large', 'Please select an image smaller than 1MB.');
+        return;
+      }
+      setLogo(selected);
+    }
   };
 
   const handlePlayerMobileChange = async (text) => {
@@ -272,7 +279,7 @@ const TeamCreateScreen = ({ navigation }) => {
         <View style={styles.headerBtn} />
       </View>
 
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} enableResetScrollToCoords={false} keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ── Team Identity Card ── */}
         <View style={styles.identityCard}>
@@ -290,6 +297,9 @@ const TeamCreateScreen = ({ navigation }) => {
             </View>
           </TouchableOpacity>
           <Text style={styles.logoHint}>{logo ? 'Tap to change logo' : 'Tap to add team logo'}</Text>
+          <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium, textAlign: 'center' }}>
+            Note: Maximum image size allowed is under 1 MB.
+          </Text>
 
           <View style={styles.divider} />
 

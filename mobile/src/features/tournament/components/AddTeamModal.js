@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, FlatList, Image } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
@@ -227,7 +226,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalBg}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBg}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Team</Text>
@@ -238,7 +237,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
           
           {/* Top Tabs */}
           <View style={styles.tabsWrapper}>
-            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll} keyboardShouldPersistTaps="handled">
               {TABS.map(tab => (
                 <TouchableOpacity 
                   key={tab} 
@@ -248,7 +247,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                   <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
                 </TouchableOpacity>
               ))}
-            </KeyboardAwareScrollView>
+            </ScrollView>
           </View>
 
           {/* Search Tab Specifics */}
@@ -272,7 +271,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
           ) : (
             <>
               {activeTab === 'Search' && showGhostForm ? (
-                <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ marginTop: Spacing.md, paddingHorizontal: Spacing.md }}>
+                <ScrollView keyboardShouldPersistTaps="handled" style={{ marginTop: Spacing.md, paddingHorizontal: Spacing.md }}>
                   <Text style={styles.label}>Team Name *</Text>
                   <TextInput style={styles.input} placeholderTextColor={Colors.textTertiary} value={ghostForm.teamName} onChangeText={t => setGhostForm({...ghostForm, teamName: t})} placeholder="New Team Name" />
                   
@@ -322,7 +321,14 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                     style={[styles.input, { alignItems: 'center', justifyContent: 'center', padding: Spacing.lg, borderStyle: 'dashed', backgroundColor: Colors.background }]}
                     onPress={async () => {
                       const res = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
-                      if (res.assets?.length > 0) setGhostForm(prev => ({ ...prev, logo: res.assets[0] }));
+                      if (res.assets?.length > 0) {
+                        const selected = res.assets[0];
+                        if (selected.fileSize && selected.fileSize > 1 * 1024 * 1024) {
+                          showCustomAlert('File Too Large', 'Please select an image smaller than 1MB.');
+                          return;
+                        }
+                        setGhostForm(prev => ({ ...prev, logo: selected }));
+                      }
                     }}
                   >
                     {ghostForm.logo && ghostForm.logo.uri ? (
@@ -331,6 +337,9 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                       <Text style={{ color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>Tap to select team logo</Text>
                     )}
                   </TouchableOpacity>
+                  <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium }}>
+                    Note: Maximum image size allowed is under 1 MB.
+                  </Text>
 
                   <View style={{ flexDirection: 'row', marginTop: Spacing.lg, paddingBottom: 40 }}>
                     <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={() => setShowGhostForm(false)}>
@@ -340,7 +349,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                       {actionLoading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.actionBtnText}>Create Team</Text>}
                     </TouchableOpacity>
                   </View>
-                </KeyboardAwareScrollView>
+                </ScrollView>
               ) : (
                 <FlatList
                   data={getListData()}
@@ -365,7 +374,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
           )}
 
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

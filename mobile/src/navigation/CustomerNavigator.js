@@ -51,6 +51,13 @@ import TournamentCreateScreen from '../features/tournament/screens/TournamentCre
 import FixturesScreen from '../features/tournament/screens/FixturesScreen';
 import PointsTableScreen from '../features/tournament/screens/PointsTableScreen';
 
+// Auction
+import AuctionRegistrationScreen from '../features/tournament/screens/AuctionRegistrationScreen';
+import AuctionCreateSetsScreen from '../features/tournament/screens/AuctionCreateSetsScreen';
+import AuctionLiveOrganiserScreen from '../features/tournament/screens/AuctionLiveOrganiserScreen';
+import AuctionLiveTeamOwnerScreen from '../features/tournament/screens/AuctionLiveTeamOwnerScreen';
+import AuctionLivePublicScreen from '../features/tournament/screens/AuctionLivePublicScreen';
+
 // Player
 import PlayerProfileScreen from '../features/player/screens/PlayerProfileScreen';
 import CareerStatsScreen from '../features/player/screens/CareerStatsScreen';
@@ -134,6 +141,14 @@ const MatchStack = () => (
     <Stack.Screen name="TournamentCreate" component={TournamentCreateScreen} />
     <Stack.Screen name="Fixtures" component={FixturesScreen} />
     <Stack.Screen name="PointsTable" component={PointsTableScreen} />
+
+    {/* Auction Screens */}
+    <Stack.Screen name="AuctionRegistration" component={AuctionRegistrationScreen} />
+    <Stack.Screen name="AuctionCreateSets" component={AuctionCreateSetsScreen} />
+    <Stack.Screen name="AuctionLiveOrganiser" component={AuctionLiveOrganiserScreen} />
+    <Stack.Screen name="AuctionLiveTeamOwner" component={AuctionLiveTeamOwnerScreen} />
+    <Stack.Screen name="AuctionLivePublic" component={AuctionLivePublicScreen} />
+
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
   </Stack.Navigator>
 );
@@ -182,7 +197,7 @@ const CustomerNavigator = ({ navigation }) => {
     <Tab.Navigator
       screenOptions={({ route }) => {
         const routeName = getFocusedRouteNameFromRoute(route) ?? '';
-        const hiddenRoutes = ['MatchSetup', 'MatchTeamSelection', 'Toss', 'PlayingXI', 'LiveScorer', 'MatchPlayerSelection', 'SuperOver', 'AddPlayer', 'SelectBowler', 'Scorecard', 'MatchSummary'];
+        const hiddenRoutes = ['MatchSetup', 'MatchTeamSelection', 'Toss', 'PlayingXI', 'LiveScorer', 'MatchPlayerSelection', 'SuperOver', 'AddPlayer', 'SelectBowler', 'Scorecard', 'MatchSummary', 'TournamentDetail', 'AuctionLiveOrganiser', 'AuctionLivePublic', 'AuctionLiveTeamOwner'];
         const isHidden = hiddenRoutes.includes(routeName);
         
         return {

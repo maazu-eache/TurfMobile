@@ -14,6 +14,7 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 import GroupManagementModal from '../components/GroupManagementModal';
 import RoleManagementModal from '../components/RoleManagementModal';
 import AddTeamModal from '../components/AddTeamModal';
+import auctionService from '../../../services/auctionService';
 import EditTournamentModal from '../components/EditTournamentModal';
 import FixtureWizardModal from '../components/FixtureWizardModal';
 import TournamentStartMatchModal from '../components/TournamentStartMatchModal';
@@ -21,7 +22,7 @@ import TournamentLeaderboard from '../components/TournamentLeaderboard';
 import TournamentStatistics from '../components/TournamentStatistics';
 
 const TABS = [
-  'Overview', 'Matches', 'Teams', 'Points Table',
+  'Overview', 'Matches', 'Auction', 'Teams', 'Points Table',
   'Leaderboard', 'Statistics'
 ];
 
@@ -45,6 +46,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [showSettingsSidebar, setShowSettingsSidebar] = useState(false);
   const [showFixturePreview, setShowFixturePreview] = useState(false);
 
+  const [auctionDetails, setAuctionDetails] = useState(null);
+  const [isAuctionRegistered, setIsAuctionRegistered] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [myTeams, setMyTeams] = useState([]);
 
@@ -65,7 +68,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   useFocusEffect(
     useCallback(() => {
       fetchDashboard();
-    }, [])
+      fetchAuctionData();
+    }, [fetchAuctionData])
   );
 
   useEffect(() => {
@@ -121,6 +125,43 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       }
     };
   }, [tournament?.matches]);
+
+  const fetchAuctionData = useCallback(async () => {
+    if (activeTab === 'Auction' && tournamentId) {
+      try {
+        const res = await auctionService.getAuctionDetails(tournamentId);
+        if (res.data?.exists) {
+          setAuctionDetails(res.data);
+          if (res.data._id) {
+            try {
+              const regRes = await auctionService.getMyRegistration(res.data._id);
+              if (regRes.data) {
+                setIsAuctionRegistered(true);
+              } else {
+                setIsAuctionRegistered(false);
+              }
+            } catch (e) {
+              setIsAuctionRegistered(false);
+            }
+          }
+        }
+      } catch (err) {
+        console.log('Error fetching auction details', err);
+      }
+    }
+  }, [activeTab, tournamentId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchAuctionData();
+      fetchDashboard();
+      const interval = setInterval(() => {
+        fetchAuctionData();
+        fetchDashboard();
+      }, 10000);
+      return () => clearInterval(interval);
+    }, [fetchAuctionData, tournamentId])
+  );
 
   const fetchDashboard = async () => {
     try {
@@ -204,8 +245,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     return preview.trim();
   };
 
-  const isOrganizer = tournament?.organizer?._id === user?._id || tournament?.coOrganizers?.some(o => o._id === user?._id);
-  const isScorer = tournament?.scorers?.some(s => s._id === user?._id);
+  const isMainOrganizer = (tournament?.organizer?._id || tournament?.organizer) === user?._id;
+  const isOrganizer = isMainOrganizer || tournament?.coOrganizers?.some(o => (o._id || o) === user?._id);
+  const isScorer = tournament?.scorers?.some(s => (s._id || s) === user?._id);
   const canStartMatch = isOrganizer || isScorer;
 
   const handleShareTournament = async () => {
@@ -383,7 +425,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           <Icon name="map-pin" size={16} color={Colors.primary} />
           <Text style={styles.sectionTitle}>Logistics</Text>
         </View>
-        <InfoRow iconLib="feather" iconName="calendar" label="Start Date" value={moment(tournament.startDate).format('DD MMM YYYY')} />
+        <InfoRow iconLib="feather" iconName="calendar" label="Start Date" value={moment.utc(tournament.startDate).format('DD MMM YYYY')} />
         <InfoRow iconLib="feather" iconName="map-pin" label="City" value={tournament.city || '-'} />
         {tournament.groundName ? <InfoRow iconLib="mc" iconName="stadium" label="Ground" value={tournament.groundName} /> : null}
       </View>
@@ -451,9 +493,19 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
         {isOrganizer && (
           <View style={styles.actionGrid}>
-            <TouchableOpacity style={styles.actionGridBtn} onPress={handleGenerateFixtures} disabled={loading}>
-              <View style={styles.actionGridIcon}>
-                <Icon name="calendar" size={20} color={Colors.primary} />
+            <TouchableOpacity 
+              style={[styles.actionGridBtn, !hasTournamentStarted && { opacity: 0.5 }]} 
+              onPress={() => {
+                if (!hasTournamentStarted) {
+                  showCustomAlert('Tournament Not Started', 'Fixtures can only be generated after the tournament starts.');
+                  return;
+                }
+                handleGenerateFixtures();
+              }} 
+              disabled={loading}
+            >
+              <View style={[styles.actionGridIcon, !hasTournamentStarted && { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
+                <Icon name={hasTournamentStarted ? "calendar" : "lock"} size={20} color={hasTournamentStarted ? Colors.primary : Colors.textTertiary} />
               </View>
               <Text style={styles.actionGridText}>Fixtures</Text>
             </TouchableOpacity>
@@ -745,14 +797,295 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     </View>
   );
 
+  const renderAuction = () => {
+    const isOrganizer = tournament?.organizer?._id === user?._id || tournament?.organizer === user?._id || tournament?.coOrganizers?.some(o => (o._id || o) === user?._id);
+    const userTeam = tournament?.registeredTeams?.find(
+      (rt) => rt.team?.createdBy === user?._id || rt.team?.owner === user?._id || rt.team?.captain?.userId === user?._id || rt.team?.captain === user?._id
+    );
+    const isTeamCaptainOrOwner = !!userTeam;
+
+    const regEndDate = auctionDetails?.registrationEndDate;
+    const auctionDate = auctionDetails?.auctionDate;
+    const regEndPassed = !regEndDate || new Date() >= new Date(regEndDate);
+    const auctionDateReached = !auctionDate || new Date() >= new Date(auctionDate);
+
+    const formatDate = (d) => d ? moment.utc(d).format('ddd, D MMM YYYY') : 'Not set';
+    const formatCountdown = (d) => {
+      if (!d) return null;
+      const diff = moment(d).diff(moment());
+      if (diff <= 0) return null;
+      const dur = moment.duration(diff);
+      const days = Math.floor(dur.asDays());
+      return days > 0 ? `${days}d ${dur.hours()}h away` : `${dur.hours()}h ${dur.minutes()}m away`;
+    };
+
+    const auctionCountdown = auctionDate ? formatCountdown(auctionDate) : null;
+    const regCountdown = regEndDate ? formatCountdown(regEndDate) : null;
+
+    return (
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await fetchDashboard();
+              if (activeTab === 'Auction' && tournamentId) {
+                const res = await auctionService.getAuctionDetails(tournamentId);
+                if (res.data?.exists) setAuctionDetails(res.data);
+              }
+              setRefreshing(false);
+            }}
+            tintColor={Colors.primary}
+          />
+        }
+      >
+        {/* Hero Header */}
+        <View style={auctionStyles.heroCard}>
+          <View style={auctionStyles.heroIconRow}>
+            <View style={auctionStyles.heroIconBg}>
+              <MCIcon name="gavel" size={28} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={auctionStyles.heroTitle}>{tournament.name}</Text>
+              <Text style={auctionStyles.heroSubtitle}>
+                {isOrganizer
+                  ? 'Organiser Control Hub'
+                  : isTeamCaptainOrOwner
+                  ? `Team Captain / Owner`
+                  : 'Player & Spectator Hub'}
+              </Text>
+            </View>
+            <View style={[
+              auctionStyles.statusBadge,
+              { backgroundColor: auctionDateReached ? 'rgba(234,179,8,0.15)' : 'rgba(99,102,241,0.15)' }
+            ]}>
+              <Text style={[
+                auctionStyles.statusBadgeText,
+                { color: auctionDateReached ? Colors.warning : '#818CF8' }
+              ]}>
+                {auctionDateReached ? '🔴 LIVE READY' : '⏳ UPCOMING'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Date Info Cards */}
+        <View style={auctionStyles.dateRow}>
+          <View style={auctionStyles.dateCard}>
+            <MCIcon name="calendar-clock" size={18} color={regEndPassed ? '#4ADE80' : Colors.warning} />
+            <Text style={auctionStyles.dateLabel}>Reg. Closes</Text>
+            <Text style={auctionStyles.dateValue}>{formatDate(regEndDate)}</Text>
+            {regCountdown && <Text style={auctionStyles.dateSub}>{regCountdown}</Text>}
+            {regEndPassed && <Text style={[auctionStyles.dateSub, { color: '#4ADE80' }]}>✓ Closed</Text>}
+          </View>
+          <View style={auctionStyles.dateCard}>
+            <MCIcon name="gavel" size={18} color={auctionDateReached ? Colors.warning : Colors.primary} />
+            <Text style={auctionStyles.dateLabel}>Auction Day</Text>
+            <Text style={auctionStyles.dateValue}>{formatDate(auctionDate)}</Text>
+            {auctionCountdown && <Text style={auctionStyles.dateSub}>{auctionCountdown}</Text>}
+            {auctionDateReached && auctionDate && <Text style={[auctionStyles.dateSub, { color: Colors.warning }]}>🔥 Today!</Text>}
+          </View>
+        </View>
+
+        {/* Organiser Section */}
+        {isOrganizer && (
+          <View style={auctionStyles.sectionCard}>
+            <Text style={auctionStyles.sectionTitle}>Organiser Controls</Text>
+
+            <TouchableOpacity
+              style={auctionStyles.actionRow}
+              onPress={() => navigation.navigate('AuctionCreateSets', { tournamentId: tournament._id, mode: 'registrations' })}
+            >
+              <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(99,102,241,0.15)' }]}>
+                <MCIcon name="account-group" size={20} color="#818CF8" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={auctionStyles.actionTitle}>Manage Registrations</Text>
+                <Text style={auctionStyles.actionSub}>View players & check finances</Text>
+              </View>
+              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+            </TouchableOpacity>
+
+            <View style={auctionStyles.divider} />
+
+            <TouchableOpacity
+              style={[
+                auctionStyles.actionRow,
+                !regEndPassed && { opacity: 0.55 }
+              ]}
+              onPress={() => {
+                if (!regEndPassed) {
+                  showCustomAlert('Not Available', 'Registration is still open. Create Sets will be available once the registration date has passed.');
+                } else {
+                  navigation.navigate('AuctionCreateSets', { tournamentId: tournament._id, mode: 'sets' });
+                }
+              }}
+            >
+              <View style={[auctionStyles.actionIcon, { backgroundColor: regEndPassed ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.05)' }]}>
+                <MCIcon name="cards-outline" size={20} color={regEndPassed ? '#4ADE80' : Colors.textTertiary} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={auctionStyles.actionTitle}>Create & Manage Sets</Text>
+                <Text style={auctionStyles.actionSub}>
+                  {regEndPassed ? 'Split players into auction sets' : 'Available after registration closes'}
+                </Text>
+              </View>
+              {regEndPassed
+                ? <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+                : <MCIcon name="lock-outline" size={18} color={Colors.textTertiary} />}
+            </TouchableOpacity>
+
+            {auctionDateReached && (
+              <>
+                <View style={auctionStyles.divider} />
+                <TouchableOpacity
+                  style={[auctionStyles.actionRow, !auctionDetails?.hasSets && { opacity: 0.55 }]}
+                  onPress={() => {
+                    if (!auctionDetails?.hasSets) {
+                      showCustomAlert('Cannot Launch', 'Please create auction sets first before launching the live auction.');
+                    } else {
+                      navigation.navigate('AuctionLiveOrganiser', { auctionId: auctionDetails._id });
+                    }
+                  }}
+                >
+                  <View style={[auctionStyles.actionIcon, { backgroundColor: auctionDetails?.hasSets ? 'rgba(234,179,8,0.15)' : 'rgba(255,255,255,0.05)' }]}>
+                    <MCIcon name="broadcast" size={20} color={auctionDetails?.hasSets ? Colors.warning : Colors.textTertiary} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[auctionStyles.actionTitle, { color: auctionDetails?.hasSets ? Colors.warning : Colors.textPrimary }]}>Launch Live Auction</Text>
+                    <Text style={auctionStyles.actionSub}>
+                      {auctionDetails?.hasSets ? 'Start bidding session now' : 'Create sets first'}
+                    </Text>
+                  </View>
+                  {auctionDetails?.hasSets ? (
+                    <MCIcon name="chevron-right" size={22} color={Colors.warning} />
+                  ) : (
+                    <MCIcon name="lock-outline" size={18} color={Colors.textTertiary} />
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
+
+        {/* Team Owner Section */}
+        {isTeamCaptainOrOwner && (
+          <View style={auctionStyles.sectionCard}>
+            <Text style={auctionStyles.sectionTitle}>Team Owner</Text>
+            <TouchableOpacity
+              style={auctionStyles.actionRow}
+              onPress={() => {
+                if (!auctionDetails?._id) {
+                  showCustomAlert('Error', 'Auction details not found.');
+                  return;
+                }
+                navigation.navigate('AuctionLiveTeamOwner', { tournamentId: tournament._id, auctionId: auctionDetails._id });
+              }}
+            >
+              <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(234,179,8,0.12)' }]}>
+                <MCIcon name="shield-crown" size={20} color={Colors.warning} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={auctionStyles.actionTitle}>My Team Dashboard</Text>
+                <Text style={auctionStyles.actionSub}>View bids, purse & squad</Text>
+              </View>
+              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+            </TouchableOpacity>
+
+            <View style={auctionStyles.divider} />
+
+            <TouchableOpacity
+              style={auctionStyles.actionRow}
+              onPress={() => navigation.navigate('AuctionCreateSets', { tournamentId: tournament._id, mode: 'registrations', isReadOnly: true })}
+            >
+              <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(56,189,248,0.12)' }]}>
+                <MCIcon name="format-list-bulleted" size={20} color="#38BDF8" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={auctionStyles.actionTitle}>Browse Players & Sets</Text>
+                <Text style={auctionStyles.actionSub}>View all registered users and auction sets</Text>
+              </View>
+              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Player Section (always visible) */}
+        <View style={auctionStyles.sectionCard}>
+          <Text style={auctionStyles.sectionTitle}>Player</Text>
+          <TouchableOpacity
+            style={[auctionStyles.actionRow, !isAuctionRegistered && regEndPassed && { opacity: 0.6 }]}
+            onPress={() => navigation.navigate('AuctionRegistration', { tournamentId: tournament._id })}
+            disabled={!isAuctionRegistered && regEndPassed}
+          >
+            <View style={[
+              auctionStyles.actionIcon,
+              { backgroundColor: isAuctionRegistered ? 'rgba(74,222,128,0.12)' : (!isAuctionRegistered && regEndPassed ? 'rgba(239,68,68,0.12)' : 'rgba(99,102,241,0.12)') }
+            ]}>
+              <MCIcon
+                name={isAuctionRegistered ? 'check-circle' : (!isAuctionRegistered && regEndPassed ? 'close-circle' : 'account-plus')}
+                size={20}
+                color={isAuctionRegistered ? '#4ADE80' : (!isAuctionRegistered && regEndPassed ? '#EF4444' : '#818CF8')}
+              />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={auctionStyles.actionTitle}>
+                {isAuctionRegistered ? 'You Are Registered' : (regEndPassed ? 'Registration Closed' : 'Register for Auction')}
+              </Text>
+              <Text style={auctionStyles.actionSub}>
+                {isAuctionRegistered ? 'Tap to view your registration' : (regEndPassed ? 'The deadline has passed' : 'Join the player pool')}
+              </Text>
+            </View>
+            <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+          </TouchableOpacity>
+
+          {!isOrganizer && auctionDateReached && (
+            <>
+              <View style={auctionStyles.divider} />
+              <TouchableOpacity
+                style={auctionStyles.actionRow}
+                onPress={() => navigation.navigate('AuctionLivePublic', { auctionId: auctionDetails?._id })}
+              >
+                <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(234,179,8,0.1)' }]}>
+                  <MCIcon name="eye" size={20} color={Colors.warning} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={auctionStyles.actionTitle}>Watch Live Auction</Text>
+                  <Text style={auctionStyles.actionSub}>View bids in real-time</Text>
+                </View>
+                <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </ScrollView>
+    );
+  };
+
+  const hasTournamentStarted = tournament?.startDate ? new Date() >= new Date(tournament.startDate) : true;
+
+  const renderLockedModule = (tabName) => (
+    <View style={styles.placeholderContainer}>
+      <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+        <MCIcon name="lock" size={36} color={Colors.textTertiary} />
+      </View>
+      <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 8 }}>{tabName} Locked</Text>
+      <Text style={styles.emptyText}>This section will unlock once the tournament starts on {tournament?.startDate ? moment.utc(tournament.startDate).format('DD MMM YYYY') : 'the start date'}.</Text>
+    </View>
+  );
+
   const renderActiveTabContent = () => {
     switch (activeTab) {
       case 'Overview': return renderOverview();
       case 'Teams': return renderTeams();
-      case 'Matches': return renderMatches();
-      case 'Points Table': return renderPointsTable();
-      case 'Leaderboard': return <TournamentLeaderboard tournament={tournament} />;
-      case 'Statistics': return <TournamentStatistics tournament={tournament} />;
+      case 'Auction': return renderAuction();
+      case 'Matches': return hasTournamentStarted ? renderMatches() : renderLockedModule('Matches');
+      case 'Points Table': return hasTournamentStarted ? renderPointsTable() : renderLockedModule('Points Table');
+      case 'Leaderboard': return hasTournamentStarted ? <TournamentLeaderboard tournament={tournament} /> : renderLockedModule('Leaderboard');
+      case 'Statistics': return hasTournamentStarted ? <TournamentStatistics tournament={tournament} /> : renderLockedModule('Statistics');
       default: return renderPlaceholder(activeTab);
     }
   };
@@ -816,15 +1149,42 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       {/* Underline-style tabs */}
       <View style={styles.tabsWrapper}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
-          {TABS.map((tab) => (
-            <TouchableOpacity 
-              key={tab}
-              style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
-            </TouchableOpacity>
-          ))}
+          {(() => {
+            const isOrganizer = tournament?.organizer?._id === user?._id || tournament?.organizer === user?._id;
+            const userTeam = tournament?.teams?.find(
+              (t) => t.createdBy === user?._id || t.captain === user?._id || t.owner === user?._id
+            );
+            const isTeamOwnerOrCaptain = !!userTeam;
+
+            // Hide Auction tab once matches have been played (tournament started)
+            const hasMatchesPlayed = (tournament?.matches || []).some(m =>
+              ['in_progress', 'toss_done', 'innings_break', 'super_over', 'completed', 'abandoned'].includes(m.status)
+            );
+            const isAuctionTournament = tournament?.tournamentType === 'Auction';
+
+            let visibleTabs = TABS.filter(tab => {
+              if (tab === 'Auction') {
+                // Show Auction tab only for Auction tournaments that haven't started playing yet
+                return isAuctionTournament && !hasMatchesPlayed;
+              }
+              return true;
+            });
+
+            if (isAuctionTournament && !isOrganizer && !isTeamOwnerOrCaptain) {
+              // Public spectators of Auction tournaments see only Overview + Auction (if not started)
+              visibleTabs = ['Overview', ...(hasMatchesPlayed ? [] : ['Auction'])];
+            }
+
+            return visibleTabs.map((tab) => (
+              <TouchableOpacity 
+                key={tab}
+                style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
+                onPress={() => setActiveTab(tab)}
+              >
+                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+              </TouchableOpacity>
+            ));
+          })()}
         </ScrollView>
       </View>
 
@@ -908,12 +1268,14 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             </TouchableOpacity>
 
             {isOrganizer && (
-              <>
-                <TouchableOpacity style={styles.sidebarOption} onPress={() => { setShowSettingsSidebar(false); setShowEditDetailsModal(true); }}>
-                  <Icon name="settings" size={20} color={Colors.textPrimary} style={styles.sidebarIcon} />
-                  <Text style={styles.sidebarOptionText}>Edit Tournament Details</Text>
-                </TouchableOpacity>
+              <TouchableOpacity style={styles.sidebarOption} onPress={() => { setShowSettingsSidebar(false); setShowEditDetailsModal(true); }}>
+                <Icon name="settings" size={20} color={Colors.textPrimary} style={styles.sidebarIcon} />
+                <Text style={styles.sidebarOptionText}>Edit Tournament Details</Text>
+              </TouchableOpacity>
+            )}
 
+            {isMainOrganizer && (
+              <>
                 <TouchableOpacity style={styles.sidebarOption} onPress={() => { setShowSettingsSidebar(false); setRoleType('coOrganizers'); setShowRoleModal(true); }}>
                   <Icon name="users" size={20} color={Colors.textPrimary} style={styles.sidebarIcon} />
                   <Text style={styles.sidebarOptionText}>Manage Organizers</Text>
@@ -984,6 +1346,83 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     </SafeAreaView>
   );
 };
+
+const auctionStyles = StyleSheet.create({
+  heroCard: {
+    backgroundColor: Colors.backgroundElevated,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  heroIconRow: { flexDirection: 'row', alignItems: 'center' },
+  heroIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(163,230,53,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  heroSubtitle: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  statusBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
+
+  dateRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  dateCard: {
+    flex: 1,
+    backgroundColor: Colors.backgroundElevated,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 4,
+  },
+  dateLabel: { fontSize: 11, color: Colors.textTertiary, marginTop: 4 },
+  dateValue: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  dateSub: { fontSize: 11, color: Colors.warning, marginTop: 2 },
+
+  sectionCard: {
+    backgroundColor: Colors.backgroundElevated,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    paddingHorizontal: Spacing.md,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+  },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionTitle: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  actionSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },

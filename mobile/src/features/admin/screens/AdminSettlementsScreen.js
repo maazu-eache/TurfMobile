@@ -10,6 +10,7 @@ import api from '../../../api/axios';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import moment from 'moment';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 const AdminSettlementsScreen = ({ navigation }) => {
   const [tab, setTab] = useState('requests');
@@ -247,8 +248,9 @@ const AdminSettlementsScreen = ({ navigation }) => {
       {/* Tabs */}
       <View style={styles.tabs}>
         {[
-          { key: 'requests', label: 'Withdrawal Requests', icon: 'bank-transfer-out' },
-          { key: 'wallets', label: 'Owner Wallets', icon: 'wallet-outline' },
+          { key: 'requests', label: 'Withdrawals', icon: 'bank-transfer-out' },
+          { key: 'turf', label: 'Turf Owners', icon: 'stadium-variant' },
+          { key: 'organizer', label: 'Organizers', icon: 'account-tie-hat' },
         ].map(t => (
           <TouchableOpacity
             key={t.key}
@@ -269,7 +271,7 @@ const AdminSettlementsScreen = ({ navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={tab === 'requests' ? requests : wallets}
+          data={tab === 'requests' ? requests : (tab === 'turf' ? wallets.filter(w => w.businessName !== 'Tournament Organizer') : wallets.filter(w => w.businessName === 'Tournament Organizer'))}
           keyExtractor={item => item._id}
           renderItem={tab === 'requests' ? renderRequest : renderWallet}
           contentContainerStyle={styles.list}
@@ -278,7 +280,7 @@ const AdminSettlementsScreen = ({ navigation }) => {
               <Icon name={tab === 'requests' ? 'bank-transfer-out' : 'wallet-outline'} size={48} color={Colors.textTertiary} />
               <Text style={styles.emptyTitle}>Nothing here yet</Text>
               <Text style={styles.emptySubtitle}>
-                {tab === 'requests' ? 'No withdrawal requests found.' : 'No owner wallets found.'}
+                {tab === 'requests' ? 'No withdrawal requests found.' : `No ${tab === 'turf' ? 'Turf Owner' : 'Organizer'} wallets found.`}
               </Text>
             </View>
           }

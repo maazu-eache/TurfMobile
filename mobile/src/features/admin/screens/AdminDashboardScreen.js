@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Image, ScrollView } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -14,6 +13,7 @@ import { logout } from '../../auth/authSlice';
 import { navigate, reset } from '../../../navigation/navigationRef';
 import { useFocusEffect } from '@react-navigation/native';
 import NotificationBell from '../../../components/NotificationBell';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 const AdminDashboardScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('owners'); // 'owners' or 'users'

@@ -4,6 +4,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { launchImageLibrary } from 'react-native-image-picker';
+import { useSelector } from 'react-redux';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -62,10 +63,6 @@ const TournamentCreateScreen = ({ navigation }) => {
     city: '',
     groundName: '',
     locationObj: null,
-    organizerId: '',
-    organizerName: '',
-    organizerPhoto: '',
-    organizerMobile: '',
     startDate: '',
     tournamentType: 'Standard',
     format: 'League',
@@ -76,8 +73,20 @@ const TournamentCreateScreen = ({ navigation }) => {
     playersPerTeam: '11',
     groundType: 'Open Ground',
     entryFee: '0',
+    registrationStartDate: '',
+    registrationEndDate: '',
+    auctionDate: '',
+    auctionTime: '',
+    coOrganizers: [],
+    scorers: [],
     rules: '',
   });
+
+  const { user } = useSelector((state) => state.auth);
+
+  const [multiLookupType, setMultiLookupType] = useState(null); // 'coOrganizers' or 'scorers'
+  const [multiLookupMobile, setMultiLookupMobile] = useState('');
+  const [datePickerMode, setDatePickerMode] = useState('date'); // 'date' or 'time'
 
   const handleBannerSelect = () => {
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (response) => {
@@ -87,7 +96,12 @@ const TournamentCreateScreen = ({ navigation }) => {
         return;
       }
       if (response.assets && response.assets.length > 0) {
-        setForm(f => ({ ...f, banner: response.assets[0] }));
+        const selected = response.assets[0];
+        if (selected.fileSize && selected.fileSize > 1 * 1024 * 1024) {
+          showCustomAlert('File Too Large', 'Please select a banner image smaller than 1MB.');
+          return;
+        }
+        setForm(f => ({ ...f, banner: selected }));
       }
     });
   };
@@ -103,50 +117,78 @@ const TournamentCreateScreen = ({ navigation }) => {
     setRulesList(rulesList.filter((_, i) => i !== index));
   };
 
-  const handleMobileChange = async (mobile) => {
-    setForm(f => ({ ...f, organizerMobile: mobile }));
-    if (mobile.length >= 10) {
-      try {
-        const res = await api.get(`/users/lookup/${mobile}`);
-        if (res.data && res.data.data && res.data.data.exists && res.data.data.user) {
-          setForm(f => ({ 
-            ...f, 
-            organizerId: res.data.data.user._id,
-            organizerName: res.data.data.user.name,
-            organizerPhoto: res.data.data.user.photo || ''
-          }));
-        } else {
-          setForm(f => ({ ...f, organizerId: '', organizerName: '', organizerPhoto: '' }));
+  const handleMultiLookup = async () => {
+    if (multiLookupMobile.length < 10) {
+      showCustomAlert('Error', 'Enter a valid 10-digit mobile number');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.get(`/users/lookup/${multiLookupMobile}`);
+      if (res.data?.data?.exists && res.data?.data?.user) {
+        const u = res.data.data.user;
+        if (multiLookupType === 'coOrganizers') {
+          if (!form.coOrganizers.some(o => o._id === u._id)) {
+             setForm(f => ({ ...f, coOrganizers: [...f.coOrganizers, u] }));
+          }
+        } else if (multiLookupType === 'scorers') {
+          if (!form.scorers.some(s => s._id === u._id)) {
+             setForm(f => ({ ...f, scorers: [...f.scorers, u] }));
+          }
         }
-      } catch(e) {
-         setForm(f => ({ ...f, organizerId: '', organizerName: '', organizerPhoto: '' }));
+        setMultiLookupMobile('');
+      } else {
+        showCustomAlert('Not Found', 'No user found with this mobile number');
       }
-    } else {
-      setForm(f => ({ ...f, organizerId: '', organizerName: '', organizerPhoto: '' }));
+    } catch(e) {
+      showCustomAlert('Error', 'Failed to lookup user');
+    } finally {
+      setLoading(false);
     }
   };
+
+  const removeMultiUser = (type, index) => {
+    setForm(f => {
+      const newArr = [...f[type]];
+      newArr.splice(index, 1);
+      return { ...f, [type]: newArr };
+    });
+  };
+
+  const [datePickerTarget, setDatePickerTarget] = useState('startDate');
 
   const onDateChange = (event, selectedDate) => {
     setShowDatePicker(false);
     if (selectedDate) {
       setDateObj(selectedDate);
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const year = selectedDate.getFullYear();
-      setForm({ ...form, startDate: `${day}/${month}/${year}` });
+      if (datePickerMode === 'time') {
+        const hh = String(selectedDate.getHours()).padStart(2, '0');
+        const mm = String(selectedDate.getMinutes()).padStart(2, '0');
+        setForm(f => ({ ...f, [datePickerTarget]: `${hh}:${mm}` }));
+      } else {
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const year = selectedDate.getFullYear();
+        const dateStr = `${day}/${month}/${year}`;
+        setForm(f => ({ ...f, [datePickerTarget]: dateStr }));
+      }
     }
   };
 
   const handleNext = () => {
-    if (form.tournamentType === 'Auction') return;
-
     if (step === 0) {
-      if (!form.name || !form.organizerMobile || !form.city || !form.startDate) {
-        showCustomAlert('Error', 'Please fill name, organiser, city, and date');
+      if (!form.name || !form.city || !form.startDate) {
+        showCustomAlert('Error', 'Please fill name, city, and start date');
         return;
       }
       setStep(1);
     } else {
+      if (form.tournamentType === 'Auction') {
+        if (!form.registrationStartDate || !form.registrationEndDate) {
+          showCustomAlert('Error', 'Please select mandatory Registration Start Date and End Date');
+          return;
+        }
+      }
       submitTournament();
     }
   };
@@ -154,13 +196,21 @@ const TournamentCreateScreen = ({ navigation }) => {
   const submitTournament = async () => {
     setLoading(true);
     try {
-      let finalStartDate = form.startDate;
-      if (finalStartDate && finalStartDate.includes('/')) {
-        const parts = finalStartDate.split('/');
-        if (parts.length === 3) {
-          finalStartDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      const formatDate = (dateStr) => {
+        if (!dateStr) return null;
+        if (dateStr.includes('/')) {
+          const parts = dateStr.split('/');
+          if (parts.length === 3) {
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+          }
         }
-      }
+        return dateStr;
+      };
+
+      let finalStartDate = formatDate(form.startDate);
+      let finalRegStartDate = formatDate(form.registrationStartDate);
+      let finalRegEndDate = formatDate(form.registrationEndDate);
+      let finalAuctionDate = formatDate(form.auctionDate);
 
       const payload = new FormData();
       Object.keys(form).forEach(key => {
@@ -186,16 +236,25 @@ const TournamentCreateScreen = ({ navigation }) => {
           payload.append(key, parseFloat(form[key]));
         } else if (key === 'startDate') {
           payload.append('startDate', finalStartDate);
+        } else if (key === 'registrationStartDate' && finalRegStartDate) {
+          payload.append('registrationStartDate', finalRegStartDate);
+        } else if (key === 'registrationEndDate' && finalRegEndDate) {
+          payload.append('registrationEndDate', finalRegEndDate);
+        } else if (key === 'auctionDate' && finalAuctionDate) {
+          payload.append('auctionDate', finalAuctionDate);
+        } else if (key === 'auctionTime' && form.auctionTime) {
+          payload.append('auctionTime', form.auctionTime);
+        } else if (key === 'coOrganizers' && form.coOrganizers.length > 0) {
+          payload.append('coOrganizers', JSON.stringify(form.coOrganizers.map(o => o._id)));
+        } else if (key === 'scorers' && form.scorers.length > 0) {
+          payload.append('scorers', JSON.stringify(form.scorers.map(s => s._id)));
         } else if (key === 'rules') {
           payload.append('rules', rulesList.join('\n'));
-        } else if (form[key] !== null && form[key] !== undefined && form[key] !== '') {
+        } else if (form[key] !== null && form[key] !== undefined && form[key] !== '' && key !== 'coOrganizers' && key !== 'scorers') {
           payload.append(key, form[key]);
         }
       });
-      
-      if (form.organizerId) {
-        payload.append('organizer', form.organizerId);
-      }
+      // no organizer field to append, backend uses req.userId automatically
       
       await api.post('/tournaments', payload, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -243,13 +302,15 @@ const TournamentCreateScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {form.tournamentType === 'Auction' ? (
-        <View style={styles.comingSoon}>
-          <Icon name="clock" size={64} color={Colors.primary} />
-          <Text style={styles.comingSoonText}>Auction Mode is Coming Soon!</Text>
+      {form.tournamentType === 'Auction' && (
+        <View style={{ paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: 'rgba(255, 179, 0, 0.1)', marginHorizontal: Spacing.lg, borderRadius: 8, marginBottom: Spacing.sm }}>
+          <Text style={{ color: Colors.warning, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center' }}>
+            ⚡ Auction Mode: Players will register & undergo live bidding by team owners!
+          </Text>
         </View>
-      ) : (
-        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formContainer}>
+      )}
+
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} enableResetScrollToCoords={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formContainer}>
           {step === 0 ? (
             <>
               <View style={styles.inputGroup}>
@@ -264,6 +325,9 @@ const TournamentCreateScreen = ({ navigation }) => {
                     </View>
                   )}
                 </TouchableOpacity>
+                <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
+                  Note: Maximum image size allowed is under 1 MB.
+                </Text>
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Tournament Name *</Text>
@@ -274,20 +338,13 @@ const TournamentCreateScreen = ({ navigation }) => {
                 <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} placeholderTextColor={offWhite} multiline value={form.description} onChangeText={(t) => setForm({ ...form, description: t })} placeholder="About tournament..." />
               </View>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Organizer Mobile Number</Text>
-                <TextInput style={styles.input} keyboardType="phone-pad" placeholderTextColor={offWhite} value={form.organizerMobile} onChangeText={handleMobileChange} placeholder="Enter mobile number" />
-                {form.organizerId ? (
-                  <View style={styles.organizerProfile}>
-                    <Image source={{ uri: form.organizerPhoto ? getImageUrl(form.organizerPhoto) : 'https://via.placeholder.com/40' }} style={styles.organizerAvatar} />
-                    <Text style={styles.organizerNameText}>{form.organizerName}</Text>
-                    <Icon name="check-circle" size={16} color={Colors.primary} style={{ marginLeft: 'auto' }} />
-                  </View>
-                ) : form.organizerMobile.length >= 10 ? (
-                  <View style={{ marginTop: Spacing.md }}>
-                    <Text style={styles.label}>Organizer Name (New Profile)</Text>
-                    <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.organizerName} onChangeText={(t) => setForm({ ...form, organizerName: t })} placeholder="Enter Organizer Name" />
-                  </View>
-                ) : null}
+                <Text style={styles.label}>Organizer</Text>
+                <View style={styles.organizerProfile}>
+                  <Image source={{ uri: user?.photo ? getImageUrl(user.photo) : 'https://via.placeholder.com/40' }} style={styles.organizerAvatar} />
+                  <Text style={styles.organizerNameText}>{user?.name || 'You'}</Text>
+                  <Icon name="check-circle" size={16} color={Colors.primary} style={{ marginLeft: 'auto' }} />
+                </View>
+                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 4 }}>You will be the primary organizer.</Text>
               </View>
               <View style={[styles.inputGroup, { zIndex: 10 }]}>
                 <Text style={styles.label}>City *</Text>
@@ -307,20 +364,41 @@ const TournamentCreateScreen = ({ navigation }) => {
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Start Date *</Text>
-                <TouchableOpacity onPress={() => setShowDatePicker(true)} activeOpacity={0.8}>
+                <TouchableOpacity onPress={() => { setDatePickerTarget('startDate'); setDatePickerMode('date'); setShowDatePicker(true); }} activeOpacity={0.8}>
                   <View pointerEvents="none">
                     <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.startDate} editable={false} placeholder="DD/MM/YYYY" />
                   </View>
                 </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={dateObj}
-                    mode="date"
-                    display="default"
-                    onChange={onDateChange}
-                    minimumDate={new Date()}
-                  />
-                )}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Co-Organizers (Optional)</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                  <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} keyboardType="phone-pad" placeholderTextColor={offWhite} value={multiLookupType === 'coOrganizers' ? multiLookupMobile : ''} onFocus={() => setMultiLookupType('coOrganizers')} onChangeText={setMultiLookupMobile} placeholder="Enter mobile number" />
+                  <TouchableOpacity style={styles.lookupBtn} onPress={handleMultiLookup}><Text style={styles.lookupBtnText}>Add</Text></TouchableOpacity>
+                </View>
+                {form.coOrganizers.map((o, idx) => (
+                  <View key={idx} style={styles.organizerProfile}>
+                    <Image source={{ uri: o.photo ? getImageUrl(o.photo) : 'https://via.placeholder.com/40' }} style={styles.organizerAvatar} />
+                    <Text style={styles.organizerNameText}>{o.name}</Text>
+                    <TouchableOpacity onPress={() => removeMultiUser('coOrganizers', idx)} style={{ marginLeft: 'auto' }}><Icon name="x" size={16} color={Colors.error} /></TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Scorers (Optional)</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                  <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} keyboardType="phone-pad" placeholderTextColor={offWhite} value={multiLookupType === 'scorers' ? multiLookupMobile : ''} onFocus={() => setMultiLookupType('scorers')} onChangeText={setMultiLookupMobile} placeholder="Enter mobile number" />
+                  <TouchableOpacity style={styles.lookupBtn} onPress={handleMultiLookup}><Text style={styles.lookupBtnText}>Add</Text></TouchableOpacity>
+                </View>
+                {form.scorers.map((s, idx) => (
+                  <View key={idx} style={styles.organizerProfile}>
+                    <Image source={{ uri: s.photo ? getImageUrl(s.photo) : 'https://via.placeholder.com/40' }} style={styles.organizerAvatar} />
+                    <Text style={styles.organizerNameText}>{s.name}</Text>
+                    <TouchableOpacity onPress={() => removeMultiUser('scorers', idx)} style={{ marginLeft: 'auto' }}><Icon name="x" size={16} color={Colors.error} /></TouchableOpacity>
+                  </View>
+                ))}
               </View>
             </>
           ) : (
@@ -365,9 +443,54 @@ const TournamentCreateScreen = ({ navigation }) => {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Registration Fee</Text>
+                <Text style={styles.label}>{form.tournamentType === 'Auction' ? 'Player Registration Fee (₹)' : 'Team Registration Fee (₹)'}</Text>
                 <TextInput style={styles.input} keyboardType="numeric" placeholderTextColor={offWhite} value={form.entryFee} onChangeText={(t) => setForm({ ...form, entryFee: t })} placeholder="₹ 0" />
+                <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
+                  Note: A 10% platform fee will be deducted for each registration made through the platform.
+                </Text>
               </View>
+
+              {form.tournamentType === 'Auction' && (
+                <>
+                  <View style={styles.row}>
+                    <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
+                      <Text style={styles.label}>Reg Start Date *</Text>
+                      <TouchableOpacity onPress={() => { setDatePickerTarget('registrationStartDate'); setDatePickerMode('date'); setShowDatePicker(true); }} activeOpacity={0.8}>
+                        <View pointerEvents="none">
+                          <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.registrationStartDate} editable={false} placeholder="DD/MM/YYYY" />
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                      <Text style={styles.label}>Reg End Date *</Text>
+                      <TouchableOpacity onPress={() => { setDatePickerTarget('registrationEndDate'); setDatePickerMode('date'); setShowDatePicker(true); }} activeOpacity={0.8}>
+                        <View pointerEvents="none">
+                          <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.registrationEndDate} editable={false} placeholder="DD/MM/YYYY" />
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.row}>
+                    <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
+                      <Text style={styles.label}>Auction Date (Optional)</Text>
+                      <TouchableOpacity onPress={() => { setDatePickerTarget('auctionDate'); setDatePickerMode('date'); setShowDatePicker(true); }} activeOpacity={0.8}>
+                        <View pointerEvents="none">
+                          <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.auctionDate} editable={false} placeholder="DD/MM/YYYY" />
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                      <Text style={styles.label}>Auction Time (Optional)</Text>
+                      <TouchableOpacity onPress={() => { setDatePickerTarget('auctionTime'); setDatePickerMode('time'); setShowDatePicker(true); }} activeOpacity={0.8}>
+                        <View pointerEvents="none">
+                          <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.auctionTime} editable={false} placeholder="HH:MM" />
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </>
+              )}
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Rules (Add point by point)</Text>
@@ -399,13 +522,23 @@ const TournamentCreateScreen = ({ navigation }) => {
             </>
           )}
         </KeyboardAwareScrollView>
-      )}
+      
 
       <View style={styles.footer}>
-        <TouchableOpacity style={[styles.primaryBtn, form.tournamentType === 'Auction' && { backgroundColor: Colors.surface }]} onPress={handleNext} disabled={loading || form.tournamentType === 'Auction'}>
-          {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={[styles.primaryBtnText, form.tournamentType === 'Auction' && { color: Colors.textSecondary }]}>{step === 0 ? 'Next' : 'Create Tournament'}</Text>}
+        <TouchableOpacity style={styles.primaryBtn} onPress={handleNext} disabled={loading}>
+          {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.primaryBtnText}>{step === 0 ? 'Next' : 'Create Tournament'}</Text>}
         </TouchableOpacity>
       </View>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={dateObj}
+          mode={datePickerMode}
+          display="default"
+          onChange={onDateChange}
+          minimumDate={datePickerMode === 'date' ? new Date() : undefined}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -456,6 +589,9 @@ const styles = StyleSheet.create({
   bannerPlaceholder: { alignItems: 'center' },
   bannerImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   bannerText: { color: Colors.textSecondary, marginTop: Spacing.sm, fontFamily: Typography.fontFamily.medium, fontSize: 14 },
+
+  lookupBtn: { backgroundColor: Colors.primary, height: 50, paddingHorizontal: 20, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' },
+  lookupBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: '80%', backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, padding: Spacing.lg, maxHeight: '80%' },

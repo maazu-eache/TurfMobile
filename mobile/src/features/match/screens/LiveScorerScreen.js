@@ -123,6 +123,13 @@ const LiveScorerScreen = ({ navigation, route }) => {
     const unsubscribeScore = socketService.onScoreUpdate(handleScoreUpdate);
     dispatch(fetchLiveState(cleanMatchId));
 
+    // Silent polling every 10s as a fallback for missing socket events
+    const pollInterval = setInterval(() => {
+      if (cleanMatchId) {
+        dispatch(fetchLiveState(cleanMatchId));
+      }
+    }, 10000);
+
     const unsubscribeFocus = navigation.addListener('focus', () => {
       console.log(`⚡ [Frontend Scorer] Re-joining Match Room on focus: match_${cleanMatchId}`);
       socketService.joinMatch(cleanMatchId);
@@ -130,6 +137,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     });
 
     return () => {
+      clearInterval(pollInterval);
       unsubscribeFocus();
       unsubscribeScore();
       socketService.leaveMatch(cleanMatchId);

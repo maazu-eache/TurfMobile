@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput,
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/Feather';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
-import api from '../../../api/axios';
+import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const RoleManagementModal = ({ visible, onClose, tournament, onRefresh, roleType }) => {
@@ -20,20 +20,23 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh, roleType
       } else if (roleType === 'scorers') {
         setCurrentUsers(tournament.scorers || []);
       }
+      setSearchResults(null);
+      setMobileToSearch('');
     }
-  }, [visible, tournament, roleType]);
+  }, [visible, roleType]);
 
   const handleSearch = async () => {
     if (!mobileToSearch || mobileToSearch.length < 10) {
-      showCustomAlert('Error', 'Please enter a valid mobile number');
+      showCustomAlert('Error', 'Please enter a valid 10-digit mobile number');
       return;
     }
     
     try {
       setSearching(true);
-      const { data } = await api.get(`/users/lookup/${mobileToSearch}`);
-      if (data.exists) {
-        setSearchResults(data.user);
+      const res = await api.get(`/users/lookup/${mobileToSearch}`);
+      const payload = res.data?.data || res.data;
+      if (payload?.exists && payload?.user) {
+        setSearchResults(payload.user);
       } else {
         showCustomAlert('Not Found', 'No user found with this mobile number');
         setSearchResults(null);
@@ -50,37 +53,38 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh, roleType
     if (!searchResults) return;
     
     // Check if already in list
-    const exists = currentUsers.some(u => u._id === searchResults._id);
+    const searchId = searchResults._id || searchResults.id;
+    const exists = currentUsers.some(u => (u._id || u.id || u) === searchId);
     if (exists) {
       showCustomAlert('Error', 'User is already added to this role');
       return;
     }
     
-    setCurrentUsers([...currentUsers, searchResults]);
+    setCurrentUsers(prev => [...prev, searchResults]);
     setSearchResults(null);
     setMobileToSearch('');
   };
 
   const handleRemoveUser = (userId) => {
-    setCurrentUsers(currentUsers.filter(u => u._id !== userId));
+    setCurrentUsers(prev => prev.filter(u => (u._id || u.id || u) !== userId));
   };
 
   const handleSave = async () => {
     try {
       setLoading(true);
       
-      const payloadIds = currentUsers.map(u => u._id);
+      const payloadIds = currentUsers.map(u => u._id || u.id || u);
       const payload = {};
       if (roleType === 'coOrganizers') payload.coOrganizers = payloadIds;
       if (roleType === 'scorers') payload.scorers = payloadIds;
       
       await api.put(`/tournaments/${tournament._id}/roles`, payload);
       showCustomAlert('Success', `${roleType === 'coOrganizers' ? 'Organizers' : 'Scorers'} updated successfully`);
-      onRefresh();
+      if (onRefresh) await onRefresh();
       onClose();
     } catch (e) {
       console.log('Error saving roles', e);
-      showCustomAlert('Error', 'Failed to save roles');
+      showCustomAlert('Error', e.response?.data?.message || 'Failed to save roles');
     } finally {
       setLoading(false);
     }
@@ -117,7 +121,13 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh, roleType
 
             {searchResults && (
               <View style={styles.resultCard}>
-                <Image source={{ uri: searchResults.photo || 'https://via.placeholder.com/50' }} style={styles.userPhoto} />
+                {searchResults.photo ? (
+                  <Image source={{ uri: getImageUrl(searchResults.photo) }} style={styles.userPhoto} />
+                ) : (
+                  <View style={styles.userPhotoPlaceholder}>
+                    <Icon name="user" size={20} color={Colors.primary} />
+                  </View>
+                )}
                 <View style={{ flex: 1 }}>
                   <Text style={styles.userName}>{searchResults.name}</Text>
                 </View>
@@ -133,15 +143,26 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh, roleType
               <Text style={styles.emptyText}>No users added yet.</Text>
             )}
 
-            {currentUsers.map((user) => (
-              <View key={user._id} style={styles.userCard}>
-                <Image source={{ uri: user.photo || 'https://via.placeholder.com/50' }} style={styles.userPhoto} />
-                <Text style={[styles.userName, { flex: 1 }]}>{user.name}</Text>
-                <TouchableOpacity onPress={() => handleRemoveUser(user._id)} style={{ padding: Spacing.xs }}>
-                  <Icon name="trash-2" size={20} color={Colors.error} />
-                </TouchableOpacity>
-              </View>
-            ))}
+            {currentUsers.map((user, idx) => {
+              const uId = user._id || user.id || user;
+              const uName = user.name || user.mobile || 'User';
+              const hasPhoto = !!user.photo;
+              return (
+                <View key={uId || idx} style={styles.userCard}>
+                  {hasPhoto ? (
+                    <Image source={{ uri: getImageUrl(user.photo) }} style={styles.userPhoto} />
+                  ) : (
+                    <View style={styles.userPhotoPlaceholder}>
+                      <Icon name="user" size={20} color={Colors.primary} />
+                    </View>
+                  )}
+                  <Text style={[styles.userName, { flex: 1 }]}>{uName}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveUser(uId)} style={{ padding: Spacing.xs }}>
+                    <Icon name="trash-2" size={20} color={Colors.error} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </KeyboardAwareScrollView>
 
           <View style={styles.footer}>
@@ -168,6 +189,7 @@ const styles = StyleSheet.create({
   searchBtn: { backgroundColor: Colors.primary, padding: Spacing.md, borderRadius: BorderRadius.md, marginLeft: Spacing.sm, height: 50, width: 50, alignItems: 'center', justifyContent: 'center' },
   resultCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.primary },
   userPhoto: { width: 40, height: 40, borderRadius: 20, marginRight: Spacing.md },
+  userPhotoPlaceholder: { width: 40, height: 40, borderRadius: 20, marginRight: Spacing.md, backgroundColor: 'rgba(46, 204, 113, 0.15)', justifyContent: 'center', alignItems: 'center' },
   userName: { fontSize: 16, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary },
   addBtn: { backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: BorderRadius.sm },
   addBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold },

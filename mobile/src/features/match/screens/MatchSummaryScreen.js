@@ -217,6 +217,15 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     const unsubscribeScore = socketService.onScoreUpdate(handleScoreUpdate);
     dispatch(fetchLiveState(cleanMatchId));
 
+    // Silent polling every 10s as a fallback for missing socket events
+    const pollInterval = setInterval(() => {
+      if (cleanMatchId) {
+        dispatch(fetchLiveState(cleanMatchId));
+        fetchCommentary();
+        fetchScorecards();
+      }
+    }, 10000);
+
     const unsubscribeFocus = navigation.addListener('focus', () => {
       console.log(`⚡ [Frontend Viewer] Reconnected & Resubscribed | Room Rejoined: match_${cleanMatchId}`);
       socketService.joinMatch(cleanMatchId);
@@ -226,6 +235,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     });
 
     return () => {
+      clearInterval(pollInterval);
       unsubscribeFocus();
       unsubscribeScore();
       socketService.leaveMatch(cleanMatchId);

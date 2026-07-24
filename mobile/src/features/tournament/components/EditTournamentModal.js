@@ -6,9 +6,12 @@ import Icon from 'react-native-vector-icons/Feather';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import api from '../../../api/axios';
 
+import LocationAutocomplete from '../../../components/LocationAutocomplete';
+
 const TEAMS_OPTIONS = ['2', '4', '6', '8', '10', '12', '16', '24', '32', '36', '40', '44','48'];
 const PLAYERS_OPTIONS = ['5', '6', '7', '8', '9', '10', '11', '15'];
 const OVERS_OPTIONS = ['3', '5', '8', '10', '12', '15', '20','25','30','35','40','50'];
+const RULE_SUGGESTIONS = ['75 speed limit', 'No throwing / jerk bowling', 'Max 1 bouncer per over', 'Rubber ball rules apply', 'Tennis ball rules apply', 'No LBW', 'Super over for tie', 'Free hit for no-ball'];
 
 const CustomDropdown = ({ label, value, options, onSelect }) => {
   const [visible, setVisible] = useState(false);
@@ -85,8 +88,14 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
     }
   };
 
+  const handleAddSuggestedRule = (suggestion) => {
+    if (!rules.includes(suggestion)) {
+      setRules(prev => [...prev, suggestion]);
+    }
+  };
+
   const handleRemoveRule = (index) => {
-    setRules(rules.filter((_, i) => i !== index));
+    setRules(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
@@ -121,7 +130,7 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
 
       await api.put(`/tournaments/${tournament._id}`, payload);
       showCustomAlert('Success', 'Tournament details updated successfully!');
-      onRefresh();
+      if (onRefresh) await onRefresh();
       onClose();
     } catch (error) {
       console.log('Error updating tournament', error);
@@ -157,9 +166,15 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
             </View>
 
             <View style={{ flexDirection: 'row', gap: Spacing.md }}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
+              <View style={[styles.inputGroup, { flex: 1, zIndex: 10 }]}>
                 <Text style={styles.label}>City</Text>
-                <TextInput style={styles.input} value={form.city} onChangeText={t => handleChange('city', t)} placeholderTextColor={Colors.textTertiary} />
+                <LocationAutocomplete
+                  value={form.city}
+                  onChangeText={t => handleChange('city', t)}
+                  onSelectLocation={loc => handleChange('city', loc.name)}
+                  placeholder="Search city..."
+                  variant="outlined"
+                />
               </View>
               <View style={[styles.inputGroup, { flex: 1 }]}>
                 <Text style={styles.label}>Ground Name</Text>
@@ -185,12 +200,15 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Entry Fee (₹)</Text>
               <TextInput style={styles.input} value={form.entryFee} onChangeText={t => handleChange('entryFee', t)} keyboardType="number-pad" placeholderTextColor={Colors.textTertiary} />
+              <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
+                Note: A 10% platform fee will be deducted for each registration made through the platform.
+              </Text>
             </View>
             
             {/* Rules Section */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Rules (Add point by point)</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
                 <TextInput 
                   style={[styles.input, { flex: 1, marginBottom: 0 }]} 
                   value={newRule} 
@@ -203,6 +221,37 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
                 <TouchableOpacity onPress={handleAddRule} style={styles.addRuleBtn}>
                   <Icon name="plus" size={20} color={Colors.white} />
                 </TouchableOpacity>
+              </View>
+
+              {/* Rule Suggestions */}
+              <View style={{ marginBottom: Spacing.md }}>
+                <Text style={{ color: Colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.medium, marginBottom: 6 }}>
+                  Quick Suggestions (Tap to add):
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  {RULE_SUGGESTIONS.map((suggestion) => {
+                    const isAdded = rules.includes(suggestion);
+                    return (
+                      <TouchableOpacity
+                        key={suggestion}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: 14,
+                          backgroundColor: isAdded ? 'rgba(46, 204, 113, 0.15)' : Colors.backgroundElevated,
+                          borderWidth: 1,
+                          borderColor: isAdded ? Colors.primary : Colors.border,
+                        }}
+                        onPress={() => handleAddSuggestedRule(suggestion)}
+                        disabled={isAdded}
+                      >
+                        <Text style={{ color: isAdded ? Colors.primary : Colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.medium }}>
+                          {isAdded ? '✓ ' : '+ '}{suggestion}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </View>
               
               {rules.map((rule, idx) => (
