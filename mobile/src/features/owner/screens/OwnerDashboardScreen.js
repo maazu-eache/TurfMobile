@@ -106,7 +106,7 @@ const OwnerDashboardScreen = ({ navigation }) => {
         <LinearGradient colors={[Colors.backgroundCard, Colors.background]} style={styles.hero}>
           <View style={styles.heroTop}>
             <View style={styles.heroLeft}>
-              <Image source={require('../../../../Rough_Turf.png')} style={styles.logo} resizeMode="contain" />
+              <Image source={require('../../../../SportVerse.png')} style={styles.logo} resizeMode="contain" />
               <View>
                 <Text style={styles.heroGreet}>{greeting} 👋</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>

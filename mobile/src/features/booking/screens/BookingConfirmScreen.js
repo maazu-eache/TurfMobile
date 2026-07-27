@@ -55,7 +55,7 @@ const BookingConfirmScreen = ({ route, navigation }) => {
           currency: order.currency,
           key: key || 'rzp_test_replace_me', // fallback
           amount: order.amount,
-          name: 'RoughTurf',
+          name: 'SportVerse',
           order_id: order.id,
           theme: { color: Colors.primary }
         };

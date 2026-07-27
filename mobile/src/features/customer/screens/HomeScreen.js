@@ -353,7 +353,7 @@ const HomeScreen = ({ navigation }) => {
 
               <View style={styles.sidebarFooter}>
                 <Icon name="leaf" size={12} color={Colors.primary} />
-                <Text style={styles.sidebarFooterTxt}>RoughTurf v1.0</Text>
+                <Text style={styles.sidebarFooterTxt}>SportVerse v1.0</Text>
               </View>
             </LinearGradient>
           </Animated.View>

@@ -21,16 +21,9 @@ const LiveMatchesScreen = () => {
   const { myMatches, isLoading } = useSelector(state => state.match);
 
   useEffect(() => {
-    let interval;
     if (isFocused) {
       loadMatches();
-      interval = setInterval(() => {
-        loadMatches();
-      }, 10000);
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
   }, [isFocused, activeTab]);
 
   const loadMatches = () => {

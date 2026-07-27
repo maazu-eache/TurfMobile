@@ -4,12 +4,14 @@ import { Platform } from 'react-native';
 import { store } from '../store';
 import { logout, setTokens } from '../features/auth/authSlice';
 
-// export const PROD_URL = 'https://roughturf-backend-50044029462.development.catalystappsail.in';
+// export const PROD_URL = 'https://turfbackend-pn8j.onrender.com';
 
-// Default BASE_URL to live backend for testing & production sync
 export const PROD_URL = __DEV__
   ? (Platform.OS === 'ios' ? 'http://localhost:5001' : 'http://10.0.2.2:5001')
-  : 'https://roughturf-backend-50044029462.development.catalystappsail.in';
+  : 'https://turfbackend-pn8j.onrender.com';
+
+// Default BASE_URL to live backend for testing & production sync
+// export const PROD_URL = 'https://turfbackend-pn8j.onrender.com';
 
 export const BASE_URL = PROD_URL;
 

@@ -155,11 +155,6 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     useCallback(() => {
       fetchAuctionData();
       fetchDashboard();
-      const interval = setInterval(() => {
-        fetchAuctionData();
-        fetchDashboard();
-      }, 10000);
-      return () => clearInterval(interval);
     }, [fetchAuctionData, tournamentId])
   );
 
@@ -253,7 +248,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const handleShareTournament = async () => {
     try {
       await Share.share({
-        message: `Check out ${tournament.name} on RoughTurf! roughturf://tournament/${tournamentId}`,
+        message: `Check out ${tournament.name} on SportVerse! sportverse://tournament/${tournamentId}`,
       });
     } catch (error) {
       console.log('Error sharing', error);
@@ -263,7 +258,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const handleShareJoinLink = async () => {
     try {
       await Share.share({
-        message: `Join ${tournament.name} on RoughTurf! Click the link to register your team: roughturf://tournament/${tournamentId}`,
+        message: `Join ${tournament.name} on SportVerse! Click the link to register your team: sportverse://tournament/${tournamentId}`,
       });
     } catch (error) {
       console.log('Error sharing', error);
@@ -800,7 +795,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const renderAuction = () => {
     const isOrganizer = tournament?.organizer?._id === user?._id || tournament?.organizer === user?._id || tournament?.coOrganizers?.some(o => (o._id || o) === user?._id);
     const userTeam = tournament?.registeredTeams?.find(
-      (rt) => rt.team?.createdBy === user?._id || rt.team?.owner === user?._id || rt.team?.captain?.userId === user?._id || rt.team?.captain === user?._id
+      (rt) => rt.team?.owner === user?._id || rt.team?.captain?.userId === user?._id || rt.team?.captain === user?._id
     );
     const isTeamCaptainOrOwner = !!userTeam;
 
@@ -1152,7 +1147,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           {(() => {
             const isOrganizer = tournament?.organizer?._id === user?._id || tournament?.organizer === user?._id;
             const userTeam = tournament?.teams?.find(
-              (t) => t.createdBy === user?._id || t.captain === user?._id || t.owner === user?._id
+              (t) => t.captain === user?._id || t.owner === user?._id
             );
             const isTeamOwnerOrCaptain = !!userTeam;
 

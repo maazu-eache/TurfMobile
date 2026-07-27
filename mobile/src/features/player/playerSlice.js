@@ -38,6 +38,16 @@ export const fetchMatchHistory = createAsyncThunk('player/matchHistory', async (
   } catch (err) { return rejectWithValue(err.response?.data?.message); }
 });
 
+export const fetchPlayerAchievements = createAsyncThunk('player/achievements', async (id, { rejectWithValue }) => {
+  try { return (await api.get(`/players/${id}/achievements`)).data.data; }
+  catch (err) { return rejectWithValue(err.response?.data?.message); }
+});
+
+export const fetchPlayerBallTypes = createAsyncThunk('player/ballTypes', async (id, { rejectWithValue }) => {
+  try { return (await api.get(`/players/${id}/ball-types`)).data.data.ballTypes; }
+  catch (err) { return rejectWithValue(err.response?.data?.message); }
+});
+
 const playerSlice = createSlice({
   name: 'player',
   initialState: {
@@ -45,6 +55,8 @@ const playerSlice = createSlice({
     viewedPlayer: null,
     rankings: [],
     matchHistory: [],
+    achievements: [],
+    availableBallTypes: [],
     isLoading: false,
     error: null,
   },
@@ -64,6 +76,8 @@ const playerSlice = createSlice({
         }
       })
       .addCase(fetchMatchHistory.fulfilled, (state, a) => { state.matchHistory = a.payload || []; })
+      .addCase(fetchPlayerAchievements.fulfilled, (state, a) => { state.achievements = a.payload || []; })
+      .addCase(fetchPlayerBallTypes.fulfilled, (state, a) => { state.availableBallTypes = a.payload || []; })
       .addCase(followPlayer.fulfilled, (state, a) => {
         const targetId = a.meta.arg;
         if (state.myProfile) {

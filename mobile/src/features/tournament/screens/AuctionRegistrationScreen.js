@@ -141,7 +141,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
       currency: 'INR',
       key: RAZORPAY_KEY,
       amount: totalAmount * 100,
-      name: 'RoughTurf',
+      name: 'SportVerse',
       prefill: {
         email: user?.email || '',
         contact: user?.mobile || '',
@@ -186,9 +186,9 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
 
   const handleShare = async () => {
     try {
-      const link = `https://roughturf.com/auction/${tournamentId}/register`;
+      const link = `https://sportverse.com/auction/${tournamentId}/register`;
       await Share.share({
-        message: `Register for ${auction?.tournament?.name || 'the tournament'} on RoughTurf!\nJoin here: ${link}`,
+        message: `Register for ${auction?.tournament?.name || 'the tournament'} on SportVerse!\nJoin here: ${link}`,
         title: 'Share Tournament',
       });
     } catch (error) {

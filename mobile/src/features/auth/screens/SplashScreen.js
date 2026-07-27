@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated, Dimensions, ImageBackground, Image } 
 import { useSelector } from 'react-redux';
 import LinearGradient from 'react-native-linear-gradient';
 import { Colors, Typography, Spacing } from '../../../theme/theme';
+import Video from 'react-native-video';
 
 const { width, height } = Dimensions.get('window');
 
@@ -20,71 +21,23 @@ const SplashScreen = ({ navigation }) => {
     ]).start();
   }, []);
 
+  const videoRef = useRef(null);
+
   return (
-    <ImageBackground 
-      source={require('../../../../GreetingScreen.png')} 
-      style={styles.backgroundImage}
-      resizeMode="cover"
-    >
-      <LinearGradient
-        colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.9)']}
-        style={styles.gradientOverlay}
-      >
-        <View style={styles.container}>
-          <Animated.View style={[styles.logoContainer, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
-            <Image 
-              source={require('../../../../Rough_Turf.png')} 
-              style={styles.logoImage} 
-              resizeMode="contain" 
-            />
-            <Text style={styles.logoText}>
-              Rough <Text style={styles.logoTextTurf}>Turf</Text>
-            </Text>
-            <Text style={styles.tagline}>Book. Play. Score.</Text>
-          </Animated.View>
-
-          <Animated.View style={[styles.greetingCard, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-            <Text style={styles.greetingTitle}>
-              {isAuthenticated && user ? `Welcome back,` : 'Welcome to'}
-            </Text>
-            <Text style={styles.greetingName}>
-              {isAuthenticated && user ? user.name : 'RoughTurf!'}
-            </Text>
-            <Text style={styles.greetingSubtext}>
-              {isAuthenticated && user ? 'Ready for your next match?' : 'The best turf booking experience.'}
-            </Text>
-          </Animated.View>
-
-          <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
-            <View style={styles.loader}>
-              {[0, 1, 2].map((i) => (
-                <LoaderDot key={i} delay={i * 200} />
-              ))}
-            </View>
-          </Animated.View>
-        </View>
-      </LinearGradient>
-    </ImageBackground>
+    <View style={styles.backgroundImage}>
+      <Video 
+        ref={videoRef}
+        source={require('../../../../Launch_screen.mp4')} 
+        style={StyleSheet.absoluteFill}
+        resizeMode="cover"
+        repeat={true}
+        muted={false}
+        onLoad={() => videoRef.current?.seek(0.5)}
+      />
+    </View>
   );
 };
 
-const LoaderDot = ({ delay }) => {
-  const anim = useRef(new Animated.Value(0.3)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(anim, { toValue: 1, duration: 400, useNativeDriver: true }),
-        Animated.timing(anim, { toValue: 0.3, duration: 400, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
-
-  return (
-    <Animated.View style={[styles.dot, { opacity: anim, transform: [{ scale: anim }] }]} />
-  );
-};
 
 const styles = StyleSheet.create({
   backgroundImage: {

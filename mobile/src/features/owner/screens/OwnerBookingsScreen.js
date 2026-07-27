@@ -46,17 +46,7 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
 
   useFocusEffect(
     useCallback(() => {
-      let interval;
-      if (selectedTurf) {
-        interval = setInterval(() => {
-          if (page === 1) {
-            fetchBookings(1, false);
-          }
-        }, 10000); // 10 seconds polling for live updates on page 1
-      }
-      return () => {
-        if (interval) clearInterval(interval);
-      };
+      // Intentionally left blank, relying on standard fetch
     }, [selectedTurf, page])
   );
 

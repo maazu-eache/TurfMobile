@@ -58,19 +58,8 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
         setLiveState(updatedState);
       });
 
-      // Silent polling every 10s as a fallback for missing socket events
-      const pollInterval = setInterval(async () => {
-        try {
-          const res = await auctionService.getLiveState(auctionId);
-          setLiveState(res.data);
-        } catch (err) {
-          console.log('Error polling public live state:', err);
-        }
-      }, 10000);
-
       return () => {
         unsubscribe();
-        clearInterval(pollInterval);
         auctionService.leaveAuctionRoom(auctionId);
       };
     }
@@ -187,8 +176,8 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
             </View>
           ) : (
 <Animated.View style={[styles.playerCard, { opacity: opacityAnim, transform: [{ translateY: slideAnim }] }]}>
-          {currentPlayer?.photo ? (
-            <Image source={{ uri: getImageUrl(currentPlayer.photo) }} style={styles.photoImg} />
+          {(currentPlayer?.photo || currentPlayer?.player?.photo) ? (
+            <Image source={{ uri: getImageUrl(currentPlayer.photo || currentPlayer.player?.photo) }} style={styles.photoImg} />
           ) : (
             <View style={styles.photoPlaceholder}>
               <Icon name="account-star" size={90} color={Colors.textTertiary} />
@@ -243,8 +232,8 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
               </Text>
             </View>
             <View style={styles.starBannerBody}>
-              {starPlayer.photo ? (
-                <Image source={{ uri: getImageUrl(starPlayer.photo) }} style={styles.starAvatar} />
+              {(starPlayer.photo || starPlayer.player?.photo) ? (
+                <Image source={{ uri: getImageUrl(starPlayer.photo || starPlayer.player?.photo) }} style={styles.starAvatar} />
               ) : (
                 <View style={[styles.starAvatar, { backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
                   <Icon name="account" size={20} color="#FFD700" />
@@ -350,8 +339,8 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
                         return (
                           <View key={`${p._id || 'squad'}-${idx}`} style={styles.squadPlayerRow}>
                             <Text style={styles.squadIdx}>{idx + 1}</Text>
-                            {p.photo ? (
-                              <Image source={{ uri: getImageUrl(p.photo) }} style={styles.squadPlayerAvatar} />
+                            {(p.photo || p.player?.photo) ? (
+                              <Image source={{ uri: getImageUrl(p.photo || p.player?.photo) }} style={styles.squadPlayerAvatar} />
                             ) : (
                               <View style={styles.squadPlayerAvatarPlaceholder}>
                                 <Icon name="account" size={14} color={Colors.textTertiary} />

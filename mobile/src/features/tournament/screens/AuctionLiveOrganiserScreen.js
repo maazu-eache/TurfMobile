@@ -63,19 +63,8 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
         setLiveState(updatedState);
       });
 
-      // Silent polling every 10s as a fallback for missing socket events
-      const pollInterval = setInterval(async () => {
-        try {
-          const res = await auctionService.getLiveState(auctionId);
-          setLiveState(res.data);
-        } catch (err) {
-          console.log('Error polling live auction state:', err);
-        }
-      }, 10000);
-
       return () => {
         unsubscribe();
-        clearInterval(pollInterval);
         auctionService.leaveAuctionRoom(auctionId);
       };
     }
@@ -105,11 +94,23 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
         const winningTeamObj = teams.find(t => t._id === winningTeam) || currentHighestTeam;
         setSoldData({ player: currentPlayer, team: winningTeamObj, price: finalPrice });
 
+        // Optimistic Update
+        const prevLiveState = liveState;
+        setLiveState({
+          ...liveState,
+          auction: {
+            ...liveState.auction,
+            currentPlayer: null // Immediately remove player from UI
+          }
+        });
+        setSoldPopup(true);
+
         try {
           const res = await auctionService.markSold(auctionId, winningTeam, finalPrice);
           setLiveState(res.data);
-          setSoldPopup(true);
         } catch (err) {
+          setLiveState(prevLiveState);
+          setSoldPopup(false);
           showCustomAlert('Error', err.response?.data?.message || 'Failed to mark sold');
         }
     });
@@ -118,11 +119,22 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
 
   const handleMarkUnsold = () => {
     showConfirmAlert('Unsold', 'Are you sure you want to mark this player as UNSOLD?', 'Yes, Unsold', true, async () => {
+        // Optimistic Update
+        const prevLiveState = liveState;
+        setLiveState({
+          ...liveState,
+          auction: {
+            ...liveState.auction,
+            currentPlayer: null
+          }
+        });
+
         try {
           const res = await auctionService.markUnsold(auctionId);
           setLiveState(res.data);
           showCustomAlert('Unsold', 'Player marked UNSOLD.');
         } catch (err) {
+          setLiveState(prevLiveState);
           showCustomAlert('Error', err.response?.data?.message || 'Failed to mark unsold');
         }
     });
@@ -136,14 +148,27 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
   const hasBid = !!liveState?.auction?.currentHighestTeam;
 
   const handleNextPlayer = () => {
-    showConfirmAlert('Skip', 'Are you sure you want to move to the next player?', 'Yes, Skip', false, async () => {
+    showConfirmAlert('Next', 'Are you sure you want to move to the next player?', 'Yes, Next', false, async () => {
+        // Optimistic Update
+        const prevLiveState = liveState;
+        setLoading(true);
+        setLiveState({
+          ...liveState,
+          auction: {
+            ...liveState.auction,
+            currentPlayer: null,
+            currentHighestBid: 0,
+            currentHighestTeam: null
+          }
+        });
+        
         try {
           setSoldPopup(false);
           setSoldData(null);
-          setLoading(true);
           const res = await auctionService.nextPlayer(auctionId);
           setLiveState(res.data);
         } catch (err) {
+          setLiveState(prevLiveState);
           showCustomAlert('Error', err.response?.data?.message || 'Failed to fetch next player');
         } finally {
           setLoading(false);
@@ -219,10 +244,23 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
     }
     const currentBid = liveState?.auction?.currentHighestBid || 0;
     const newBid = isBasePrice ? incrementAmount : currentBid + incrementAmount;
+    
+    // Optimistic Update
+    const prevLiveState = liveState;
+    setLiveState({
+      ...liveState,
+      auction: {
+        ...liveState.auction,
+        currentHighestBid: newBid,
+        currentHighestTeam: teams.find(t => t._id === selectedTeamId) || { _id: selectedTeamId }
+      }
+    });
+
     try {
       const res = await auctionService.updateBid(auctionId, selectedTeamId, newBid);
       setLiveState(res.data);
     } catch (err) {
+      setLiveState(prevLiveState);
       showCustomAlert('Bid Error', err.response?.data?.message || 'Failed to update bid');
     }
   };
@@ -244,11 +282,23 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
     const currentBid = liveState?.auction?.currentHighestBid || 0;
     const newBid = currentBid + bidVal;
 
+    // Optimistic Update
+    const prevLiveState = liveState;
+    setLiveState({
+      ...liveState,
+      auction: {
+        ...liveState.auction,
+        currentHighestBid: newBid,
+        currentHighestTeam: teams.find(t => t._id === selectedTeamId) || { _id: selectedTeamId }
+      }
+    });
+    setManualBid('');
+
     try {
       const res = await auctionService.updateBid(auctionId, selectedTeamId, newBid);
       setLiveState(res.data);
-      setManualBid('');
     } catch (err) {
+      setLiveState(prevLiveState);
       showCustomAlert('Bid Error', err.response?.data?.message || 'Failed to update bid');
     }
   };
@@ -490,17 +540,27 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
           ) : !currentPlayer && liveState?.auction?.currentSet ? (
             /* ── NEXT PLAYER READY STATE ── */
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <Icon name="account-clock-outline" size={64} color={Colors.primary} style={{ marginBottom: 16 }} />
-              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 20, color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>Ready for Next Player</Text>
-              <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 14, color: Colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>
-                Tap below to bring up the next player.
-              </Text>
-              <TouchableOpacity style={[styles.primaryBtn, { width: '100%' }]} onPress={handleNextPlayer}>
-                {loading ? <ActivityIndicator color={Colors.background} /> : (
-                  <><Icon name="skip-next" size={18} color={Colors.background} />
-                    <Text style={styles.primaryBtnText}>FETCH NEXT PLAYER</Text></>
-                )}
-              </TouchableOpacity>
+              {loading ? (
+                <>
+                  <ActivityIndicator size="large" color={Colors.primary} style={{ marginBottom: 16 }} />
+                  <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 20, color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>Loading Next Player...</Text>
+                  <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 14, color: Colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>
+                    Please wait while we fetch the player details.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Icon name="account-clock-outline" size={64} color={Colors.primary} style={{ marginBottom: 16 }} />
+                  <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 20, color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>Ready for Next Player</Text>
+                  <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 14, color: Colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>
+                    Tap below to bring up the next player.
+                  </Text>
+                  <TouchableOpacity style={[styles.primaryBtn, { width: '100%' }]} onPress={handleNextPlayer}>
+                    <Icon name="skip-next" size={18} color={Colors.background} />
+                    <Text style={styles.primaryBtnText}>FETCH NEXT PLAYER</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
 
           ) : (

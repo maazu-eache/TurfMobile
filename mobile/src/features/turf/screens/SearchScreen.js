@@ -101,6 +101,7 @@ const SearchScreen = ({ navigation, route }) => {
   // Reset to page 1 whenever search criteria change (not when page increments)
   const [page, setPage] = useState(1);
   const [isPaginating, setIsPaginating] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const isFirstMount = React.useRef(true);
   const prevFiltersRef = React.useRef('');
   
@@ -110,6 +111,7 @@ const SearchScreen = ({ navigation, route }) => {
     if (prevFiltersRef.current !== filterKey) {
       prevFiltersRef.current = filterKey;
       setPage(1); // Reset page to 1 on any filter change
+      setHasMore(true);
     }
   }, [searchQuery, selectedLocation, activeTab, minTrustScore, maxPrice, sortOrder, playerRoleFilter, matchStatusFilter]);
 
@@ -123,15 +125,20 @@ const SearchScreen = ({ navigation, route }) => {
 
       const commonQuery = { search: searchQuery?.trim() || undefined, city, lat, lng, page: currentPage, limit: 10 };
 
+      const handleFetchResult = (res) => {
+        const items = res.payload?.data || res.payload || [];
+        setHasMore(items.length >= 10);
+      };
+
       if (activeTab === 'turfs') {
         const queryParams = { ...commonQuery, minTrustScore, maxPrice, sort: sortOrder };
-        dispatch(fetchTurfs(queryParams)).finally(() => setIsPaginating(false));
+        dispatch(fetchTurfs(queryParams)).then(handleFetchResult).finally(() => setIsPaginating(false));
       } else if (activeTab === 'players') {
-        dispatch(fetchRankings({ ...commonQuery, role: playerRoleFilter || undefined })).finally(() => setIsPaginating(false));
+        dispatch(fetchRankings({ ...commonQuery, role: playerRoleFilter || undefined })).then(handleFetchResult).finally(() => setIsPaginating(false));
       } else if (activeTab === 'matches') {
-        dispatch(fetchMatches({ ...commonQuery, status: matchStatusFilter || undefined })).finally(() => setIsPaginating(false));
+        dispatch(fetchMatches({ ...commonQuery, status: matchStatusFilter || undefined })).then(handleFetchResult).finally(() => setIsPaginating(false));
       } else {
-        dispatch(fetchTournaments(commonQuery)).finally(() => setIsPaginating(false));
+        dispatch(fetchTournaments(commonQuery)).then(handleFetchResult).finally(() => setIsPaginating(false));
       }
     }, 400);
     return () => clearTimeout(t);
@@ -449,7 +456,7 @@ const SearchScreen = ({ navigation, route }) => {
 
   // ─── Render ──────────────────────────────────────────────────────────────
   const handleLoadMore = () => {
-    if (!activeLoading && !isPaginating && activeDataList.length >= 10) {
+    if (!activeLoading && !isPaginating && hasMore && activeDataList.length >= 10) {
       setIsPaginating(true);
       setPage(p => p + 1);
     }

@@ -67,10 +67,6 @@ const MyCricketScreen = ({ route }) => {
           }
         });
 
-        // Setup polling every 30 seconds for non-socket updates
-        intervalId = setInterval(() => {
-          dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
-        }, 30000);
       }
       if (activeTopTab === 'Teams') {
         dispatch(fetchMyTeams());
@@ -86,7 +82,6 @@ const MyCricketScreen = ({ route }) => {
     }
 
     return () => {
-      if (intervalId) clearInterval(intervalId);
       if (unsubscribeScore) unsubscribeScore();
     };
   }, [isFocused, activeTopTab, activeSubTab, dispatch]);

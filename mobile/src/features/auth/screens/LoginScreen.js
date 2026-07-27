@@ -55,16 +55,16 @@ const LoginScreen = ({ navigation }) => {
             <View style={styles.logoCol}>
               <View style={styles.logoGlow}>
                 <Image 
-                  source={require('../../../../Rough_Turf.png')} 
+                  source={require('../../../../SportVerse.png')} 
                   style={styles.logoImageLarge} 
                   resizeMode="contain" 
                 />
               </View>
-              <Text style={styles.logo}>ROUGH <Text style={{ color: Colors.primary }}>TURF</Text></Text>
+              <Text style={styles.logo}>SPORT <Text style={{ color: Colors.primary }}>VERSE</Text></Text>
             </View>
             {/* <Text style={styles.title}>{isLogin ? 'Welcome Back!' : 'Create Account'}</Text> */}
             <Text style={styles.subtitle}>
-              {isLogin ? 'Enter your email to log in' : 'Join RoughTurf today'}
+              {isLogin ? 'Enter your email to log in' : 'Join SportVerse today'}
             </Text>
           </View>
 

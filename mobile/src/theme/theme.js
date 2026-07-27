@@ -1,5 +1,5 @@
 /**
- * RoughTurf Design System — Dark Theme (Default)
+ * SportVerse Design System — Dark Theme (Default)
  * Premium dark theme with cricket-inspired green accent palette.
  */
 

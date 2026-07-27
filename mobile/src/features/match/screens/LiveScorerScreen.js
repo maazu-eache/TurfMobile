@@ -98,6 +98,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
   const navLockRef = useRef(false);
 
   // Scoring lock — prevents multiple rapid taps on scoring buttons
+  const [isScoring, setIsScoring] = useState(false);
   const scoringLockRef = useRef(false);
 
   // Socket.io for Realtime updates
@@ -123,13 +124,6 @@ const LiveScorerScreen = ({ navigation, route }) => {
     const unsubscribeScore = socketService.onScoreUpdate(handleScoreUpdate);
     dispatch(fetchLiveState(cleanMatchId));
 
-    // Silent polling every 10s as a fallback for missing socket events
-    const pollInterval = setInterval(() => {
-      if (cleanMatchId) {
-        dispatch(fetchLiveState(cleanMatchId));
-      }
-    }, 10000);
-
     const unsubscribeFocus = navigation.addListener('focus', () => {
       console.log(`⚡ [Frontend Scorer] Re-joining Match Room on focus: match_${cleanMatchId}`);
       socketService.joinMatch(cleanMatchId);
@@ -137,7 +131,6 @@ const LiveScorerScreen = ({ navigation, route }) => {
     });
 
     return () => {
-      clearInterval(pollInterval);
       unsubscribeFocus();
       unsubscribeScore();
       socketService.leaveMatch(cleanMatchId);
@@ -763,6 +756,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     // Prevent multiple rapid taps — ignore if a scoring action is already in progress
     if (scoringLockRef.current) return;
     scoringLockRef.current = true;
+    setIsScoring(true);
 
     // Wagon Wheel Interception Logic
     const match = liveState.match;
@@ -777,6 +771,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
         setPendingScoreOptions(options);
         setShowWagonWheelModal(true);
         scoringLockRef.current = false; // release — modal takes over
+        setIsScoring(false);
         return;
       }
     }
@@ -818,6 +813,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   showCustomAlert('Error', 'Could not record all out');
                 } finally {
                   scoringLockRef.current = false;
+                  setIsScoring(false);
                 }
             }},
             { text: 'Single Wicket Batting', onPress: async () => {
@@ -827,6 +823,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
           ]
         );
         scoringLockRef.current = false; // release — alert dialog takes over
+        setIsScoring(false);
         return;
       }
     }
@@ -858,13 +855,45 @@ const LiveScorerScreen = ({ navigation, route }) => {
         const addedRuns = runs + (options.extraRuns || 0) + ((options.isWide || options.isNoBall) ? 1 : 0);
         const currentRuns = liveState.score?.runs || 0;
         const currentWickets = (liveState.score?.wickets || 0) + (options.isWicket ? 1 : 0);
+        
+        let currentOvers = parseFloat(liveState.score?.overs || 0);
+
+        // Optimistic ball creation
+        const optimisticBallType = options.isWicket ? 'wicket' : options.isWide ? 'wide' : options.isNoBall ? 'noball' : options.isBye ? 'bye' : options.isLegBye ? 'legbye' : 'normal';
+        let optimisticBallDisplay = runs.toString();
+        if (options.isWicket) optimisticBallDisplay = 'W';
+        else if (options.isWide) optimisticBallDisplay = (runs + 1) + 'Wd';
+        else if (options.isNoBall) optimisticBallDisplay = (runs + 1) + 'Nb';
+        else if (options.isBye) optimisticBallDisplay = runs + 'B';
+        else if (options.isLegBye) optimisticBallDisplay = runs + 'Lb';
+
+        const optimisticBall = {
+          runs: runs + (options.extraRuns || 0) + ((options.isWide || options.isNoBall) ? 1 : 0),
+          type: optimisticBallType,
+          display: optimisticBallDisplay
+        };
+        const newCurrentOverBalls = [...(liveState.currentOverBalls || []), optimisticBall];
+
+        if (!options.isWide && !options.isNoBall) {
+          let overWhole = Math.floor(currentOvers);
+          let overBalls = Math.round((currentOvers - overWhole) * 10);
+          overBalls++;
+          if (overBalls >= 6) {
+             overWhole++;
+             overBalls = 0;
+          }
+          currentOvers = overWhole + (overBalls / 10);
+        }
+
         const optimisticState = {
           ...liveState,
           score: {
             ...liveState.score,
             runs: currentRuns + addedRuns,
             wickets: currentWickets,
-          }
+            overs: currentOvers.toFixed(1)
+          },
+          currentOverBalls: newCurrentOverBalls
         };
         dispatch(setLiveState(optimisticState));
       }
@@ -876,6 +905,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     } finally {
       // Release the lock so the next ball can be scored
       scoringLockRef.current = false;
+      setIsScoring(false);
     }
   };
 
@@ -909,8 +939,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   const handleShare = async () => {
     try {
-      const matchLink = `https://roughturf.com/match/${matchId}`;
-      const summaryText = `Watch ${match?.teamA?.name} vs ${match?.teamB?.name} live on RoughTurf!\n\n${matchLink}`;
+      const matchLink = `https://sportverse.com/match/${matchId}`;
+      const summaryText = `Watch ${match?.teamA?.name} vs ${match?.teamB?.name} live on SportVerse!\n\n${matchLink}`;
       
       await Share.share({
         message: summaryText,
@@ -922,6 +952,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {isScoring && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }]}>
+           <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      )}
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.navigate('MyCricketMain')} style={styles.headerBackBtn}>

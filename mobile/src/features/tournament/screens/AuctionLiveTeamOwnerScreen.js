@@ -58,23 +58,8 @@ const AuctionLiveTeamOwnerScreen = ({ route, navigation }) => {
         loadOwnerData();
       });
 
-      // Silent polling every 10s as a fallback for missing socket events
-      const pollInterval = setInterval(async () => {
-        try {
-          const [liveRes, ownerRes] = await Promise.all([
-            auctionService.getLiveState(auctionId),
-            auctionService.getOwnerDashboard(auctionId)
-          ]);
-          setLiveState(liveRes.data);
-          setOwnerData(ownerRes.data);
-        } catch (err) {
-          console.log('Error polling in Team Owner screen:', err);
-        }
-      }, 10000);
-
       return () => {
         unsubscribe();
-        clearInterval(pollInterval);
         auctionService.leaveAuctionRoom(auctionId);
       };
     }

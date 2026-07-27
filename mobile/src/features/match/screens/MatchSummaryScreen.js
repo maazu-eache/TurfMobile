@@ -85,29 +85,29 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchScorecards = useCallback(async () => {
+  const fetchScorecards = useCallback(async (silent = false) => {
     if (!cleanMatchId) return;
-    setLoadingScorecards(true);
+    if (!silent) setLoadingScorecards(true);
     try {
       const res = await api.get(`/matches/${cleanMatchId}/scorecard`);
       setScorecards(res.data?.data || []);
     } catch (e) {
       console.log('Error fetching scorecards', e);
     } finally {
-      setLoadingScorecards(false);
+      if (!silent) setLoadingScorecards(false);
     }
   }, [cleanMatchId]);
 
-  const fetchCommentary = useCallback(async () => {
+  const fetchCommentary = useCallback(async (silent = false) => {
     if (!cleanMatchId) return;
-    setLoadingCommentary(true);
+    if (!silent) setLoadingCommentary(true);
     try {
       const res = await api.get(`/matches/${cleanMatchId}/commentary`);
       setCommentary(Array.isArray(res.data?.data) ? res.data.data : res.data?.data?.commentary || []);
     } catch (e) {
       console.log('Error fetching commentary', e);
     } finally {
-      setLoadingCommentary(false);
+      if (!silent) setLoadingCommentary(false);
     }
   }, [cleanMatchId]);
 
@@ -186,12 +186,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       if (data?.fullCommentary) {
         setCommentary(data.fullCommentary);
       } else {
-        fetchCommentary();
+        fetchCommentary(true);
       }
       if (data?.scorecards) {
         setScorecards(data.scorecards);
       } else {
-        fetchScorecards();
+        fetchScorecards(true);
       }
 
       // Trigger Celebration Logic
@@ -206,9 +206,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           } else if (latestBall.isWicket) {
             triggerCelebration('wicket', 'W', Colors.error);
           } else if (latestBall.batsmanRuns === 6) {
-            triggerCelebration('six', '6!', '#1976D2');
+            triggerCelebration('six', 'SIX', '#1976D2');
           } else if (latestBall.batsmanRuns === 4) {
-            triggerCelebration('four', '4!', '#4CAF50');
+            triggerCelebration('four', 'FOUR', '#4CAF50');
           }
         }
       }
@@ -216,15 +216,6 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
     const unsubscribeScore = socketService.onScoreUpdate(handleScoreUpdate);
     dispatch(fetchLiveState(cleanMatchId));
-
-    // Silent polling every 10s as a fallback for missing socket events
-    const pollInterval = setInterval(() => {
-      if (cleanMatchId) {
-        dispatch(fetchLiveState(cleanMatchId));
-        fetchCommentary();
-        fetchScorecards();
-      }
-    }, 10000);
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
       console.log(`⚡ [Frontend Viewer] Reconnected & Resubscribed | Room Rejoined: match_${cleanMatchId}`);
@@ -235,7 +226,6 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     });
 
     return () => {
-      clearInterval(pollInterval);
       unsubscribeFocus();
       unsubscribeScore();
       socketService.leaveMatch(cleanMatchId);
