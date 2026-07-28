@@ -7,7 +7,7 @@ import { logout, setTokens } from '../features/auth/authSlice';
 // export const PROD_URL = 'https://turfbackend-pn8j.onrender.com';
 
 export const PROD_URL = __DEV__
-  ? (Platform.OS === 'ios' ? 'http://localhost:5001' : 'http://10.0.2.2:5001')
+  ? (Platform.OS === 'ios' ? 'http://127.0.0.1:5001' : 'http://10.0.2.2:5001')
   : 'https://turfbackend-pn8j.onrender.com';
 
 // Default BASE_URL to live backend for testing & production sync

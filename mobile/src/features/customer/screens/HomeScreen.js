@@ -435,10 +435,10 @@ const HomeScreen = ({ navigation }) => {
             </SafeAreaView>
 
             {platformSettings?.bannerUrl ? (
-              <View style={styles.bannerWrap}>
+              <View style={[styles.bannerWrap, { height: SW * 0.43 }]}>
                 <Image
                   source={{ uri: getImageUrl(platformSettings.bannerUrl) }}
-                  style={styles.bannerImg}
+                  style={[styles.bannerImg, { height: '100%' }]}
                   resizeMode="cover"
                   fadeDuration={300}
                   onError={(e) => {

@@ -12,6 +12,8 @@ export const Colors = {
   primaryAlpha30: 'rgba(154, 188, 47, 0.3)',
   primaryAlpha10: 'rgba(154, 188, 47, 0.1)',
 
+  white:'#fff',
+
   // Secondary — Midnight Navy (from Logo)
   secondary: '#011528',
   secondaryDark: '#000A15',

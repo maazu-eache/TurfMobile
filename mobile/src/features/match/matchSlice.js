@@ -209,7 +209,8 @@ const matchSlice = createSlice({
         state.liveState = action.payload;
       })
       .addCase(scoreBall.fulfilled, (state, action) => {
-        state.liveState = action.payload;
+        // We rely on optimistic updates and socket.io for liveState synchronization.
+        // Overwriting liveState here with a potentially delayed HTTP response causes rubberbanding if scoring rapidly.
         if (action.payload.ballEvent) {
           state.ballHistory = [action.payload.ballEvent, ...state.ballHistory].slice(0, 100);
         }

@@ -885,6 +885,28 @@ const LiveScorerScreen = ({ navigation, route }) => {
           currentOvers = overWhole + (overBalls / 10);
         }
 
+        // Optimistic stats updates
+        let newStrikerStats = { ...liveState.strikerStats };
+        let newBowlerStats = { ...liveState.bowlerStats };
+        
+        if (!options.isWide && !options.isNoBall && !options.isBye && !options.isLegBye) {
+           newStrikerStats.runs = (newStrikerStats.runs || 0) + runs;
+           newStrikerStats.balls = (newStrikerStats.balls || 0) + 1;
+           if (runs === 4) newStrikerStats.fours = (newStrikerStats.fours || 0) + 1;
+           if (runs === 6) newStrikerStats.sixes = (newStrikerStats.sixes || 0) + 1;
+        } else if (!options.isWide) {
+           // Byes and Leg Byes still count as balls faced
+           newStrikerStats.balls = (newStrikerStats.balls || 0) + 1;
+        }
+
+        if (!options.isWide && !options.isNoBall) {
+           newBowlerStats.balls = (newBowlerStats.balls || 0) + 1;
+        }
+        newBowlerStats.runs = (newBowlerStats.runs || 0) + runs + (options.extraRuns || 0) + ((options.isWide || options.isNoBall) ? 1 : 0);
+        if (options.isWicket && options.wicketType !== 'run_out' && options.wicketType !== 'retired_hurt') {
+           newBowlerStats.wickets = (newBowlerStats.wickets || 0) + 1;
+        }
+
         const optimisticState = {
           ...liveState,
           score: {
@@ -893,17 +915,26 @@ const LiveScorerScreen = ({ navigation, route }) => {
             wickets: currentWickets,
             overs: currentOvers.toFixed(1)
           },
-          currentOverBalls: newCurrentOverBalls
+          currentOverBalls: newCurrentOverBalls,
+          strikerStats: newStrikerStats,
+          bowlerStats: newBowlerStats
         };
         dispatch(setLiveState(optimisticState));
+        
+        // INSTANT UNLOCK: Allow user to score the next ball immediately without waiting for API
+        scoringLockRef.current = false;
+        setIsScoring(false);
       }
 
-      await dispatch(scoreBall({ matchId: cleanMatchId, ballData: payload })).unwrap();
-      socketService.remoteLog('LiveScorerScreen', 'Database Update Success');
+      // Fire API call asynchronously
+      dispatch(scoreBall({ matchId: cleanMatchId, ballData: payload }))
+        .unwrap()
+        .then(() => socketService.remoteLog('LiveScorerScreen', 'Database Update Success'))
+        .catch((e) => {
+           showCustomAlert('Scoring Error', e || 'Could not record ball');
+        });
     } catch (e) {
-      showCustomAlert('Scoring Error', e || 'Could not record ball');
-    } finally {
-      // Release the lock so the next ball can be scored
+      showCustomAlert('Error', e.message);
       scoringLockRef.current = false;
       setIsScoring(false);
     }

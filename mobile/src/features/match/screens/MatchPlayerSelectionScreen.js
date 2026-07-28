@@ -104,9 +104,13 @@ const MatchPlayerSelectionScreen = () => {
       setBattingSquad(isTeamABatting ? match.playingXI.teamA : match.playingXI.teamB);
       setBowlingSquad(isTeamABatting ? match.playingXI.teamB : match.playingXI.teamA);
 
-      // Fetch full rosters
-      fetchTeam(batTeam._id, setBattingTeamRoster);
-      fetchTeam(bowlTeam._id, setBowlingTeamRoster);
+      // Fetch full rosters if not already loaded
+      if (battingTeamRoster.length === 0) {
+        fetchTeam(batTeam._id, setBattingTeamRoster);
+      }
+      if (bowlingTeamRoster.length === 0) {
+        fetchTeam(bowlTeam._id, setBowlingTeamRoster);
+      }
 
       if (liveState.striker && !selectedStriker) {
         const str = (isTeamABatting ? match.playingXI.teamA : match.playingXI.teamB).find(p => p._id === liveState.striker._id) || liveState.striker;
@@ -121,10 +125,12 @@ const MatchPlayerSelectionScreen = () => {
         setSelectedBowler(bwlr);
       }
 
-      // Fetch scorecards for validations
-      fetchScorecards();
+      // Fetch scorecards for validations if not loaded
+      if (scorecards.length === 0) {
+        fetchScorecards();
+      }
     }
-  }, [liveState, selectedStriker, selectedNonStriker, selectedBowler]);
+  }, [liveState, selectedStriker, selectedNonStriker, selectedBowler, battingTeamRoster.length, bowlingTeamRoster.length, scorecards.length]);
 
   const fetchScorecards = async () => {
     try {

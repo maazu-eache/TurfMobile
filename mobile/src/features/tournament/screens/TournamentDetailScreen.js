@@ -348,10 +348,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       }
       const msg = isFollowing ? 'You unfollowed this tournament.' : 'You are now following this tournament!';
       const actionStr = isFollowing ? 'Unfollowed' : 'Following';
-      
+
       if (Platform.OS === 'android') ToastAndroid.show(msg, ToastAndroid.SHORT);
       else showCustomAlert(actionStr, msg);
-      
+
       fetchDashboard();
     } catch (e) {
       console.log('Error following/unfollowing tournament', e);
@@ -717,7 +717,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                       style={{ marginLeft: 8, padding: 4 }}
                       onPress={() => setShareData({ type: 'fixture', data: item })}
                     >
-                      <Icon name="share-2" size={16} color={Colors.textSecondary} />
+                      <Icon name="share-2" size={16} color={Colors.primary} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -931,13 +931,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             </View>
             <View style={[
               auctionStyles.statusBadge,
-              { backgroundColor: auctionDateReached ? 'rgba(234,179,8,0.15)' : 'rgba(99,102,241,0.15)' }
+              { backgroundColor: auctionDetails?.status === 'completed' ? 'rgba(74,222,128,0.15)' : auctionDateReached ? 'rgba(234,179,8,0.15)' : 'rgba(99,102,241,0.15)' }
             ]}>
               <Text style={[
                 auctionStyles.statusBadgeText,
-                { color: auctionDateReached ? Colors.warning : '#818CF8' }
+                { color: auctionDetails?.status === 'completed' ? '#4ADE80' : auctionDateReached ? Colors.warning : '#818CF8' }
               ]}>
-                {auctionDateReached ? '🔴 LIVE READY' : '⏳ UPCOMING'}
+                {auctionDetails?.status === 'completed' ? '✓ COMPLETED' : auctionDateReached ? '🔴 LIVE READY' : '⏳ UPCOMING'}
               </Text>
             </View>
           </View>
@@ -962,7 +962,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         </View>
 
         {/* Organiser Section */}
-        {isOrganizer && (
+        {isOrganizer && auctionDetails?.status !== 'completed' && (
           <View style={auctionStyles.sectionCard}>
             <Text style={auctionStyles.sectionTitle}>Organiser Controls</Text>
 
@@ -1026,9 +1026,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <MCIcon name="broadcast" size={20} color={auctionDetails?.hasSets ? Colors.warning : Colors.textTertiary} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={[auctionStyles.actionTitle, { color: auctionDetails?.hasSets ? Colors.warning : Colors.textPrimary }]}>Launch Live Auction</Text>
+                    <Text style={[auctionStyles.actionTitle, { color: auctionDetails?.hasSets ? Colors.warning : Colors.textPrimary }]}>
+                      {auctionDetails?.status === 'in_progress' ? 'Resume / Close Live Auction' : 'Launch Live Auction'}
+                    </Text>
                     <Text style={auctionStyles.actionSub}>
-                      {auctionDetails?.hasSets ? 'Start bidding session now' : 'Create sets first'}
+                      {auctionDetails?.hasSets
+                        ? (auctionDetails?.status === 'in_progress' ? 'Enter dashboard to resume or close auction' : 'Start bidding session now')
+                        : 'Create sets first'}
                     </Text>
                   </View>
                   {auctionDetails?.hasSets ? (
@@ -1039,6 +1043,25 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               </>
             )}
+          </View>
+        )}
+
+        {isOrganizer && auctionDetails?.status === 'completed' && (
+          <View style={auctionStyles.sectionCard}>
+            <Text style={auctionStyles.sectionTitle}>Organiser (Auction Closed)</Text>
+            <TouchableOpacity
+              style={auctionStyles.actionRow}
+              onPress={() => navigation.navigate('AuctionCreateSets', { tournamentId: tournament._id, mode: 'registrations', isReadOnly: true, showFinanceForOrganizer: true })}
+            >
+              <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(56,189,248,0.12)' }]}>
+                <MCIcon name="format-list-bulleted" size={20} color="#38BDF8" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={auctionStyles.actionTitle}>View Auctioned Players</Text>
+                <Text style={auctionStyles.actionSub}>List of users and finance (Read-only)</Text>
+              </View>
+              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1084,54 +1107,69 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           </View>
         )}
 
-        {/* Player Section (always visible) */}
-        <View style={auctionStyles.sectionCard}>
-          <Text style={auctionStyles.sectionTitle}>Player</Text>
-          <TouchableOpacity
-            style={[auctionStyles.actionRow, !isAuctionRegistered && regEndPassed && { opacity: 0.6 }]}
-            onPress={() => navigation.navigate('AuctionRegistration', { tournamentId: tournament._id })}
-            disabled={!isAuctionRegistered && regEndPassed}
-          >
-            <View style={[
-              auctionStyles.actionIcon,
-              { backgroundColor: isAuctionRegistered ? 'rgba(74,222,128,0.12)' : (!isAuctionRegistered && regEndPassed ? 'rgba(239,68,68,0.12)' : 'rgba(99,102,241,0.12)') }
-            ]}>
-              <MCIcon
-                name={isAuctionRegistered ? 'check-circle' : (!isAuctionRegistered && regEndPassed ? 'close-circle' : 'account-plus')}
-                size={20}
-                color={isAuctionRegistered ? '#4ADE80' : (!isAuctionRegistered && regEndPassed ? '#EF4444' : '#818CF8')}
-              />
+        {/* Viewer Section */}
+        {auctionDetails?.status === 'completed' ? (
+          <View style={auctionStyles.sectionCard}>
+            <Text style={auctionStyles.sectionTitle}>Auction Status</Text>
+            <View style={auctionStyles.actionRow}>
+              <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(74,222,128,0.12)' }]}>
+                <MCIcon name="check-decagram" size={20} color="#4ADE80" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={auctionStyles.actionTitle}>Auction is Over</Text>
+                <Text style={auctionStyles.actionSub}>The bidding process has concluded.</Text>
+              </View>
             </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={auctionStyles.actionTitle}>
-                {isAuctionRegistered ? 'You Are Registered' : (regEndPassed ? 'Registration Closed' : 'Register for Auction')}
-              </Text>
-              <Text style={auctionStyles.actionSub}>
-                {isAuctionRegistered ? 'Tap to view your registration' : (regEndPassed ? 'The deadline has passed' : 'Join the player pool')}
-              </Text>
-            </View>
-            <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
-          </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={auctionStyles.sectionCard}>
+            <Text style={auctionStyles.sectionTitle}>Player</Text>
+            <TouchableOpacity
+              style={[auctionStyles.actionRow, !isAuctionRegistered && regEndPassed && { opacity: 0.6 }]}
+              onPress={() => navigation.navigate('AuctionRegistration', { tournamentId: tournament._id })}
+              disabled={!isAuctionRegistered && regEndPassed}
+            >
+              <View style={[
+                auctionStyles.actionIcon,
+                { backgroundColor: isAuctionRegistered ? 'rgba(74,222,128,0.12)' : (!isAuctionRegistered && regEndPassed ? 'rgba(239,68,68,0.12)' : 'rgba(99,102,241,0.12)') }
+              ]}>
+                <MCIcon
+                  name={isAuctionRegistered ? 'check-circle' : (!isAuctionRegistered && regEndPassed ? 'close-circle' : 'account-plus')}
+                  size={20}
+                  color={isAuctionRegistered ? '#4ADE80' : (!isAuctionRegistered && regEndPassed ? '#EF4444' : '#818CF8')}
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={auctionStyles.actionTitle}>
+                  {isAuctionRegistered ? 'You Are Registered' : (regEndPassed ? 'Registration Closed' : 'Register for Auction')}
+                </Text>
+                <Text style={auctionStyles.actionSub}>
+                  {isAuctionRegistered ? 'Tap to view your registration' : (regEndPassed ? 'The deadline has passed' : 'Join the player pool')}
+                </Text>
+              </View>
+              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+            </TouchableOpacity>
 
-          {!isOrganizer && auctionDateReached && (
-            <>
-              <View style={auctionStyles.divider} />
-              <TouchableOpacity
-                style={auctionStyles.actionRow}
-                onPress={() => navigation.navigate('AuctionLivePublic', { auctionId: auctionDetails?._id })}
-              >
-                <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(234,179,8,0.1)' }]}>
-                  <MCIcon name="eye" size={20} color={Colors.warning} />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={auctionStyles.actionTitle}>Watch Live Auction</Text>
-                  <Text style={auctionStyles.actionSub}>View bids in real-time</Text>
-                </View>
-                <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+            {!isOrganizer && auctionDateReached && (
+              <>
+                <View style={auctionStyles.divider} />
+                <TouchableOpacity
+                  style={auctionStyles.actionRow}
+                  onPress={() => navigation.navigate('AuctionLivePublic', { auctionId: auctionDetails?._id })}
+                >
+                  <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(234,179,8,0.1)' }]}>
+                    <MCIcon name="eye" size={20} color={Colors.warning} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={auctionStyles.actionTitle}>Watch Live Auction</Text>
+                    <Text style={auctionStyles.actionSub}>View bids in real-time</Text>
+                  </View>
+                  <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
       </ScrollView>
     );
   };

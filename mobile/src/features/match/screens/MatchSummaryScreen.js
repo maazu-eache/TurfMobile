@@ -201,8 +201,16 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       // Real-time synchronization for sub-tabs
       if (data?.fullCommentary) {
         setCommentary(data.fullCommentary);
-      } else {
-        fetchCommentary(true);
+      } else if (data?.recentCommentary?.length > 0) {
+        setCommentary(prev => {
+          const merged = [...data.recentCommentary];
+          prev.forEach(p => {
+            if (!merged.find(m => m._id === p._id)) {
+              merged.push(p);
+            }
+          });
+          return merged;
+        });
       }
       if (data?.scorecards) {
         setScorecards(data.scorecards);

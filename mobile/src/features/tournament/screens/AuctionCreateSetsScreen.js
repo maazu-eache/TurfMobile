@@ -28,7 +28,7 @@ const BATTING_STYLES = ['Right Handed', 'Left Handed'];
 const BOWLING_STYLES = ['Right Arm Medium', 'Right Arm Fast', 'Left Arm Medium', 'Left Arm Fast', 'Spin'];
 
 const AuctionCreateSetsScreen = ({ route, navigation }) => {
-  const { auctionId: routeAuctionId, tournamentId, isReadOnly } = route.params || {};
+  const { auctionId: routeAuctionId, tournamentId, isReadOnly, showFinanceForOrganizer } = route.params || {};
   const [targetAuctionId, setTargetAuctionId] = useState(routeAuctionId);
 
   const mode = route.params?.mode || 'registrations';
@@ -309,10 +309,18 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
               <Icon name="account-group" size={14} color={activeTab === 'registered' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
               <Text style={[styles.tabText, activeTab === 'registered' && styles.tabTextActive]}>Players ({registrations.length})</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.tabBtn, activeTab === 'sets' && styles.tabBtnActive]} onPress={() => setActiveTab('sets')}>
-              <Icon name="view-list" size={14} color={activeTab === 'sets' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
-              <Text style={[styles.tabText, activeTab === 'sets' && styles.tabTextActive]}>Sets ({sets.length})</Text>
-            </TouchableOpacity>
+            
+            {showFinanceForOrganizer ? (
+              <TouchableOpacity style={[styles.tabBtn, activeTab === 'finance' && styles.tabBtnActive]} onPress={() => setActiveTab('finance')}>
+                <Icon name="cash-multiple" size={14} color={activeTab === 'finance' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
+                <Text style={[styles.tabText, activeTab === 'finance' && styles.tabTextActive]}>Finance</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={[styles.tabBtn, activeTab === 'sets' && styles.tabBtnActive]} onPress={() => setActiveTab('sets')}>
+                <Icon name="view-list" size={14} color={activeTab === 'sets' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
+                <Text style={[styles.tabText, activeTab === 'sets' && styles.tabTextActive]}>Sets ({sets.length})</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
       </View>
