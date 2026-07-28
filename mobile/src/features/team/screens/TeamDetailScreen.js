@@ -6,7 +6,7 @@ import {
   Dimensions, Modal, TextInput, ToastAndroid, Platform, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -935,8 +935,17 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
             <TouchableOpacity onPress={handleAddPlayer} disabled={adding || (!lookupDone && !mobile)}>
               <LinearGradient colors={Colors.primaryGradient} style={styles.modalSubmitBtn}>
-                {adding ? <ActivityIndicator size="small" color="#000" />
-                  : <><Icon name="check" size={16} color="#000" /><Text style={styles.modalSubmitText}>Add Player</Text></>}
+                {adding ? (
+                  <>
+                    <ActivityIndicator size="small" color="#000" />
+                    <Text style={[styles.modalSubmitText, { marginLeft: 8 }]}>Adding...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Icon name="check" size={16} color="#000" />
+                    <Text style={styles.modalSubmitText}>Add Player</Text>
+                  </>
+                )}
               </LinearGradient>
             </TouchableOpacity>
             <View style={{ height: 20 }} />
@@ -1388,21 +1397,21 @@ const styles = StyleSheet.create({
   roleRow: { gap: 8, paddingVertical: 4, marginBottom: 14 },
   roleChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: Colors.background,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  roleChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary },
+  roleChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary, ...Shadows.glow },
   roleChipText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
   roleChipTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
   roleRow2: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 14, paddingVertical: 14,
-    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
-    backgroundColor: Colors.background, marginBottom: 8,
+    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)', marginBottom: 8,
   },
-  roleRow2Active: { borderColor: Colors.primary, backgroundColor: Colors.primary },
+  roleRow2Active: { borderColor: Colors.primary, backgroundColor: Colors.primary, ...Shadows.glow },
   roleRow2Text: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14 },
   roleRow2TextActive: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 

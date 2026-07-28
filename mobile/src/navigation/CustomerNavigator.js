@@ -26,6 +26,8 @@ import FavouritesScreen from '../features/user/screens/FavouritesScreen';
 import MyCricketScreen from '../features/match/screens/MyCricketScreen';
 import SpectatorScreen from '../features/match/screens/SpectatorScreen';
 import EditProfileScreen from '../features/user/screens/EditProfileScreen';
+import HelpSupportScreen from '../features/user/screens/HelpSupportScreen';
+import PrivacyPolicyScreen from '../features/user/screens/PrivacyPolicyScreen';
 
 // Match Screens (accessible from Customer)
 import MatchSetupScreen from '../features/match/screens/MatchSetupScreen';
@@ -64,6 +66,7 @@ import CareerStatsScreen from '../features/player/screens/CareerStatsScreen';
 import AchievementsScreen from '../features/player/screens/AchievementsScreen';
 import RankingsScreen from '../features/player/screens/RankingsScreen';
 import PlayerDetailScreen from '../features/player/screens/PlayerDetailScreen';
+import GlobalLeaderboardScreen from '../features/player/screens/GlobalLeaderboardScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -88,6 +91,7 @@ const HomeStack = () => (
     <Stack.Screen name="Wallet" component={WalletScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="Favourites" component={FavouritesScreen} />
+    <Stack.Screen name="GlobalLeaderboard" component={GlobalLeaderboardScreen} />
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
   </Stack.Navigator>
 );
@@ -167,6 +171,8 @@ const ProfileStack = () => (
     <Stack.Screen name="TeamList" component={TeamListScreen} />
     <Stack.Screen name="TeamDetail" component={TeamDetailScreen} />
     <Stack.Screen name="TeamCreate" component={TeamCreateScreen} />
+    <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+    <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
     
     {/* Turf Booking Flow from Favourites */}
     <Stack.Screen name="TurfDetail" component={TurfDetailScreen} />
@@ -197,7 +203,7 @@ const CustomerNavigator = ({ navigation }) => {
     <Tab.Navigator
       screenOptions={({ route }) => {
         const routeName = getFocusedRouteNameFromRoute(route) ?? '';
-        const hiddenRoutes = ['MatchSetup', 'MatchTeamSelection', 'Toss', 'PlayingXI', 'LiveScorer', 'MatchPlayerSelection', 'SuperOver', 'AddPlayer', 'SelectBowler', 'Scorecard', 'MatchSummary', 'TournamentDetail', 'AuctionLiveOrganiser', 'AuctionLivePublic', 'AuctionLiveTeamOwner'];
+        const hiddenRoutes = ['MatchSetup', 'MatchTeamSelection', 'Toss', 'PlayingXI', 'LiveScorer', 'MatchPlayerSelection', 'SuperOver', 'AddPlayer', 'SelectBowler', 'Scorecard', 'MatchSummary', 'TournamentDetail', 'AuctionLiveOrganiser', 'AuctionLivePublic', 'AuctionLiveTeamOwner', 'GlobalLeaderboard'];
         const isHidden = hiddenRoutes.includes(routeName);
         
         return {

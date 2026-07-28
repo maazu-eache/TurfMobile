@@ -439,22 +439,58 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
               {/* ── SOLD POPUP ── */}
               {soldPopup && soldData ? (
             <View style={styles.soldCard}>
-              <View style={styles.soldCheckCircle}>
-                <Icon name="check-bold" size={36} color={Colors.background} />
-              </View>
-              <Text style={styles.soldTitle}>SOLD!</Text>
-              <Text style={styles.soldPlayerName}>{soldData.player?.fullName}</Text>
-              <Text style={styles.soldPlayerRole}>{soldData.player?.role}</Text>
-              <View style={styles.soldInfoRow}>
-                <View style={styles.soldInfoBox}>
-                  <Text style={styles.soldInfoLabel}>Sold To</Text>
-                  <Text style={styles.soldInfoVal}>{soldData.team?.name || soldData.team?.shortName}</Text>
+              {/* Player Photo with Stamp Overlay */}
+              <View style={styles.soldPhotoWrap}>
+                {soldData.player?.photo ? (
+                  <Image source={{ uri: getImageUrl(soldData.player.photo) }} style={styles.soldPlayerPhoto} />
+                ) : (
+                  <View style={[styles.soldPlayerPhoto, { backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Icon name="account" size={60} color="#555" />
+                  </View>
+                )}
+                {/* SOLD Stamp */}
+                <View style={styles.stampWrap} pointerEvents="none">
+                  <View style={styles.stampInner}>
+                    <Text style={styles.stampText}>SOLD</Text>
+                  </View>
                 </View>
-                <View style={[styles.soldInfoBox, { borderLeftWidth: 1, borderLeftColor: Colors.border }]}>
-                  <Text style={styles.soldInfoLabel}>Final Price</Text>
-                  <Text style={[styles.soldInfoVal, { color: Colors.primary }]}>{soldData.price} Pts</Text>
+              </View>
+
+              {/* Player Info */}
+              <Text style={styles.soldPlayerName} numberOfLines={1}>{soldData.player?.fullName}</Text>
+              <View style={styles.soldRolePill}>
+                <Icon name="cricket" size={12} color={Colors.primary} />
+                <Text style={styles.soldRoleText}>{soldData.player?.role}</Text>
+                {soldData.player?.battingStyle ? (
+                  <Text style={styles.soldStyleText}> · {soldData.player.battingStyle}</Text>
+                ) : null}
+              </View>
+
+              {/* Divider */}
+              <View style={styles.soldDivider} />
+
+              {/* Team + Price Row */}
+              <View style={styles.soldTeamPriceRow}>
+                <View style={styles.soldTeamBox}>
+                  {soldData.team?.logo ? (
+                    <Image source={{ uri: getImageUrl(soldData.team.logo) }} style={styles.soldTeamLogo} />
+                  ) : (
+                    <View style={[styles.soldTeamLogo, { backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
+                      <Icon name="shield-crown" size={20} color={Colors.primary} />
+                    </View>
+                  )}
+                  <View style={{ marginLeft: 8 }}>
+                    <Text style={styles.soldTeamLabel}>SOLD TO</Text>
+                    <Text style={styles.soldTeamName} numberOfLines={1}>{soldData.team?.name || soldData.team?.shortName}</Text>
+                  </View>
+                </View>
+                <View style={styles.soldPriceBox}>
+                  <Text style={styles.soldPriceLabel}>FINAL PRICE</Text>
+                  <Text style={styles.soldPriceValue}>{soldData.price}</Text>
+                  <Text style={styles.soldPriceUnit}>Pts</Text>
                 </View>
               </View>
+
               <TouchableOpacity style={styles.primaryBtn} onPress={handleNextPlayer}>
                 {loading ? <ActivityIndicator color={Colors.background} /> : (
                   <><Icon name="skip-next" size={18} color={Colors.background} />
@@ -1156,45 +1192,146 @@ const styles = StyleSheet.create({
     borderColor: Colors.primaryAlpha30,
     marginTop: Spacing.md,
   },
-  soldCheckCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.primary,
+  // Sold Card — Stamp UI
+  soldCard: {
+    backgroundColor: Colors.backgroundElevated,
+    borderRadius: 20,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#16a34a',
+    marginTop: 8,
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  soldPhotoWrap: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    overflow: 'hidden',
+    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: '#16a34a',
+    position: 'relative',
+  },
+  soldPlayerPhoto: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  stampWrap: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    transform: [{ rotate: '-25deg' }],
   },
-  soldTitle: {
-    fontSize: 28,
+  stampInner: {
+    borderWidth: 4,
+    borderColor: '#16a34a',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  stampText: {
+    color: '#22c55e',
+    fontSize: 30,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
-    letterSpacing: 2,
+    letterSpacing: 6,
+    textShadowColor: '#000',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 4,
   },
   soldPlayerName: {
     fontSize: 20,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
-    marginTop: 4,
+    marginBottom: 4,
+    textAlign: 'center',
   },
-  soldPlayerRole: {
-    color: Colors.textSecondary,
-    fontSize: 13,
-    marginBottom: Spacing.lg,
-  },
-  soldInfoRow: {
+  soldRolePill: {
     flexDirection: 'row',
-    width: '100%',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    marginBottom: Spacing.lg,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderWidth: 1,
     borderColor: Colors.border,
-    overflow: 'hidden',
+    marginBottom: 12,
   },
-  soldInfoBox: { flex: 1, padding: Spacing.md, alignItems: 'center' },
-  soldInfoLabel: { color: Colors.textTertiary, fontSize: 11, marginBottom: 4 },
-  soldInfoVal: { color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.bold },
+  soldRoleText: { color: Colors.primary, fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  soldStyleText: { color: Colors.textTertiary, fontSize: 11 },
+  soldDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 12,
+  },
+  soldTeamPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 4,
+    marginBottom: 16,
+  },
+  soldTeamBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  soldTeamLogo: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  soldTeamLabel: {
+    color: Colors.textTertiary,
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  soldTeamName: {
+    color: Colors.textPrimary,
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    maxWidth: 120,
+  },
+  soldPriceBox: {
+    alignItems: 'flex-end',
+    backgroundColor: 'rgba(22,163,74,0.12)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#16a34a',
+  },
+  soldPriceLabel: {
+    color: '#16a34a',
+    fontSize: 8,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 1,
+  },
+  soldPriceValue: {
+    color: '#22c55e',
+    fontSize: 28,
+    fontFamily: Typography.fontFamily.bold,
+    lineHeight: 30,
+  },
+  soldPriceUnit: {
+    color: '#16a34a',
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+  },
 
   // Set Selector
   sectionTitle: {

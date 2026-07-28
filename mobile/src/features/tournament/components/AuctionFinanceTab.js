@@ -14,6 +14,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, BorderRadius } from '../../../theme/theme';
 import api from '../../../api/axios';
+import { showCustomAlert } from '../../../components/CustomAlert';
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -108,10 +109,10 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
         setFinanceData(res.data.data);
         animateIn();
       } else {
-        Alert.alert('Error', res.data.message || 'Failed to load finance data');
+        showCustomAlert('Error', res.data.message || 'Failed to load finance data');
       }
     } catch (error) {
-      Alert.alert('Error', error?.response?.data?.message || 'Failed to load finance data');
+      showCustomAlert('Error', error?.response?.data?.message || 'Failed to load finance data');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -167,7 +168,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
           </View>
           <TouchableOpacity
             style={styles.withdrawBtn}
-            onPress={() => navigation.navigate('Wallet')}
+            onPress={() => navigation.navigate('Profile', { screen: 'Wallet' })}
           >
             <Icon name="bank-transfer-out" size={16} color={Colors.secondary} />
             <Text style={styles.withdrawBtnText}>Withdraw</Text>

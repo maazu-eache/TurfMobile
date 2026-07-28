@@ -5,7 +5,7 @@ import {
   Animated, ToastAndroid, Platform, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, toggleFollowTeam, joinTeam } from '../teamSlice';
 import { Colors, Typography, Spacing, Shadows, BorderRadius } from '../../../theme/theme';

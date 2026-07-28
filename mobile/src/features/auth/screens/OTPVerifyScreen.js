@@ -4,7 +4,7 @@ import {
   Platform, ActivityIndicator,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 import { useDispatch, useSelector } from 'react-redux';
 import { verifyOTP, sendOTP } from '../authSlice';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';

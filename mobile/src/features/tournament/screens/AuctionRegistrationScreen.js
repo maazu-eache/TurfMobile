@@ -470,10 +470,13 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                 activeOpacity={0.85}
               >
                 {loading ? (
-                  <ActivityIndicator color={Colors.white} />
+                  <View style={styles.payBtnInner}>
+                    <ActivityIndicator color="#000" />
+                    <Text style={[styles.payBtnText, { marginLeft: 8 }]}>PROCESSING...</Text>
+                  </View>
                 ) : (
                   <View style={styles.payBtnInner}>
-                    <Icon name="lock" size={18} color={agreed ? Colors.white : Colors.textTertiary} />
+                    <Icon name="lock" size={18} color={agreed ? '#000' : Colors.textTertiary} />
                     <Text style={[styles.payBtnText, !agreed && { color: Colors.textTertiary }]}>
                       {`  PAY ₹${entryFee} SECURELY`}
                     </Text>
@@ -892,7 +895,7 @@ const styles = StyleSheet.create({
   },
   payBtnDisabled: { backgroundColor: Colors.surface, elevation: 0, shadowOpacity: 0 },
   payBtnInner: { flexDirection: 'row', alignItems: 'center' },
-  payBtnText: { color: Colors.white, fontSize: 16, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  payBtnText: { color: '#000', fontSize: 16, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
   payNote: { textAlign: 'center', color: Colors.textTertiary, fontSize: 12, marginBottom: 4 },
 
   // Closed card

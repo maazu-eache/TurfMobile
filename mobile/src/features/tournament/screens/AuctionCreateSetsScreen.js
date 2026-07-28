@@ -40,9 +40,9 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
 
   // Manual Add Player Modal State
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addMode, setAddMode] = useState('phone'); // 'phone' | 'new'
   const [phoneInput, setPhoneInput] = useState('');
   const [lookingUp, setLookingUp] = useState(false);
+  const [lookupMessage, setLookupMessage] = useState('');
 
   const [playerForm, setPlayerForm] = useState({
     fullName: '',
@@ -98,37 +98,49 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
     setRefreshing(false);
   }, [targetAuctionId, tournamentId]);
 
-  const handlePhoneLookup = async () => {
-    if (!phoneInput || phoneInput.length < 10) {
-      showCustomAlert('Invalid Mobile', 'Please enter a valid 10-digit mobile number');
-      return;
-    }
-    setLookingUp(true);
-    try {
-      const res = await api.get(`/users/lookup/${phoneInput}`);
-      if (res.data && res.data.data && res.data.data.user) {
-        const u = res.data.data.user;
-        const photoUrl = u.avatar ? getImageUrl(u.avatar) : (u.photo ? getImageUrl(u.photo) : null);
-        const userRole = u.playingRole || u.role;
-        setPlayerForm(f => ({
-          ...f,
-          fullName: u.name || f.fullName,
-          role: userRole && ROLES.includes(userRole) ? userRole : f.role,
-          battingStyle: u.battingStyle && BATTING_STYLES.includes(u.battingStyle) ? u.battingStyle : f.battingStyle,
-          bowlingStyle: u.bowlingStyle || f.bowlingStyle,
-          photo: photoUrl ? { uri: photoUrl } : f.photo,
-          foundUser: u,
-        }));
-        showCustomAlert('User Found', `Found profile for ${u.name}`);
+  useEffect(() => {
+    let isMounted = true;
+    const checkMobile = async () => {
+      if (phoneInput && phoneInput.length === 10) {
+        setLookingUp(true);
+        setLookupMessage('');
+        try {
+          const res = await api.get(`/users/lookup/${phoneInput}`);
+          if (res.data?.data?.user && isMounted) {
+            const u = res.data.data.user;
+            const photoUrl = u.avatar ? getImageUrl(u.avatar) : (u.photo ? getImageUrl(u.photo) : null);
+            const userRole = u.playingRole || u.role;
+            setPlayerForm(f => ({
+              ...f,
+              fullName: u.name || f.fullName,
+              role: userRole && ROLES.includes(userRole) ? userRole : f.role,
+              battingStyle: u.battingStyle && BATTING_STYLES.includes(u.battingStyle) ? u.battingStyle : f.battingStyle,
+              bowlingStyle: u.bowlingStyle || f.bowlingStyle,
+              photo: photoUrl ? { uri: photoUrl } : f.photo,
+              foundUser: u,
+            }));
+            setLookupMessage('Player found and details auto-filled.');
+          } else if (isMounted) {
+            setLookupMessage('Player not found. Please fill in details manually.');
+          }
+        } catch (e) {
+          if (isMounted) {
+            setLookupMessage('Player not found. Please fill in details manually.');
+          }
+        } finally {
+          if (isMounted) setLookingUp(false);
+        }
       } else {
-        showCustomAlert('Not Found', 'No existing profile found. You can enter details manually.');
+        if (isMounted) setLookupMessage('');
       }
-    } catch (e) {
-      showCustomAlert('Not Found', 'No existing user profile found with this number. Enter details manually.');
-    } finally {
-      setLookingUp(false);
-    }
-  };
+    };
+    
+    const timeout = setTimeout(checkMobile, 500);
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+    };
+  }, [phoneInput]);
 
   const handlePickPhoto = () => {
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (response) => {
@@ -149,9 +161,9 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
       return;
     }
 
-    const submitMobile = addMode === 'phone' ? phoneInput : phoneInput; // Or separate state if needed, using phoneInput for both
+    const submitMobile = phoneInput;
 
-    if (addMode === 'new' && (!submitMobile || submitMobile.length < 10)) {
+    if (!submitMobile || submitMobile.length < 10) {
       showCustomAlert('Error', 'Please enter a valid 10-digit mobile number');
       return;
     }
@@ -657,41 +669,11 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
             </View>
 
             <ScrollView contentContainerStyle={{ paddingVertical: 10 }}>
-              {/* Option toggle: Phone vs New */}
-              <View style={styles.modeToggle}>
-                <TouchableOpacity style={[styles.modeBtn, addMode === 'phone' && styles.modeBtnActive]} onPress={() => setAddMode('phone')}>
-                  <Text style={[styles.modeText, addMode === 'phone' && styles.modeTextActive]}>Lookup Mobile</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.modeBtn, addMode === 'new' && styles.modeBtnActive]} onPress={() => setAddMode('new')}>
-                  <Text style={[styles.modeText, addMode === 'new' && styles.modeTextActive]}>New Player</Text>
-                </TouchableOpacity>
-              </View>
-
-              {addMode === 'phone' && (
-                <View style={{ marginBottom: 15 }}>
-                  <Text style={styles.label}>Player Mobile Number *</Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      placeholder="Enter 10-digit mobile"
-                      placeholderTextColor={Colors.textTertiary}
-                      keyboardType="phone-pad"
-                      value={phoneInput}
-                      onChangeText={setPhoneInput}
-                      maxLength={10}
-                    />
-                    <TouchableOpacity style={styles.lookupBtn} onPress={handlePhoneLookup} disabled={lookingUp}>
-                      {lookingUp ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={{ color: Colors.white, fontFamily: Typography.fontFamily.bold }}>FIND</Text>}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              {addMode === 'new' && (
-                <View style={{ marginBottom: 15 }}>
-                  <Text style={styles.label}>Player Mobile Number *</Text>
+              <View style={{ marginBottom: 15 }}>
+                <Text style={styles.label}>Player Mobile Number *</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { flex: 1 }]}
                     placeholder="Enter 10-digit mobile"
                     placeholderTextColor={Colors.textTertiary}
                     keyboardType="phone-pad"
@@ -699,8 +681,12 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                     onChangeText={setPhoneInput}
                     maxLength={10}
                   />
+                  <View style={styles.lookupBtn}>
+                    {lookingUp ? <ActivityIndicator color="#000" size="small" /> : <Icon name="check-circle" color={phoneInput.length === 10 ? '#000' : Colors.textTertiary} size={20} />}
+                  </View>
                 </View>
-              )}
+                {lookupMessage ? <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 8, fontFamily: Typography.fontFamily.medium }}>{lookupMessage}</Text> : null}
+              </View>
 
               {/* Player Photo */}
               <View style={{ alignItems: 'center', marginVertical: 10 }}>
@@ -765,7 +751,14 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
               </View>
 
               <TouchableOpacity style={styles.submitBtn} onPress={handleSubmitManualPlayer} disabled={loading}>
-                {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.submitBtnText}>ADD TO AUCTION POOL</Text>}
+                {loading ? (
+                  <>
+                    <ActivityIndicator color="#000" />
+                    <Text style={[styles.submitBtnText, { marginLeft: 8 }]}>Adding...</Text>
+                  </>
+                ) : (
+                  <Text style={styles.submitBtnText}>ADD TO AUCTION POOL</Text>
+                )}
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -1083,23 +1076,75 @@ const styles = StyleSheet.create({
   modalCard: { backgroundColor: Colors.backgroundElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: Spacing.lg, maxHeight: '85%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  modeToggle: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 8, padding: 3, marginBottom: 15 },
-  modeBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
-  modeBtnActive: { backgroundColor: Colors.primary },
-  modeText: { color: Colors.textSecondary, fontSize: 12 },
-  modeTextActive: { color: Colors.white, fontFamily: Typography.fontFamily.bold },
-  label: { color: Colors.textSecondary, fontSize: 12, marginBottom: 4, marginTop: 10 },
-  input: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, height: 44, color: Colors.textPrimary },
-  lookupBtn: { backgroundColor: Colors.primary, paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
-  photoBox: { width: 70, height: 70, borderRadius: 35, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+
+  label: {
+    color: Colors.textTertiary,
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.6,
+    marginBottom: 6,
+    marginTop: 14,
+    textTransform: 'uppercase',
+  },
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 46,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  lookupBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
+  photoBox: { width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   photoImg: { width: 70, height: 70, borderRadius: 35 },
-  chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 6 },
-  chip: { backgroundColor: Colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.border },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontSize: 11 },
-  chipTextActive: { color: Colors.white, fontFamily: Typography.fontFamily.bold },
-  submitBtn: { backgroundColor: Colors.primary, height: 48, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 20 },
-  submitBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 8 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  chipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 5,
+  },
+  chipText: { color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium },
+  chipTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  submitBtn: {
+    backgroundColor: Colors.primary,
+    height: 52,
+    borderRadius: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  submitBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 15, letterSpacing: 0.4 },
 });
 
 export default AuctionCreateSetsScreen;

@@ -4,6 +4,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api from '../../../api/axios';
 import { formatISTDateTime } from '../../../utils/dateFormatter';
+import { showCustomAlert } from '../../../components/CustomAlert';
 
 const NotificationsScreen = ({ navigation }) => {
   const [notifications, setNotifications] = useState([]);
@@ -30,33 +31,74 @@ const NotificationsScreen = ({ navigation }) => {
       await api.put(`/notifications/${id}/read`);
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
       
-      // Navigate based on type
-      if (['booking_confirmed', 'upcoming_booking', 'new_booking', 'screenshot_uploaded', 'general'].includes(type)) {
-         navigation.navigate('Bookings', { turfId: data?.turfId });
-      } else if (['payment_verified', 'payment_received'].includes(type)) {
-         navigation.navigate('Dashboard');
+      if (!data) return; // if no data, don't navigate
+
+      // Turf/Booking related
+      if (['booking_confirmed', 'upcoming_booking', 'new_booking', 'screenshot_uploaded', 'booking_status'].includes(type) || (type === 'general' && data.bookingId)) {
+         navigation.navigate('Bookings', { screen: 'BookingHistory', params: { turfId: data.turfId } });
+      } else if (type === 'turf_favourited' || data.turfId) {
+         navigation.navigate('Home', { screen: 'TurfDetail', params: { turfId: data.turfId } });
+      } 
+      // Cricket/Match related
+      else if (['match_started', 'match_completed', 'match_update'].includes(type) || data.matchId) {
+         navigation.navigate('My Cricket', { screen: 'MatchSummary', params: { matchId: data.matchId } });
+      } else if (['auction_invite', 'auction_started'].includes(type)) {
+         navigation.navigate('My Cricket', { screen: 'TournamentList' });
+      } 
+      // Player related (New Follower)
+      else if (['new_follower'].includes(type) || (type === 'general' && data.type === 'player' && data.id)) {
+         navigation.navigate('Profile', { screen: 'PlayerProfile', params: { playerId: data.id } });
+      }
+      // Finance related
+      else if (['payment_verified', 'payment_received', 'withdrawal_request'].includes(type)) {
+         navigation.navigate('Profile', { screen: 'Wallet' });
       }
     } catch (err) {
       console.log('Error marking as read', err);
     }
   };
 
-  const markAllAsRead = async () => {
-    try {
-      await api.put('/notifications/read-all');
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    } catch (err) {
-      console.log('Error marking all as read', err);
-    }
+  const markAllAsRead = () => {
+    showCustomAlert(
+      'Mark All as Read',
+      'Are you sure you want to mark all notifications as read?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Confirm', 
+          onPress: async () => {
+            try {
+              await api.put('/notifications/read-all');
+              setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+            } catch (err) {
+              console.log('Error marking all as read', err);
+            }
+          }
+        }
+      ]
+    );
   };
 
-  const clearAll = async () => {
-    try {
-      await api.delete('/notifications/clear-all');
-      setNotifications([]);
-    } catch (err) {
-      console.log('Error clearing notifications', err);
-    }
+  const clearAll = () => {
+    showCustomAlert(
+      'Clear All Notifications',
+      'Are you sure you want to delete all notifications? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete('/notifications/clear-all');
+              setNotifications([]);
+            } catch (err) {
+              console.log('Error clearing notifications', err);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const renderItem = ({ item }) => (

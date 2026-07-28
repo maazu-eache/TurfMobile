@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, FlatList, Share, Modal, TextInput, RefreshControl, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, FlatList, Share, Modal, TextInput, RefreshControl, StatusBar, ToastAndroid, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +20,8 @@ import FixtureWizardModal from '../components/FixtureWizardModal';
 import TournamentStartMatchModal from '../components/TournamentStartMatchModal';
 import TournamentLeaderboard from '../components/TournamentLeaderboard';
 import TournamentStatistics from '../components/TournamentStatistics';
+import SharePreviewModal from '../components/SharePreviewModal';
+import { TournamentSummaryPoster, FixturePoster, PointsTablePoster, LeaderboardPoster, FullSchedulePoster } from '../components/PosterTemplates';
 
 const TABS = [
   'Overview', 'Matches', 'Auction', 'Teams', 'Points Table',
@@ -33,6 +35,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('Overview');
   const [matchSubTab, setMatchSubTab] = useState('Live'); // Live, Upcoming, Past
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState('');
   const { user } = useSelector(state => state.auth);
 
   // Modals state
@@ -45,6 +48,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [actionLoading, setActionLoading] = useState(false);
   const [showSettingsSidebar, setShowSettingsSidebar] = useState(false);
   const [showFixturePreview, setShowFixturePreview] = useState(false);
+  const [shareData, setShareData] = useState(null);
+  const [showTeamShareModal, setShowTeamShareModal] = useState(false);
 
   const [auctionDetails, setAuctionDetails] = useState(null);
   const [isAuctionRegistered, setIsAuctionRegistered] = useState(false);
@@ -203,26 +208,26 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     if (!tournament) return '';
     const teams = tournament.registeredTeams || [];
     let preview = '';
-    
+
     if (tournament.format?.toLowerCase() === 'knockout') {
       let matchCount = 1;
       for (let i = 0; i < teams.length; i += 2) {
         const teamA = teams[i].team?.name || 'TBD';
-        const teamB = teams[i+1] ? teams[i+1].team?.name : 'BYE';
+        const teamB = teams[i + 1] ? teams[i + 1].team?.name : 'BYE';
         preview += `Match ${matchCount}: ${teamA} vs ${teamB}\n\n`;
         matchCount++;
       }
     } else {
       const teamsPerGroup = tournament.teamsPerGroup || teams.length;
       const numGroups = Math.ceil(teams.length / teamsPerGroup);
-      
+
       let matchCount = 1;
       let teamIndex = 0;
-      
+
       for (let g = 0; g < numGroups; g++) {
         const groupTeams = teams.slice(teamIndex, teamIndex + teamsPerGroup);
         teamIndex += teamsPerGroup;
-        
+
         if (numGroups > 1) {
           preview += `--- Group ${String.fromCharCode(65 + g)} ---\n`;
         }
@@ -246,19 +251,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const canStartMatch = isOrganizer || isScorer;
 
   const handleShareTournament = async () => {
-    try {
-      await Share.share({
-        message: `Check out ${tournament.name} on SportVerse! sportverse://tournament/${tournamentId}`,
-      });
-    } catch (error) {
-      console.log('Error sharing', error);
-    }
+    setShareData({ type: 'tournament', data: tournament });
   };
 
   const handleShareJoinLink = async () => {
     try {
       await Share.share({
-        message: `Join ${tournament.name} on SportVerse! Click the link to register your team: sportverse://tournament/${tournamentId}`,
+        message: `Join ${tournament.name} on SportVerse! Click the link to register your team: https://sportverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}`,
       });
     } catch (error) {
       console.log('Error sharing', error);
@@ -300,7 +299,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       `Are you sure you want to remove ${teamName || 'this team'} from the tournament?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
+        {
           text: 'Remove',
           onPress: async () => {
             setActionLoading(true);
@@ -347,9 +346,16 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       } else {
         await api.post(`/tournaments/${tournamentId}/follow`);
       }
+      const msg = isFollowing ? 'You unfollowed this tournament.' : 'You are now following this tournament!';
+      const actionStr = isFollowing ? 'Unfollowed' : 'Following';
+      
+      if (Platform.OS === 'android') ToastAndroid.show(msg, ToastAndroid.SHORT);
+      else showCustomAlert(actionStr, msg);
+      
       fetchDashboard();
     } catch (e) {
       console.log('Error following/unfollowing tournament', e);
+      showCustomAlert('Error', e.response?.data?.message || 'Failed to follow/unfollow tournament');
     }
   };
 
@@ -434,7 +440,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           <Text style={[styles.bodyText, { marginTop: 8, lineHeight: 22 }]}>{tournament.rules}</Text>
         </View>
       ) : null}
-      
+
       {tournament.organizer && (
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
@@ -488,15 +494,15 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
         {isOrganizer && (
           <View style={styles.actionGrid}>
-            <TouchableOpacity 
-              style={[styles.actionGridBtn, !hasTournamentStarted && { opacity: 0.5 }]} 
+            <TouchableOpacity
+              style={[styles.actionGridBtn, !hasTournamentStarted && { opacity: 0.5 }]}
               onPress={() => {
                 if (!hasTournamentStarted) {
                   showCustomAlert('Tournament Not Started', 'Fixtures can only be generated after the tournament starts.');
                   return;
                 }
                 handleGenerateFixtures();
-              }} 
+              }}
               disabled={loading}
             >
               <View style={[styles.actionGridIcon, !hasTournamentStarted && { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
@@ -525,9 +531,20 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           </View>
         )}
 
+        {/* {!isOrganizer && (
+          <View style={styles.actionGrid}>
+            <TouchableOpacity style={styles.actionGridBtn} onPress={() => setShowRegisterModal(true)}>
+              <View style={styles.actionGridIcon}>
+                <Icon name="user-plus" size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.actionGridText}>Register Team</Text>
+            </TouchableOpacity>
+          </View>
+        )} */}
+
         <FlatList
           data={tournament.registeredTeams}
-          keyExtractor={item => item.team._id}
+          keyExtractor={(item, index) => item?.team?._id || item?._id || index.toString()}
           contentContainerStyle={[styles.tabContent, { paddingTop: 8 }]}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
@@ -536,37 +553,40 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             </View>
           }
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity 
-              style={styles.teamCard}
-              onPress={() => navigation.navigate('TeamDetail', { id: item.team._id })}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.teamRankText}>#{index + 1}</Text>
-              <Image 
-                source={{ uri: item.team.logo ? getImageUrl(item.team.logo) : 'https://via.placeholder.com/50' }} 
-                style={styles.teamLogo} 
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.teamName}>{item.team.name}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: 4 }}>
-                  <Icon name="map-pin" size={11} color={Colors.textTertiary} />
-                  <Text style={styles.teamSub}>{item.team.city || 'Unknown City'}</Text>
+          renderItem={({ item, index }) => {
+            if (!item?.team) return null;
+            return (
+              <TouchableOpacity
+                style={styles.teamCard}
+                onPress={() => navigation.navigate('TeamDetail', { id: item.team._id })}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.teamRankText}>#{index + 1}</Text>
+                <Image
+                  source={{ uri: item.team.logo ? getImageUrl(item.team.logo) : 'https://via.placeholder.com/50' }}
+                  style={styles.teamLogo}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.teamName}>{item.team.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: 4 }}>
+                    <Icon name="map-pin" size={11} color={Colors.textTertiary} />
+                    <Text style={styles.teamSub}>{item.team.city || 'Unknown City'}</Text>
+                  </View>
                 </View>
-              </View>
-              {isOrganizer ? (
-                <TouchableOpacity 
-                  style={styles.removeTeamBtn}
-                  onPress={() => handleRemoveTeam(item.team._id, item.team.name)}
-                  disabled={actionLoading}
-                >
-                  <Icon name="trash-2" size={15} color={Colors.error} />
-                </TouchableOpacity>
-              ) : (
-                <Icon name="chevron-right" size={17} color={Colors.textTertiary} />
-              )}
-            </TouchableOpacity>
-          )}
+                {isOrganizer ? (
+                  <TouchableOpacity
+                    style={styles.removeTeamBtn}
+                    onPress={() => handleRemoveTeam(item.team._id, item.team.name)}
+                    disabled={actionLoading}
+                  >
+                    <Icon name="trash-2" size={15} color={Colors.error} />
+                  </TouchableOpacity>
+                ) : (
+                  <Icon name="chevron-right" size={17} color={Colors.textTertiary} />
+                )}
+              </TouchableOpacity>
+            );
+          }}
         />
       </View>
     );
@@ -584,28 +604,62 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         .sort((a, b) => new Date(b.completedAt || b.updatedAt) - new Date(a.completedAt || a.updatedAt));
     }
 
+    if (selectedTeamFilter) {
+      filteredMatches = filteredMatches.filter(m => m.teamA?._id === selectedTeamFilter || m.teamB?._id === selectedTeamFilter || m.teamA === selectedTeamFilter || m.teamB === selectedTeamFilter);
+    }
+
     return (
       <View style={{ flex: 1 }}>
         {isOrganizer && (
-          <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: 0 }}>
-            <TouchableOpacity 
-              style={[styles.startMatchBtn, tournament.status === 'completed' && { opacity: 0.6 }]}
+          <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: 0, flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              style={[styles.startMatchBtn, { flex: 1, backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.primary }, (tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') && { opacity: 0.5, borderColor: Colors.border }]}
+              onPress={() => {
+                if (tournament.status === 'completed') {
+                  showCustomAlert('Completed', 'Tournament has already finished.');
+                } else if (tournament.matches?.some(m => m.status !== 'scheduled')) {
+                  showCustomAlert('Locked', 'Fixtures cannot be generated after matches have started.');
+                } else {
+                  handleGenerateFixtures();
+                }
+              }}
+              disabled={tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed'}
+            >
+              <MCIcon name="calendar-refresh" size={18} color={(tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? Colors.textSecondary : Colors.primary} style={{ marginRight: 8 }} />
+              <Text style={[styles.startMatchBtnText, { color: (tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? Colors.textSecondary : Colors.primary }]}>
+                Fixtures
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.startMatchBtn, { flex: 1 }, tournament.status === 'completed' && { opacity: 0.6 }]}
               onPress={() => setShowStartMatchModal(true)}
               disabled={tournament.status === 'completed'}
             >
-              <MCIcon name="play-circle" size={20} color='#011528' style={{ marginRight: 8 }} />
+              <MCIcon name="play-circle" size={18} color='#011528' style={{ marginRight: 8 }} />
               <Text style={styles.startMatchBtnText}>
-                {tournament.status === 'completed' ? 'Tournament Completed' : 'Start a Match'}
+                {tournament.status === 'completed' ? 'Completed' : 'Start Match'}
               </Text>
             </TouchableOpacity>
           </View>
         )}
-        <View style={styles.matchSubTabs}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: Spacing.md, marginTop: 12, marginBottom: 8 }}>
+          <Text style={{ fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>Fixtures & Schedule</Text>
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingHorizontal: 12, borderRadius: 14, backgroundColor: 'rgba(154,188,47,0.15)' }}
+            onPress={() => setShowTeamShareModal(true)}
+          >
+            <Icon name="share-2" size={13} color={Colors.primary} style={{ marginRight: 4 }} />
+            <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share Schedule</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ flexDirection: 'row', marginHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 12 }}>
           {['Live', 'Upcoming', 'Past'].map(tab => {
             const liveCount = tab === 'Live' ? (tournament.matches?.filter(m => ['toss_done', 'in_progress', 'innings_break', 'super_over'].includes(m.status)) || []).length : 0;
             return (
-              <TouchableOpacity 
-                key={tab} 
+              <TouchableOpacity
+                key={tab}
                 style={[styles.matchSubTab, matchSubTab === tab && styles.matchSubTabActive]}
                 onPress={() => setMatchSubTab(tab)}
               >
@@ -621,6 +675,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             );
           })}
         </View>
+
+        {/* Removed Team Filter */}
         <FlatList
           data={filteredMatches}
           keyExtractor={item => item._id}
@@ -642,20 +698,28 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                       {item.format?.toUpperCase() || 'Custom'}  •  {moment(item.scheduledAt || item.createdAt).format('DD MMM, hh:mm A')}  •  {item.overs} Ov
                     </Text>
                   </View>
-                  {isLive ? (
-                    <View style={styles.liveBadge}>
-                      <View style={styles.liveDot} />
-                      <Text style={styles.liveBadgeText}>LIVE</Text>
-                    </View>
-                  ) : item.status === 'scheduled' ? (
-                    <View style={styles.upcomingBadge}>
-                      <Text style={styles.upcomingBadgeText}>UPCOMING</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.resultBadge}>
-                      <Text style={styles.resultBadgeText}>RESULT</Text>
-                    </View>
-                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {isLive ? (
+                      <View style={styles.liveBadge}>
+                        <View style={styles.liveDot} />
+                        <Text style={styles.liveBadgeText}>LIVE</Text>
+                      </View>
+                    ) : item.status === 'scheduled' ? (
+                      <View style={styles.upcomingBadge}>
+                        <Text style={styles.upcomingBadgeText}>UPCOMING</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.resultBadge}>
+                        <Text style={styles.resultBadgeText}>RESULT</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      style={{ marginLeft: 8, padding: 4 }}
+                      onPress={() => setShareData({ type: 'fixture', data: item })}
+                    >
+                      <Icon name="share-2" size={16} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 <View style={styles.vsContainer}>
@@ -705,7 +769,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
   const renderPointsTable = () => {
     const hasGroups = tournament.pointsTable?.some(row => row.groupName);
-    
+
     if (hasGroups) {
       const grouped = tournament.pointsTable.reduce((acc, row) => {
         const g = row.groupName || 'Other';
@@ -718,8 +782,11 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}>
           {Object.entries(grouped).map(([groupName, rows], gIdx) => (
             <View key={gIdx} style={[styles.table, { marginBottom: Spacing.lg }]}>
-              <View style={[styles.tableRowHeader, { backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border }]}>
+              <View style={[styles.tableRowHeader, { backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, justifyContent: 'space-between' }]}>
                 <Text style={[styles.sectionTitle, { marginBottom: 0, padding: Spacing.sm }]}>{groupName}</Text>
+                <TouchableOpacity onPress={() => setShareData({ type: 'pointsTable', data: { table: rows, groupName } })} style={{ padding: 8 }}>
+                  <Icon name="share-2" size={16} color={Colors.primary} />
+                </TouchableOpacity>
               </View>
               <View style={styles.tableRowHeader}>
                 <Text style={[styles.tableCell, { flex: 2 }]}>Team</Text>
@@ -754,6 +821,15 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
     return (
       <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12, paddingHorizontal: Spacing.md }}>
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}
+            onPress={() => setShareData({ type: 'pointsTable', data: { table: tournament.pointsTable } })}
+          >
+            <Icon name="share-2" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+            <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share Standings</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.table}>
           <View style={styles.tableRowHeader}>
             <Text style={[styles.tableCell, { flex: 2 }]}>Team</Text>
@@ -849,8 +925,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 {isOrganizer
                   ? 'Organiser Control Hub'
                   : isTeamCaptainOrOwner
-                  ? `Team Captain / Owner`
-                  : 'Player & Spectator Hub'}
+                    ? `Team Captain / Owner`
+                    : 'Player & Spectator Hub'}
               </Text>
             </View>
             <View style={[
@@ -1079,7 +1155,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       case 'Auction': return renderAuction();
       case 'Matches': return hasTournamentStarted ? renderMatches() : renderLockedModule('Matches');
       case 'Points Table': return hasTournamentStarted ? renderPointsTable() : renderLockedModule('Points Table');
-      case 'Leaderboard': return hasTournamentStarted ? <TournamentLeaderboard tournament={tournament} /> : renderLockedModule('Leaderboard');
+      case 'Leaderboard': return hasTournamentStarted ? <TournamentLeaderboard tournament={tournament} onShare={setShareData} /> : renderLockedModule('Leaderboard');
       case 'Statistics': return hasTournamentStarted ? <TournamentStatistics tournament={tournament} /> : renderLockedModule('Statistics');
       default: return renderPlaceholder(activeTab);
     }
@@ -1090,53 +1166,81 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
-      {/* Modern Header overlaid on banner */}
+      {/* Modern Header: Blurred Bottom Info Area */}
       <View style={styles.bannerWrapper}>
-        <Image 
-          source={{ uri: tournament.banner ? getImageUrl(tournament.banner) : 'https://via.placeholder.com/400x150' }} 
-          style={styles.banner} 
+        <Image
+          source={{ uri: tournament.banner ? getImageUrl(tournament.banner) : 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=600&auto=format&fit=crop' }}
+          style={styles.banner}
+          resizeMode="cover"
         />
-        {/* Dark gradient overlay for readability */}
-        <View style={styles.bannerOverlay} />
-        {/* Top bar: back + actions only */}
         <View style={styles.headerTopBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Icon name="arrow-left" size={20} color={Colors.white} />
           </TouchableOpacity>
           <View style={{ flex: 1 }} />
-          {!isOrganizer && (
-            <TouchableOpacity onPress={handleFollowTournament} style={[styles.followBtn, isFollowing && styles.followBtnActive]}>
-              <Icon name="heart" size={13} color={isFollowing ? Colors.error : Colors.primary} />
-              <Text style={[styles.followBtnText, isFollowing && { color: Colors.error }]}>
-                {isFollowing ? 'Following' : 'Follow'}
-              </Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity onPress={handleShareTournament} style={styles.menuBtn}>
+            <Icon name="share-2" size={20} color={Colors.white} />
+          </TouchableOpacity>
           {isOrganizer && (
             <TouchableOpacity onPress={() => setShowSettingsSidebar(true)} style={styles.menuBtn}>
               <Icon name="more-vertical" size={20} color={Colors.white} />
             </TouchableOpacity>
           )}
         </View>
-        {/* Title block: bottom of the banner */}
-        <View style={styles.headerBottom}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{tournament.name}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 5 }}>
-            <View style={styles.statusBadge}>
-              <View style={[styles.statusDot, {
-                backgroundColor: tournament.status === 'ongoing' ? Colors.error
-                  : tournament.status === 'upcoming' ? Colors.warning
-                  : tournament.status === 'completed' ? Colors.success
-                  : Colors.primary
-              }]} />
-              <Text style={styles.statusLabel}>
-                {tournament.status === 'ongoing' ? 'Live'
-                  : tournament.status === 'upcoming' ? 'Upcoming'
-                  : tournament.status === 'completed' ? 'Completed'
-                  : tournament.status}
-              </Text>
+
+        {/* Blurred Info Overlay Trick */}
+        <View style={styles.blurredInfoContainer}>
+          <Image
+            source={{ uri: tournament.banner ? getImageUrl(tournament.banner) : 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=600&auto=format&fit=crop' }}
+            style={styles.blurredBannerImage}
+            resizeMode="cover"
+            blurRadius={35}
+          />
+          {/* Very light dark tint so white text is readable over bright images, no solid colors */}
+          <View style={styles.blurredInfoTint} />
+
+          <View style={styles.headerInfoContent}>
+            <Text style={styles.headerTitle} numberOfLines={2}>{tournament.name}</Text>
+
+            {/* Status row */}
+            <View style={styles.headerBadgeRow}>
+              <View style={styles.statusBadge}>
+                <View style={[styles.statusDot, {
+                  backgroundColor: tournament.status === 'ongoing' ? Colors.error
+                    : tournament.status === 'upcoming' ? Colors.warning
+                      : tournament.status === 'completed' ? Colors.success
+                        : Colors.primary
+                }]} />
+                <Text style={styles.statusLabel}>
+                  {tournament.status === 'ongoing' ? 'Live'
+                    : tournament.status === 'upcoming' ? 'Upcoming'
+                      : tournament.status === 'completed' ? 'Completed'
+                        : tournament.status}
+                </Text>
+              </View>
+              {isOrganizer && (
+                <View style={styles.organizerChip}>
+                  <Icon name="shield" size={11} color={Colors.white} />
+                  <Text style={styles.organizerChipText}>Organizer</Text>
+                </View>
+              )}
+              <Text style={styles.headerMetaText}>{tournament.overs} Ov  •  {tournament.city}</Text>
+              <Text style={styles.headerMetaText}>{tournament.registeredTeams?.length || 0}/{tournament.maxTeams} Teams</Text>
             </View>
-            <Text style={styles.headerMetaText}>{tournament.city}  •  {tournament.registeredTeams?.length || 0}/{tournament.maxTeams} Teams  •  {tournament.overs} Ov</Text>
+
+            {/* Full-width follow button inside info panel */}
+            {!isOrganizer && (
+              <TouchableOpacity
+                onPress={handleFollowTournament}
+                style={[styles.fullWidthFollowBtn, isFollowing && styles.fullWidthFollowBtnActive]}
+              >
+                <Icon name={isFollowing ? "check" : "user-plus"}
+                  size={15} color={isFollowing ? Colors.white : Colors.backgroundElevated} />
+                <Text style={[styles.fullWidthFollowText, isFollowing && { color: Colors.white }]}>
+                  {isFollowing ? 'Following' : 'Follow'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -1165,13 +1269,19 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               return true;
             });
 
+            const auctionDate = tournament?.auctionDate || tournament?.auctionDetails?.auctionDate;
+            const auctionDateReached = auctionDate && new Date() >= new Date(auctionDate);
+
             if (isAuctionTournament && !isOrganizer && !isTeamOwnerOrCaptain) {
-              // Public spectators of Auction tournaments see only Overview + Auction (if not started)
-              visibleTabs = ['Overview', ...(hasMatchesPlayed ? [] : ['Auction'])];
+              // Public spectators of Auction tournaments see only Overview + Auction (if not started) 
+              // UNLESS the auction date has passed, then show all tabs.
+              if (!auctionDateReached) {
+                visibleTabs = ['Overview', ...(hasMatchesPlayed ? [] : ['Auction'])];
+              }
             }
 
             return visibleTabs.map((tab) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 key={tab}
                 style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
                 onPress={() => setActiveTab(tab)}
@@ -1198,11 +1308,11 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       />
 
       {/* Organizer Add Team Modal */}
-      <AddTeamModal 
-        visible={showAddTeamModal} 
-        onClose={() => setShowAddTeamModal(false)} 
-        tournamentId={tournament._id} 
-        onRefresh={fetchDashboard} 
+      <AddTeamModal
+        visible={showAddTeamModal}
+        onClose={() => setShowAddTeamModal(false)}
+        tournamentId={tournament._id}
+        onRefresh={fetchDashboard}
         registeredTeams={tournament.registeredTeams}
       />
 
@@ -1256,7 +1366,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         <TouchableOpacity style={styles.sidebarOverlay} activeOpacity={1} onPress={() => setShowSettingsSidebar(false)}>
           <TouchableOpacity activeOpacity={1} style={styles.sidebarContent}>
             <Text style={styles.sidebarTitle}>Settings</Text>
-            
+
             <TouchableOpacity style={styles.sidebarOption} onPress={() => { setShowSettingsSidebar(false); handleShareTournament(); }}>
               <Icon name="share-2" size={20} color={Colors.textPrimary} style={styles.sidebarIcon} />
               <Text style={styles.sidebarOptionText}>Share Tournament</Text>
@@ -1298,11 +1408,11 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
             <Text style={[styles.bodyText, { marginBottom: Spacing.md }]}>
-              {tournament?.format?.toLowerCase() === 'knockout' 
-                ? 'Note: Actual pairings will be randomized upon generation.' 
+              {tournament?.format?.toLowerCase() === 'knockout'
+                ? 'Note: Actual pairings will be randomized upon generation.'
                 : 'Note: Teams will be randomized into groups upon generation.'}
             </Text>
-            
+
             <View style={{ flex: 1, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border }}>
               <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled">
                 <Text style={[styles.bodyText, { color: Colors.textPrimary, lineHeight: 22 }]}>
@@ -1323,16 +1433,116 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      <GroupManagementModal 
-        visible={showGroupModal} 
-        onClose={() => setShowGroupModal(false)} 
+      {/* Team Share Modal */}
+      <Modal visible={showTeamShareModal} animationType="fade" transparent>
+        <View style={styles.modalBg}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Share Fixtures</Text>
+              <TouchableOpacity onPress={() => setShowTeamShareModal(false)}>
+                <Icon name="x" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.bodyText, { marginBottom: Spacing.md, paddingHorizontal: Spacing.lg, marginTop: Spacing.md }]}>Select fixtures to share:</Text>
+
+            <FlatList
+              data={[
+                { _id: 'overall', name: 'Overall Schedule' },
+                ...Array.from(new Map(
+                  (tournament?.matches || [])
+                    .filter(m => m.status === 'scheduled')
+                    .flatMap(m => [m.teamA, m.teamB])
+                    .filter(t => t && t._id)
+                    .map(t => [t._id, t])
+                ).values())
+              ]}
+              keyExtractor={item => item._id}
+              style={{ maxHeight: 400 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 14,
+                    marginHorizontal: Spacing.lg,
+                    marginBottom: 10,
+                    backgroundColor: 'rgba(255,255,255,0.04)',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.1)'
+                  }}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setShowTeamShareModal(false);
+                    if (item._id === 'overall') {
+                      const upcomingMatches = (tournament?.matches || []).filter(m => m.status === 'scheduled');
+                      setShareData({ type: 'fullSchedule', data: { matches: upcomingMatches } });
+                    } else {
+                      const tmMatches = (tournament?.matches || []).filter(m => m.status === 'scheduled' && (m.teamA?._id === item._id || m.teamB?._id === item._id));
+                      setShareData({ type: 'fullSchedule', data: { matches: tmMatches } });
+                    }
+                  }}
+                >
+                  {item._id === 'overall' ? (
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(154,188,47,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <Icon name="calendar" size={18} color={Colors.primary} />
+                    </View>
+                  ) : (
+                    <Image source={{ uri: item.logo ? getImageUrl(item.logo) : 'https://via.placeholder.com/40' }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }} />
+                  )}
+                  <Text style={[styles.bodyText, { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 15 }]}>
+                    {item.name}
+                  </Text>
+                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Icon name="chevron-right" size={20} color={Colors.textSecondary} />
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Share Preview Modal */}
+      <SharePreviewModal
+        visible={!!shareData}
+        onClose={() => setShareData(null)}
+        title={shareData?.type === 'tournament' ? tournament?.name : shareData?.type === 'fixture' ? 'Match Fixture' : shareData?.type === 'fullSchedule' ? 'Match Schedule' : shareData?.type === 'pointsTable' ? 'Points Table' : 'Leaderboard'}
+        shareUrl={`https://sportverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}`}
+      >
+        {shareData?.type === 'tournament' && <TournamentSummaryPoster tournament={shareData.data} />}
+        {shareData?.type === 'fixture' && <FixturePoster match={shareData.data} tournamentName={tournament?.name} tournamentBanner={tournament?.banner} />}
+        {shareData?.type === 'fullSchedule' && (() => {
+          const chunkSize = 6; // 6 matches per poster fits perfectly
+          const chunks = [];
+          const matches = shareData.data.matches || [];
+          for (let i = 0; i < matches.length; i += chunkSize) {
+            chunks.push(matches.slice(i, i + chunkSize));
+          }
+          return chunks.map((chunk, index) => (
+            <FullSchedulePoster
+              key={index}
+              matches={chunk}
+              tournamentName={tournament?.name}
+              tournamentBanner={tournament?.banner}
+              pageInfo={chunks.length > 1 ? { current: index + 1, total: chunks.length, totalMatches: matches.length } : null}
+            />
+          ));
+        })()}
+        {shareData?.type === 'pointsTable' && <PointsTablePoster pointsTable={shareData.data.table} groupName={shareData.data.groupName} tournamentName={tournament?.name} tournamentBanner={tournament?.banner} />}
+        {shareData?.type === 'leaderboard' && <LeaderboardPoster type={shareData.data.type} data={shareData.data.data} tournamentName={tournament?.name} tournamentBanner={tournament?.banner} />}
+      </SharePreviewModal>
+
+      <GroupManagementModal
+        visible={showGroupModal}
+        onClose={() => setShowGroupModal(false)}
         tournament={tournament}
         onRefresh={fetchDashboard}
       />
 
-      <RoleManagementModal 
-        visible={showRoleModal} 
-        onClose={() => setShowRoleModal(false)} 
+      <RoleManagementModal
+        visible={showRoleModal}
+        onClose={() => setShowRoleModal(false)}
         tournament={tournament}
         roleType={roleType}
         onRefresh={fetchDashboard}
@@ -1423,34 +1633,65 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
 
   /* ---- BANNER + HEADER ---- */
-  bannerWrapper: { position: 'relative' },
-  banner: { width: '100%', height: 200, backgroundColor: Colors.backgroundElevated },
-  bannerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(1,21,40,0.72)' },
+  bannerWrapper: { position: 'relative', backgroundColor: Colors.background, height: 180 },
+  banner: { width: '100%', height: '100%', backgroundColor: Colors.backgroundElevated },
+
+  /* Blurred Info Container */
+  blurredInfoContainer: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    overflow: 'hidden', // Crops the blurred image exactly to this container
+  },
+  blurredBannerImage: {
+    width: '100%',
+    height: 180, // Exact height of bannerWrapper
+    position: 'absolute',
+    bottom: 0, // Aligns it to the bottom so it perfectly overlaps the main image underneath
+  },
+  blurredInfoTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)', // Darker tint over the blur so white text pops
+  },
+  headerInfoContent: {
+    paddingHorizontal: 16,
+    paddingTop: 4, // Make text "a little low"
+    paddingBottom: 16,
+  },
   /* Top bar: only back button and action buttons */
   headerTopBar: {
     position: 'absolute', top: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8,
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, zIndex: 10
   },
-  /* Title area at the bottom of banner */
+  /* Title area positioned perfectly over the gradient */
   headerBottom: {
-    position: 'absolute', left: 16, right: 16, bottom: 16,
+    position: 'absolute', left: 16, right: 16, bottom: 16, zIndex: 5
   },
   backBtn: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center', alignItems: 'center',
   },
   menuBtn: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center', alignItems: 'center', marginLeft: 10,
   },
-  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.white, marginBottom: 3 },
-  headerMetaText: { fontSize: 12, color: 'rgba(255,255,255,0.65)', fontFamily: Typography.fontFamily.medium },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusLabel: { fontSize: 11, color: Colors.white, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.3 },
+  headerTitle: { fontSize: 24, fontWeight: '900', fontFamily: Typography.fontFamily.bold, color: Colors.white, marginBottom: 2, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  headerMetaText: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: Typography.fontFamily.medium },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  statusDot: { width: 7, height: 7, borderRadius: 3.5 },
+  statusLabel: { fontSize: 12, color: Colors.white, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.2 },
+
+  headerBadgeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 12 },
+  organizerChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  organizerChipText: { fontSize: 11, color: Colors.white, fontFamily: Typography.fontFamily.semiBold },
+
+  /* Full Width Follow Button */
+  fullWidthFollowBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, borderRadius: 12, backgroundColor: Colors.primary },
+  fullWidthFollowBtnActive: { backgroundColor: Colors.error, borderWidth: 0 },
+  fullWidthFollowText: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.backgroundElevated },
+
   followBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: Colors.primary, backgroundColor: 'rgba(154,188,47,0.15)' },
   followBtnActive: { borderColor: Colors.error, backgroundColor: 'rgba(244,67,54,0.15)' },
   followBtnText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.primary },
@@ -1464,11 +1705,11 @@ const styles = StyleSheet.create({
   tabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
 
   /* ---- MATCH SUB TABS ---- */
-  matchSubTabs: { flexDirection: 'row', backgroundColor: Colors.backgroundElevated, borderRadius: 10, margin: Spacing.md, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', minHeight: 40 },
-  matchSubTab: { flex: 1, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
-  matchSubTabActive: { backgroundColor: Colors.primary },
+  matchSubTabs: { flexDirection: 'row', marginHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 12, marginTop: 8 },
+  matchSubTab: { flex: 1, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  matchSubTabActive: { borderBottomColor: Colors.primary },
   matchSubTabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
-  matchSubTabTextActive: { color: '#011528', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  matchSubTabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
   liveCountBadge: { backgroundColor: Colors.error, borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
   liveCountBadgeActive: { backgroundColor: '#011528' },
   liveCountText: { fontSize: 9, color: Colors.white, fontFamily: Typography.fontFamily.bold },
@@ -1656,15 +1897,15 @@ const styles = StyleSheet.create({
   modalContainer: { backgroundColor: Colors.backgroundElevated, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '80%', padding: Spacing.lg },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
   modalTitle: { fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
-  
+
   searchRow: { flexDirection: 'row', alignItems: 'center' },
   searchInput: { flex: 1, backgroundColor: Colors.background, height: 48, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, borderWidth: 1, borderColor: Colors.border },
   searchBtn: { backgroundColor: Colors.primary, height: 48, width: 48, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center', marginLeft: Spacing.sm },
-  
+
   emptySearch: { alignItems: 'center', marginTop: Spacing.xl },
   createGhostBtn: { marginTop: Spacing.lg, padding: Spacing.md, borderColor: Colors.primary, borderWidth: 1, borderRadius: BorderRadius.lg },
   createGhostBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
-  
+
   label: { fontSize: 14, color: Colors.textSecondary, marginBottom: 8, marginTop: Spacing.md, fontFamily: Typography.fontFamily.medium },
   input: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, height: 50, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
 

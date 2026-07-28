@@ -7,7 +7,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchOwnerAnalytics } from '../ownerSlice';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 import api from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 

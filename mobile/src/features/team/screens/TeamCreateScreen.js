@@ -307,7 +307,7 @@ const TeamCreateScreen = ({ navigation }) => {
             label="Team Name"
             value={name}
             onChangeText={setName}
-            placeholder="e.g. Mumbai Warriors"
+            placeholder="e.g. Decolz Sports"
             error={errors.name}
             icon="shield-outline"
           />
@@ -644,12 +644,17 @@ const TeamCreateScreen = ({ navigation }) => {
           disabled={loading}
           activeOpacity={0.85}
         >
-          {loading
-            ? <ActivityIndicator color="#fff" />
-            : <>
-                <Icon name="shield-checkmark" size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.createBtnText}>Create Team</Text>
-              </>}
+          {loading ? (
+            <>
+              <ActivityIndicator color="#000" />
+              <Text style={[styles.createBtnText, { marginLeft: 8 }]}>Creating...</Text>
+            </>
+          ) : (
+            <>
+              <Icon name="shield-checkmark" size={20} color="#000" style={{ marginRight: 8 }} />
+              <Text style={styles.createBtnText}>Create Team</Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <View style={{ height: insets.bottom + 32 }} />
@@ -964,15 +969,24 @@ const styles = StyleSheet.create({
   roleChip: {
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'transparent',
+    borderColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  roleChipActive: { 
+    borderColor: Colors.primary, 
+    backgroundColor: Colors.primary,
+    ...Shadows.glow,
   },
   roleChipText: {
     fontSize: 12,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.medium,
     color: Colors.textSecondary,
+  },
+  roleChipTextActive: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
   },
 
   // Found card / name input card (squad)
@@ -1024,7 +1038,7 @@ const styles = StyleSheet.create({
     gap: 4,
     ...Shadows.sm,
   },
-  addPlayerBtnText: { color: '#fff', fontSize: 13, fontFamily: Typography.fontFamily.bold },
+  addPlayerBtnText: { color: '#000', fontSize: 13, fontFamily: Typography.fontFamily.bold },
 
   // Staged list
   stagedSection: {
@@ -1088,9 +1102,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
     ...Shadows.glow,
   },
-  createBtnDisabled: { opacity: 0.6 },
+  createBtnDisabled: { opacity: 0.7 },
   createBtnText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
     letterSpacing: 0.3,

@@ -445,6 +445,30 @@ if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
   file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/CMakeFiles/cmake.verify_globs")
 endif()
 
+# react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/*.cpp")
+set(OLD_GLOB
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/rnviewshot-generated.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/CMakeFiles/cmake.verify_globs")
+endif()
+
+# react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/react/renderer/components/rnviewshot/*.cpp")
+set(OLD_GLOB
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/react/renderer/components/rnviewshot/ComponentDescriptors.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/react/renderer/components/rnviewshot/EventEmitters.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/react/renderer/components/rnviewshot/Props.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/react/renderer/components/rnviewshot/ShadowNodes.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/react/renderer/components/rnviewshot/States.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/CMakeFiles/cmake.verify_globs")
+endif()
+
 # react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets-core/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
 file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets-core/android/build/generated/source/codegen/jni/*.cpp")
 set(OLD_GLOB

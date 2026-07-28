@@ -14,7 +14,7 @@ import {
   Alert,
   Animated,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchTurfById, clearSelectedTurf } from '../turfSlice';
@@ -373,7 +373,8 @@ const TurfDetailScreen = ({ route, navigation }) => {
               {reviews.length > 3 && (
                 <TouchableOpacity
                   style={styles.seeAllBtn}
-                  onPress={() => Alert.alert('Coming Soon', 'Full review list coming soon!')}
+                  activeOpacity={0.8}
+                  onPress={() => showCustomAlert('Coming Soon', 'Full review list coming soon!')}
                 >
                   <Text style={styles.seeAllText}>See All {reviews.length} Reviews</Text>
                   <Icon name="chevron-right" size={16} color={Colors.primary} />

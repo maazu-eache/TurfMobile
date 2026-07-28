@@ -298,23 +298,23 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
           <View style={styles.footer}>
             {!isPreviewMode ? (
               <>
-                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={onClose}>
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={onClose}>
                   <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={handleGenerate} disabled={loading}>
-                  {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.actionBtnText}>Generate</Text>}
+                  {loading ? <ActivityIndicator color="#011528" /> : <Text style={styles.actionBtnText}>Generate</Text>}
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm, paddingHorizontal: 5 }]} onPress={() => setIsPreviewMode(false)} disabled={loading}>
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm, paddingHorizontal: 5 }]} onPress={() => setIsPreviewMode(false)} disabled={loading}>
                   <Text style={[styles.actionBtnText, { color: Colors.textSecondary, fontSize: 13 }]}>Back</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm, paddingHorizontal: 5 }]} onPress={handleGenerate} disabled={loading}>
-                  {loading ? <ActivityIndicator color={Colors.textSecondary} /> : <Text style={[styles.actionBtnText, { color: Colors.textSecondary, fontSize: 13 }]}>Regenerate</Text>}
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha20, marginRight: Spacing.sm, paddingHorizontal: 5 }]} onPress={handleGenerate} disabled={loading}>
+                  {loading ? <ActivityIndicator color={Colors.primary} /> : <Text style={[styles.actionBtnText, { color: Colors.primary, fontSize: 13 }]}>Regenerate</Text>}
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, { flex: 1, paddingHorizontal: 5 }]} onPress={handleConfirm} disabled={loading}>
-                  {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={[styles.actionBtnText, { fontSize: 13 }]}>Confirm</Text>}
+                  {loading ? <ActivityIndicator color="#011528" /> : <Text style={[styles.actionBtnText, { fontSize: 13 }]}>Confirm</Text>}
                 </TouchableOpacity>
               </>
             )}
@@ -355,8 +355,8 @@ const styles = StyleSheet.create({
   pickerText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
 
   footer: { flexDirection: 'row', padding: Spacing.md, paddingBottom: Spacing.xl, borderTopWidth: 1, borderTopColor: Colors.border },
-  actionBtn: { paddingVertical: Spacing.md, borderRadius: BorderRadius.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
-  actionBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  actionBtn: { paddingVertical: 14, borderRadius: BorderRadius.xl, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
+  actionBtnText: { color: '#011528', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
   
   previewCard: { backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
   previewDate: { color: Colors.primary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12, marginBottom: Spacing.xs },

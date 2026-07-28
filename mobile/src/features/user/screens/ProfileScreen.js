@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../../auth/authSlice';
@@ -50,75 +51,85 @@ const ProfileScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profile</Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={[styles.avatar, user?.photo && { backgroundColor: 'transparent' }]}>
-            {user?.photo ? (
-              <Image source={{ uri: getImageUrl(user.photo) }} style={{ width: '100%', height: '100%', borderRadius: 30 }} />
-            ) : (
-              <Text style={styles.avatarText}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</Text>
-            )}
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.name}>{user?.name || 'User Name'}</Text>
-            <Text style={styles.email}>{user?.email || 'user@example.com'}</Text>
-            {isOwner && (
-              <View style={styles.roleBadge}>
-                <Icon name="shield-star" size={14} color="#000" />
-                <Text style={styles.roleText}>Turf Owner</Text>
-              </View>
-            )}
-          </View>
-          <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('EditProfile')}>
-            <Icon name="pencil" size={20} color={Colors.textPrimary} />
-          </TouchableOpacity>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Profile</Text>
         </View>
 
-        {/* Sections */}
-        {!isOwner && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Player Profile</Text>
-            {renderOption('cricket', 'Cricket Stats', 'View your career and matches', () => navigation.navigate('PlayerProfile'))}
-            {renderOption('account-group', 'My Teams', 'Manage your teams', () => navigation.navigate('TeamList'))}
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Profile Card */}
+          <View style={styles.profileCard}>
+            <View style={[styles.avatar, user?.photo && { backgroundColor: 'transparent' }]}>
+              {user?.photo ? (
+                <Image source={{ uri: getImageUrl(user.photo) }} style={{ width: '100%', height: '100%', borderRadius: 30 }} />
+              ) : (
+                <Text style={styles.avatarText}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</Text>
+              )}
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.name}>{user?.name || 'User Name'}</Text>
+              <Text style={styles.email}>{user?.email || 'user@example.com'}</Text>
+              {isOwner && (
+                <View style={styles.roleBadge}>
+                  <Icon name="shield-star" size={14} color="#000" />
+                  <Text style={styles.roleText}>Turf Owner</Text>
+                </View>
+              )}
+            </View>
+            <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('EditProfile')}>
+              <Icon name="pencil" size={20} color={Colors.textPrimary} />
+            </TouchableOpacity>
           </View>
-        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          {renderOption(
-            isOwner ? 'bank-transfer' : 'wallet', 
-            isOwner ? 'Settlements & Payouts' : 'Wallet & Payments', 
-            isOwner ? 'My Wallet' : 'Manage balance and methods', 
-            () => isOwner ? navigation.navigate('Dashboard', { screen: 'Wallet' }) : navigation.navigate('Wallet')
+          {/* Sections */}
+          {!isOwner && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Player Profile</Text>
+              {renderOption('cricket', 'Cricket Stats', 'View your career and matches', () => navigation.navigate('PlayerProfile'))}
+              {renderOption('account-group', 'My Teams', 'Manage your teams', () => navigation.navigate('TeamList'))}
+            </View>
           )}
-          {isOwner && renderOption('account-group', 'My Customers', 'View your unified customer list', () => navigation.navigate('Dashboard', { screen: 'OwnerCustomers' }))}
-          {renderOption('calendar-clock', 'Booking History', 'View past and upcoming bookings', () => navigation.navigate('Bookings'))}
-          {!isOwner && renderOption('heart', 'Favourites', 'View your favourite turfs', () => navigation.navigate('Favourites'))}
-          {renderOption('bell', 'Notifications', 'Manage alert preferences', () => navigation.navigate('Notifications'))}
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Other</Text>
-          {renderOption('help-circle', 'Help & Support', 'Get help with your bookings')}
-          {renderOption('shield-check', 'Privacy Policy')}
-          {renderOption('logout', 'Logout', 'Sign out of your account', handleLogout, true)}
-        </View>
-        
-        <Text style={styles.version}>Version 1.0.0</Text>
-      </ScrollView>
-    </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Account</Text>
+            {renderOption(
+              isOwner ? 'bank-transfer' : 'wallet', 
+              isOwner ? 'Settlements & Payouts' : 'Wallet & Payments', 
+              isOwner ? 'My Wallet' : 'Manage balance and methods', 
+              () => isOwner ? navigation.navigate('Dashboard', { screen: 'Wallet' }) : navigation.navigate('Wallet')
+            )}
+            {isOwner && renderOption('account-group', 'My Customers', 'View your unified customer list', () => navigation.navigate('Dashboard', { screen: 'OwnerCustomers' }))}
+            {renderOption('calendar-clock', 'Booking History', 'View past and upcoming bookings', () => navigation.navigate('Bookings'))}
+            {!isOwner && renderOption('heart', 'Favourites', 'View your favourite turfs', () => navigation.navigate('Favourites'))}
+            {renderOption('bell', 'Notifications', 'Manage alert preferences', () => navigation.navigate('Notifications'))}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Other</Text>
+            {renderOption('help-circle', 'Help & Support', 'Get help with your bookings', () => navigation.navigate('HelpSupport'))}
+            {renderOption('shield-check', 'Privacy Policy', 'Your data and privacy rights', () => navigation.navigate('PrivacyPolicy'))}
+            {renderOption('logout', 'Logout', 'Sign out of your account', handleLogout, true)}
+          </View>
+          
+          <Text style={styles.version}>Version 1.0.0</Text>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: Colors.backgroundElevated },
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { padding: Spacing.xl, paddingTop: 60, backgroundColor: Colors.backgroundElevated, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  header: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+    backgroundColor: Colors.backgroundElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
   headerTitle: { fontSize: Typography.fontSize['2xl'], fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   content: { padding: Spacing.xl, paddingBottom: 100 },
   profileCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, padding: Spacing.lg, borderRadius: BorderRadius.xl, marginBottom: Spacing['2xl'], borderWidth: 1, borderColor: Colors.border },

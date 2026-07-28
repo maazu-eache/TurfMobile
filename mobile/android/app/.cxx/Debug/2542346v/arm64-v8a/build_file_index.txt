@@ -14,6 +14,7 @@
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-share/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-svg/android/src/main/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-vector-icons/android/build/generated/source/codegen/jni/CMakeLists.txt
+/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets-core/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt

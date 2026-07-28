@@ -193,7 +193,7 @@ const MatchPlayerSelectionScreen = () => {
   };
 
   const handleUndoLastBall = () => {
-    Alert.alert(
+    showCustomAlert(
       'Undo Last Ball',
       'Are you sure you want to undo the last ball? This will take you back to the previous innings.',
       [

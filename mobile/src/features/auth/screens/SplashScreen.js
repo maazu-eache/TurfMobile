@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, ImageBackground, Image } from 'react-native';
 import { useSelector } from 'react-redux';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 import { Colors, Typography, Spacing } from '../../../theme/theme';
 import Video from 'react-native-video';
 

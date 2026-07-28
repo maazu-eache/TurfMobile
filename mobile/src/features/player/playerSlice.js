@@ -25,6 +25,11 @@ export const fetchRankings = createAsyncThunk('player/rankings', async (params, 
   catch (err) { return rejectWithValue(err.response?.data?.message); }
 });
 
+export const fetchGlobalLeaderboard = createAsyncThunk('player/globalLeaderboard', async (params, { rejectWithValue }) => {
+  try { return (await api.get('/players/leaderboard/global', { params })).data.data; }
+  catch (err) { return rejectWithValue(err.response?.data?.message || 'Failed to fetch leaderboard'); }
+});
+
 export const followPlayer = createAsyncThunk('player/follow', async (id, { rejectWithValue }) => {
   try { return (await api.post(`/players/${id}/follow`)).data.data; }
   catch (err) { return rejectWithValue(err.response?.data?.message || 'Failed to follow player'); }
@@ -54,6 +59,13 @@ const playerSlice = createSlice({
     myProfile: null,
     viewedPlayer: null,
     rankings: [],
+    globalLeaderboard: {
+      batters: [],
+      bowlers: [],
+      fielders: [],
+      category: 'batters',
+      ballType: 'All',
+    },
     matchHistory: [],
     achievements: [],
     availableBallTypes: [],
@@ -78,6 +90,20 @@ const playerSlice = createSlice({
       .addCase(fetchMatchHistory.fulfilled, (state, a) => { state.matchHistory = a.payload || []; })
       .addCase(fetchPlayerAchievements.fulfilled, (state, a) => { state.achievements = a.payload || []; })
       .addCase(fetchPlayerBallTypes.fulfilled, (state, a) => { state.availableBallTypes = a.payload || []; })
+      .addCase(fetchGlobalLeaderboard.pending, (state) => { state.isLoading = true; })
+      .addCase(fetchGlobalLeaderboard.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const { category, players, ballType } = action.payload;
+        state.globalLeaderboard.category = category;
+        state.globalLeaderboard.ballType = ballType;
+        if (category === 'batters') state.globalLeaderboard.batters = players;
+        else if (category === 'bowlers') state.globalLeaderboard.bowlers = players;
+        else if (category === 'fielders') state.globalLeaderboard.fielders = players;
+      })
+      .addCase(fetchGlobalLeaderboard.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
       .addCase(followPlayer.fulfilled, (state, a) => {
         const targetId = a.meta.arg;
         if (state.myProfile) {

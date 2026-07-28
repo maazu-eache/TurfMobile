@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api from '../../../api/axios';
@@ -70,45 +71,56 @@ const FavouritesScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Favourites</Text>
-      </View>
-
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      ) : favourites.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Icon name="heart-broken" size={60} color={Colors.border} />
-          <Text style={styles.emptyTitle}>No Favourites Yet</Text>
-          <Text style={styles.emptyDesc}>Turfs you mark as favourite will appear here.</Text>
-          <TouchableOpacity style={styles.exploreBtn} onPress={() => navigation.navigate('Home')}>
-            <Text style={styles.exploreBtnText}>Explore Turfs</Text>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>Favourites</Text>
         </View>
-      ) : (
-        <FlatList
-          data={favourites}
-          keyExtractor={(item) => item._id}
-          renderItem={renderTurf}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-    </View>
+
+        {isLoading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+          </View>
+        ) : favourites.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Icon name="heart-broken" size={60} color={Colors.border} />
+            <Text style={styles.emptyTitle}>No Favourites Yet</Text>
+            <Text style={styles.emptyDesc}>Turfs you mark as favourite will appear here.</Text>
+            <TouchableOpacity style={styles.exploreBtn} onPress={() => navigation.navigate('Home')}>
+              <Text style={styles.exploreBtnText}>Explore Turfs</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={favourites}
+            keyExtractor={(item) => item._id}
+            renderItem={renderTurf}
+            contentContainerStyle={styles.listContainer}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 };
-
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: Colors.backgroundElevated },
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', padding: Spacing.xl, paddingTop: 60, backgroundColor: Colors.backgroundElevated, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+    backgroundColor: Colors.backgroundElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
   backBtn: { padding: 4, marginRight: Spacing.md },
-  headerTitle: { fontSize: Typography.fontSize.xl, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  headerTitle: { fontSize: Typography.fontSize['2xl'], fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   listContainer: { padding: Spacing.xl, paddingBottom: 100 },
   card: { height: 200, borderRadius: BorderRadius.xl, overflow: 'hidden', marginBottom: Spacing.xl, backgroundColor: Colors.surface, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },

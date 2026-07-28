@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl, Share } from 'react-native';
+import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -97,6 +97,22 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       if (!silent) setLoadingScorecards(false);
     }
   }, [cleanMatchId]);
+
+  const handleShare = async () => {
+    try {
+      const teamAName = liveState?.match?.teamA?.name || 'Team A';
+      const teamBName = liveState?.match?.teamB?.name || 'Team B';
+      const matchUrl = `https://sportverse.app/match/${cleanMatchId}`;
+      const message = `Catch the live cricket action: ${teamAName} vs ${teamBName} on SportVerse!\n\nFollow live score here: ${matchUrl}`;
+      await Share.share({
+        message,
+        title: `${teamAName} vs ${teamBName} - Live Score`
+      });
+    } catch (error) {
+      console.log('Error sharing match', error);
+    }
+  };
+
 
   const fetchCommentary = useCallback(async (silent = false) => {
     if (!cleanMatchId) return;
@@ -2265,7 +2281,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             ) : null}
           </View>
 
-          <View style={{ width: 36 }} />
+          <View style={{ width: 36 }}>
+            <TouchableOpacity style={{ padding: 8 }} onPress={handleShare}>
+              <Icon name="share-variant" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Tab Bar */}

@@ -16,6 +16,7 @@
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-share/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-svg/android/src/main/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-vector-icons/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets-core/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt"
@@ -37,6 +38,11 @@
   "libraries": {
     "react_codegen_RNOneSignalSpec::@c8beb593ba2a9b201f0b": {
       "artifactName": "react_codegen_RNOneSignalSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_rnviewshot::@0ba03d237e60b9258a87": {
+      "artifactName": "react_codegen_rnviewshot",
       "abi": "arm64-v8a",
       "runtimeFiles": []
     },

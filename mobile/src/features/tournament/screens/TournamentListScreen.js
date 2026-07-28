@@ -52,8 +52,9 @@ const TournamentListScreen = ({ navigation }) => {
       onPress={() => navigation.navigate('TournamentDetail', { tournamentId: item._id })}
     >
       <Image 
-        source={{ uri: item.banner ? item.banner.replace('localhost', '192.168.1.5') : 'https://via.placeholder.com/400x200' }} 
+        source={{ uri: item.banner ? item.banner.replace('localhost', '192.168.1.5') : 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=600&auto=format&fit=crop' }} 
         style={styles.cardBanner} 
+        blurRadius={item.banner ? 0 : 3}
       />
       <View style={styles.cardBody}>
         <View style={styles.cardHeader}>
@@ -149,7 +150,7 @@ const styles = StyleSheet.create({
   tabBtn: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: 20, backgroundColor: Colors.backgroundElevated, marginRight: Spacing.sm },
   tabBtnActive: { backgroundColor: Colors.primary },
   tabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  tabTextActive: { color: Colors.white },
+  tabTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold },
   listContent: { padding: Spacing.lg, paddingBottom: 100 },
   card: { backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, marginBottom: Spacing.lg, overflow: 'hidden', elevation: 2 },
   cardBanner: { width: '100%', height: 140, backgroundColor: '#e1e4e8' },

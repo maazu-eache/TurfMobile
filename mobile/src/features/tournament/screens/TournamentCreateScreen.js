@@ -294,10 +294,10 @@ const TournamentCreateScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.typeToggle}>
-        <TouchableOpacity onPress={() => setForm({ ...form, tournamentType: 'Standard' })} style={[styles.typeBtn, form.tournamentType === 'Standard' && styles.typeBtnActive]}>
+        <TouchableOpacity disabled={step > 0} onPress={() => setForm({ ...form, tournamentType: 'Standard' })} style={[styles.typeBtn, form.tournamentType === 'Standard' && styles.typeBtnActive, step > 0 && { opacity: 0.5 }]}>
           <Text style={[styles.typeBtnText, form.tournamentType === 'Standard' && styles.typeBtnTextActive]}>Standard</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setForm({ ...form, tournamentType: 'Auction' })} style={[styles.typeBtn, form.tournamentType === 'Auction' && styles.typeBtnActive]}>
+        <TouchableOpacity disabled={step > 0} onPress={() => setForm({ ...form, tournamentType: 'Auction' })} style={[styles.typeBtn, form.tournamentType === 'Auction' && styles.typeBtnActive, step > 0 && { opacity: 0.5 }]}>
           <Text style={[styles.typeBtnText, form.tournamentType === 'Auction' && styles.typeBtnTextActive]}>Auction</Text>
         </TouchableOpacity>
       </View>
@@ -445,9 +445,11 @@ const TournamentCreateScreen = ({ navigation }) => {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>{form.tournamentType === 'Auction' ? 'Player Registration Fee (₹)' : 'Team Registration Fee (₹)'}</Text>
                 <TextInput style={styles.input} keyboardType="numeric" placeholderTextColor={offWhite} value={form.entryFee} onChangeText={(t) => setForm({ ...form, entryFee: t })} placeholder="₹ 0" />
-                <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
-                  Note: A 10% platform fee will be deducted for each registration made through the platform.
-                </Text>
+                {form.tournamentType === 'Auction' && (
+                  <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
+                    Note: A 10% platform fee will be deducted for each registration made through the platform.
+                  </Text>
+                )}
               </View>
 
               {form.tournamentType === 'Auction' && (
@@ -526,7 +528,14 @@ const TournamentCreateScreen = ({ navigation }) => {
 
       <View style={styles.footer}>
         <TouchableOpacity style={styles.primaryBtn} onPress={handleNext} disabled={loading}>
-          {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.primaryBtnText}>{step === 0 ? 'Next' : 'Create Tournament'}</Text>}
+          {loading ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <ActivityIndicator color={Colors.white} style={{ marginRight: 8 }} />
+              <Text style={styles.primaryBtnText}>{step === 0 ? 'Processing...' : 'Creating...'}</Text>
+            </View>
+          ) : (
+            <Text style={styles.primaryBtnText}>{step === 0 ? 'Next' : 'Create Tournament'}</Text>
+          )}
         </TouchableOpacity>
       </View>
 

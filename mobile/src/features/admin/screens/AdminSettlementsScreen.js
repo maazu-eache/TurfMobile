@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Modal, TextInput, ScrollView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../api/axios';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';

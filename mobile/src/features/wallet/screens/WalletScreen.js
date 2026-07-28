@@ -73,7 +73,10 @@ const DonutTimer = ({ createdAt }) => {
   );
 };
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 const WalletScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [wallet, setWallet] = useState({ balance: 0, pendingWithdrawal: 0, totalEarned: 0 });
   const [withdrawals, setWithdrawals] = useState([]);
   const [bankDetails, setBankDetails] = useState(null);
@@ -259,7 +262,7 @@ const WalletScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top || 16 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
@@ -271,14 +274,19 @@ const WalletScreen = ({ navigation }) => {
       ) : (
         <View style={styles.content}>
           <View style={styles.balanceCard}>
-            <Text style={styles.balanceLabel}>Available Balance</Text>
+            <View style={styles.balanceHeader}>
+              <Icon name="wallet-outline" size={20} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.balanceLabel}>Available Balance</Text>
+            </View>
             <Text style={styles.balanceValue}>₹{wallet.balance.toLocaleString()}</Text>
+            
             <View style={styles.balanceRow}>
-              <View>
+              <View style={styles.balanceStatBox}>
                 <Text style={styles.subLabel}>Pending Withdrawal</Text>
                 <Text style={styles.subValue}>₹{wallet.pendingWithdrawal.toLocaleString()}</Text>
               </View>
-              <View>
+              <View style={styles.balanceStatDivider} />
+              <View style={styles.balanceStatBox}>
                 <Text style={styles.subLabel}>Total Earned</Text>
                 <Text style={[styles.subValue, { color: Colors.primary }]}>₹{wallet.totalEarned.toLocaleString()}</Text>
               </View>
@@ -289,7 +297,7 @@ const WalletScreen = ({ navigation }) => {
               onPress={openWithdrawModal}
               disabled={wallet.balance <= 0 || !bankDetails?.accountNumber}
             >
-              <Text style={styles.withdrawBtnText}>Request Withdrawal</Text>
+              <Text style={[styles.withdrawBtnText, (wallet.balance <= 0 || !bankDetails?.accountNumber) && { color: Colors.textSecondary }]}>Request Withdrawal</Text>
             </TouchableOpacity>
           </View>
 
@@ -474,7 +482,7 @@ const WalletScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { 
-    paddingHorizontal: Spacing.lg, paddingTop: 60, paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md,
     backgroundColor: Colors.backgroundCard, flexDirection: 'row', alignItems: 'center',
     borderBottomWidth: 1, borderBottomColor: Colors.border
   },
@@ -482,27 +490,55 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   content: { flex: 1, padding: Spacing.lg },
   
-  balanceCard: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.lg, padding: Spacing.xl, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
-  balanceLabel: { fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },
-  balanceValue: { fontSize: 36, color: Colors.textPrimary, fontFamily: Typography.fontFamily.extraBold, marginBottom: Spacing.lg },
-  balanceRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: Spacing.lg },
-  subLabel: { fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  subValue: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: 4 },
+  balanceCard: { 
+    borderRadius: 20, 
+    padding: Spacing.xl, 
+    marginBottom: Spacing.xl, 
+    borderWidth: 1, 
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    alignItems: 'center',
+  },
+  balanceHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  balanceLabel: { fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, letterSpacing: 0.5, textTransform: 'uppercase' },
+  balanceValue: { 
+    fontSize: 44, 
+    color: Colors.textPrimary, 
+    fontFamily: Typography.fontFamily.extraBold, 
+    marginBottom: Spacing.lg,
+  },
+  balanceRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: Spacing.xl, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 12 },
+  balanceStatBox: { flex: 1, alignItems: 'center' },
+  balanceStatDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.1)', height: '80%', alignSelf: 'center' },
+  subLabel: { fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: 4 },
+  subValue: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
   
-  withdrawBtn: { backgroundColor: Colors.primary, paddingVertical: 14, paddingHorizontal: 24, borderRadius: BorderRadius.md, width: '100%', alignItems: 'center' },
-  withdrawBtnDisabled: { backgroundColor: Colors.surfaceVariant },
-  withdrawBtnText: { color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  withdrawBtn: { 
+    backgroundColor: Colors.primary, 
+    paddingVertical: 16, 
+    paddingHorizontal: 24, 
+    borderRadius: 12, 
+    width: '100%', 
+    alignItems: 'center',
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  withdrawBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.05)', shadowOpacity: 0, elevation: 0, borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1 },
+  withdrawBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16, letterSpacing: 0.5 },
 
-  bankCard: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.lg, padding: Spacing.lg, marginBottom: Spacing.xl, borderWidth: 1, borderColor: Colors.border },
+  bankCard: { backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: Spacing.lg, marginBottom: Spacing.xl, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   bankHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
   bankTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  bankInfo: { marginTop: Spacing.xs },
+  bankInfo: { marginTop: Spacing.xs, backgroundColor: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8 },
   bankText: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginBottom: 4 },
   
-  addBankContainer: { alignItems: 'center', marginTop: Spacing.sm },
-  noBankText: { fontSize: 14, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.sm },
-  addBankBtn: { backgroundColor: Colors.surface, paddingVertical: 10, paddingHorizontal: 20, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border },
-  addBankBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  addBankContainer: { alignItems: 'center', marginTop: Spacing.md, paddingVertical: Spacing.md, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 12 },
+  noBankText: { fontSize: 13, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.md },
+  addBankBtn: { backgroundColor: 'rgba(215,255,0,0.1)', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(215,255,0,0.3)' },
+  addBankBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
 
   sectionTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.md },
   emptyText: { textAlign: 'center', marginVertical: 20, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },

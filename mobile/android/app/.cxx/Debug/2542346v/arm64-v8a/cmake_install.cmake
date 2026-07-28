@@ -60,6 +60,7 @@ if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNShareSpec_autolinked_build/cmake_install.cmake")
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/rnsvg_autolinked_build/cmake_install.cmake")
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNVectorIconsSpec_autolinked_build/cmake_install.cmake")
+  include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/rnviewshot_autolinked_build/cmake_install.cmake")
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/rnworklets_autolinked_build/cmake_install.cmake")
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNWorkletsSpec_autolinked_build/cmake_install.cmake")
 

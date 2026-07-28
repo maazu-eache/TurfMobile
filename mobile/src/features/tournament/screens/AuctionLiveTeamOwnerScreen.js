@@ -23,6 +23,7 @@ const AuctionLiveTeamOwnerScreen = ({ route, navigation }) => {
   const [ownerData, setOwnerData] = useState(null);
   const [liveState, setLiveState] = useState(null);
   const [squadExpanded, setSquadExpanded] = useState(true);
+  const [lastSold, setLastSold] = useState(null); // { player, team, price }
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -54,7 +55,21 @@ const AuctionLiveTeamOwnerScreen = ({ route, navigation }) => {
           Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
           Animated.timing(opacityAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
         ]).start();
-        setLiveState(updatedState);
+        setLiveState(prev => {
+          if (prev?.auction?.currentPlayer && !updatedState?.auction?.currentPlayer) {
+            const lastHistory = updatedState?.history?.[0];
+            if (lastHistory?.eventType === 'player_sold') {
+              const reg = prev.auction.currentPlayer;
+              const winTeamId = lastHistory?.team;
+              const winTeam = (updatedState.teams || []).find(t => t._id?.toString() === winTeamId?.toString());
+              setLastSold({ player: reg, team: winTeam, price: lastHistory?.amount || 0 });
+            }
+          }
+          if (updatedState?.auction?.currentPlayer) {
+            setLastSold(null);
+          }
+          return updatedState;
+        });
         loadOwnerData();
       });
 
@@ -212,6 +227,50 @@ const AuctionLiveTeamOwnerScreen = ({ route, navigation }) => {
             <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 14, color: Colors.textTertiary, marginTop: 8, textAlign: 'center', paddingHorizontal: 20 }}>
               The auction has been successfully closed.
             </Text>
+          </View>
+        ) : lastSold ? (
+          /* ── SOLD STAMP CARD ── */
+          <View style={styles.soldStampCard}>
+            <View style={styles.soldPhotoWrap}>
+              {lastSold.player?.photo ? (
+                <Image source={{ uri: getImageUrl(lastSold.player.photo) }} style={styles.soldPlayerPhoto} />
+              ) : (
+                <View style={[styles.soldPlayerPhoto, { backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Icon name="account" size={60} color="#555" />
+                </View>
+              )}
+              <View style={styles.stampWrap} pointerEvents="none">
+                <View style={styles.stampInner}>
+                  <Text style={styles.stampText}>SOLD</Text>
+                </View>
+              </View>
+            </View>
+            <Text style={styles.soldPlayerName} numberOfLines={1}>{lastSold.player?.fullName}</Text>
+            <View style={styles.soldRolePill}>
+              <Icon name="cricket" size={12} color={Colors.primary} />
+              <Text style={styles.soldRoleText}>{lastSold.player?.role}</Text>
+            </View>
+            <View style={styles.soldDivider} />
+            <View style={styles.soldTeamPriceRow}>
+              <View style={styles.soldTeamBox}>
+                {lastSold.team?.logo ? (
+                  <Image source={{ uri: getImageUrl(lastSold.team.logo) }} style={styles.soldTeamLogo} />
+                ) : (
+                  <View style={[styles.soldTeamLogo, { backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
+                    <Icon name="shield-crown" size={20} color={Colors.primary} />
+                  </View>
+                )}
+                <View style={{ marginLeft: 8 }}>
+                  <Text style={styles.soldTeamLabel}>SOLD TO</Text>
+                  <Text style={styles.soldTeamName} numberOfLines={1}>{lastSold.team?.name || lastSold.team?.shortName || 'Unknown'}</Text>
+                </View>
+              </View>
+              <View style={styles.soldPriceBox}>
+                <Text style={styles.soldPriceLabel}>FINAL PRICE</Text>
+                <Text style={styles.soldPriceValue}>{lastSold.price}</Text>
+                <Text style={styles.soldPriceUnit}>Pts</Text>
+              </View>
+            </View>
           </View>
         ) : (
           <Animated.View style={[styles.photoCard, { opacity: opacityAnim, transform: [{ translateY: slideAnim }] }]}>
@@ -379,6 +438,65 @@ const styles = StyleSheet.create({
   progressBarBg: { height: 5, borderRadius: 3, backgroundColor: Colors.surface, overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 3, backgroundColor: Colors.primary },
   progressLabel: { marginTop: 4, fontSize: 11, color: Colors.textTertiary, textAlign: 'right' },
+
+  // SOLD Stamp Card
+  soldStampCard: {
+    backgroundColor: Colors.backgroundElevated,
+    borderRadius: 20, padding: 16, alignItems: 'center', marginBottom: 16,
+    borderWidth: 1.5, borderColor: '#16a34a',
+    shadowColor: '#16a34a', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
+  },
+  soldPhotoWrap: {
+    width: 120, height: 120, borderRadius: 60, overflow: 'hidden',
+    marginBottom: 10, borderWidth: 3, borderColor: '#16a34a', position: 'relative',
+  },
+  soldPlayerPhoto: { width: '100%', height: '100%', resizeMode: 'cover' },
+  stampWrap: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    justifyContent: 'center', alignItems: 'center',
+    transform: [{ rotate: '-25deg' }],
+  },
+  stampInner: {
+    borderWidth: 4, borderColor: '#16a34a', borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  stampText: {
+    color: '#22c55e', fontSize: 24, fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 4,
+    textShadowColor: '#000', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 4,
+  },
+  soldPlayerName: {
+    fontSize: 17, fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary, marginBottom: 4, textAlign: 'center',
+  },
+  soldRolePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: Colors.surface, borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: Colors.border, marginBottom: 10,
+  },
+  soldRoleText: { color: Colors.primary, fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  soldDivider: { width: '100%', height: 1, backgroundColor: Colors.border, marginVertical: 10 },
+  soldTeamPriceRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', width: '100%', paddingHorizontal: 4,
+  },
+  soldTeamBox: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  soldTeamLogo: { width: 42, height: 42, borderRadius: 21, borderWidth: 2, borderColor: Colors.primary },
+  soldTeamLabel: {
+    color: Colors.textTertiary, fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 1, marginBottom: 2,
+  },
+  soldTeamName: { color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold, maxWidth: 110 },
+  soldPriceBox: {
+    alignItems: 'flex-end', backgroundColor: 'rgba(22,163,74,0.12)',
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
+    borderWidth: 1, borderColor: '#16a34a',
+  },
+  soldPriceLabel: { color: '#16a34a', fontSize: 8, fontFamily: Typography.fontFamily.bold, letterSpacing: 1 },
+  soldPriceValue: { color: '#22c55e', fontSize: 24, fontFamily: Typography.fontFamily.bold, lineHeight: 26 },
+  soldPriceUnit: { color: '#16a34a', fontSize: 10, fontFamily: Typography.fontFamily.bold },
 
   purseCard: {
     backgroundColor: Colors.backgroundElevated, borderRadius: 18, padding: Spacing.lg,

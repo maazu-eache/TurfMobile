@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/Feather';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 import { Colors, Typography } from '../../../theme/theme';
 import { addPlayerToTeam, getLastSquad, fetchMyTeams, fetchOpponentTeams, lookupPlayerByMobile, fetchTeamById } from '../../team/teamSlice';
 import { getImageUrl } from '../../../api/axios';

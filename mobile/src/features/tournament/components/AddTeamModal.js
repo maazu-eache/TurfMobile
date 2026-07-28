@@ -346,7 +346,14 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                       <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={handleCreateGhostTeam} disabled={actionLoading}>
-                      {actionLoading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.actionBtnText}>Create Team</Text>}
+                      {actionLoading ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <ActivityIndicator size="small" color="#000" />
+                          <Text style={[styles.actionBtnText, { marginLeft: 8 }]}>Creating...</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.actionBtnText}>Create Team</Text>
+                      )}
                     </TouchableOpacity>
                   </View>
                 </ScrollView>
@@ -390,7 +397,7 @@ const styles = StyleSheet.create({
   tabBtn: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: 20, marginRight: Spacing.sm, backgroundColor: Colors.background },
   tabBtnActive: { backgroundColor: Colors.primary },
   tabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  tabTextActive: { color: Colors.white },
+  tabTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold },
 
   searchRow: { flexDirection: 'row', padding: Spacing.md, paddingBottom: 0 },
   searchInput: { flex: 1, backgroundColor: Colors.backgroundElevated, color: Colors.textPrimary, paddingHorizontal: Spacing.md, height: 44, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border },
@@ -406,12 +413,12 @@ const styles = StyleSheet.create({
   teamNameText: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   teamSub: { fontSize: 13, color: Colors.textSecondary },
   smallActionBtn: { backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: BorderRadius.md },
-  smallActionBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  smallActionBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
   
   label: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.xs, marginTop: Spacing.sm },
   input: { backgroundColor: Colors.backgroundElevated, color: Colors.textPrimary, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border },
   actionBtn: { paddingVertical: Spacing.md, borderRadius: BorderRadius.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
-  actionBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 16 }
+  actionBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 }
 });
 
 export default AddTeamModal;

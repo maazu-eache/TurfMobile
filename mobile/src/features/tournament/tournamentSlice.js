@@ -17,7 +17,19 @@ export const createTournament = createAsyncThunk('tournament/create', async (for
 const tournamentSlice = createSlice({
   name: 'tournament',
   initialState: { tournaments: [], selectedTournament: null, isLoading: false, error: null },
-  reducers: { clearSelectedTournament: (state) => { state.selectedTournament = null; } },
+  reducers: { 
+    clearSelectedTournament: (state) => { state.selectedTournament = null; },
+    toggleTournamentFollow: (state, action) => {
+      const { tournamentId, userId } = action.payload;
+      const tournament = state.tournaments.find(t => t._id === tournamentId);
+      if (tournament) {
+        if (!tournament.followers) tournament.followers = [];
+        const idx = tournament.followers.indexOf(userId);
+        if (idx >= 0) tournament.followers.splice(idx, 1);
+        else tournament.followers.push(userId);
+      }
+    }
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchTournaments.fulfilled, (state, a) => {
@@ -33,5 +45,5 @@ const tournamentSlice = createSlice({
       .addCase(createTournament.fulfilled, (state, a) => { state.tournaments.unshift(a.payload); });
   },
 });
-export const { clearSelectedTournament } = tournamentSlice.actions;
+export const { clearSelectedTournament, toggleTournamentFollow } = tournamentSlice.actions;
 export default tournamentSlice.reducer;

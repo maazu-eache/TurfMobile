@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Image, TextInput, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Image, TextInput, RefreshControl, Alert, ToastAndroid, Platform } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,15 +7,17 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import { fetchMyMatches, updateLiveMatchScore } from '../matchSlice';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams } from '../../team/teamSlice';
-import { fetchTournaments } from '../../tournament/tournamentSlice';
-import { getImageUrl, BASE_URL } from '../../../api/axios';
+import { fetchTournaments, toggleTournamentFollow } from '../../tournament/tournamentSlice';
+import api, { getImageUrl, BASE_URL } from '../../../api/axios';
 import socketService from '../../../services/socketService';
 import moment from 'moment';
+import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
+import { showCustomAlert } from '../../../components/CustomAlert';
 
 const TOP_TABS = ['Matches', 'Tournaments', 'Teams'];
 const MATCH_SUB_TABS = ['My', 'Played', 'Network'];
 const TEAM_SUB_TABS = ['My', 'Opponents', 'Following'];
-const TOURNAMENT_SUB_TABS = ['My', 'Participate', 'Network'];
+const TOURNAMENT_SUB_TABS = ['My', 'Following', 'Near By'];
 
 const MyCricketScreen = ({ route }) => {
   const [activeTopTab, setActiveTopTab] = useState('Matches');
@@ -37,10 +39,21 @@ const MyCricketScreen = ({ route }) => {
   }, [route?.params?.tab, navigation]);
   const insets = useSafeAreaInsets();
 
-  const { myMatches, matches } = useSelector(state => state.match);
-  const { myTeams, opponentTeams, followingTeams } = useSelector(state => state.team);
-  const { tournaments } = useSelector(state => state.tournament);
-  const { user } = useSelector(state => state.auth);
+  const { myMatches, matches, isLoading: matchLoading } = useSelector(state => state.match);
+  const { myTeams, opponentTeams, followingTeams, isLoading: teamLoading, opponentsLoading, followingLoading } = useSelector(state => state.team);
+  const { tournaments, isLoading: tournamentLoading } = useSelector(state => state.tournament);
+  const { user, isAuthenticated } = useSelector(state => state.auth);
+  const { myProfile } = useSelector(state => state.player);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.navigate('AuthModal', { screen: 'Login' });
+    }
+  }, [isAuthenticated, navigation]);
+
+  // Show nothing while redirecting
+  if (!isAuthenticated) return null;
 
   useEffect(() => {
     let intervalId;
@@ -76,7 +89,14 @@ const MyCricketScreen = ({ route }) => {
       if (activeTopTab === 'Tournaments') {
         const params = { limit: 20 };
         if (activeSubTab === 'My') params.filterType = 'my';
-        else if (activeSubTab === 'Participate') params.filterType = 'participate';
+        else if (activeSubTab === 'Following') params.filterType = 'following';
+        else if (activeSubTab === 'Near By') {
+          if (myProfile?.city) params.city = myProfile.city;
+          if (myProfile?.latitude && myProfile?.longitude) {
+            params.lat = myProfile.latitude;
+            params.lng = myProfile.longitude;
+          }
+        }
         dispatch(fetchTournaments(params));
       }
     }
@@ -119,18 +139,35 @@ const MyCricketScreen = ({ route }) => {
 
   const handleFollowTournament = async (tournamentId, isFollowing) => {
     try {
+      // Optimistic update
+      dispatch(toggleTournamentFollow({ tournamentId, userId: user?._id }));
+      
+      const actionStr = isFollowing ? 'Unfollowed' : 'Following';
+      const msg = isFollowing ? 'You unfollowed this tournament.' : 'You are now following this tournament!';
+      if (Platform.OS === 'android') ToastAndroid.show(msg, ToastAndroid.SHORT);
+      else showCustomAlert(actionStr, msg);
+
       if (isFollowing) {
         await api.post(`/tournaments/${tournamentId}/unfollow`);
       } else {
         await api.post(`/tournaments/${tournamentId}/follow`);
       }
-      // Refresh tournaments
+      
+      // Refresh tournaments in the background
       const params = { limit: 20 };
       if (activeSubTab === 'My') params.filterType = 'my';
-      else if (activeSubTab === 'Participate') params.filterType = 'participate';
+      else if (activeSubTab === 'Following') params.filterType = 'following';
+      else if (activeSubTab === 'Near By') {
+        if (myProfile?.city) params.city = myProfile.city;
+        if (myProfile?.latitude && myProfile?.longitude) {
+          params.lat = myProfile.latitude;
+          params.lng = myProfile.longitude;
+        }
+      }
       dispatch(fetchTournaments(params));
     } catch (e) {
       console.log('Error following/unfollowing tournament', e);
+      showCustomAlert('Error', e.response?.data?.message || 'Failed to follow/unfollow tournament');
     }
   };
 
@@ -141,7 +178,14 @@ const MyCricketScreen = ({ route }) => {
     } else if (activeTopTab === 'Tournaments') {
       const params = { limit: 20 };
       if (activeSubTab === 'My') params.filterType = 'my';
-      else if (activeSubTab === 'Participate') params.filterType = 'participate';
+      else if (activeSubTab === 'Following') params.filterType = 'following';
+      else if (activeSubTab === 'Near By') {
+        if (myProfile?.city) params.city = myProfile.city;
+        if (myProfile?.latitude && myProfile?.longitude) {
+          params.lat = myProfile.latitude;
+          params.lng = myProfile.longitude;
+        }
+      }
       dispatch(fetchTournaments(params));
     } else if (activeTopTab === 'Teams') {
       dispatch(fetchMyTeams());
@@ -245,12 +289,10 @@ const MyCricketScreen = ({ route }) => {
           item.status === 'ongoing' ? 'Live' : 
           item.status === 'completed' ? 'Completed' : 'Past'
         }</Text></View>
-        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.tournamentGradient}>
-          <Text style={styles.tournamentTitle}>{item.name}</Text>
-        </LinearGradient>
       </View>
       <View style={styles.tournamentFooter}>
         <View style={{ flex: 1 }}>
+          <Text style={[styles.tournamentTitle, { position: 'relative', bottom: 0, padding: 0, color: Colors.textPrimary, marginBottom: 4, textShadowRadius: 0 }]}>{item.name}</Text>
           <Text style={styles.tournamentDate}>
             {item.startDate ? `Starts: ${moment(item.startDate).format('DD MMM, YYYY')}` : 'Date TBD'}
             {item.endDate ? ` to ${moment(item.endDate).format('DD MMM, YYYY')}` : ''}
@@ -258,8 +300,7 @@ const MyCricketScreen = ({ route }) => {
           <Text style={styles.tournamentCity}>{item.city || 'City'}</Text>
         </View>
         <TouchableOpacity 
-          onPress={(e) => { 
-            e.stopPropagation(); 
+          onPress={() => { 
             handleFollowTournament(item._id, item.followers?.includes(user?._id)); 
           }}
           style={{ padding: 8, paddingRight: 0 }}
@@ -307,8 +348,60 @@ const MyCricketScreen = ({ route }) => {
     );
   };
 
+  const renderMatchSkeleton = () => (
+    <View style={styles.cardContainer}>
+      <SkeletonPlaceholder borderRadius={4} backgroundColor={Colors.borderLight} highlightColor={Colors.background}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+          <View style={{ width: 150, height: 16, borderRadius: 4 }} />
+          <View style={{ width: 60, height: 20, borderRadius: 10 }} />
+        </View>
+        <View style={{ width: 200, height: 12, borderRadius: 4, marginBottom: 16 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+          <View style={{ width: 100, height: 16, borderRadius: 4 }} />
+          <View style={{ width: 40, height: 16, borderRadius: 4 }} />
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+          <View style={{ width: 100, height: 16, borderRadius: 4 }} />
+          <View style={{ width: 40, height: 16, borderRadius: 4 }} />
+        </View>
+        <View style={{ width: 120, height: 14, borderRadius: 4 }} />
+      </SkeletonPlaceholder>
+    </View>
+  );
+
+  const renderTournamentSkeleton = () => (
+    <View style={styles.tournamentCard}>
+      <SkeletonPlaceholder borderRadius={4} backgroundColor={Colors.borderLight} highlightColor={Colors.background}>
+        <View style={{ width: '100%', height: 140 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 12 }}>
+          <View>
+            <View style={{ width: 120, height: 14, borderRadius: 4, marginBottom: 8 }} />
+            <View style={{ width: 80, height: 12, borderRadius: 4 }} />
+          </View>
+          <View style={{ width: 60, height: 20, borderRadius: 4 }} />
+        </View>
+      </SkeletonPlaceholder>
+    </View>
+  );
+
+  const renderTeamSkeleton = () => (
+    <View style={styles.teamCard}>
+      <SkeletonPlaceholder borderRadius={4} backgroundColor={Colors.borderLight} highlightColor={Colors.background}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 48, height: 48, borderRadius: 24, marginRight: 12 }} />
+          <View style={{ flex: 1 }}>
+            <View style={{ width: 120, height: 16, borderRadius: 4, marginBottom: 8 }} />
+            <View style={{ width: 180, height: 12, borderRadius: 4 }} />
+          </View>
+        </View>
+      </SkeletonPlaceholder>
+    </View>
+  );
+
   const renderContent = () => {
     if (activeTopTab === 'Matches') {
+      const isListLoading = matchLoading && !refreshing;
+
       return (
         <>
           <View style={styles.actionHeader}>
@@ -318,17 +411,25 @@ const MyCricketScreen = ({ route }) => {
             </TouchableOpacity>
           </View>
           {renderSubTabBar(MATCH_SUB_TABS)}
-          <FlatList
-            data={myMatches}
-            keyExtractor={i => i._id}
-            renderItem={renderMatchCard}
-            contentContainerStyle={styles.listContainer}
-            ListEmptyComponent={<Text style={styles.emptyText}>No matches found</Text>}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
-          />
+          {isListLoading ? (
+            <View style={styles.listContainer}>
+              {[1, 2, 3].map(i => <React.Fragment key={i}>{renderMatchSkeleton()}</React.Fragment>)}
+            </View>
+          ) : (
+            <FlatList
+              data={myMatches}
+              keyExtractor={i => i._id}
+              renderItem={renderMatchCard}
+              contentContainerStyle={styles.listContainer}
+              ListEmptyComponent={<Text style={styles.emptyText}>No matches found</Text>}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            />
+          )}
         </>
       );
     } else if (activeTopTab === 'Tournaments') {
+      const isListLoading = tournamentLoading && !refreshing;
+
       return (
         <>
           <View style={styles.actionHeader}>
@@ -338,17 +439,37 @@ const MyCricketScreen = ({ route }) => {
             </TouchableOpacity>
           </View>
           {renderSubTabBar(TOURNAMENT_SUB_TABS)}
-          <FlatList
-            data={tournaments}
-            keyExtractor={i => i._id}
-            renderItem={renderTournamentCard}
-            contentContainerStyle={styles.listContainer}
-            ListEmptyComponent={<Text style={styles.emptyText}>No tournaments found</Text>}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
-          />
+          <View style={styles.searchContainer}>
+            <Icon name="magnify" size={20} color={Colors.textTertiary} style={styles.searchIcon} />
+            <TextInput 
+              style={styles.searchInput}
+              placeholder="Search by name"
+              placeholderTextColor={Colors.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+          {isListLoading ? (
+            <View style={styles.listContainer}>
+              {[1, 2].map(i => <React.Fragment key={i}>{renderTournamentSkeleton()}</React.Fragment>)}
+            </View>
+          ) : (
+            <FlatList
+              data={tournaments.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))}
+              keyExtractor={i => i._id}
+              renderItem={renderTournamentCard}
+              contentContainerStyle={styles.listContainer}
+              ListEmptyComponent={<Text style={styles.emptyText}>No tournaments found</Text>}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            />
+          )}
         </>
       );
     } else if (activeTopTab === 'Teams') {
+      const isListLoading = (teamLoading || opponentsLoading || followingLoading) && !refreshing;
+      
+      const teamData = activeSubTab === 'My' ? myTeams : activeSubTab === 'Opponents' ? opponentTeams : followingTeams || [];
+
       return (
         <>
           <View style={styles.actionHeader}>
@@ -368,18 +489,20 @@ const MyCricketScreen = ({ route }) => {
               onChangeText={setSearchQuery}
             />
           </View>
-          <FlatList
-            data={(
-              activeSubTab === 'My' ? myTeams :
-              activeSubTab === 'Opponents' ? opponentTeams :
-              followingTeams || []
-            ).filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))}
-            keyExtractor={i => i._id}
-            renderItem={renderTeamCard}
-            contentContainerStyle={styles.listContainer}
-            ListEmptyComponent={<Text style={styles.emptyText}>No teams found</Text>}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
-          />
+          {isListLoading ? (
+            <View style={styles.listContainer}>
+              {[1, 2, 3, 4].map(i => <React.Fragment key={i}>{renderTeamSkeleton()}</React.Fragment>)}
+            </View>
+          ) : (
+            <FlatList
+              data={teamData.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))}
+              keyExtractor={i => i._id}
+              renderItem={renderTeamCard}
+              contentContainerStyle={styles.listContainer}
+              ListEmptyComponent={<Text style={styles.emptyText}>No teams found</Text>}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            />
+          )}
         </>
       );
     } else {
@@ -402,7 +525,7 @@ const MyCricketScreen = ({ route }) => {
 };
 
 // Assuming LinearGradient is used, need to import it. Will mock it with a view if it fails, but we should import LinearGradient.
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },

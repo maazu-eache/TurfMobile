@@ -9,7 +9,7 @@ const TABS = ['Batters', 'Bowlers', 'Fielders', 'MVP'];
 
 const RANK_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'];
 
-const TournamentLeaderboard = ({ tournament }) => {
+const TournamentLeaderboard = ({ tournament, onShare }) => {
   const [activeTab, setActiveTab] = useState('Batters');
 
   if (!tournament?.leaderboard) {
@@ -194,6 +194,25 @@ const TournamentLeaderboard = ({ tournament }) => {
           </TouchableOpacity>
         ))}
       </View>
+
+      {onShare && (
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.md, paddingTop: 12 }}>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}
+            onPress={() => {
+              let shareType = 'runs';
+              if (activeTab === 'Bowlers') shareType = 'wickets';
+              if (activeTab === 'Fielders') shareType = 'catches'; // Or whatever type we mapped
+              if (activeTab === 'MVP') shareType = 'mvp';
+              
+              onShare({ type: 'leaderboard', data: { type: shareType, data: getActiveData() } });
+            }}
+          >
+            <Icon name="share-2" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+            <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share {activeTab}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {data.length === 0 ? (

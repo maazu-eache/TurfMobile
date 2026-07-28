@@ -14,7 +14,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api, { getImageUrl } from '../../../api/axios';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 
 const OUTDOOR_GROUND = require('../../../ground.png');
 const INDOOR_GROUND = require('../../../turf.png');

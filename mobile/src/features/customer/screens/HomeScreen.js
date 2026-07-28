@@ -4,7 +4,7 @@ import {
   Image, FlatList, Animated, Dimensions, Modal, TouchableWithoutFeedback, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchTurfs } from '../../turf/turfSlice';
@@ -26,7 +26,7 @@ const SIDEBAR_SECTIONS = [
       { icon: 'cricket', label: 'Score a Match', tab: 'My Cricket', params: { screen: 'MyCricketMain', params: { tab: 'Matches' } } },
       { icon: 'trophy-outline', label: 'Tournaments', tab: 'My Cricket', params: { screen: 'MyCricketMain', params: { tab: 'Tournaments' } } },
       { icon: 'account-group-outline', label: 'My Teams', tab: 'My Cricket', params: { screen: 'MyCricketMain', params: { tab: 'Teams' } } },
-      { icon: 'poll', label: 'Leaderboard', tab: 'Search', params: { screen: 'SearchMain', params: { tab: 'players' } } },
+      { icon: 'poll', label: 'Leaderboard', tab: 'Home', params: { screen: 'GlobalLeaderboard' } },
     ],
   },
   {
@@ -149,9 +149,25 @@ const HomeScreen = ({ navigation }) => {
     closeSidebar();
     setTimeout(() => {
       if (!isAuthenticated) { navigation.navigate('AuthModal', { screen: 'Login' }); return; }
-      if (item.screen) navigation.navigate(item.screen);
-      else if (item.params) navigation.navigate(item.tab, item.params);
-      else navigation.navigate(item.tab);
+      if (item.tab === 'Home') {
+        // For screens within the current HomeStack, use push to ensure it always navigates
+        if (item.params?.screen) {
+          navigation.push(item.params.screen, item.params.params);
+        } else if (item.screen) {
+          navigation.push(item.screen);
+        } else {
+          navigation.navigate(item.tab);
+        }
+      } else {
+        // For other tabs, use navigate to properly switch stacks
+        if (item.params) {
+          navigation.navigate(item.tab, item.params);
+        } else if (item.screen) {
+          navigation.navigate(item.screen);
+        } else {
+          navigation.navigate(item.tab);
+        }
+      }
     }, 240);
   };
 
@@ -708,8 +724,8 @@ const styles = StyleSheet.create({
   heroSub: { fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginBottom: 22 },
   heroCTA: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 999 },
   heroCTATxt: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  bannerWrap: { marginHorizontal: Spacing.lg, borderRadius: BorderRadius.xl, overflow: 'hidden', marginBottom: 12, marginTop: 4, elevation: 4 },
-  bannerImg: { width: '100%', height: Math.min(180, SW * 0.42), borderRadius: BorderRadius.xl },
+  bannerWrap: { marginHorizontal: Spacing.lg, borderRadius: BorderRadius.xl, overflow: 'hidden', marginBottom: 12, marginTop: 4, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
+  bannerImg: { width: '100%', aspectRatio: 16 / 7, borderRadius: BorderRadius.xl },
 
   /* Pulse dot */
   pulseDotWrap: { width: 14, height: 14, justifyContent: 'center', alignItems: 'center' },
