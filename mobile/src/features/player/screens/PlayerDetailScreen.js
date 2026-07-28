@@ -269,8 +269,10 @@ const PlayerDetailScreen = ({ navigation, route }) => {
         </View>
         <View style={[styles.statsGrid, { marginTop: 10 }]}>
           <StatPill value={bowling.overs || 0} label="Overs" />
-          <StatPill value={bowling.runs || 0} label="Runs" />
+          {/* <StatPill value={bowling.runs || 0} label="Runs" /> */}
           <StatPill value={bowling.bestWickets || 0} label="Best" highlight />
+          <StatPill value={bowling.threeWicketHauls || 0} label="3W" />
+          <StatPill value={bowling.fiveWicketHauls || 0} label="5W" />
           <StatPill value={bowling.maidens || 0} label="Maidens" />
         </View>
       </View>

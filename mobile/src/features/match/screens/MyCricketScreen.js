@@ -350,7 +350,7 @@ const MyCricketScreen = ({ route }) => {
 
   const renderMatchSkeleton = () => (
     <View style={styles.cardContainer}>
-      <SkeletonPlaceholder borderRadius={4} backgroundColor={Colors.borderLight} highlightColor={Colors.background}>
+      <SkeletonPlaceholder borderRadius={4} backgroundColor="#1A2836" highlightColor="#2B3A48">
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
           <View style={{ width: 150, height: 16, borderRadius: 4 }} />
           <View style={{ width: 60, height: 20, borderRadius: 10 }} />
@@ -371,7 +371,7 @@ const MyCricketScreen = ({ route }) => {
 
   const renderTournamentSkeleton = () => (
     <View style={styles.tournamentCard}>
-      <SkeletonPlaceholder borderRadius={4} backgroundColor={Colors.borderLight} highlightColor={Colors.background}>
+      <SkeletonPlaceholder borderRadius={4} backgroundColor="#1A2836" highlightColor="#2B3A48">
         <View style={{ width: '100%', height: 140 }} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 12 }}>
           <View>
@@ -386,7 +386,7 @@ const MyCricketScreen = ({ route }) => {
 
   const renderTeamSkeleton = () => (
     <View style={styles.teamCard}>
-      <SkeletonPlaceholder borderRadius={4} backgroundColor={Colors.borderLight} highlightColor={Colors.background}>
+      <SkeletonPlaceholder borderRadius={4} backgroundColor="#1A2836" highlightColor="#2B3A48">
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ width: 48, height: 48, borderRadius: 24, marginRight: 12 }} />
           <View style={{ flex: 1 }}>

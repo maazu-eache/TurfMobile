@@ -433,11 +433,12 @@ const PlayerProfileScreen = ({ navigation }) => {
               <StatTile value={bowl.innings ?? 0} label="Innings" accent={Colors.primary} />
               <StatTile value={bowl.wickets ?? 0} label="Wickets" accent={Colors.primary} />
               <StatTile value={bowl.runs ?? 0} label="Runs" accent={Colors.primary} />
-              <StatTile value={bowlOverDisplay} label="Overs" accent={Colors.primary} />
+              {/* <StatTile value={bowlOverDisplay} label="Overs" accent={Colors.primary} /> */}
               <StatTile value={bowlAvg} label="Average" accent={Colors.primary} />
               <StatTile value={bowlEcon} label="Economy" accent={Colors.primary} />
               <StatTile value={bowlSR} label="S/R" accent={Colors.primary} />
               <StatTile value={bestFig} label="Best" accent={Colors.primary} />
+              <StatTile value={bowl.threeWicketHauls ?? 0} label="3W" accent={Colors.primary} />
               <StatTile value={bowl.fiveWicketHauls ?? 0} label="5W" accent={Colors.primary} />
               <StatTile value={bowl.maidens ?? 0} label="Maidens" accent={Colors.primary} />
             </View>

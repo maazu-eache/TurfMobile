@@ -44,7 +44,7 @@ const App = () => {
     }
   }, []);
   const linking = {
-    prefixes: ['roughturf://', 'https://roughturf.com'],
+    prefixes: ['roughturf://', 'https://roughturf.com', 'https://sportverse.maazibrahimoo0.workers.dev'],
     config: {
       screens: {
         Customer: {

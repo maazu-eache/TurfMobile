@@ -67,6 +67,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const matchesRef = useRef([]);
 
   useEffect(() => {
+    if (route.params?.action === 'join-team') {
+      setShowRegisterModal(true);
+      navigation.setParams({ action: undefined });
+    }
+  }, [route.params?.action, navigation]);
+
+  useEffect(() => {
     matchesRef.current = tournament?.matches || [];
   }, [tournament?.matches]);
 
@@ -257,7 +264,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const handleShareJoinLink = async () => {
     try {
       await Share.share({
-        message: `Join ${tournament.name} on SportVerse! Click the link to register your team: https://sportverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}`,
+        message: `Join ${tournament.name} on SportVerse! Click the link to register your team: https://sportverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}?action=join-team`,
       });
     } catch (error) {
       console.log('Error sharing', error);
@@ -957,7 +964,11 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <Text style={auctionStyles.dateLabel}>Auction Day</Text>
             <Text style={auctionStyles.dateValue}>{formatDate(auctionDate)}</Text>
             {auctionCountdown && <Text style={auctionStyles.dateSub}>{auctionCountdown}</Text>}
-            {auctionDateReached && auctionDate && <Text style={[auctionStyles.dateSub, { color: Colors.warning }]}>🔥 Today!</Text>}
+            {!auctionCountdown && auctionDateReached && auctionDate && (
+              <Text style={[auctionStyles.dateSub, { color: auctionDetails?.status === 'completed' ? '#4ADE80' : Colors.warning }]}>
+                {auctionDetails?.status === 'completed' ? '✓ Completed' : (moment(auctionDate).isSame(moment(), 'day') ? '🔥 Today!' : 'Date Passed')}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -1107,8 +1118,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           </View>
         )}
 
-        {/* Viewer Section */}
-        {auctionDetails?.status === 'completed' ? (
+        {/* Viewer / Player Section */}
+    {!(isOrganizer && auctionDetails?.status === 'completed') && (
+          auctionDetails?.status === 'completed' ? (
           <View style={auctionStyles.sectionCard}>
             <Text style={auctionStyles.sectionTitle}>Auction Status</Text>
             <View style={auctionStyles.actionRow}>
@@ -1169,6 +1181,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               </>
             )}
           </View>
+        )
         )}
       </ScrollView>
     );
@@ -1394,6 +1407,18 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   </View>
                 </TouchableOpacity>
               )}
+              ListFooterComponent={
+                <TouchableOpacity 
+                  style={[styles.teamCard, { justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', backgroundColor: 'transparent' }]}
+                  onPress={() => {
+                    setShowRegisterModal(false);
+                    navigation.navigate('TeamCreate');
+                  }}
+                >
+                  <Icon name="plus" size={24} color={Colors.primary} />
+                  <Text style={[styles.teamName, { color: Colors.primary, marginLeft: 8 }]}>Create New Team</Text>
+                </TouchableOpacity>
+              }
             />
           </View>
         </View>
