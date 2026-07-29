@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   tabsRow: {
     flexDirection: 'row',
     marginBottom: Spacing.md,
-    backgroundColor: '#000A15',
+    backgroundColor: '#000000',
     borderRadius: BorderRadius.md,
     padding: 4,
   },
@@ -318,13 +318,13 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   tabBtnTextActive: {
-    color: Colors.background || '#011528',
+    color: Colors.background || '#000000',
     fontFamily: Typography.fontFamily.bold,
   },
   searchBarWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#000A15',
+    backgroundColor: '#000000',
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.base,
     height: 48,
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#000A15',
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.base,

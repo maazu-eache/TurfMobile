@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -74,6 +75,7 @@ const DonutTimer = ({ createdAt }) => {
 };
 
 const WalletScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [wallet, setWallet] = useState({ balance: 0, pendingWithdrawal: 0, totalEarned: 0 });
   const [withdrawals, setWithdrawals] = useState([]);
   const [bankDetails, setBankDetails] = useState(null);
@@ -259,7 +261,7 @@ const WalletScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
@@ -474,7 +476,7 @@ const WalletScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { 
-    paddingHorizontal: Spacing.lg, paddingTop: 60, paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md,
     backgroundColor: Colors.backgroundCard, flexDirection: 'row', alignItems: 'center',
     borderBottomWidth: 1, borderBottomColor: Colors.border
   },

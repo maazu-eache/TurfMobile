@@ -107,8 +107,8 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
       }
       if (response.assets && response.assets.length > 0) {
         const selected = response.assets[0];
-        if (selected.fileSize && selected.fileSize > 1 * 1024 * 1024) {
-          showCustomAlert('File Too Large', 'Please select an image smaller than 1MB.');
+        if (selected.fileSize && selected.fileSize > 3 * 1024 * 1024) {
+          showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
           return;
         }
         setPhoto(selected);
@@ -141,7 +141,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
       currency: 'INR',
       key: RAZORPAY_KEY,
       amount: totalAmount * 100,
-      name: 'SportVerse',
+      name: 'ScoreVerse',
       prefill: {
         email: user?.email || '',
         contact: user?.mobile || '',
@@ -186,9 +186,9 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
 
   const handleShare = async () => {
     try {
-      const link = `https://sportverse.com/auction/${tournamentId}/register`;
+      const link = `https://scoreverse.com/auction/${tournamentId}/register`;
       await Share.share({
-        message: `Register for ${auction?.tournament?.name || 'the tournament'} on SportVerse!\nJoin here: ${link}`,
+        message: `Register for ${auction?.tournament?.name || 'the tournament'} on ScoreVerse!\nJoin here: ${link}`,
         title: 'Share Tournament',
       });
     } catch (error) {
@@ -330,7 +330,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                     </TouchableOpacity>
                   </View>
                   <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
-                    Note: Maximum image size allowed is under 1 MB.
+                    Note: Maximum image size allowed is under 3 MB.
                   </Text>
                 </View>
 

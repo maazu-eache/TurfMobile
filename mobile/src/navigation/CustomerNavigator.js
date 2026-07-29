@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -78,6 +79,150 @@ const tabIcons = {
   Bookings: 'calendar-check',
   Profile: 'account-circle',
 };
+
+/* ── Animated single tab item ──────────────────────────────────────────── */
+const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets }) => {
+  const scaleAnim = useRef(new Animated.Value(isFocused ? 1.15 : 1)).current;
+  const dotAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
+  const translateY = useRef(new Animated.Value(isFocused ? -3 : 0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: isFocused ? 1.18 : 1,
+        useNativeDriver: true,
+        damping: 12,
+        stiffness: 160,
+      }),
+      Animated.spring(translateY, {
+        toValue: isFocused ? -4 : 0,
+        useNativeDriver: true,
+        damping: 12,
+        stiffness: 160,
+      }),
+      Animated.spring(dotAnim, {
+        toValue: isFocused ? 1 : 0,
+        useNativeDriver: true,
+        damping: 14,
+        stiffness: 200,
+      }),
+    ]).start();
+  }, [isFocused]);
+
+  const iconName = tabIcons[route.name] || 'circle';
+
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={isFocused ? { selected: true } : {}}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={tabStyles.tabItem}
+      activeOpacity={0.7}
+    >
+      <Animated.View
+        style={[
+          tabStyles.iconWrap,
+          { transform: [{ scale: scaleAnim }, { translateY }] }
+        ]}
+      >
+        <Icon
+          name={iconName}
+          size={22}
+          color={isFocused ? Colors.primary : Colors.textTertiary}
+        />
+      </Animated.View>
+
+      {/* Yellow dot indicator below the icon */}
+      <Animated.View
+        style={[
+          tabStyles.dot,
+          {
+            opacity: dotAnim,
+            transform: [{ scaleX: dotAnim }],
+          },
+        ]}
+      />
+
+      <Text
+        style={[
+          tabStyles.label,
+          { color: isFocused ? Colors.primary : Colors.textTertiary },
+        ]}
+      >
+        {route.name}
+      </Text>
+    </TouchableOpacity>
+  );
+};
+
+/* ── Custom full tab bar ─────────────────────────────────────────────────── */
+const CustomTabBar = ({ state, descriptors, navigation, insets }) => {
+  // Check if tab bar should be hidden for the current focused route
+  const focusedOptions = descriptors[state.routes[state.index].key].options;
+  const tabBarStyle = focusedOptions.tabBarStyle;
+  if (tabBarStyle?.display === 'none') return null;
+
+  return (
+    <View style={[tabStyles.container, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
+      {state.routes.map((route, index) => {
+        const isFocused = state.index === index;
+        const onPress = () => {
+          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+        const onLongPress = () => {
+          navigation.emit({ type: 'tabLongPress', target: route.key });
+        };
+        return (
+          <TabItem
+            key={route.key}
+            route={route}
+            isFocused={isFocused}
+            onPress={onPress}
+            onLongPress={onLongPress}
+            insets={insets}
+          />
+        );
+      })}
+    </View>
+  );
+};
+
+const tabStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    backgroundColor: Colors.backgroundCard,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    paddingTop: 10,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+    gap: 4,
+  },
+  iconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dot: {
+    width: 18,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  label: {
+    fontSize: 9.5,
+    fontFamily: 'Outfit-Medium',
+    letterSpacing: 0.2,
+  },
+});
+
 
 const HomeStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -201,30 +346,14 @@ const CustomerNavigator = ({ navigation }) => {
 
   return (
     <Tab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} insets={insets} />}
       screenOptions={({ route }) => {
         const routeName = getFocusedRouteNameFromRoute(route) ?? '';
         const hiddenRoutes = ['MatchSetup', 'MatchTeamSelection', 'Toss', 'PlayingXI', 'LiveScorer', 'MatchPlayerSelection', 'SuperOver', 'AddPlayer', 'SelectBowler', 'Scorecard', 'MatchSummary', 'TournamentDetail', 'AuctionLiveOrganiser', 'AuctionLivePublic', 'AuctionLiveTeamOwner', 'GlobalLeaderboard'];
         const isHidden = hiddenRoutes.includes(routeName);
-        
         return {
           headerShown: false,
-          tabBarIcon: ({ color, size }) => (
-            <Icon name={tabIcons[route.name] || 'circle'} color={color} size={size} />
-          ),
-          tabBarActiveTintColor: Colors.primary,
-          tabBarInactiveTintColor: Colors.textTertiary,
-          tabBarStyle: isHidden ? { display: 'none' } : {
-            backgroundColor: Colors.backgroundCard,
-            borderTopColor: Colors.border,
-            borderTopWidth: 1,
-            height: 60 + insets.bottom,
-            paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
-            paddingTop: 10,
-          },
-          tabBarLabelStyle: {
-            fontSize: 10,
-            fontFamily: 'Outfit-Medium',
-          },
+          tabBarStyle: isHidden ? { display: 'none' } : {},
         };
       }}
     >

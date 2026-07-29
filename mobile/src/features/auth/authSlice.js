@@ -38,11 +38,17 @@ export const refreshTokenThunk = createAsyncThunk('auth/refreshToken', async (_,
   }
 });
 
-export const logoutThunk = createAsyncThunk('auth/logout', async (_, { getState }) => {
+export const logout = createAsyncThunk('auth/logout', async (_, { dispatch, getState }) => {
   try {
     const { refreshToken } = getState().auth;
-    await api.post('/auth/logout', { refreshToken });
-  } catch { /* silent */ }
+    if (refreshToken) {
+      await api.post('/auth/logout', { refreshToken });
+    }
+  } catch (err) {
+    console.log('Backend logout failed', err);
+  } finally {
+    dispatch(logoutLocal());
+  }
 });
 
 const authSlice = createSlice({
@@ -63,7 +69,7 @@ const authSlice = createSlice({
       state.accessToken = action.payload.accessToken;
       state.refreshToken = action.payload.refreshToken;
     },
-    logout: (state) => {
+    logoutLocal: (state) => {
       state.user = null;
       state.accessToken = null;
       state.refreshToken = null;
@@ -130,13 +136,7 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      .addCase(logoutThunk.fulfilled, (state) => {
-        state.user = null;
-        state.accessToken = null;
-        state.refreshToken = null;
-        state.isAuthenticated = false;
-        state.isGuest = true; // Stay in guest mode to skip onboarding
-      })
+
       // payOwnerFee
       .addCase(payOwnerFee.pending, (state) => {
         state.isLoading = true;
@@ -154,5 +154,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setTokens, logout, clearError, setOtpSent, setGuestMode, updateUserRole, updateUser, toggleUserFavourite, setUserFavouriteStatus } = authSlice.actions;
+export const { setTokens, logoutLocal, clearError, setOtpSent, setGuestMode, updateUserRole, updateUser, toggleUserFavourite, setUserFavouriteStatus } = authSlice.actions;
 export default authSlice.reducer;

@@ -16,7 +16,7 @@ const OwnerCustomersScreen = ({ navigation }) => {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/bookings/owner/customers');
+      const res = await api.get('/bookings/owner/customers?limit=100');
       if (res.data.data) {
         setCustomers(res.data.data);
       }

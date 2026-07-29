@@ -44,14 +44,25 @@ const App = () => {
     }
   }, []);
   const linking = {
-    prefixes: ['roughturf://', 'https://roughturf.com', 'https://sportverse.maazibrahimoo0.workers.dev'],
+    prefixes: [
+      'roughturf://', 
+      'https://roughturf.com', 
+      'https://scoreverse.maazibrahimoo0.workers.dev',
+      'https://scoreverse.app'
+    ],
     config: {
       screens: {
         Customer: {
           screens: {
+            Home: {
+              screens: {
+                TurfDetail: 'turf/:id',
+              }
+            },
             'My Cricket': {
               screens: {
                 TournamentDetail: 'tournament/:tournamentId',
+                MatchSummary: 'match/:matchId',
               }
             }
           }
@@ -61,6 +72,7 @@ const App = () => {
             'My Cricket': {
               screens: {
                 TournamentDetail: 'tournament/:tournamentId',
+                MatchSummary: 'match/:matchId',
               }
             }
           }

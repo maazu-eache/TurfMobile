@@ -1,41 +1,41 @@
 /**
- * SportVerse Design System — Dark Theme (Default)
+ * ScoreVerse Design System — Dark Theme (Default)
  * Premium dark theme with cricket-inspired green accent palette.
  */
 
 export const Colors = {
-  // Primary — Vibrant Turf Green (from Logo)
-  primary: '#9abc2f',
-  primaryDark: '#799622',
-  primaryLight: '#b5d454',
-  primaryGradient: ['#9abc2f', '#799622'],
-  primaryAlpha30: 'rgba(154, 188, 47, 0.3)',
-  primaryAlpha10: 'rgba(154, 188, 47, 0.1)',
+  // Primary — Vibrant Yellow
+  primary: '#FFCC00',
+  primaryDark: '#E6B800',
+  primaryLight: '#FFD633',
+  primaryGradient: ['#FFCC00', '#E6B800'],
+  primaryAlpha30: 'rgba(255, 204, 0, 0.3)',
+  primaryAlpha10: 'rgba(255, 204, 0, 0.1)',
 
   white:'#fff',
 
-  // Secondary — Midnight Navy (from Logo)
-  secondary: '#011528',
-  secondaryDark: '#000A15',
+  // Secondary — Dark Slate
+  secondary: '#000000',
+  secondaryDark: '#111111',
 
-  // Accent — Vibrant Turf Green
-  accent: '#9abc2f',
-  accentLight: '#b5d454',
+  // Accent — Vibrant Yellow
+  accent: '#FFCC00',
+  accentLight: '#FFD633',
 
-  // Backgrounds - Midnight Navy Theme
-  background: '#011528',
-  backgroundCard: '#000A15',
-  backgroundElevated: '#0A1F35',
-  backgroundModal: '#000A15',
-  surface: '#011528',
-  surfaceVariant: '#0A1F35',
+  // Backgrounds - Dark Slate Theme
+  background: '#000000',
+  backgroundCard: '#111111',
+  backgroundElevated: '#161616',
+  backgroundModal: '#1A1A1A',
+  surface: '#161616',
+  surfaceVariant: '#1A1A1A',
 
   // Text
   textPrimary: '#FFFFFF',
   textSecondary: '#A0AAB5',
   textTertiary: '#718096',
   textDisabled: '#4A5568',
-  textOnPrimary: '#FFFFFF',
+  textOnPrimary: '#000000',
 
   // Borders
   border: 'rgba(255, 255, 255, 0.15)',
@@ -57,26 +57,26 @@ export const Colors = {
   two: '#64B5F6',
   three: '#29B6F6',
   four: '#4CAF50',
-  six: '#FFD600',
+  six: '#FFCC00',
   wide: '#FF8F00',
   noball: '#FF5252',
   wicket: '#F44336',
 
   // Gradient presets
   gradients: {
-    primary: ['#9abc2f', '#799622'],
-    secondary: ['#011528', '#1A2C3D'],
+    primary: ['#FFCC00', '#E6B800'],
+    secondary: ['#000000', '#111111'],
     gold: ['#FFD600', '#FF8F00'],
-    dark: ['#011528', '#000A15'], // Navy gradient for dark areas
-    card: ['#000A15', '#011528'],
+    dark: ['#000000', '#111111'], // Slate gradient for dark areas
+    card: ['#0A0A0A', '#000000'],
     danger: ['#F44336', '#D32F2F'],
-    header: ['#011528', 'rgba(1,21,40,0)'],
+    header: ['#000000', 'rgba(26,26,26,0)'],
   },
 
   // Transparent variants
-  primaryAlpha10: 'rgba(154,188,47,0.10)',
-  primaryAlpha20: 'rgba(154,188,47,0.20)',
-  primaryAlpha30: 'rgba(154,188,47,0.30)',
+  primaryAlpha10: 'rgba(255,204,0,0.10)',
+  primaryAlpha20: 'rgba(255,204,0,0.20)',
+  primaryAlpha30: 'rgba(255,204,0,0.30)',
   whiteAlpha10: 'rgba(255,255,255,0.10)',
   whiteAlpha20: 'rgba(255,255,255,0.20)',
   blackAlpha50: 'rgba(0,0,0,0.50)',
@@ -155,7 +155,7 @@ export const Shadows = {
     elevation: 12,
   },
   glow: {
-    shadowColor: '#9abc2f',
+    shadowColor: '#FFCC00',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 12,

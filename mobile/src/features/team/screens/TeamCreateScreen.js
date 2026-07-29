@@ -144,8 +144,8 @@ const TeamCreateScreen = ({ navigation }) => {
     const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
     if (result.assets?.length > 0) {
       const selected = result.assets[0];
-      if (selected.fileSize && selected.fileSize > 1 * 1024 * 1024) {
-        showCustomAlert('File Too Large', 'Please select an image smaller than 1MB.');
+      if (selected.fileSize && selected.fileSize > 3 * 1024 * 1024) {
+        showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
         return;
       }
       setLogo(selected);
@@ -296,9 +296,9 @@ const TeamCreateScreen = ({ navigation }) => {
               <Icon name="camera" size={14} color="#fff" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.logoHint}>{logo ? 'Tap to change logo' : 'Tap to add team logo'}</Text>
+          <Text style={styles.logoHint}>{logo ? 'Tap to change logo (Max 3 MB)' : 'Tap to add team logo (Max 3 MB)'}</Text>
           <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium, textAlign: 'center' }}>
-            Note: Maximum image size allowed is under 1 MB.
+            Note: Maximum image size allowed is under 3 MB.
           </Text>
 
           <View style={styles.divider} />

@@ -97,8 +97,8 @@ const TournamentCreateScreen = ({ navigation }) => {
       }
       if (response.assets && response.assets.length > 0) {
         const selected = response.assets[0];
-        if (selected.fileSize && selected.fileSize > 1 * 1024 * 1024) {
-          showCustomAlert('File Too Large', 'Please select a banner image smaller than 1MB.');
+        if (selected.fileSize && selected.fileSize > 3 * 1024 * 1024) {
+          showCustomAlert('File Too Large', 'Please select a banner image smaller than 3MB.');
           return;
         }
         setForm(f => ({ ...f, banner: selected }));
@@ -282,35 +282,35 @@ const TournamentCreateScreen = ({ navigation }) => {
         <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.stepper}>
-        {STEPS.map((s, idx) => (
-          <View key={idx} style={styles.stepItem}>
-            <View style={[styles.stepCircle, step >= idx && styles.stepCircleActive]}>
-              <Text style={[styles.stepNumber, step >= idx && styles.stepNumberActive]}>{idx + 1}</Text>
-            </View>
-            <Text style={[styles.stepText, step >= idx && styles.stepTextActive]}>{s}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.typeToggle}>
-        <TouchableOpacity disabled={step > 0} onPress={() => setForm({ ...form, tournamentType: 'Standard' })} style={[styles.typeBtn, form.tournamentType === 'Standard' && styles.typeBtnActive, step > 0 && { opacity: 0.5 }]}>
-          <Text style={[styles.typeBtnText, form.tournamentType === 'Standard' && styles.typeBtnTextActive]}>Standard</Text>
-        </TouchableOpacity>
-        <TouchableOpacity disabled={step > 0} onPress={() => setForm({ ...form, tournamentType: 'Auction' })} style={[styles.typeBtn, form.tournamentType === 'Auction' && styles.typeBtnActive, step > 0 && { opacity: 0.5 }]}>
-          <Text style={[styles.typeBtnText, form.tournamentType === 'Auction' && styles.typeBtnTextActive]}>Auction</Text>
-        </TouchableOpacity>
-      </View>
-
-      {form.tournamentType === 'Auction' && (
-        <View style={{ paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: 'rgba(255, 179, 0, 0.1)', marginHorizontal: Spacing.lg, borderRadius: 8, marginBottom: Spacing.sm }}>
-          <Text style={{ color: Colors.warning, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center' }}>
-            ⚡ Auction Mode: Players will register & undergo live bidding by team owners!
-          </Text>
-        </View>
-      )}
-
       <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} enableResetScrollToCoords={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formContainer}>
+        <View style={styles.stepper}>
+          {STEPS.map((s, idx) => (
+            <View key={idx} style={styles.stepItem}>
+              <View style={[styles.stepCircle, step >= idx && styles.stepCircleActive]}>
+                <Text style={[styles.stepNumber, step >= idx && styles.stepNumberActive]}>{idx + 1}</Text>
+              </View>
+              <Text style={[styles.stepText, step >= idx && styles.stepTextActive]}>{s}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.typeToggle}>
+          <TouchableOpacity disabled={step > 0} onPress={() => setForm({ ...form, tournamentType: 'Standard' })} style={[styles.typeBtn, form.tournamentType === 'Standard' && styles.typeBtnActive, step > 0 && { opacity: 0.5 }]}>
+            <Text style={[styles.typeBtnText, form.tournamentType === 'Standard' && styles.typeBtnTextActive]}>Standard</Text>
+          </TouchableOpacity>
+          <TouchableOpacity disabled={step > 0} onPress={() => setForm({ ...form, tournamentType: 'Auction' })} style={[styles.typeBtn, form.tournamentType === 'Auction' && styles.typeBtnActive, step > 0 && { opacity: 0.5 }]}>
+            <Text style={[styles.typeBtnText, form.tournamentType === 'Auction' && styles.typeBtnTextActive]}>Auction</Text>
+          </TouchableOpacity>
+        </View>
+
+        {form.tournamentType === 'Auction' && (
+          <View style={{ paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: 'rgba(255, 179, 0, 0.1)', borderRadius: 8, marginBottom: Spacing.sm }}>
+            <Text style={{ color: Colors.warning, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center' }}>
+              ⚡ Auction Mode: Players will register & undergo live bidding by team owners!
+            </Text>
+          </View>
+        )}
+
           {step === 0 ? (
             <>
               <View style={styles.inputGroup}>
@@ -326,7 +326,7 @@ const TournamentCreateScreen = ({ navigation }) => {
                   )}
                 </TouchableOpacity>
                 <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
-                  Note: Maximum image size allowed is under 1 MB.
+                  Note: Maximum image size allowed is under 3 MB.
                 </Text>
               </View>
               <View style={styles.inputGroup}>

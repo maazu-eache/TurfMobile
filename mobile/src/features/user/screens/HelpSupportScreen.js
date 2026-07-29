@@ -53,18 +53,18 @@ const HelpSupportScreen = ({ navigation }) => {
             <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
             
             <View style={styles.faqCard}>
-              <Text style={styles.faqQuestion}>How do I cancel a booking?</Text>
-              <Text style={styles.faqAnswer}>You can cancel an upcoming booking from the 'My Bookings' tab up to 24 hours before the slot time for a full refund.</Text>
+              <Text style={styles.faqQuestion}>How do I register a new turf?</Text>
+              <Text style={styles.faqAnswer}>You can easily register a new turf from your Dashboard by navigating to 'My Turfs' and clicking the '+' icon.</Text>
             </View>
             
             <View style={styles.faqCard}>
-              <Text style={styles.faqQuestion}>How are refunds processed?</Text>
-              <Text style={styles.faqAnswer}>Refunds are processed back to your wallet or original payment method within 3-5 business days of cancellation.</Text>
+              <Text style={styles.faqQuestion}>How can I manage slot pricing?</Text>
+              <Text style={styles.faqAnswer}>Go to 'My Turfs', select 'Manage Slots' for your turf, and you can edit time slots, pricing, and availability in real-time.</Text>
             </View>
 
             <View style={styles.faqCard}>
-              <Text style={styles.faqQuestion}>How do I add teammates to my match?</Text>
-              <Text style={styles.faqAnswer}>Go to 'My Cricket' {'->'} 'Teams' and create a new team, or edit an existing one to add members.</Text>
+              <Text style={styles.faqQuestion}>Where can I see my earnings?</Text>
+              <Text style={styles.faqAnswer}>Your detailed earnings, including day-by-day breakdowns and future forecasts, can be found in the Analytics tab.</Text>
             </View>
           </View>
         </ScrollView>

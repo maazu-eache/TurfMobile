@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
 
   // DECISION / SETUP CARDS
   card: {
-    backgroundColor: Colors.backgroundCard || '#000A15',
+    backgroundColor: Colors.backgroundCard || '#000000',
     borderRadius: BorderRadius.lg,
     padding: Spacing.base,
     borderWidth: 1,
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 120,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.backgroundElevated || '#0A1F35',
+    backgroundColor: Colors.backgroundElevated || '#111111',
     borderWidth: 1,
     borderColor: Colors.border,
     overflow: 'hidden',
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
     height: 130,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    backgroundColor: Colors.backgroundElevated || '#0A1F35',
+    backgroundColor: Colors.backgroundElevated || '#111111',
     borderWidth: 2,
     borderColor: Colors.border,
     position: 'relative',
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   startBtnText: {
-    color: Colors.background || '#011528',
+    color: Colors.background || '#000000',
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
   },

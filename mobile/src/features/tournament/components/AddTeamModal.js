@@ -323,8 +323,8 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                       const res = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
                       if (res.assets?.length > 0) {
                         const selected = res.assets[0];
-                        if (selected.fileSize && selected.fileSize > 1 * 1024 * 1024) {
-                          showCustomAlert('File Too Large', 'Please select an image smaller than 1MB.');
+                        if (selected.fileSize && selected.fileSize > 3 * 1024 * 1024) {
+                          showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
                           return;
                         }
                         setGhostForm(prev => ({ ...prev, logo: selected }));
@@ -334,11 +334,11 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                     {ghostForm.logo && ghostForm.logo.uri ? (
                       <Image source={{ uri: ghostForm.logo.uri }} style={{ width: 60, height: 60, borderRadius: 30 }} />
                     ) : (
-                      <Text style={{ color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>Tap to select team logo</Text>
+                      <Text style={{ color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>Tap to select team logo (Max 3 MB)</Text>
                     )}
                   </TouchableOpacity>
                   <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium }}>
-                    Note: Maximum image size allowed is under 1 MB.
+                    Note: Maximum image size allowed is under 3 MB.
                   </Text>
 
                   <View style={{ flexDirection: 'row', marginTop: Spacing.lg, paddingBottom: 40 }}>

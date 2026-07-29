@@ -16,8 +16,10 @@ import NotificationBell from '../../../components/NotificationBell';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const SIDEBAR_WIDTH = SW * 0.80;
-const TURF_CARD_W = SW * 0.66;
-const TURF_CARD_H = 230;
+const PREMIUM_CARD_W = SW * 0.74;
+const PREMIUM_CARD_H = 320;
+const OVERLAP_AMOUNT = 40;
+const SPACING = PREMIUM_CARD_W - OVERLAP_AMOUNT;
 
 const SIDEBAR_SECTIONS = [
   {
@@ -48,10 +50,10 @@ const SIDEBAR_SECTIONS = [
 ];
 
 const CRICKET_ACTIONS = [
-  { icon: 'cricket', label: 'Score Match', gradient: ['#0d2a10', '#163d1a'], tab: 'My Cricket', params: { screen: 'MyCricketMain', params: { tab: 'Matches' } } },
-  { icon: 'trophy-outline', label: 'Tournaments', gradient: ['#1a2a0d', '#243d10'], tab: 'My Cricket', params: { screen: 'MyCricketMain', params: { tab: 'Tournaments' } } },
-  { icon: 'account-group-outline', label: 'My Teams', gradient: ['#0d1e30', '#0d2a45'], tab: 'My Cricket', params: { screen: 'MyCricketMain', params: { tab: 'Teams' } } },
-  { icon: 'plus-circle-outline', label: 'New Match', gradient: ['#1a1a0d', '#2a280d'], tab: 'My Cricket', params: { screen: 'MatchSetup' } },
+  { icon: 'cricket', label: 'Score Match', gradient: ['#111111', '#1A1A1A'], tab: 'My Cricket', params: { screen: 'MyCricketMain', params: { tab: 'Matches' } } },
+  { icon: 'trophy-outline', label: 'Tournaments', gradient: ['#1A1A1A', '#242424'], tab: 'My Cricket', params: { screen: 'MyCricketMain', params: { tab: 'Tournaments' } } },
+  { icon: 'account-group-outline', label: 'My Teams', gradient: ['#111111', '#161616'], tab: 'My Cricket', params: { screen: 'MyCricketMain', params: { tab: 'Teams' } } },
+  { icon: 'plus-circle-outline', label: 'New Match', gradient: ['#161616', '#1A1A1A'], tab: 'My Cricket', params: { screen: 'MatchSetup' } },
 ];
 
 // ── Animated Pulse for Live Dot ─────────────────────────────────────────────
@@ -86,8 +88,11 @@ const HomeScreen = ({ navigation }) => {
   const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   const authGuard = (cb) => (!isAuthenticated ? navigation.navigate('AuthModal', { screen: 'Login' }) : cb());
+  
+  const displayCity = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
 
   useEffect(() => {
     if (!isAuthenticated) dispatch(fetchTurfs({ limit: 8, sort: '-rating' }));
@@ -98,7 +103,7 @@ const HomeScreen = ({ navigation }) => {
     if (!isAuthenticated) return;
     fetchDashboardStats();
     if (!myProfile && user) dispatch(fetchMyPlayer());
-    const city = myProfile?.city || myProfile?.location || user?.city || '';
+    const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
     const lat = myProfile?.locationObj?.latitude || user?.latitude;
     const lng = myProfile?.locationObj?.longitude || user?.longitude;
     fetchNearPlayers(city, lat, lng);
@@ -107,7 +112,7 @@ const HomeScreen = ({ navigation }) => {
     else if (city) { tp.city = city; }
     else { tp.sort = '-rating'; }
     dispatch(fetchTurfs(tp));
-  }, [dispatch, isAuthenticated, user, myProfile]);
+  }, [dispatch, isAuthenticated, user?._id, user?.city, user?.latitude, user?.longitude, myProfile]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -117,7 +122,7 @@ const HomeScreen = ({ navigation }) => {
       } else {
         await fetchDashboardStats();
         if (!myProfile && user) dispatch(fetchMyPlayer());
-        const city = myProfile?.city || myProfile?.location || user?.city || '';
+        const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
         const lat = myProfile?.locationObj?.latitude || user?.latitude;
         const lng = myProfile?.locationObj?.longitude || user?.longitude;
         await fetchNearPlayers(city, lat, lng);
@@ -188,50 +193,163 @@ const HomeScreen = ({ navigation }) => {
   };
 
   // Animated derived values
-  const headerBg = scrollY.interpolate({ inputRange: [0, 90], outputRange: ['rgba(1,21,40,0)', 'rgba(1,21,40,0.98)'], extrapolate: 'clamp' });
+  const headerBg = scrollY.interpolate({ inputRange: [0, 90], outputRange: ['rgba(0,0,0,0)', 'rgba(0,0,0,0.98)'], extrapolate: 'clamp' });
   const headerBorder = scrollY.interpolate({ inputRange: [60, 100], outputRange: ['rgba(255,255,255,0)', 'rgba(255,255,255,0.08)'], extrapolate: 'clamp' });
   const heroParallax = scrollY.interpolate({ inputRange: [0, 200], outputRange: [0, -50], extrapolate: 'clamp' });
 
   /* ─── Turf Card ─────────────────────────────────────────────────────────── */
-  const renderTurfCard = ({ item, index }) => (
-    <TouchableOpacity
-      style={styles.turfCard}
-      onPress={() => navigation.navigate('TurfDetail', { id: item._id })}
-      activeOpacity={0.9}
-    >
-      <Image source={{ uri: getImageUrl(item.coverImage) || 'https://via.placeholder.com/300x200?text=Turf' }} style={styles.turfImage} />
+  const getMinPrice = (pricing) => {
+    if (!pricing) return 0;
+    const p = [pricing.weekdayDay, pricing.weekdayNight, pricing.weekendDay, pricing.weekendNight].filter(x => x > 0);
+    return p.length ? Math.min(...p) : 0;
+  };
 
-      {/* Badges */}
-      <View style={styles.turfTopRow}>
-        <View style={{ flex: 1 }}>
-          {(item.isVerified || item.owner?.isVerifiedOwner) && (
-            <View style={styles.verifiedBadge}>
-              <Icon name="check-decagram" size={9} color="#FFF" />
-              <Text style={styles.verifiedText}>Verified</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.ratingPill}>
-          <Icon name="star" size={9} color={Colors.primary} />
-          <Text style={styles.ratingPillText}>{item.rating > 0 ? item.rating.toFixed(1) : 'New'}</Text>
-        </View>
-      </View>
+  const renderTurfCard = ({ item, index }) => {
+    const minPrice = getMinPrice(item.pricing);
+    const trustScore = item.owner?.trustScore || item.ownerInfo?.trustScore;
 
-      {/* Bottom overlay */}
-      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0.88)']} style={styles.turfOverlay}>
-        <Text style={styles.turfName} numberOfLines={1}>{item.name}</Text>
-        <View style={styles.turfMeta}>
-          <Icon name="map-marker" size={11} color="rgba(255,255,255,0.6)" />
-          <Text style={styles.turfMetaText} numberOfLines={1}>{item.city}</Text>
-          {item.sports?.length > 0 && (
-            <View style={styles.turfSportBadge}>
-              <Text style={styles.turfSportText}>{item.sports[0]}</Text>
+    const inputRange = [
+      (index - 1) * SPACING,
+      index * SPACING,
+      (index + 1) * SPACING,
+    ];
+
+    const scale = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.9, 1.0, 0.9],
+      extrapolate: 'clamp',
+    });
+
+    const rotateZ = scrollX.interpolate({
+      inputRange,
+      outputRange: ['3deg', '0deg', '-3deg'],
+      extrapolate: 'clamp',
+    });
+
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.75, 1.0, 0.75],
+      extrapolate: 'clamp',
+    });
+
+    const translateY = scrollX.interpolate({
+      inputRange,
+      outputRange: [12, 0, 12],
+      extrapolate: 'clamp',
+    });
+
+    const translateX = scrollX.interpolate({
+      inputRange,
+      outputRange: [25, 0, -25],
+      extrapolate: 'clamp',
+    });
+
+    const imageTranslateX = scrollX.interpolate({
+      inputRange,
+      outputRange: [-20, 0, 20],
+      extrapolate: 'clamp',
+    });
+
+    const overlayOpacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0, 1, 0],
+      extrapolate: 'clamp',
+    });
+
+    const distance = (1 + (index % 4) * 0.7).toFixed(1) + ' km';
+
+    return (
+      <Animated.View
+        style={[
+          styles.premiumCardContainer,
+          {
+            opacity,
+            transform: [
+              { scale },
+              { rotate: rotateZ },
+              { translateX },
+              { translateY }
+            ]
+          }
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.premiumCard}
+          onPress={() => navigation.navigate('TurfDetail', { id: item._id })}
+          activeOpacity={0.95}
+        >
+          <Animated.Image
+            source={{ uri: getImageUrl(item.coverImage) || 'https://via.placeholder.com/400x300?text=Turf' }}
+            style={[
+              styles.premiumCardImage,
+              { transform: [{ translateX: imageTranslateX }] }
+            ]}
+          />
+
+          {/* Top Badges */}
+          <View style={styles.premiumTopRow}>
+            {/* Open Now indicator */}
+            <View style={styles.statusBadgeCompact}>
+              <View style={styles.statusDotGreen} />
+              <Text style={styles.statusTextCompact}>OPEN NOW</Text>
             </View>
-          )}
-        </View>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
+
+            {/* Trending/Top Rated Badge */}
+            <View style={styles.topRatedBadgeCompact}>
+              <Icon name="fire" size={10} color="#FFCC00" style={{ marginRight: 2 }} />
+              <Text style={styles.topRatedTextCompact}>TRENDING</Text>
+            </View>
+          </View>
+
+          {/* Bottom Glassmorphic Overlay */}
+          <Animated.View style={[styles.glassOverlay, { opacity: overlayOpacity }]}>
+            <View style={styles.glassHeader}>
+              <Text style={styles.glassTitle} numberOfLines={1}>{item.name}</Text>
+              <View style={styles.ratingBadgeGold}>
+                <Icon name="star" size={10} color="#000" />
+                <Text style={styles.ratingTextGold}>{item.rating > 0 ? item.rating.toFixed(1) : 'New'}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.glassLocation}>
+              <Icon name="map-marker" size={10} color="rgba(255,255,255,0.6)" /> {item.city} • {distance}
+            </Text>
+
+            <View style={styles.glassFooter}>
+              <View style={styles.priceContainer}>
+                <Text style={styles.priceLabel}>Starting</Text>
+                <Text style={styles.priceValue}>₹{minPrice || 800}<Text style={styles.priceUnit}>/hr</Text></Text>
+              </View>
+
+              {/* Sports Icons Row */}
+              <View style={styles.sportsIconRow}>
+                {item.sports && item.sports.includes('cricket') && (
+                  <View style={styles.sportIconCircle}>
+                    <Icon name="cricket" size={11} color="#FFCC00" />
+                  </View>
+                )}
+                {item.sports && item.sports.includes('football') && (
+                  <View style={styles.sportIconCircle}>
+                    <Icon name="soccer" size={11} color="#FFCC00" />
+                  </View>
+                )}
+                {item.sports && item.sports.includes('badminton') && (
+                  <View style={styles.sportIconCircle}>
+                    <Icon name="badminton" size={11} color="#FFCC00" />
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.bookNowBtnCompact}>
+                <Text style={styles.bookNowTextCompact}>Book</Text>
+                <Icon name="chevron-right" size={11} color="#000" />
+              </View>
+            </View>
+          </Animated.View>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   /* ─── Player Card ───────────────────────────────────────────────────────── */
   const renderPlayerCard = ({ item }) => {
@@ -248,7 +366,7 @@ const HomeScreen = ({ navigation }) => {
           {photo
             ? <Image source={{ uri: getImageUrl(photo) || 'https://via.placeholder.com/150' }} style={styles.playerAvatar} />
             : (
-              <LinearGradient colors={['#1a3a5c', '#0d2040']} style={styles.playerAvatar}>
+              <LinearGradient colors={['#111111', '#1A1A1A']} style={styles.playerAvatar}>
                 <Icon name="account" size={26} color="rgba(255,255,255,0.45)" />
               </LinearGradient>
             )}
@@ -304,12 +422,12 @@ const HomeScreen = ({ navigation }) => {
           </TouchableWithoutFeedback>
 
           <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
-            <LinearGradient colors={['#01111f', '#071c2d', '#011528']} style={styles.sidebarBody}>
+            <LinearGradient colors={['#000000', '#0A0A0A', '#000000']} style={styles.sidebarBody}>
               <SafeAreaView edges={['top']}>
                 {/* ── Profile ── */}
                 <View style={styles.sidebarProfile}>
                   <View>
-                    <LinearGradient colors={Colors.gradients?.primary || ['#9abc2f', '#6d8e1f']} style={styles.sidebarAvatar}>
+                    <LinearGradient colors={Colors.gradients?.primary || ['#FFCC00', '#E6B800']} style={styles.sidebarAvatar}>
                       {(myProfile?.photo || user?.photo)
                         ? <Image source={{ uri: getImageUrl(myProfile?.photo || user?.photo) || 'https://via.placeholder.com/150' }} style={StyleSheet.absoluteFill} borderRadius={28} />
                         : <Text style={styles.sidebarAvatarTxt}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</Text>}
@@ -369,7 +487,7 @@ const HomeScreen = ({ navigation }) => {
 
               <View style={styles.sidebarFooter}>
                 <Icon name="leaf" size={12} color={Colors.primary} />
-                <Text style={styles.sidebarFooterTxt}>SportVerse v1.0</Text>
+                <Text style={styles.sidebarFooterTxt}>ScoreVerse v1.0</Text>
               </View>
             </LinearGradient>
           </Animated.View>
@@ -385,14 +503,13 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
 
             <View style={{ flex: 1, paddingLeft: 4 }}>
-              <Text style={styles.headerGreeting}>Hey, {user?.name?.split(' ')[0] || 'Cricketer'} 👋</Text>
-              <Text style={styles.headerSub}>Ready for a match today?</Text>
+              <Text style={styles.headerGreeting}>Hey, {user?.name?.split(' ')[0] || 'Cricketer'}</Text>
             </View>
 
             <View style={styles.headerActions}>
               <NotificationBell onPress={() => authGuard(() => navigation.navigate('Notifications'))} />
               <TouchableOpacity onPress={() => authGuard(() => navigation.navigate('Profile'))} activeOpacity={0.85}>
-                <LinearGradient colors={Colors.gradients?.primary || ['#9abc2f', '#6d8e1f']} style={styles.headerAvatar}>
+                <LinearGradient colors={Colors.gradients?.primary || ['#FFCC00', '#E6B800']} style={styles.headerAvatar}>
                   {(myProfile?.photo || user?.photo)
                     ? <Image source={{ uri: getImageUrl(myProfile?.photo || user?.photo) || 'https://via.placeholder.com/150' }} style={StyleSheet.absoluteFill} borderRadius={19} />
                     : <Text style={styles.headerAvatarTxt}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</Text>}
@@ -422,55 +539,31 @@ const HomeScreen = ({ navigation }) => {
         {/* ── HERO ── */}
         <Animated.View style={{ transform: [{ translateY: heroParallax }] }}>
           <LinearGradient
-            colors={['#000e1c', '#011528', '#0a1e32', '#011528']}
+            colors={['#000000', '#000000', '#050505', '#000000']}
             style={styles.hero}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           >
             {/* Decorative glow orbs */}
-            <View style={[styles.glowOrb, { top: -40, right: -40, width: 200, height: 200, backgroundColor: 'rgba(154,188,47,0.05)' }]} />
-            <View style={[styles.glowOrb, { bottom: 20, left: -60, width: 180, height: 180, backgroundColor: 'rgba(33,150,243,0.04)' }]} />
+            <View style={[styles.glowOrb, { top: -40, right: -40, width: 200, height: 200, backgroundColor: 'rgba(255,204,0,0.05)' }]} />
+            <View style={[styles.glowOrb, { bottom: 20, left: -60, width: 180, height: 180, backgroundColor: 'rgba(255,204,0,0.04)' }]} />
 
             <SafeAreaView edges={['top']}>
               <View style={{ height: 68 }} />
             </SafeAreaView>
 
-            {platformSettings?.bannerUrl ? (
-              <View style={[styles.bannerWrap, { height: SW * 0.43 }]}>
-                <Image
-                  source={{ uri: getImageUrl(platformSettings.bannerUrl) }}
-                  style={[styles.bannerImg, { height: '100%' }]}
-                  resizeMode="cover"
-                  fadeDuration={300}
-                  onError={(e) => {
-                    console.log('⚡ [HomeScreen] Banner image load error:', e.nativeEvent?.error, 'URI:', getImageUrl(platformSettings.bannerUrl));
-                  }}
-                />
-              </View>
-            ) : null}
-
-            {/* Fallback Hero Header Content (Displayed when no banner or when text header is expected) */}
-            {!platformSettings?.bannerUrl && (
-              <View style={styles.heroContent}>
-                <View style={styles.heroBadge}>
-                  <PulseDot />
-                  <Text style={styles.heroBadgeTxt}>LIVE MATCHES TODAY</Text>
-                </View>
-                <Text style={styles.heroTitle}>Find & Book{'\n'}Your Perfect Turf</Text>
-                <Text style={styles.heroSub}>Discover top-rated cricket turfs near you</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('Search')} activeOpacity={0.85} style={{ alignSelf: 'flex-start' }}>
-                  <LinearGradient colors={['#9abc2f', '#799622']} style={styles.heroCTA} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                    <Icon name="magnify" size={16} color="#000" />
-                    <Text style={styles.heroCTATxt}>Explore Turfs</Text>
-                    <Icon name="arrow-right" size={15} color="#000" />
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            )}
+            <View style={[styles.bannerWrap, { width: SW * 0.88, aspectRatio: 1983 / 793, alignSelf: 'center' }]}>
+              <Image
+                source={require('../../../../Banner.png')}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+                fadeDuration={300}
+              />
+            </View>
           </LinearGradient>
         </Animated.View>
 
         {/* ── STATS (authenticated) ── */}
-        {isAuthenticated && (
+        {/* {isAuthenticated && (
           <View style={styles.statsRow}>
             {[
               { k: 'bookings', l: 'Bookings', ic: 'calendar-check', c: Colors.primary },
@@ -486,14 +579,14 @@ const HomeScreen = ({ navigation }) => {
               </View>
             ))}
           </View>
-        )}
+        )} */}
 
         {/* ── BOOK A TURF ── */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <View>
               <Text style={styles.sectionTitle}>Book a Turf</Text>
-              <Text style={styles.sectionSub}>{user?.city || myProfile?.city ? `Top picks in ${user?.city || myProfile?.city}` : 'Best turfs near you'}</Text>
+              <Text style={[styles.sectionSub, { marginLeft: -0.5 }]}>{displayCity ? `Top picks in ${displayCity.trim()}` : 'Best turfs near you'}</Text>
             </View>
           </View>
 
@@ -502,14 +595,14 @@ const HomeScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'turfs' } })}
             activeOpacity={0.88} style={styles.bookHeroWrap}
           >
-            <LinearGradient colors={['#071e0d', '#0d2a10', '#112d14']} style={styles.bookHero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            <LinearGradient colors={['#050505', '#0A0A0A', '#0F0F0F']} style={styles.bookHero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
               {/* Shimmer accent line */}
               <View style={styles.bookHeroAccent} />
               <View style={{ flex: 1, gap: 8 }}>
-                <View style={styles.instantBadge}>
+                {/* <View style={styles.instantBadge}>
                   <Icon name="lightning-bolt" size={10} color="#000" />
                   <Text style={styles.instantTxt}>INSTANT BOOKING</Text>
-                </View>
+                </View> */}
                 <Text style={styles.bookHeroTitle}>Find & Reserve{'\n'}Your Turf Now</Text>
                 <Text style={styles.bookHeroSub}>Browse 50+ turfs · Filter by time & sport</Text>
                 <View style={styles.bookHeroCTA}>
@@ -518,7 +611,17 @@ const HomeScreen = ({ navigation }) => {
                 </View>
               </View>
               <View style={styles.bookHeroIconCol}>
-                <Icon name="calendar-search" size={58} color={Colors.primary} style={{ opacity: 0.8 }} />
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(154,188,47,0.1)', justifyContent: 'center', alignItems: 'center' }}>
+                  <Icon name="calendar-search" size={34} color={Colors.primary} />
+                  
+                  {/* Floating icons for enhancement */}
+                  <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: Colors.backgroundElevated, borderRadius: 14, padding: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
+                     <Icon name="map-marker-radius" size={14} color={Colors.primary} />
+                  </View>
+                  <View style={{ position: 'absolute', bottom: -2, left: -2, backgroundColor: Colors.backgroundElevated, borderRadius: 14, padding: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
+                     <Icon name="soccer" size={14} color={Colors.primary} />
+                  </View>
+                </View>
               </View>
             </LinearGradient>
           </TouchableOpacity>
@@ -526,12 +629,14 @@ const HomeScreen = ({ navigation }) => {
           {/* Quick action chips */}
           <View style={styles.chipRow}>
             {[
-              { ic: 'calendar-check-outline', l: 'My Bookings', fn: () => authGuard(() => navigation.navigate('Bookings', { screen: 'BookingHistory' })) },
-              { ic: 'heart-outline', l: 'Saved Turfs', fn: () => authGuard(() => navigation.navigate('Profile', { screen: 'Favourites' })) },
-              { ic: 'map-marker-radius-outline', l: 'Near Me', fn: () => navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'turfs' } }) },
+              { ic: 'calendar-check', l: 'My Bookings', fn: () => authGuard(() => navigation.navigate('Bookings', { screen: 'BookingHistory' })) },
+              { ic: 'heart', l: 'Saved Turfs', fn: () => authGuard(() => navigation.navigate('Profile', { screen: 'Favourites' })) },
+              { ic: 'map-marker-radius', l: 'Near Me', fn: () => navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'turfs' } }) },
             ].map((c, i) => (
               <TouchableOpacity key={i} style={styles.chip} onPress={c.fn} activeOpacity={0.78}>
-                <Icon name={c.ic} size={18} color={Colors.primary} />
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(154,188,47,0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 2 }}>
+                  <Icon name={c.ic} size={18} color={Colors.primary} />
+                </View>
                 <Text style={styles.chipLabel}>{c.l}</Text>
               </TouchableOpacity>
             ))}
@@ -552,10 +657,9 @@ const HomeScreen = ({ navigation }) => {
               >
                 <LinearGradient colors={a.gradient} style={styles.cricketCardInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                   <View style={styles.cricketIconWrap}>
-                    <Icon name={a.icon} size={24} color={Colors.primary} />
+                    <Icon name={a.icon} size={18} color={Colors.primary} />
                   </View>
-                  <Text style={styles.cricketCardLabel}>{a.label}</Text>
-                  <Icon name="arrow-top-right" size={13} color={Colors.primary} style={{ opacity: 0.6, alignSelf: 'flex-end' }} />
+                  <Text style={styles.cricketCardLabel} numberOfLines={1}>{a.label}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             ))}
@@ -569,14 +673,14 @@ const HomeScreen = ({ navigation }) => {
               {/* Red left accent */}
               <View style={styles.liveBannerAccent} />
               <LinearGradient
-                colors={['rgba(244,67,54,0.07)', 'transparent']}
+                colors={['rgba(255,204,0,0.07)', 'transparent']}
                 style={StyleSheet.absoluteFill}
                 start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
               />
               <View style={{ flex: 1, gap: 6 }}>
                 <View style={styles.livePill}>
                   <PulseDot />
-                  <Text style={styles.livePillTxt}>LIVE NOW</Text>
+                  <Text style={styles.livePillTxt}>LIVE</Text>
                 </View>
                 <Text style={styles.liveBannerTitle}>Watch Live Matches</Text>
                 <Text style={styles.liveBannerSub}>Catch the action from local turfs near you</Text>
@@ -594,9 +698,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.sectionHead}>
               <View>
                 <Text style={styles.sectionTitle}>Players Near You</Text>
-                <Text style={styles.sectionSub}>
-                  {user?.city || myProfile?.city ? `Cricketers in ${user?.city || myProfile?.city}` : 'Based on your location'}
-                </Text>
+                <Text style={styles.sectionSub}>{displayCity ? `Cricketers in ${displayCity.trim()}` : 'Based on your location'}</Text>
               </View>
               <TouchableOpacity style={styles.seeAll} onPress={() => navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'players' } })}>
                 <Text style={styles.seeAllTxt}>See All</Text>
@@ -618,7 +720,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={{ marginBottom: Spacing['2xl'] }}>
           <View style={styles.sectionHead}>
             <View>
-              <Text style={styles.sectionTitle}>Top Rated Turfs</Text>
+              <Text style={styles.sectionTitle}>Top Rated Grounds</Text>
               <Text style={styles.sectionSub}>Highest rated near you</Text>
             </View>
             <TouchableOpacity style={styles.seeAll} onPress={() => navigation.navigate('Search')}>
@@ -629,18 +731,30 @@ const HomeScreen = ({ navigation }) => {
 
           {isLoading ? (
             <SkeletonPlaceholder backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
-              <View style={{ flexDirection: 'row', gap: 14, paddingHorizontal: Spacing.xl }}>
-                {[1, 2].map(k => <View key={k} style={{ width: TURF_CARD_W, height: TURF_CARD_H, borderRadius: 20 }} />)}
+              <View style={{ flexDirection: 'row', gap: 14, paddingHorizontal: (SW - PREMIUM_CARD_W) / 2 }}>
+                {[1, 2].map(k => <View key={k} style={{ width: PREMIUM_CARD_W, height: PREMIUM_CARD_H, borderRadius: 24 }} />)}
               </View>
             </SkeletonPlaceholder>
           ) : (
-            <FlatList
+            <Animated.FlatList
               horizontal
               showsHorizontalScrollIndicator={false}
               data={turfs}
               keyExtractor={it => it._id}
               renderItem={renderTurfCard}
-              contentContainerStyle={{ paddingHorizontal: Spacing.xl, gap: 14 }}
+              snapToInterval={SPACING}
+              decelerationRate="fast"
+              snapToAlignment="center"
+              contentContainerStyle={{
+                paddingLeft: (SW - PREMIUM_CARD_W) / 2,
+                paddingRight: (SW - PREMIUM_CARD_W) / 2 + OVERLAP_AMOUNT,
+                paddingVertical: 10,
+              }}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                { useNativeDriver: true }
+              )}
+              scrollEventThrottle={16}
             />
           )}
         </View>
@@ -648,13 +762,13 @@ const HomeScreen = ({ navigation }) => {
         {/* ── EXPLORE CTA ── */}
         <View style={styles.section}>
           <TouchableOpacity onPress={() => navigation.navigate('Search')} activeOpacity={0.85}>
-            <LinearGradient colors={['rgba(154,188,47,0.08)', 'rgba(154,188,47,0.03)']} style={styles.exploreCTA} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+            <LinearGradient colors={['rgba(255,204,0,0.08)', 'rgba(255,204,0,0.03)']} style={styles.exploreCTA} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
               <View style={styles.exploreIcon}>
                 <Icon name="map-search-outline" size={24} color={Colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.exploreTxt}>Explore All Turfs</Text>
-                <Text style={styles.exploreSub}>Filter by location, sport & price</Text>
+                <Text style={styles.exploreTxt}>Explore All Grounds</Text>
+                <Text style={styles.exploreSub}>Filter by location & price</Text>
               </View>
               <View style={styles.exploreArrow}>
                 <Icon name="arrow-right" size={16} color={Colors.primary} />
@@ -684,7 +798,7 @@ const styles = StyleSheet.create({
   sidebarProfile: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 22, paddingTop: 6, paddingBottom: 16 },
   sidebarAvatar: { width: 54, height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   sidebarAvatarTxt: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 21 },
-  sidebarOnline: { position: 'absolute', bottom: 1, right: 1, width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.success, borderWidth: 2, borderColor: '#011528' },
+  sidebarOnline: { position: 'absolute', bottom: 1, right: 1, width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.success, borderWidth: 2, borderColor: '#000000' },
   sidebarName: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 15 },
   sidebarCityRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
   sidebarCityTxt: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11 },
@@ -709,7 +823,7 @@ const styles = StyleSheet.create({
   header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, borderBottomWidth: 1 },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 10 },
   menuBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  headerGreeting: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  headerGreeting: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   headerSub: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerAvatar: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
@@ -724,8 +838,8 @@ const styles = StyleSheet.create({
   heroSub: { fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginBottom: 22 },
   heroCTA: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 999 },
   heroCTATxt: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  bannerWrap: { marginHorizontal: Spacing.lg, borderRadius: BorderRadius.xl, overflow: 'hidden', marginBottom: 12, marginTop: 4, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
-  bannerImg: { width: '100%', aspectRatio: 16 / 7, borderRadius: BorderRadius.xl },
+  bannerWrap: { marginHorizontal: Spacing.lg, borderRadius: BorderRadius.xl, overflow: 'hidden', marginBottom: 0, marginTop: 4, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, borderWidth: 1, borderColor: Colors.border },
+  bannerImg: { width: '100%', height: '100%', borderRadius: BorderRadius.xl },
 
   /* Pulse dot */
   pulseDotWrap: { width: 14, height: 14, justifyContent: 'center', alignItems: 'center' },
@@ -748,7 +862,7 @@ const styles = StyleSheet.create({
   seeAllTxt: { color: Colors.primary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 },
 
   /* Book a Turf */
-  bookHeroWrap: { borderRadius: 20, overflow: 'hidden', marginBottom: 14, ...Shadows.md },
+  bookHeroWrap: {overflow: 'hidden', marginBottom: 14, ...Shadows.md },
   bookHero: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 12, borderWidth: 1, borderColor: 'rgba(154,188,47,0.14)' },
   bookHeroAccent: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, backgroundColor: Colors.primary, opacity: 0.5 },
   instantBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: Colors.primary, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 7 },
@@ -767,33 +881,200 @@ const styles = StyleSheet.create({
   /* Cricket Grid */
   cricketGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   cricketCard: { width: (SW - Spacing.xl * 2 - 10) / 2, borderRadius: 16, overflow: 'hidden', ...Shadows.sm },
-  cricketCardInner: { padding: 16, gap: 10, borderWidth: 1, borderColor: 'rgba(154,188,47,0.1)', borderRadius: 16 },
-  cricketIconWrap: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)' },
-  cricketCardLabel: { fontSize: 13, fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary, lineHeight: 17 },
+  cricketCardInner: { flexDirection: 'row', alignItems: 'center', padding: 12, paddingHorizontal: 14, gap: 10, borderWidth: 1, borderColor: 'rgba(154,188,47,0.1)', borderRadius: 16 },
+  cricketIconWrap: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)' },
+  cricketCardLabel: { flex: 1, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary },
 
   /* Live Banner */
   liveBanner: { borderRadius: 18, padding: 18, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)', backgroundColor: Colors.backgroundElevated, overflow: 'hidden', gap: 12 },
-  liveBannerAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: Colors.error },
-  livePill: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(244,67,54,0.12)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(244,67,54,0.22)' },
-  livePillTxt: { color: Colors.error, fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 1 },
+  liveBannerAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: Colors.primary },
+  livePill: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(255,204,0,0.12)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,204,0,0.22)' },
+  livePillTxt: { color: Colors.primary, fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 1 },
   liveBannerTitle: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
   liveBannerSub: { fontSize: 11, color: Colors.textSecondary },
-  liveArrow: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.09)', borderWidth: 1, borderColor: 'rgba(154,188,47,0.18)' },
+  liveArrow: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,204,0,0.09)', borderWidth: 1, borderColor: 'rgba(255,204,0,0.18)' },
 
-  /* Turf Cards */
-  turfCard: { width: TURF_CARD_W, height: TURF_CARD_H, borderRadius: 20, overflow: 'hidden', ...Shadows.md },
-  turfImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  turfTopRow: { position: 'absolute', top: 12, left: 12, right: 12, flexDirection: 'row', alignItems: 'flex-start' },
-  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1565C0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, alignSelf: 'flex-start' },
-  verifiedText: { color: '#FFF', fontSize: 9, fontFamily: Typography.fontFamily.bold },
-  ratingPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(154,188,47,0.3)' },
-  ratingPillText: { color: Colors.primary, fontSize: 10, fontFamily: Typography.fontFamily.bold },
-  turfOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 14, gap: 4 },
-  turfName: { fontSize: 15, color: '#FFF', fontFamily: Typography.fontFamily.bold },
-  turfMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  turfMetaText: { fontSize: 11, color: 'rgba(255,255,255,0.65)', fontFamily: Typography.fontFamily.medium, flex: 1 },
-  turfSportBadge: { backgroundColor: 'rgba(154,188,47,0.2)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  turfSportText: { color: Colors.primary, fontSize: 9, fontFamily: Typography.fontFamily.bold },
+  /* Premium Turf Cards Stack */
+  premiumCardContainer: {
+    width: SPACING,
+    height: PREMIUM_CARD_H,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  premiumCard: {
+    width: PREMIUM_CARD_W,
+    height: PREMIUM_CARD_H,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#111111',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  premiumCardImage: {
+    position: 'absolute',
+    left: -25,
+    top: 0,
+    bottom: 0,
+    width: PREMIUM_CARD_W + 50,
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  premiumTopRow: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    right: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  statusBadgeCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  statusDotGreen: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#2ED573',
+    marginRight: 5,
+  },
+  statusTextCompact: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.5,
+  },
+  topRatedBadgeCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFCC00',
+  },
+  topRatedTextCompact: {
+    color: '#FFCC00',
+    fontSize: 8,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.5,
+  },
+  glassOverlay: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    right: 12,
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: 'rgba(17, 17, 17, 0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  glassHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  glassTitle: {
+    color: '#FFFFFF',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 15,
+    flex: 1,
+    marginRight: 8,
+  },
+  ratingBadgeGold: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFCC00',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 2,
+  },
+  ratingTextGold: {
+    color: '#000000',
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  glassLocation: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 10,
+    marginBottom: 10,
+  },
+  glassFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  priceContainer: {
+    flexDirection: 'column',
+  },
+  priceLabel: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 8,
+    fontFamily: Typography.fontFamily.medium,
+    textTransform: 'uppercase',
+  },
+  priceValue: {
+    color: '#FFFFFF',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+  },
+  priceUnit: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  sportsIconRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+  },
+  sportIconCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 204, 0, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 204, 0, 0.2)',
+  },
+  bookNowBtnCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFCC00',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 2,
+  },
+  bookNowTextCompact: {
+    color: '#000000',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 11,
+  },
 
   /* Player Cards */
   playerCard: { backgroundColor: Colors.backgroundCard, borderRadius: 16, padding: 14, alignItems: 'center', width: 148, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },

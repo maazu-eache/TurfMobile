@@ -1,71 +1,89 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+  Animated,
+  StatusBar,
+  Dimensions,
+} from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSlots, clearSlots } from '../../slot/slotSlice';
 import { rescheduleBooking } from '../bookingSlice';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
-import moment from 'moment'; // Assuming moment is used, or native Date
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
+import moment from 'moment';
 import { formatISTTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import api from '../../../api/axios';
 
-/**
- * Returns true if the slot's start time is in the past or within 1 hour from now.
- * Only applied when the selected date is TODAY.
- */
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 const isPastSlot = (selectedDate, startTime) => {
-  const today = moment().format('YYYY-MM-DD');
-  if (selectedDate !== today) return false; // Future dates are always fine
-  // Combine today's date with slot startTime to get a comparable moment
   const slotStart = moment(`${selectedDate} ${startTime}`, 'YYYY-MM-DD HH:mm');
-  const cutoff = moment().add(1, 'hour'); // Must be at least 1 hr in the future
-  return slotStart.isBefore(cutoff);
+  return slotStart.isBefore(moment());
 };
 
+const getTimeGroup = (timeStr) => {
+  const hour = parseInt(timeStr.split(':')[0], 10);
+  if (hour >= 0 && hour < 6) return 'early_morning';
+  if (hour >= 6 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 16) return 'afternoon';
+  if (hour >= 16 && hour < 20) return 'evening';
+  return 'night';
+};
 
 const SlotPickerScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
   const { turf, isRescheduling, reschedulingBookingId, oldTotalPrice } = route.params;
   const dispatch = useDispatch();
-  const { slots, isLoading, error } = useSelector((state) => state.slot);
+  const { slots, isLoading } = useSelector((state) => state.slot);
   const { isAuthenticated } = useSelector((state) => state.auth);
 
-  // Date selection state (next 7 days)
   const today = moment();
   const [selectedDate, setSelectedDate] = useState(today.format('YYYY-MM-DD'));
   const [selectedSlots, setSelectedSlots] = useState([]);
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(moment().startOf('month'));
-  const [activePicker, setActivePicker] = useState('none'); // 'start', 'end', 'startTime', 'endTime', 'none'
+  const [activePicker, setActivePicker] = useState('none');
+  const [expandedGroup, setExpandedGroup] = useState('evening'); // Default expanded group
 
   // Bulk Mode State
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkParams, setBulkParams] = useState({
     startDate: moment().format('YYYY-MM-DD'),
     endDate: moment().add(7, 'days').format('YYYY-MM-DD'),
-    daysOfWeek: [], // 0=Sun, 1=Mon...
+    daysOfWeek: [],
     startTime: '',
     endTime: ''
   });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [previewResult, setPreviewResult] = useState(null);
 
-  // Generate 7 days for horizontal list
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Generate 7 days for horizontal selector
   const dates = Array.from({ length: 7 }).map((_, i) => moment().add(i, 'days'));
 
-  // Format time to AM/PM
   const formatTime = (timeStr) => formatISTTime(timeStr);
 
   useEffect(() => {
     dispatch(fetchSlots({ turfId: turf._id, date: selectedDate }));
+    Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
     return () => dispatch(clearSlots());
   }, [turf._id, selectedDate, dispatch]);
 
   const toggleSlot = (slot) => {
     if (slot.status !== 'available') return;
-    if (isPastSlot(selectedDate, slot.startTime)) return; // Block past/near-past slots
+    if (isPastSlot(selectedDate, slot.startTime)) return;
     const exists = selectedSlots.find(s => s._id === slot._id);
     if (exists) {
       setSelectedSlots(selectedSlots.filter(s => s._id !== slot._id));
@@ -74,7 +92,6 @@ const SlotPickerScreen = ({ route, navigation }) => {
     }
   };
 
-  // When date changes, drop any selected slots that are now in the past
   useEffect(() => {
     setSelectedSlots(prev =>
       prev.filter(s => !isPastSlot(selectedDate, s.startTime))
@@ -98,7 +115,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
       const res = await dispatch(rescheduleBooking({ id: reschedulingBookingId, newSlots: selectedSlots.map(s => s._id) }));
       if (rescheduleBooking.fulfilled.match(res)) {
         showCustomAlert('Success', 'Booking successfully rescheduled!');
-        navigation.navigate('Main', { screen: 'Bookings' }); // Adjust route as needed
+        navigation.navigate('Main', { screen: 'Bookings' });
       } else {
         showCustomAlert('Error', res.payload || 'Failed to reschedule booking.');
       }
@@ -107,95 +124,27 @@ const SlotPickerScreen = ({ route, navigation }) => {
     }
   };
 
-  /**
-   * Cross-midnight aware bulk search.
-   * When startTime > endTime (e.g. 23:00 → 01:00), the window wraps midnight.
-   * We split into two requests:
-   *  1. Evening part: startTime → "23:59" on the ORIGINAL date range.
-   *  2. Midnight part: "00:00" → endTime on the date range shifted +1 day.
-   */
   const handleBulkSearch = async () => {
-    const { startTime, endTime, startDate, endDate } = bulkParams;
-
-    if (!startDate || !endDate) {
-      return showCustomAlert('Missing Info', 'Please select a date range first.');
+    if (!bulkParams.startTime || !bulkParams.endTime) {
+      return showCustomAlert('Time Required', 'Please select start and end time windows.');
     }
-    if (!startTime || !endTime) {
-      return showCustomAlert('Missing Info', 'Please select both start and end times.');
-    }
-
     setIsBulkLoading(true);
     try {
-      const isCrossMidnight =
-        startTime && endTime && startTime > endTime; // "23:00" > "01:00" → true
-
-      let fetchedSlots = [];
-
-      if (isCrossMidnight) {
-        const nextDayDaysOfWeek = bulkParams.daysOfWeek.length > 0
-          ? bulkParams.daysOfWeek.map(d => (d + 1) % 7)
-          : [];
-
-        // Request 1 – evening slots (startTime → end of day)
-        const [res1, res2] = await Promise.all([
-          api.post('/slots/bulk-search', {
-            turfId: turf._id,
-            ...bulkParams,
-            endTime: '23:59',
-          }),
-          // Request 2 – midnight slots (start of day → endTime) on next-day dates
-          api.post('/slots/bulk-search', {
-            turfId: turf._id,
-            ...bulkParams,
-            startTime: '00:00',
-            startDate: moment(startDate).add(1, 'day').format('YYYY-MM-DD'),
-            endDate: moment(endDate).add(1, 'day').format('YYYY-MM-DD'),
-            daysOfWeek: nextDayDaysOfWeek
-          }),
-        ]);
-        fetchedSlots = [
-          ...(res1.data.data || []),
-          ...(res2.data.data || []),
-        ];
-      } else {
-        const res = await api.post('/slots/bulk-search', {
-          turfId: turf._id,
-          ...bulkParams,
-        });
-        fetchedSlots = res.data.data || [];
-      }
-
-      // Filter out past slots and de-duplicate
-      const existingIds = new Set(selectedSlots.map(s => s._id));
-      const newSlots = fetchedSlots.filter(
-        s => !existingIds.has(s._id) && s.status === 'available'
-      );
-
-      if (newSlots.length === 0) {
-        showCustomAlert('No Slots Found', 'No available slots matched your criteria.');
-      } else {
-        const subtotal = newSlots.reduce((acc, s) => acc + s.price, 0);
-        const platformFee = Math.round(subtotal * 0.05);
-        setPreviewResult({
-          slots: newSlots,
-          subtotal,
-          platformFee,
-          total: subtotal + platformFee
-        });
-      }
-    } catch (err) {
-      showCustomAlert('Error', err.response?.data?.message || 'Failed to search bulk slots');
+      const res = await api.post(`/bookings/bulk-search/${turf._id}`, bulkParams);
+      setPreviewResult(res.data.data);
+    } catch (e) {
+      showCustomAlert('Search Failed', e.response?.data?.message || 'Failed to find matching slots.');
     } finally {
       setIsBulkLoading(false);
     }
   };
 
   const confirmBulkAdd = () => {
-    if (!previewResult) return;
-    setSelectedSlots([...selectedSlots, ...previewResult.slots]);
-    setShowBulkModal(false);
-    showCustomAlert('Success', `${previewResult.slots.length} slots added to your cart!`);
-    setPreviewResult(null);
+    if (previewResult && previewResult.slots.length > 0) {
+      setSelectedSlots(previewResult.slots);
+      setShowBulkModal(false);
+      setPreviewResult(null);
+    }
   };
 
   const toggleDayOfWeek = (dayIndex) => {
@@ -207,14 +156,19 @@ const SlotPickerScreen = ({ route, navigation }) => {
     }
   };
 
+  // Render Date item with perspective tilts
   const renderDateItem = (dateObj) => {
     const dateStr = dateObj.format('YYYY-MM-DD');
     const isSelected = dateStr === selectedDate;
     return (
       <TouchableOpacity
         key={dateStr}
-        style={[styles.dateBox, isSelected && styles.dateBoxSelected]}
+        style={[
+          styles.dateBox,
+          isSelected ? styles.dateBoxSelected : styles.dateBoxInactive
+        ]}
         onPress={() => setSelectedDate(dateStr)}
+        activeOpacity={0.85}
       >
         <Text style={[styles.dateDay, isSelected && styles.dateTextSelected]}>{dateObj.format('ddd')}</Text>
         <Text style={[styles.dateNum, isSelected && styles.dateTextSelected]}>{dateObj.format('DD')}</Text>
@@ -223,164 +177,211 @@ const SlotPickerScreen = ({ route, navigation }) => {
     );
   };
 
-  const getSlotStyle = (slot, isSelected) => {
-    // Past slot (today only, within 1 hr from now)
-    if (isPastSlot(selectedDate, slot.startTime)) {
-      return {
-        container: { backgroundColor: 'rgba(0,0,0,0.2)', borderColor: Colors.border, opacity: 0.45 },
-        text: { color: Colors.textTertiary, textDecorationLine: 'line-through' },
-        label: 'PAST',
-        labelColor: Colors.textTertiary,
-      };
-    }
-    if (isSelected) {
-      return {
-        container: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-        text: { color: '#000', textDecorationLine: 'none' },
-        label: null,
-        labelColor: null,
-      };
-    }
-    switch (slot.status) {
-      case 'available':
-        return {
-          container: { backgroundColor: Colors.surface, borderColor: Colors.primary },
-          text: { color: Colors.textPrimary, textDecorationLine: 'none' },
-          label: null,
-          labelColor: null,
-        };
-      case 'booked':
-        return {
-          container: { backgroundColor: 'rgba(33,150,243,0.1)', borderColor: '#2196F3', opacity: 0.7 },
-          text: { color: Colors.textTertiary, textDecorationLine: 'line-through' },
-          label: 'BOOKED',
-          labelColor: '#2196F3',
-        };
-      case 'offline_booking':
-      case 'offline':
-        return {
-          container: { backgroundColor: 'rgba(156,39,176,0.1)', borderColor: '#9C27B0', opacity: 0.7 },
-          text: { color: Colors.textTertiary, textDecorationLine: 'line-through' },
-          label: 'OFFLINE',
-          labelColor: '#9C27B0',
-        };
-      case 'maintenance':
-        return {
-          container: { backgroundColor: 'rgba(244,67,54,0.1)', borderColor: Colors.error, opacity: 0.7 },
-          text: { color: Colors.textTertiary, textDecorationLine: 'line-through' },
-          label: 'MAINT.',
-          labelColor: Colors.error,
-        };
-      default:
-        return {
-          container: { backgroundColor: Colors.surface, borderColor: Colors.border },
-          text: { color: Colors.textSecondary },
-          label: null,
-          labelColor: null,
-        };
-    }
+  const availableCount = slots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).length;
+  const bookedCount = slots.filter(s => s.status === 'booked' || s.status === 'offline_booking').length;
+  const pastCount = slots.filter(s => isPastSlot(selectedDate, s.startTime)).length;
+
+  const totalSelectedPrice = selectedSlots.reduce((acc, s) => acc + s.price, 0);
+
+  // Group slots by time blocks
+  const groupedSlots = {
+    early_morning: slots.filter(s => getTimeGroup(s.startTime) === 'early_morning'),
+    morning: slots.filter(s => getTimeGroup(s.startTime) === 'morning'),
+    afternoon: slots.filter(s => getTimeGroup(s.startTime) === 'afternoon'),
+    evening: slots.filter(s => getTimeGroup(s.startTime) === 'evening'),
+    night: slots.filter(s => getTimeGroup(s.startTime) === 'night'),
   };
 
-  const renderSlot = (slot) => {
+  const renderSlotCard = (slot) => {
     const isSelected = selectedSlots.find(s => s._id === slot._id);
     const past = isPastSlot(selectedDate, slot.startTime);
-    const dynamicStyle = getSlotStyle(slot, isSelected);
-    const isDisabled = slot.status !== 'available' || past;
+    const isBooked = slot.status === 'booked' || slot.status === 'offline_booking' || slot.status === 'offline';
+    
+    let cardStyle = styles.slotCardAvailable;
+    let textStyle = styles.slotTextAvailable;
+
+    if (isSelected) {
+      cardStyle = styles.slotCardSelected;
+      textStyle = styles.slotTextSelected;
+    } else if (isBooked) {
+      cardStyle = styles.slotCardBooked;
+      textStyle = styles.slotTextBooked;
+    } else if (past) {
+      cardStyle = styles.slotCardPast;
+      textStyle = styles.slotTextPast;
+    }
 
     return (
       <TouchableOpacity
         key={slot._id}
-        style={[styles.slot, dynamicStyle.container]}
+        style={[styles.slotCard, cardStyle]}
         onPress={() => toggleSlot(slot)}
-        disabled={isDisabled}
+        disabled={isBooked || past}
+        activeOpacity={0.8}
       >
-        <Text style={[styles.slotTime, dynamicStyle.text]}>
+        {isBooked ? (
+          <Icon name="lock-outline" size={14} color="rgba(255,255,255,0.25)" style={styles.slotStateIcon} />
+        ) : past ? (
+          <Icon name="clock-alert-outline" size={14} color="rgba(255,255,255,0.15)" style={styles.slotStateIcon} />
+        ) : isSelected ? (
+          <Icon name="check-circle" size={14} color="#FFF" style={styles.slotStateIcon} />
+        ) : null}
+        <Text style={[styles.slotTime, textStyle, past && { textDecorationLine: 'line-through' }]}>
           {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
         </Text>
-        <Text style={[styles.slotPrice, dynamicStyle.text]}>₹{slot.price}</Text>
-        {dynamicStyle.label && (
-          <Text style={[
-            styles.slotLabel,
-            { color: dynamicStyle.labelColor }
-          ]}>
-            {dynamicStyle.label}
-          </Text>
-        )}
+        <Text style={[styles.slotPrice, textStyle]}>₹{slot.price}</Text>
       </TouchableOpacity>
     );
   };
 
-  const totalPrice = selectedSlots.reduce((acc, s) => acc + s.price, 0);
-
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      
+      {/* ── Floating 3D Header ── */}
+      <View style={[styles.header, { paddingTop: insets.top + 18 }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+          <Icon name="arrow-left" size={20} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isRescheduling ? 'Reschedule Slots' : 'Select Slots'}</Text>
-        <TouchableOpacity onPress={() => setShowBulkModal(true)}>
-          <Icon name="calendar-multiselect" size={28} color={Colors.primary} />
+        <TouchableOpacity onPress={() => setShowBulkModal(true)} style={styles.headerBtn}>
+          <Icon name="calendar-multiselect" size={20} color="#FFD400" />
         </TouchableOpacity>
       </View>
 
-      {/* Date Picker */}
-      <View style={styles.datePickerContainer}>
-        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
-          <TouchableOpacity
-            style={styles.calendarBtn}
-            onPress={() => {
-              setActivePicker('none');
-              setShowCalendar(true);
-            }}
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        style={{ opacity: fadeAnim }}
+      >
+        {/* ── Date Picker Horizontal List ── */}
+        <View style={styles.datePickerContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dateScroll}
           >
-            <Icon name="calendar-month" size={28} color={Colors.primary} />
-            <Text style={styles.calendarBtnText}>More</Text>
-          </TouchableOpacity>
-          {dates.map(renderDateItem)}
-        </KeyboardAwareScrollView>
-      </View>
-
-      {/* Legend */}
-      <View style={styles.legendContainer}>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.primary }]} /><Text style={styles.legendText}>Selected</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary }]} /><Text style={styles.legendText}>Available</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#2196F3' }]} /><Text style={styles.legendText}>Booked</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.border }]} /><Text style={styles.legendText}>Past</Text></View>
-      </View>
-
-      {/* Slots List */}
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.slotsContainer}>
-        {isLoading ? (
-          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
-        ) : slots.length === 0 ? (
-          <Text style={styles.emptyText}>No slots generated for this date yet.</Text>
-        ) : (
-          <View style={styles.slotsGrid}>
-            {slots.map(renderSlot)}
-          </View>
-        )}
-      </KeyboardAwareScrollView>
-
-      {/* Footer / Checkout Button */}
-      <View style={styles.footer}>
-        <View>
-          <Text style={styles.totalLabel}>{selectedSlots.length} Slots Selected</Text>
-          <Text style={[styles.totalPrice, isRescheduling && totalPrice !== oldTotalPrice && { color: Colors.error }]}>₹{totalPrice}</Text>
-          {isRescheduling && (
-            <Text style={{ fontSize: 10, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium }}>
-              Must equal old price: ₹{oldTotalPrice}
-            </Text>
-          )}
+            <TouchableOpacity
+              style={styles.calendarBtn}
+              onPress={() => {
+                setActivePicker('none');
+                setShowCalendar(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Icon name="calendar-month" size={20} color="#FFD400" />
+              <Text style={styles.calendarBtnText}>More</Text>
+            </TouchableOpacity>
+            {dates.map(renderDateItem)}
+          </ScrollView>
         </View>
-        <TouchableOpacity style={[styles.continueBtn, selectedSlots.length === 0 && { opacity: 0.5 }]} onPress={handleContinue} disabled={selectedSlots.length === 0}>
-          <LinearGradient colors={Colors.gradients.primary} style={styles.continueBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-            <Text style={styles.continueBtnText}>{isRescheduling ? 'Reschedule' : 'Continue →'}</Text>
+
+        {/* ── Availability Summary Card ── */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryLeft}>
+            <Text style={styles.summaryTitle}>Available Today</Text>
+            <View style={styles.statsRow}>
+              <View style={styles.statBlock}>
+                <Text style={styles.statLabel}>Available</Text>
+                <Text style={styles.statValue}>{availableCount}</Text>
+              </View>
+              <View style={styles.statBlock}>
+                <Text style={styles.statLabel}>Booked</Text>
+                <Text style={styles.statValue}>{bookedCount}</Text>
+              </View>
+              <View style={styles.statBlock}>
+                <Text style={styles.statLabel}>Past</Text>
+                <Text style={styles.statValue}>{pastCount}</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.statsCircularProgress}>
+            <View style={styles.yellowProgressRing} />
+            <Text style={styles.progressText}>{availableCount}</Text>
+            <Text style={styles.progressSubText}>Slots</Text>
+          </View>
+        </View>
+
+        {/* ── Expandable Time Groups ── */}
+        <View style={styles.groupsContainer}>
+          {[
+            { key: 'early_morning', label: 'Early Morning', icon: 'weather-sunset-up', desc: '12:00 AM - 06:00 AM' },
+            { key: 'morning', label: 'Morning', icon: 'weather-sunny', desc: '06:00 AM - 12:00 PM' },
+            { key: 'afternoon', label: 'Afternoon', icon: 'weather-sunny', desc: '12:00 PM - 04:00 PM' },
+            { key: 'evening', label: 'Evening', icon: 'weather-sunset-down', desc: '04:00 PM - 08:00 PM' },
+            { key: 'night', label: 'Night', icon: 'weather-night', desc: '08:00 PM - 11:59 PM' }
+          ].map((group) => {
+            const isExpanded = expandedGroup === group.key;
+            const slotList = groupedSlots[group.key] || [];
+            return (
+              <View key={group.key} style={styles.groupTile}>
+                <TouchableOpacity
+                  style={[styles.groupHeader, isExpanded && styles.groupHeaderExpanded]}
+                  onPress={() => setExpandedGroup(isExpanded ? null : group.key)}
+                  activeOpacity={0.9}
+                >
+                  <View style={styles.groupHeaderLeft}>
+                    <Icon name={group.icon} size={18} color="#FFD400" style={{ marginRight: 8 }} />
+                    <View>
+                      <Text style={styles.groupLabel}>{group.label}</Text>
+                      <Text style={styles.groupDesc}>{group.desc}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.groupHeaderRight}>
+                    <Icon
+                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      size={18}
+                      color="rgba(255,255,255,0.4)"
+                    />
+                  </View>
+                </TouchableOpacity>
+
+                {isExpanded && (
+                  <View style={styles.groupContent}>
+                    {slotList.length === 0 ? (
+                      <Text style={styles.noSlotsText}>No slots available for this period</Text>
+                    ) : (
+                      <View style={styles.slotsGrid}>
+                        {slotList.map(renderSlotCard)}
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={{ height: 160 }} />
+      </Animated.ScrollView>
+
+      {/* ── Bottom Booking Card ── */}
+      <View style={styles.bottomBookingCard}>
+        <View style={styles.bookingLeft}>
+          <Text style={styles.selectedCountLabel}>
+            {selectedSlots.length} {selectedSlots.length === 1 ? 'Slot' : 'Slots'} Selected
+          </Text>
+          <Text style={styles.selectedPrice}>₹{totalSelectedPrice}</Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.continueBtn, selectedSlots.length === 0 && styles.continueBtnDisabled]}
+          onPress={handleContinue}
+          disabled={selectedSlots.length === 0}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={['#FFD400', '#FFB700']}
+            style={styles.continueBtnGrad}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          >
+            <Text style={styles.continueBtnText}>
+              {isRescheduling ? 'Reschedule' : 'Continue'}
+            </Text>
+            <Icon name="arrow-right" size={14} color="#000" style={{ marginLeft: 4 }} />
           </LinearGradient>
         </TouchableOpacity>
       </View>
-
-
 
       {/* Bulk Booking Modal */}
       {showBulkModal && (
@@ -388,8 +389,8 @@ const SlotPickerScreen = ({ route, navigation }) => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Bulk Booking Search</Text>
-              <TouchableOpacity onPress={() => setShowBulkModal(false)}>
-                <Icon name="close" size={24} color={Colors.textPrimary} />
+              <TouchableOpacity onPress={() => setShowBulkModal(false)} style={styles.modalClose}>
+                <Icon name="close" size={18} color="#FFF" />
               </TouchableOpacity>
             </View>
 
@@ -405,30 +406,30 @@ const SlotPickerScreen = ({ route, navigation }) => {
                   <Text style={styles.previewLabel}>Platform Fee (5%)</Text>
                   <Text style={styles.previewValue}>₹{previewResult.platformFee}</Text>
                 </View>
-                <View style={[styles.previewRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10, marginTop: 10 }]}>
-                  <Text style={[styles.previewLabel, { fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }]}>Total Payable</Text>
-                  <Text style={[styles.previewValue, { fontFamily: Typography.fontFamily.bold, color: Colors.primary }]}>₹{previewResult.total}</Text>
+                <View style={[styles.previewRow, styles.previewRowDivider]}>
+                  <Text style={styles.previewLabelPay}>Total Payable</Text>
+                  <Text style={styles.previewValuePay}>₹{previewResult.total}</Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-                  <TouchableOpacity style={[styles.searchBtn, { flex: 1, backgroundColor: Colors.surfaceVariant }]} onPress={() => setPreviewResult(null)}>
-                    <Text style={[styles.searchBtnText, { color: Colors.textPrimary }]}>Cancel</Text>
+                  <TouchableOpacity style={styles.previewCancelBtn} onPress={() => setPreviewResult(null)}>
+                    <Text style={styles.previewCancelBtnText}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.searchBtn, { flex: 1 }]} onPress={confirmBulkAdd}>
-                    <Text style={styles.searchBtnText}>Add to Cart</Text>
+                  <TouchableOpacity style={styles.previewAddBtn} onPress={confirmBulkAdd}>
+                    <Text style={styles.previewAddBtnText}>Add to Cart</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             ) : (
               <>
-                <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ maxHeight: 400 }}>
+                <ScrollView style={{ maxHeight: 380 }}>
                   <Text style={styles.label}>Date Range (IST)</Text>
                   <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
                     <TouchableOpacity
                       style={styles.pickerInput}
                       onPress={() => { setActivePicker('start'); setShowCalendar(true); }}
                     >
-                      <Text style={[styles.pickerText, !bulkParams.startDate && { color: Colors.textTertiary }]}>
+                      <Text style={styles.pickerText}>
                         {bulkParams.startDate ? moment(bulkParams.startDate).format('DD MMM YYYY') : 'Start Date'}
                       </Text>
                     </TouchableOpacity>
@@ -436,7 +437,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                       style={styles.pickerInput}
                       onPress={() => { setActivePicker('end'); setShowCalendar(true); }}
                     >
-                      <Text style={[styles.pickerText, !bulkParams.endDate && { color: Colors.textTertiary }]}>
+                      <Text style={styles.pickerText}>
                         {bulkParams.endDate ? moment(bulkParams.endDate).format('DD MMM YYYY') : 'End Date'}
                       </Text>
                     </TouchableOpacity>
@@ -461,7 +462,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                       style={styles.pickerInput}
                       onPress={() => setActivePicker('startTime')}
                     >
-                      <Text style={[styles.pickerText, !bulkParams.startTime && { color: Colors.textTertiary }]}>
+                      <Text style={styles.pickerText}>
                         {bulkParams.startTime ? formatTime(bulkParams.startTime) : 'Start Time'}
                       </Text>
                     </TouchableOpacity>
@@ -469,15 +470,15 @@ const SlotPickerScreen = ({ route, navigation }) => {
                       style={styles.pickerInput}
                       onPress={() => setActivePicker('endTime')}
                     >
-                      <Text style={[styles.pickerText, !bulkParams.endTime && { color: Colors.textTertiary }]}>
+                      <Text style={styles.pickerText}>
                         {bulkParams.endTime ? formatTime(bulkParams.endTime) : 'End Time'}
                       </Text>
                     </TouchableOpacity>
                   </View>
-                </KeyboardAwareScrollView>
+                </ScrollView>
 
                 <TouchableOpacity style={styles.searchBtn} onPress={handleBulkSearch} disabled={isBulkLoading}>
-                  {isBulkLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.searchBtnText}>Search & Preview Cost</Text>}
+                  {isBulkLoading ? <ActivityIndicator color="#000" size="small" /> : <Text style={styles.searchBtnText}>Search & Preview Cost</Text>}
                 </TouchableOpacity>
               </>
             )}
@@ -488,14 +489,14 @@ const SlotPickerScreen = ({ route, navigation }) => {
       {/* Time Picker Modal */}
       {(activePicker === 'startTime' || activePicker === 'endTime') && (
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { padding: Spacing.md }]}>
+          <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Time</Text>
-              <TouchableOpacity onPress={() => setActivePicker('none')}>
-                <Icon name="close" size={24} color={Colors.textPrimary} />
+              <TouchableOpacity onPress={() => setActivePicker('none')} style={styles.modalClose}>
+                <Icon name="close" size={18} color="#FFF" />
               </TouchableOpacity>
             </View>
-            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ maxHeight: 300 }} contentContainerStyle={styles.timeGrid}>
+            <ScrollView contentContainerStyle={styles.timeGrid}>
               {Array.from({ length: 24 }).map((_, i) => {
                 const hour = i.toString().padStart(2, '0');
                 const timeStr = `${hour}:00`;
@@ -514,22 +515,22 @@ const SlotPickerScreen = ({ route, navigation }) => {
                   </TouchableOpacity>
                 )
               })}
-            </KeyboardAwareScrollView>
+            </ScrollView>
           </View>
         </View>
       )}
 
-      {/* Custom JS Calendar Modal */}
+      {/* Calendar Modal */}
       {showCalendar && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).subtract(1, 'month'))}>
-                <Icon name="chevron-left" size={30} color={Colors.textPrimary} />
+                <Icon name="chevron-left" size={24} color="#FFF" />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>{calendarMonth.format('MMMM YYYY')}</Text>
               <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).add(1, 'month'))}>
-                <Icon name="chevron-right" size={30} color={Colors.textPrimary} />
+                <Icon name="chevron-right" size={24} color="#FFF" />
               </TouchableOpacity>
             </View>
 
@@ -566,7 +567,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                         setActivePicker('none');
                       }}
                     >
-                      <Text style={[styles.calDayText, isPast && { color: Colors.textTertiary }, isSel && { color: '#000' }]}>{i}</Text>
+                      <Text style={[styles.calDayText, isPast && { color: 'rgba(255,255,255,0.2)' }, isSel && { color: '#000' }]}>{i}</Text>
                     </TouchableOpacity>
                   );
                 }
@@ -585,94 +586,259 @@ const SlotPickerScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.xl, paddingTop: 60, backgroundColor: Colors.backgroundElevated },
-  headerTitle: { fontSize: Typography.fontSize.xl, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  datePickerContainer: { backgroundColor: Colors.backgroundElevated, paddingBottom: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  dateScroll: { paddingHorizontal: Spacing.xl, gap: 12 },
-  dateBox: { width: 64, height: 80, borderRadius: BorderRadius.lg, backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  dateBoxSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  dateDay: { fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
-  dateNum: { fontSize: 24, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginVertical: 2 },
-  dateMonth: { fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  dateTextSelected: { color: '#000' },
-  legendContainer: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: Spacing.sm, backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  legendItem: { flexDirection: 'row', alignItems: 'center' },
-  legendDot: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
-  legendText: { fontSize: 11, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  slotsContainer: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: 220 },
-  emptyText: { color: Colors.textSecondary, textAlign: 'center', marginTop: 40, fontFamily: Typography.fontFamily.medium },
-  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: '2%', justifyContent: 'flex-start' },
-  slot: { width: '31%', paddingVertical: 12, paddingHorizontal: 4, borderRadius: BorderRadius.md, borderWidth: 1, alignItems: 'center', marginBottom: 8 },
-  slotTime: { fontSize: 11, fontFamily: Typography.fontFamily.bold, marginBottom: 2, textAlign: 'center' },
-  slotPrice: { fontSize: 11, fontFamily: Typography.fontFamily.medium },
-  slotLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, marginTop: 4, textAlign: 'center' },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.backgroundElevated, borderTopWidth: 1, borderTopColor: Colors.border, padding: Spacing.lg, paddingBottom: 30, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { color: Colors.textSecondary, fontSize: 14, fontFamily: Typography.fontFamily.medium },
-  totalPrice: { color: Colors.textPrimary, fontSize: 24, fontFamily: Typography.fontFamily.bold },
-  continueBtn: { borderRadius: BorderRadius.lg, overflow: 'hidden', width: 140 },
-  continueBtnGrad: { paddingVertical: 14, alignItems: 'center' },
-  continueBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
-  calendarBtn: { width: 64, height: 80, borderRadius: BorderRadius.lg, backgroundColor: Colors.backgroundElevated, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
-  calendarBtnText: { fontSize: 12, color: Colors.primary, fontFamily: Typography.fontFamily.medium, marginTop: 4 },
-  modalOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', zIndex: 100 },
-  modalContent: { width: '85%', backgroundColor: Colors.surface, borderRadius: BorderRadius.xl, padding: Spacing.xl, borderWidth: 1, borderColor: Colors.border },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
-  modalTitle: { fontSize: Typography.fontSize.lg, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
-  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  dayOfWeek: { width: '14.28%', textAlign: 'center', color: Colors.textSecondary, marginBottom: Spacing.md, fontFamily: Typography.fontFamily.bold },
-  calDay: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginBottom: 4, borderRadius: 20 },
-  calDaySel: { backgroundColor: Colors.primary },
-  calDayText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
-  closeModalBtn: { marginTop: Spacing.lg, padding: 12, backgroundColor: Colors.surfaceVariant, borderRadius: BorderRadius.md, alignItems: 'center' },
-  closeModalText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
-  label: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 8, marginTop: 8 },
-  pickerInput: { flex: 1, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, paddingHorizontal: 12, height: 48, justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  pickerText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
-  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', paddingBottom: 20 },
-  timeBox: { width: '30%', paddingVertical: 12, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  timeBoxSel: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  timeText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
-  daysGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 15 },
-  dayChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.backgroundElevated },
-  dayChipSel: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  dayChipText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold },
-  searchBtn: { backgroundColor: Colors.primary, padding: 16, borderRadius: BorderRadius.lg, alignItems: 'center', marginTop: Spacing.lg },
-  searchBtnText: {
-    color: '#000',
-    fontFamily: Typography.fontFamily.bold,
-  },
+  container: { flex: 1, backgroundColor: '#000' },
+  center: { justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { color: 'rgba(255,255,255,0.6)', fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm },
+  scroll: { paddingBottom: 160 },
 
-  // Preview Styles
-  previewContainer: {
-    padding: Spacing.md,
-    backgroundColor: Colors.backgroundElevated,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  /* ── Floating 3D Header ── */
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 16,
+    backgroundColor: '#0F0F0F',
+    borderBottomWidth: 1, borderColor: '#2A2A2A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 8,
+    elevation: 8,
+    zIndex: 10,
   },
-  previewTitle: {
-    fontSize: Typography.fontSize.lg,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.md,
-    textAlign: 'center',
+  headerBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#171717',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#2A2A2A',
   },
-  previewRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
+  headerTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
+
+  /* ── Horizontal Date Selector ── */
+  datePickerContainer: {
+    marginTop: 14,
+    paddingTop: 8,
+    paddingBottom: 14,
+    backgroundColor: '#000',
   },
-  previewLabel: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+  dateScroll: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
+  calendarBtn: {
+    width: 64, height: 86, borderRadius: 20,
+    backgroundColor: '#0F0F0F',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: '#2A2A2A', borderStyle: 'dashed',
   },
-  previewValue: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textPrimary,
-  }
+  calendarBtnText: { fontSize: 10, color: '#FFD400', fontFamily: Typography.fontFamily.bold, marginTop: 4 },
+  dateBox: {
+    width: 64, height: 86, borderRadius: 20,
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 6,
+    elevation: 4,
+  },
+  dateBoxInactive: {
+    backgroundColor: '#0F0F0F',
+    borderWidth: 1, borderColor: '#2A2A2A',
+    borderBottomWidth: 3, borderBottomColor: '#171717', // extrusion
+    transform: [{ perspective: 1000 }, { rotateX: '6deg' }, { rotateY: '-4deg' }],
+  },
+  dateBoxSelected: {
+    backgroundColor: '#171717',
+    borderWidth: 1, borderColor: '#FFD400',
+    borderBottomWidth: 4, borderBottomColor: '#BCA100', // yellow extrusion
+    transform: [{ scale: 1.02 }],
+    shadowColor: '#FFD400',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25, shadowRadius: 10,
+    elevation: 8,
+  },
+  dateDay: { fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
+  dateNum: { fontSize: 20, color: '#FFF', fontFamily: Typography.fontFamily.bold, marginVertical: 1 },
+  dateMonth: { fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: Typography.fontFamily.medium },
+  dateTextSelected: { color: '#FFD400' },
+
+  /* ── Availability Summary Card ── */
+  summaryCard: {
+    marginHorizontal: 16,
+    marginTop: 4, marginBottom: 16,
+    borderRadius: 22,
+    backgroundColor: '#0F0F0F',
+    borderWidth: 1, borderColor: '#2A2A2A',
+    padding: 16,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3, shadowRadius: 10,
+    elevation: 6,
+  },
+  summaryLeft: { flex: 1 },
+  summaryTitle: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginBottom: 12 },
+  statsRow: { flexDirection: 'row', gap: 18 },
+  statBlock: { flexDirection: 'column' },
+  statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' },
+  statValue: { fontSize: 16, fontFamily: Typography.fontFamily.extraBold, color: '#FFF', marginTop: 2 },
+  statsCircularProgress: {
+    width: 60, height: 60, borderRadius: 30,
+    borderWidth: 4, borderColor: '#2A2A2A',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  yellowProgressRing: {
+    position: 'absolute',
+    top: -4, left: -4, right: -4, bottom: -4,
+    borderRadius: 30, borderWidth: 4, borderColor: '#FFD400',
+    borderBottomColor: 'transparent', borderRightColor: 'transparent',
+  },
+  progressText: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: '#FFF' },
+  progressSubText: { fontSize: 7, fontFamily: Typography.fontFamily.bold, color: '#FFD400', textTransform: 'uppercase', marginTop: -2 },
+
+  /* ── Expandable Time Groups ── */
+  groupsContainer: { marginHorizontal: 16, gap: 12 },
+  groupTile: {
+    backgroundColor: '#0F0F0F',
+    borderRadius: 20,
+    borderWidth: 1, borderColor: '#2A2A2A',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 8,
+    elevation: 5,
+  },
+  groupHeader: {
+    padding: 16,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#0F0F0F',
+  },
+  groupHeaderExpanded: {
+    borderBottomWidth: 1, borderBottomColor: '#2A2A2A',
+    backgroundColor: '#171717',
+  },
+  groupHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
+  groupLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
+  groupDesc: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.4)', marginTop: 1 },
+  groupHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  popularBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: '#FFD400',
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 6,
+  },
+  popularText: { color: '#000', fontSize: 8, fontFamily: Typography.fontFamily.bold },
+  groupContent: { padding: 14, backgroundColor: '#0F0F0F' },
+  noSlotsText: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 10 },
+
+  /* ── Slot Grid & 3D Mini Cards ── */
+  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: '2.5%', justifyContent: 'flex-start' },
+  slotCard: {
+    width: '31.6%',
+    borderRadius: 18,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 6,
+    elevation: 4,
+    position: 'relative',
+    transform: [{ perspective: 1000 }, { rotateX: '6deg' }],
+  },
+  slotStateIcon: { position: 'absolute', top: 4, right: 6 },
+  slotTime: { fontSize: 9, fontFamily: Typography.fontFamily.bold, marginBottom: 2 },
+  slotPrice: { fontSize: 10, fontFamily: Typography.fontFamily.medium },
+
+  // Slot States Styles
+  slotCardAvailable: {
+    backgroundColor: '#0F0F0F',
+    borderWidth: 1, borderColor: '#FFD400',
+    borderBottomWidth: 3, borderBottomColor: '#6A5600', // yellow extrusion
+  },
+  slotTextAvailable: { color: '#FFF' },
+  slotCardSelected: {
+    backgroundColor: '#171717',
+    borderWidth: 1.5, borderColor: '#FFD400',
+    borderBottomWidth: 4, borderBottomColor: '#BCA100', // thick yellow extrusion
+    transform: [{ scale: 1.05 }, { translateY: -4 }, { perspective: 1000 }, { rotateX: '6deg' }],
+    shadowColor: '#FFD400',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3, shadowRadius: 8,
+    elevation: 8,
+  },
+  slotTextSelected: { color: '#FFD400' },
+  slotCardBooked: {
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1, borderColor: '#2A2A2A',
+    borderBottomWidth: 1,
+    opacity: 0.45,
+  },
+  slotTextBooked: { color: 'rgba(255,255,255,0.3)' },
+  slotCardPast: {
+    backgroundColor: '#0A0A0A',
+    borderWidth: 1, borderColor: '#222',
+    borderBottomWidth: 1,
+    opacity: 0.3,
+  },
+  slotTextPast: { color: 'rgba(255,255,255,0.2)' },
+
+  /* ── Bottom Summary Booking Card ── */
+  bottomBookingCard: {
+    position: 'absolute', bottom: 16, left: 16, right: 16,
+    height: 72, borderRadius: 36,
+    backgroundColor: 'rgba(22,22,22,0.95)',
+    borderWidth: 1, borderColor: '#2A2A2A',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5, shadowRadius: 15,
+    elevation: 10,
+    zIndex: 100,
+  },
+  bookingLeft: { flexDirection: 'column' },
+  selectedCountLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
+  selectedPrice: { color: '#FFF', fontSize: 20, fontFamily: Typography.fontFamily.bold, marginTop: 1 },
+  continueBtn: { borderRadius: 20, overflow: 'hidden', shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 },
+  continueBtnDisabled: { opacity: 0.4, shadowOpacity: 0 },
+  continueBtnGrad: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 20 },
+  continueBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+
+  /* ── Bulk Booking Modal & Base Modals ── */
+  modalOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+  modalContent: { width: '88%', backgroundColor: '#0F0F0F', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#2A2A2A', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 15, elevation: 12 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 16, color: '#FFF', fontFamily: Typography.fontFamily.bold },
+  modalClose: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#171717', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
+  label: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginBottom: 6, marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  pickerInput: { flex: 1, backgroundColor: '#171717', borderRadius: 12, paddingHorizontal: 12, height: 44, justifyContent: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
+  pickerText: { color: '#FFF', fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  daysGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  dayChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: '#2A2A2A', backgroundColor: '#171717' },
+  dayChipSel: { backgroundColor: '#FFD400', borderColor: '#FFD400' },
+  dayChipText: { color: 'rgba(255,255,255,0.6)', fontFamily: Typography.fontFamily.bold, fontSize: 11 },
+  searchBtn: { backgroundColor: '#FFD400', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 },
+  searchBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+
+  previewContainer: { padding: 12, backgroundColor: '#171717', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A' },
+  previewTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginBottom: 12, textAlign: 'center' },
+  previewRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
+  previewRowDivider: { borderTopWidth: 1, borderTopColor: '#2A2A2A', paddingTop: 10, marginTop: 8 },
+  previewLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.5)' },
+  previewValue: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: '#FFF' },
+  previewLabelPay: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
+  previewValuePay: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFD400' },
+  previewCancelBtn: { flex: 1, backgroundColor: '#171717', paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
+  previewCancelBtnText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  previewAddBtn: { flex: 1, backgroundColor: '#FFD400', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  previewAddBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+
+  /* ── Time & Calendar Grids ── */
+  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-start', paddingBottom: 10 },
+  timeBox: { width: '23%', paddingVertical: 10, backgroundColor: '#171717', borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#2A2A2A', marginBottom: 6 },
+  timeBoxSel: { backgroundColor: '#FFD400', borderColor: '#FFD400' },
+  timeText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 10 },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
+  dayOfWeek: { width: '14.28%', textAlign: 'center', color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontFamily: Typography.fontFamily.bold, fontSize: 11 },
+  calDay: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginBottom: 6, borderRadius: 12 },
+  calDaySel: { backgroundColor: '#FFD400' },
+  calDayText: { color: '#FFF', fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  closeModalBtn: { marginTop: 16, padding: 12, backgroundColor: '#171717', borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
+  closeModalText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 });
 
 export default SlotPickerScreen;

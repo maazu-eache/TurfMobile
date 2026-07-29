@@ -667,7 +667,7 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
   },
   matchupContainer: {
-    backgroundColor: '#051E36',
+    backgroundColor: Colors.backgroundElevated,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.base,
     borderBottomWidth: 1,
@@ -727,13 +727,13 @@ const styles = StyleSheet.create({
   squadBadgeText: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.background || '#011528',
+    color: Colors.background || '#000000',
   },
   vsCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#0A1F35',
+    backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',
@@ -783,7 +783,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderLight,
   },
   chipSelected: {
-    backgroundColor: 'rgba(154, 188, 47, 0.15)',
+    backgroundColor: Colors.primaryAlpha10,
     borderColor: Colors.primary,
     borderWidth: 1.5,
   },
@@ -885,7 +885,7 @@ const styles = StyleSheet.create({
   },
   scheduleBtn: {
     flex: 1,
-    backgroundColor: '#3E4D59',
+    backgroundColor: Colors.backgroundElevated,
     paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
@@ -903,7 +903,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   nextBtnText: {
-    color: Colors.background || '#011528',
+    color: Colors.background || '#000000',
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
   },

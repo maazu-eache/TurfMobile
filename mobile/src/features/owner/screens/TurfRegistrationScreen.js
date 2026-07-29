@@ -1,5 +1,6 @@
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
@@ -11,7 +12,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { useForm, Controller } from 'react-hook-form';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { createTurf, updateTurf } from '../../turf/turfSlice';
-import api from '../../../api/axios';
+import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 
@@ -30,6 +31,7 @@ const SIZES = ['5v5', '6v6', '7v7', '8v8', '9v9', '11v11', 'Box Cricket'];
 const TYPES = ['Indoor', 'Outdoor', 'Both'];
 
 const TurfRegistrationScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
   const editTurf = route.params?.editTurf;
   const isEditing = !!editTurf;
   const dispatch = useDispatch();
@@ -59,13 +61,6 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
 
   const amenitiesState = watch('amenities');
 
-  const getImageUrl = (path) => {
-    if (!path) return 'https://via.placeholder.com/600x400';
-    if (path.startsWith('http') || path.startsWith('file://') || path.startsWith('content://')) return path;
-    const baseUrl = api.defaults.baseURL.replace('/api', '');
-    return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
-  };
-
   const pickCoverImage = async () => {
     try {
       const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
@@ -77,6 +72,10 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
         return;
       }
       if (result.assets && result.assets[0]) {
+        if (result.assets[0].fileSize && result.assets[0].fileSize > 3 * 1024 * 1024) {
+          showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
+          return;
+        }
         setCoverImage(result.assets[0]);
       }
     } catch (error) {
@@ -94,7 +93,13 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
         return;
       }
       if (result.assets) {
-        setGallery(prev => [...prev, ...result.assets]);
+        const validAssets = result.assets.filter(asset => !asset.fileSize || asset.fileSize <= 3 * 1024 * 1024);
+        if (validAssets.length < result.assets.length) {
+          showCustomAlert('Some Files Too Large', 'Images larger than 3MB were skipped.');
+        }
+        if (validAssets.length > 0) {
+          setGallery(prev => [...prev, ...validAssets]);
+        }
       }
     } catch (error) {
       showCustomAlert('Error', 'An unexpected error occurred while opening the image picker.');
@@ -220,10 +225,10 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       {errors[name] && <Text style={styles.errorText}>{errors[name].message || 'Required'}</Text>}
     </View>
   );
-
+  
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Icon name="arrow-left" size={28} color={Colors.textPrimary} />
         </TouchableOpacity>
@@ -232,10 +237,10 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : null} style={{ flex: 1 }}>
-        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           
           {/* Media Section */}
-          <Text style={styles.sectionTitle}>Turf Media</Text>
+          <Text style={styles.sectionTitle}>Turf Media (Max 3 MB per image)</Text>
           <TouchableOpacity style={styles.coverUpload} onPress={pickCoverImage}>
             {coverImage ? (
               <Image source={{ uri: getImageUrl(coverImage.uri) }} style={styles.coverImagePreview} />
@@ -472,7 +477,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-    paddingHorizontal: Spacing.xl, paddingTop: 60, paddingBottom: Spacing.lg,
+    paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg,
     backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border
   },
   backButton: { width: 40, height: 40, justifyContent: 'center' },

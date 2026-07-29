@@ -150,7 +150,12 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
         return;
       }
       if (response.assets && response.assets.length > 0) {
-        setPlayerForm(f => ({ ...f, photo: response.assets[0] }));
+        const selected = response.assets[0];
+        if (selected.fileSize && selected.fileSize > 3 * 1024 * 1024) {
+          showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
+          return;
+        }
+        setPlayerForm(f => ({ ...f, photo: selected }));
       }
     });
   };
@@ -708,6 +713,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                     </View>
                   )}
                 </TouchableOpacity>
+                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 8 }}>Max 3 MB</Text>
               </View>
 
               <Text style={styles.label}>Full Name *</Text>

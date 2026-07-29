@@ -264,7 +264,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const handleShareJoinLink = async () => {
     try {
       await Share.share({
-        message: `Join ${tournament.name} on SportVerse! Click the link to register your team: https://sportverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}?action=join-team`,
+        message: `Join ${tournament.name} on ScoreVerse! Click the link to register your team: https://scoreverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}?action=join-team`,
       });
     } catch (error) {
       console.log('Error sharing', error);
@@ -643,7 +643,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               onPress={() => setShowStartMatchModal(true)}
               disabled={tournament.status === 'completed'}
             >
-              <MCIcon name="play-circle" size={18} color='#011528' style={{ marginRight: 8 }} />
+              <MCIcon name="play-circle" size={18} color='#000000' style={{ marginRight: 8 }} />
               <Text style={styles.startMatchBtnText}>
                 {tournament.status === 'completed' ? 'Completed' : 'Start Match'}
               </Text>
@@ -674,7 +674,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   <Text style={[styles.matchSubTabText, matchSubTab === tab && styles.matchSubTabTextActive]}>{tab}</Text>
                   {tab === 'Live' && liveCount > 0 && (
                     <View style={[styles.liveCountBadge, matchSubTab === 'Live' && styles.liveCountBadgeActive, { marginLeft: 5 }]}>
-                      <Text style={[styles.liveCountText, matchSubTab === 'Live' && { color: '#011528' }]}>{liveCount}</Text>
+                      <Text style={[styles.liveCountText, matchSubTab === 'Live' && { color: '#000000' }]}>{liveCount}</Text>
                     </View>
                   )}
                 </View>
@@ -1571,7 +1571,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         visible={!!shareData}
         onClose={() => setShareData(null)}
         title={shareData?.type === 'tournament' ? tournament?.name : shareData?.type === 'fixture' ? 'Match Fixture' : shareData?.type === 'fullSchedule' ? 'Match Schedule' : shareData?.type === 'pointsTable' ? 'Points Table' : 'Leaderboard'}
-        shareUrl={`https://sportverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}`}
+        shareUrl={`https://scoreverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}`}
       >
         {shareData?.type === 'tournament' && <TournamentSummaryPoster tournament={shareData.data} />}
         {shareData?.type === 'fixture' && <FixturePoster match={shareData.data} tournamentName={tournament?.name} tournamentBanner={tournament?.banner} />}
@@ -1774,7 +1774,7 @@ const styles = StyleSheet.create({
   matchSubTabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
   matchSubTabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
   liveCountBadge: { backgroundColor: Colors.error, borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
-  liveCountBadgeActive: { backgroundColor: '#011528' },
+  liveCountBadgeActive: { backgroundColor: '#000000' },
   liveCountText: { fontSize: 9, color: Colors.white, fontFamily: Typography.fontFamily.bold },
 
   /* ---- GENERAL ---- */
@@ -1852,7 +1852,7 @@ const styles = StyleSheet.create({
 
   /* ---- START MATCH BTN ---- */
   startMatchBtn: { flexDirection: 'row', backgroundColor: Colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  startMatchBtnText: { color: '#011528', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  startMatchBtnText: { color: '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
   /* ---- MATCH CARD ---- */
   cardContainer: {
@@ -1951,9 +1951,9 @@ const styles = StyleSheet.create({
 
   /* ---- ACTIONS ---- */
   actionBtn: { flexDirection: 'row', backgroundColor: Colors.primary, paddingVertical: 10, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center' },
-  actionBtnText: { color: '#011528', fontFamily: Typography.fontFamily.bold, marginLeft: 6, fontSize: 13 },
+  actionBtnText: { color: '#000000', fontFamily: Typography.fontFamily.bold, marginLeft: 6, fontSize: 13 },
   smallActionBtn: { backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: BorderRadius.sm },
-  smallActionBtnText: { color: '#011528', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  smallActionBtnText: { color: '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
   /* ---- MODALS ---- */
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
@@ -1982,7 +1982,7 @@ const styles = StyleSheet.create({
 
   footerContainer: { padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.background },
   footerBtn: { backgroundColor: Colors.primary, flexDirection: 'row', height: 52, borderRadius: BorderRadius.lg, justifyContent: 'center', alignItems: 'center' },
-  footerBtnText: { color: '#011528', fontSize: 16, fontFamily: Typography.fontFamily.bold, marginLeft: 8 },
+  footerBtnText: { color: '#000000', fontSize: 16, fontFamily: Typography.fontFamily.bold, marginLeft: 8 },
 });
 
 export default TournamentDetailScreen;

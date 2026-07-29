@@ -216,7 +216,13 @@ const TeamDetailScreen = ({ navigation, route }) => {
   };
   const handlePickLogo = async () => {
     const r = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
-    if (r.assets?.length) setEditLogo(r.assets[0]);
+    if (r.assets?.length) {
+      if (r.assets[0].fileSize && r.assets[0].fileSize > 3 * 1024 * 1024) {
+        showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
+        return;
+      }
+      setEditLogo(r.assets[0]);
+    }
   };
   const handleUpdateTeam = async () => {
     if (!editName.trim()) { showCustomAlert('Error', 'Team name required'); return; }
@@ -776,7 +782,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.safe} edges={['top']}>
 
       {/* ── TEAM HEADER ── */}
-      <LinearGradient colors={['#0A1F35', Colors.background]} style={styles.teamHeader}>
+      <LinearGradient colors={['#111111', Colors.background]} style={styles.teamHeader}>
         {/* Nav row */}
         <View style={styles.navRow}>
           <TouchableOpacity style={styles.navBtn} onPress={() => navigation.goBack()}>
@@ -996,6 +1002,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
               }
               <View style={styles.logoPickerOverlay}><Icon name="camera-plus" size={14} color="#fff" /></View>
             </TouchableOpacity>
+            <Text style={{ color: Colors.textSecondary, fontSize: 12, textAlign: 'center', marginBottom: 16 }}>Max 3 MB</Text>
 
             <View style={styles.modalInput}>
               <Icon name="shield" size={16} color={Colors.textTertiary} />
@@ -1082,7 +1089,7 @@ const EmptyState = ({ icon, label, small }) => (
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0A1F35' },
+  safe: { flex: 1, backgroundColor: Colors.background },
   loadingFull: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
 
   // Header

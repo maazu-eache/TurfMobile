@@ -51,69 +51,67 @@ const TurfListScreen = ({ navigation }) => {
   const renderTurfCard = ({ item }) => {
     return (
       <View style={styles.card}>
-        <Image 
-          source={{ uri: getImageUrl(item.coverImage) }} 
-          style={styles.coverImage} 
-        />
-        <View style={styles.cardContent}>
-          <View style={styles.headerRow}>
-            <Text style={styles.turfName}>{item.name}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: item.status === 'active' ? Colors.successAlpha20 : Colors.surfaceVariant }]}>
+        <View style={styles.cardTopRow}>
+          <Image 
+            source={{ uri: getImageUrl(item.coverImage) }} 
+            style={styles.coverImage} 
+          />
+          <View style={styles.cardInfo}>
+            <View style={styles.headerRow}>
+              <Text style={styles.turfName}>{item.name}</Text>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: item.status === 'active' ? Colors.successAlpha20 : Colors.surfaceVariant, alignSelf: 'flex-start' }]}>
               <Text style={[styles.statusText, { color: item.status === 'active' ? Colors.success : Colors.textSecondary }]}>
                 {item.status.toUpperCase()}
               </Text>
             </View>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Icon name="map-marker-outline" size={16} color={Colors.textSecondary} />
-            <Text style={styles.infoText}>{item.city}</Text>
-            <Text style={styles.dot}>•</Text>
-            <Icon name="soccer-field" size={16} color={Colors.textSecondary} />
-            <Text style={styles.infoText}>{item.type}</Text>
-          </View>
-
-          {item.deletionRequested && (
-            <View style={styles.deletionRequestedWarning}>
-              <Icon name="alert-circle-outline" size={16} color={Colors.error} />
-              <Text style={styles.deletionRequestedText}>Deletion Requested</Text>
+            <View style={styles.infoRow}>
+              <Icon name="map-marker-outline" size={14} color={Colors.textSecondary} />
+              <Text style={styles.infoText} numberOfLines={1}>{item.city}</Text>
             </View>
-          )}
-
-          <View style={styles.actionsRow}>
-            <TouchableOpacity 
-              style={styles.actionBtn} 
-              onPress={() => navigation.navigate('TurfRegistration', { editTurf: item })}
-            >
-              <Icon name="pencil-outline" size={18} color={Colors.primary} />
-              <Text style={styles.actionText}>Edit</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.actionBtn} 
-              onPress={() => navigation.navigate('SlotManager', { turfId: item._id })}
-            >
-              <Icon name="clock-outline" size={18} color={Colors.primary} />
-              <Text style={styles.actionText}>Manage Slots</Text>
-            </TouchableOpacity>
-
-            {!item.deletionRequested && (
-              <TouchableOpacity 
-                style={[styles.actionBtn, styles.deleteBtn]} 
-                onPress={() => handleRequestDelete(item)}
-                disabled={requestingDelete === item._id}
-              >
-                {requestingDelete === item._id ? (
-                  <ActivityIndicator size="small" color={Colors.error} />
-                ) : (
-                  <>
-                    <Icon name="trash-can-outline" size={18} color={Colors.error} />
-                    <Text style={[styles.actionText, { color: Colors.error }]}>Delete</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
+            <View style={styles.infoRow}>
+              <Icon name="soccer-field" size={14} color={Colors.textSecondary} />
+              <Text style={styles.infoText} numberOfLines={1}>{item.type}</Text>
+            </View>
           </View>
+        </View>
+
+        {item.deletionRequested && (
+          <View style={styles.deletionRequestedWarning}>
+            <Icon name="alert-circle-outline" size={16} color={Colors.error} />
+            <Text style={styles.deletionRequestedText}>Deletion Requested</Text>
+          </View>
+        )}
+
+        <View style={styles.actionsRow}>
+          <TouchableOpacity 
+            style={styles.actionBtn} 
+            onPress={() => navigation.navigate('SlotManager', { turfId: item._id })}
+          >
+            <Icon name="clock-outline" size={16} color={Colors.primary} />
+            <Text style={styles.actionText}>Manage Slots</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionBtn, styles.iconBtn]} 
+            onPress={() => navigation.navigate('TurfRegistration', { editTurf: item })}
+          >
+            <Icon name="pencil-outline" size={18} color={Colors.primary} />
+          </TouchableOpacity>
+
+          {!item.deletionRequested && (
+            <TouchableOpacity 
+              style={[styles.actionBtn, styles.iconBtn, styles.deleteBtn]} 
+              onPress={() => handleRequestDelete(item)}
+              disabled={requestingDelete === item._id}
+            >
+              {requestingDelete === item._id ? (
+                <ActivityIndicator size="small" color={Colors.error} />
+              ) : (
+                <Icon name="trash-can-outline" size={18} color={Colors.error} />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
@@ -181,46 +179,52 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.border,
+    padding: Spacing.sm,
   },
-  coverImage: { width: '100%', height: 180 },
-  cardContent: { padding: Spacing.md },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },
-  turfName: { fontFamily: Typography.fontFamily.bold, fontSize: 18, color: Colors.textPrimary, flex: 1 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  statusText: { fontSize: 12, fontFamily: Typography.fontFamily.bold },
-  infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md },
-  infoText: { fontFamily: Typography.fontFamily.regular, fontSize: 14, color: Colors.textSecondary, marginLeft: 4 },
-  dot: { color: Colors.textTertiary, marginHorizontal: 8 },
+  cardTopRow: { flexDirection: 'row', marginBottom: Spacing.sm },
+  coverImage: { width: 80, height: 80, borderRadius: BorderRadius.md, marginRight: Spacing.sm },
+  cardInfo: { flex: 1, justifyContent: 'center' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 },
+  turfName: { fontFamily: Typography.fontFamily.bold, fontSize: 15, color: Colors.textPrimary, flex: 1 },
+  statusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, marginBottom: 4 },
+  statusText: { fontSize: 9, fontFamily: Typography.fontFamily.bold },
+  infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 0 },
+  infoText: { fontFamily: Typography.fontFamily.regular, fontSize: 12, color: Colors.textSecondary, marginLeft: 4 },
   
   deletionRequestedWarning: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(244, 67, 54, 0.1)',
-    padding: Spacing.sm,
+    padding: Spacing.xs,
     borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   deletionRequestedText: {
     color: Colors.error,
     fontFamily: Typography.fontFamily.medium,
-    fontSize: 12,
+    fontSize: 11,
     marginLeft: Spacing.xs,
   },
 
-  actionsRow: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 },
+  actionsRow: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 },
   actionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.surfaceVariant,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: BorderRadius.md,
-    minWidth: '30%',
+  },
+  iconBtn: {
+    flex: 0,
+    width: 36,
+    height: 36,
+    paddingVertical: 0,
   },
   deleteBtn: { backgroundColor: 'rgba(244, 67, 54, 0.1)' },
   actionText: { fontFamily: Typography.fontFamily.medium, fontSize: 13, color: Colors.primary, marginLeft: 6 },

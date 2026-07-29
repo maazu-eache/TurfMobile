@@ -62,8 +62,8 @@ class NotificationService {
 
       // Create a channel (required for Android)
       const channelId = await notifee.createChannel({
-        id: 'sportverse_channel',
-        name: 'SportVerse Notifications',
+        id: 'scoreverse_channel',
+        name: 'ScoreVerse Notifications',
         importance: AndroidImportance.HIGH,
       });
 

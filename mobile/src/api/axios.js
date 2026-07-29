@@ -21,6 +21,23 @@ export const BASE_URL = PROD_URL;
 export const getImageUrl = (path) => {
   if (!path || typeof path !== 'string') return null;
   
+  // Normalize backslashes (important for live servers hosted on windows or certain DB paths)
+  path = path.replace(/\\/g, '/');
+
+  // Fix mangled Cloudinary URLs returned by backend's path.relative bug (e.g. /../../https:/res.cloudinary.com/...)
+  const httpIdx = path.indexOf('http:/');
+  const httpsIdx = path.indexOf('https:/');
+  if (httpIdx !== -1 || httpsIdx !== -1) {
+    const idx = httpsIdx !== -1 ? httpsIdx : httpIdx;
+    let extractedUrl = path.substring(idx);
+    // Restore the double slash that path.relative collapses
+    extractedUrl = extractedUrl.replace('http:/', 'http://').replace('https:/', 'https://');
+    // If there's another slash missing right after, e.g., 'https://res.cloudinary.com' it might need it, but replace works for the protocol.
+    // Wait, path.relative collapsing 'https://a.com' makes it 'https:/a.com'. 
+    // replace('https:/', 'https://') turns it into 'https://a.com' which is correct.
+    return extractedUrl;
+  }
+
   // If already absolute HTTP(S) URL
   if (path.startsWith('http://') || path.startsWith('https://')) {
     // Replace legacy localhost / 10.0.2.2 URLs with active BASE_URL host

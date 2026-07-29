@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { formatISTDateFull, formatISTTime } from '../../../utils/dateFormatter';
-import api from '../../../api/axios';
+import api, { getImageUrl } from '../../../api/axios';
 import moment from 'moment';
 import { cancelBooking } from '../bookingSlice';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -30,18 +30,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
   }
 
   const turf = booking.turf || {};
-  let imageUrl = 'https://via.placeholder.com/400';
-  const serverRootUrl = api.defaults.baseURL.replace('/api', '');
-
-  if (turf.coverImage) {
-    if (turf.coverImage.startsWith('http')) imageUrl = turf.coverImage;
-    else if (turf.coverImage.includes('/uploads/')) {
-      const pathPart = turf.coverImage.substring(turf.coverImage.indexOf('/uploads/'));
-      imageUrl = `${serverRootUrl}${pathPart}`;
-    } else {
-      imageUrl = `${serverRootUrl}${turf.coverImage}`;
-    }
-  }
+  let imageUrl = getImageUrl(turf.coverImage) || 'https://via.placeholder.com/400';
 
   const slots = booking.slotsSnapshot || [];
   const dateStr = slots[0]?.date ? formatISTDateFull(slots[0].date) : 'Unknown Date';

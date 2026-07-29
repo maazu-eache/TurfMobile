@@ -580,7 +580,7 @@ const PlayerProfileScreen = ({ navigation }) => {
                               </Text>
                               <View style={{ width: 18, height: barH, borderRadius: 5, overflow: 'hidden' }}>
                                 <LinearGradient
-                                  colors={isDnb ? ['#2A2A2A', '#1A1A1A'] : isHS ? [Colors.primary, Colors.primary + 'BB'] : [Colors.primary + 'CC', Colors.primary + '44']}
+                                  colors={isDnb ? ['#2A2A2A', '#000000'] : isHS ? [Colors.primary, Colors.primary + 'BB'] : [Colors.primary + 'CC', Colors.primary + '44']}
                                   start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
                                   style={{ flex: 1 }}
                                 />

@@ -67,7 +67,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const [expandedInnings, setExpandedInnings] = useState({});
 
   const toggleInnings = (index) => {
-    setExpandedInnings(prev => ({ ...prev, [index]: !prev[index] }));
+    setExpandedInnings(prev => ({ ...prev, [index]: prev[index] === false ? true : false }));
   };
 
   const [commentary, setCommentary] = useState([]);
@@ -102,8 +102,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     try {
       const teamAName = liveState?.match?.teamA?.name || 'Team A';
       const teamBName = liveState?.match?.teamB?.name || 'Team B';
-      const matchUrl = `https://sportverse.app/match/${cleanMatchId}`;
-      const message = `Catch the live cricket action: ${teamAName} vs ${teamBName} on SportVerse!\n\nFollow live score here: ${matchUrl}`;
+      const matchUrl = `https://scoreverse.app/match/${cleanMatchId}`;
+      const message = `Catch the live cricket action: ${teamAName} vs ${teamBName} on ScoreVerse!\n\nFollow live score here: ${matchUrl}`;
       await Share.share({
         message,
         title: `${teamAName} vs ${teamBName} - Live Score`
@@ -1562,7 +1562,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
           return (
             <View key={index} style={{ marginBottom: 24 }}>
-              <TouchableOpacity onPress={() => toggleInnings(index)} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, backgroundColor: 'rgba(0,0,0,0.3)', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 8 }}>
+              <TouchableOpacity onPress={() => toggleInnings(index)} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, backgroundColor: Colors.surfaceVariant, paddingHorizontal: 16, paddingVertical: 14, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, ...Shadows.sm }}>
                 <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontWeight: '900', fontSize: 14, textTransform: 'uppercase' }}>{battingTeamName} {sc.inningsNumber >= 3 ? '(Super Over)' : ''}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>
@@ -1572,7 +1572,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       <Text style={{ color: Colors.textSecondary, fontSize: 13 }}>Yet to bat</Text>
                     )}
                   </Text>
-                  <Icon name={isExpanded ? "chevron-up" : "chevron-down"} size={20} color={Colors.primary} />
+                  <Icon name={isExpanded ? "chevron-up" : "chevron-down"} size={28} color={Colors.primary} />
                 </View>
               </TouchableOpacity>
 
@@ -2505,7 +2505,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(1,21,40,0.25)',
+    backgroundColor: 'rgba(0,0,0,0.25)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2523,7 +2523,7 @@ const styles = StyleSheet.create({
   },
   headerVsText: {
     fontFamily: Typography.fontFamily.regular,
-    color: 'rgba(1,21,40,0.65)',
+    color: 'rgba(0,0,0,0.65)',
     fontSize: 13,
   },
 
@@ -2541,7 +2541,7 @@ const styles = StyleSheet.create({
   statusBadgeCompleted: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(1,21,40,0.30)',
+    backgroundColor: 'rgba(0,0,0,0.30)',
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 99,
@@ -2576,7 +2576,7 @@ const styles = StyleSheet.create({
   // ── Tab Bar ──────────────────────────────────────────────────────────────────
   tabBarWrapper: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(1,21,40,0.15)',
+    borderTopColor: 'rgba(0,0,0,0.15)',
     marginTop: 4,
   },
   tabsRow: {
@@ -2594,7 +2594,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   tabText: {
-    color: 'rgba(1,21,40,0.55)',
+    color: 'rgba(0,0,0,0.55)',
     fontSize: 13,
     fontFamily: Typography.fontFamily.semiBold,
     letterSpacing: 0.2,
@@ -2684,7 +2684,7 @@ const styles = StyleSheet.create({
   inningsBreakSub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginTop: 4 },
   targetChaseRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 4 },
   targetBox: { backgroundColor: Colors.warning, borderRadius: BorderRadius.md, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', minWidth: 70 },
-  targetBoxLabel: { color: 'rgba(1,21,40,0.7)', fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 1, textTransform: 'uppercase' },
+  targetBoxLabel: { color: 'rgba(0,0,0,0.7)', fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 1, textTransform: 'uppercase' },
   targetBoxValue: { color: Colors.background, fontSize: 26, fontFamily: Typography.fontFamily.bold, lineHeight: 30 },
   targetChaseInfo: { flex: 1 },
   targetChaseTeam: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginBottom: 2 },

@@ -71,6 +71,8 @@ const SearchScreen = ({ navigation, route }) => {
   const [sortOrder, setSortOrder] = useState('');
   const [playerRoleFilter, setPlayerRoleFilter] = useState('');
   const [matchStatusFilter, setMatchStatusFilter] = useState('');
+  
+  const hasInitializedLocation = useRef(false);
 
   const slideAnim = useRef(new Animated.Value(700)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
@@ -92,9 +94,14 @@ const SearchScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     // Initial location setup if available
+    if (hasInitializedLocation.current) return;
     const city = myProfile?.city || user?.city || '';
-    if (city && !selectedLocation) {
-      setSelectedLocation({ name: city, city: city });
+    if (city) {
+      setSelectedLocation(prev => {
+        if (!prev) return { name: city, city: city };
+        return prev;
+      });
+      hasInitializedLocation.current = true;
     }
   }, [myProfile, user]);
 
@@ -194,8 +201,7 @@ const SearchScreen = ({ navigation, route }) => {
     }).filter(Boolean).join(' vs ');
   };
 
-  // ─── Card Renderers ──────────────────────────────────────────────────────
-
+  // ─── Card Renderers ────────────────
   const renderTurfItem = ({ item }) => {
     const isFav = favourites.includes(item._id);
     const minPrice = getMinPrice(item.pricing);
@@ -203,31 +209,11 @@ const SearchScreen = ({ navigation, route }) => {
     const isVerified = item.isVerified || item.owner?.isVerifiedOwner || item.ownerInfo?.isVerifiedOwner;
 
     return (
-      <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('TurfDetail', { id: item._id })} activeOpacity={0.93}>
-        {/* Image */}
-        <View style={styles.cardImgWrap}>
-          <Image source={{ uri: getImageUrl(item.coverImage) }} style={styles.cardImg} />
-          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.9)']} style={styles.cardImgGrad} />
-
-          {/* Top badges */}
-          <View style={styles.cardBadgeRow}>
-            {isVerified && (
-              <View style={styles.badgeVerified}>
-                <Icon name="check-decagram" size={10} color="#000" />
-                <Text style={styles.badgeText}>Verified</Text>
-              </View>
-            )}
-            {trustScore !== undefined && (
-              <View style={[styles.badgeTrust, { backgroundColor: trustScore >= 80 ? '#2ED573' : '#FF9800' }]}>
-                <Icon name="shield-star" size={10} color="#000" />
-                <Text style={styles.badgeText}>{trustScore}%</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Fav button */}
+      <TouchableOpacity style={styles.listCard} onPress={() => navigation.navigate('TurfDetail', { id: item._id })} activeOpacity={0.9}>
+        <View style={styles.listCardImgWrap}>
+          <Image source={{ uri: getImageUrl(item.coverImage) }} style={styles.listCardImg} />
           <TouchableOpacity
-            style={[styles.favBtn, isFav && styles.favBtnActive]}
+            style={[styles.favBtnCompact, isFav && styles.favBtnActiveCompact]}
             onPress={async () => {
               dispatch(toggleUserFavourite(item._id));
               try {
@@ -240,45 +226,40 @@ const SearchScreen = ({ navigation, route }) => {
               }
             }}
           >
-            <Icon name={isFav ? 'heart' : 'heart-outline'} size={16} color={isFav ? '#FF4757' : '#fff'} />
+            <Icon name={isFav ? 'heart' : 'heart-outline'} size={14} color={isFav ? '#FF4757' : '#fff'} />
           </TouchableOpacity>
-
-          {/* Price tag */}
-          <View style={styles.priceTag}>
-            <Text style={styles.priceAmount}>₹{minPrice}</Text>
-            <Text style={styles.priceUnit}>/hr</Text>
-          </View>
         </View>
 
-        {/* Body */}
-        <View style={styles.cardBody}>
-          <View style={styles.cardRow}>
-            <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
-            <View style={styles.ratingPill}>
-              <Icon name="star" size={11} color={Colors.primary} />
-              <Text style={styles.ratingText}>{item.rating > 0 ? item.rating.toFixed(1) : 'New'}</Text>
-            </View>
-          </View>
-          <View style={styles.cardRow2}>
-            <Icon name="map-marker-outline" size={13} color={Colors.primary} />
-            <Text style={styles.cardSubText} numberOfLines={1}>{item.city}</Text>
+        <View style={styles.listCardBody}>
+          <View style={styles.listCardRow}>
+            <Text style={styles.listCardTitle} numberOfLines={1}>{item.name}</Text>
+            {isVerified && (
+              <View style={styles.badgeVerifiedCompact}>
+                <Icon name="check-decagram" size={10} color="#000" />
+              </View>
+            )}
           </View>
 
-          {/* Amenities */}
-          {(item.amenities?.floodLights || item.amenities?.parking || item.amenities?.washroom) && (
-            <View style={styles.amenitiesWrap}>
-              {item.amenities?.floodLights && <AmenityChip icon="lightbulb-on" label="Lights" />}
-              {item.amenities?.parking && <AmenityChip icon="parking" label="Parking" />}
-              {item.amenities?.washroom && <AmenityChip icon="shower" label="Washroom" />}
-            </View>
-          )}
+          <View style={styles.listCardMetaRow}>
+            <Icon name="map-marker" size={12} color={Colors.textTertiary} />
+            <Text style={styles.listCardMeta} numberOfLines={1}>{item.city}</Text>
+            <Text style={styles.listCardDot}>•</Text>
+            <Icon name="star" size={12} color={Colors.primary} />
+            <Text style={styles.listCardMeta}>{item.rating > 0 ? item.rating.toFixed(1) : 'New'}</Text>
+          </View>
 
-          <TouchableOpacity style={styles.bookBtn} onPress={() => navigation.navigate('TurfDetail', { id: item._id })} activeOpacity={0.85}>
-            <LinearGradient colors={Colors.primaryGradient} style={styles.bookBtnInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-              <Icon name="calendar-check" size={15} color="#000" />
-              <Text style={styles.bookBtnText}>Book Now</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+          <View style={styles.listCardBottom}>
+            <View style={styles.priceTagCompact}>
+              <Text style={styles.priceAmountCompact}>₹{minPrice}</Text>
+              <Text style={styles.priceUnitCompact}>/hr</Text>
+            </View>
+            {trustScore !== undefined && (
+              <View style={[styles.badgeTrustCompact, { backgroundColor: trustScore >= 80 ? '#2ED573' : '#FF9800' }]}>
+                <Icon name="shield-star" size={10} color="#000" />
+                <Text style={styles.badgeTextCompact}>{trustScore}%</Text>
+              </View>
+            )}
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -403,7 +384,7 @@ const SearchScreen = ({ navigation, route }) => {
         <View style={styles.tBannerWrap}>
           {item.banner
             ? <Image source={{ uri: getImageUrl(item.banner) }} style={styles.tBanner} />
-            : <LinearGradient colors={['#0D2136', '#011528']} style={styles.tBannerFallback}>
+            : <LinearGradient colors={['#0D2136', '#000000']} style={styles.tBannerFallback}>
                 <Icon name="trophy" size={44} color={Colors.primaryAlpha30} />
               </LinearGradient>
           }
@@ -436,17 +417,33 @@ const SearchScreen = ({ navigation, route }) => {
 
   const renderSkeleton = () => (
     <SkeletonPlaceholder backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
-      <View style={{ gap: 16, padding: 16 }}>
-        {[1, 2].map(i => (
-          <View key={i} style={{ borderRadius: 16, overflow: 'hidden' }}>
-            <View style={{ width: '100%', height: 170 }} />
-            <View style={{ padding: 14, gap: 10 }}>
-              <View style={{ width: '55%', height: 18, borderRadius: 6 }} />
-              <View style={{ width: '35%', height: 12, borderRadius: 6 }} />
-              <View style={{ width: '100%', height: 38, borderRadius: 10, marginTop: 6 }} />
+      <View style={{ gap: 14, padding: 16 }}>
+        {activeTab === 'turfs' ? (
+          [1, 2, 3, 4, 5, 6].map(i => (
+            <View key={i} style={{ flexDirection: 'row', borderRadius: 16, padding: 10, gap: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
+              <View style={{ width: 90, height: 90, borderRadius: 12 }} />
+              <View style={{ flex: 1, justifyContent: 'center', gap: 12 }}>
+                <View style={{ width: '70%', height: 16, borderRadius: 4 }} />
+                <View style={{ width: '50%', height: 12, borderRadius: 4 }} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                   <View style={{ width: '30%', height: 14, borderRadius: 4 }} />
+                   <View style={{ width: '20%', height: 12, borderRadius: 4 }} />
+                </View>
+              </View>
             </View>
-          </View>
-        ))}
+          ))
+        ) : (
+          [1, 2].map(i => (
+            <View key={i} style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 16 }}>
+              <View style={{ width: '100%', height: 170 }} />
+              <View style={{ padding: 14, gap: 10 }}>
+                <View style={{ width: '55%', height: 18, borderRadius: 6 }} />
+                <View style={{ width: '35%', height: 12, borderRadius: 6 }} />
+                <View style={{ width: '100%', height: 38, borderRadius: 10, marginTop: 6 }} />
+              </View>
+            </View>
+          ))
+        )}
       </View>
     </SkeletonPlaceholder>
   );
@@ -464,7 +461,7 @@ const SearchScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A1F35" />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
       {/* ── HEADER ── */}
       <View style={styles.header}>
@@ -782,10 +779,10 @@ const SortChip = ({ label, icon, active, onPress }) => (
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0A1F35' },
+  safe: { flex: 1, backgroundColor: Colors.background },
 
   header: {
-    backgroundColor: '#0A1F35',
+    backgroundColor: Colors.background,
     paddingBottom: 12,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -993,43 +990,34 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  /* ── Turf Card ── */
-  card: {
+  /* ── Turf List Compact Card ── */
+  listCard: {
+    flexDirection: 'row',
     backgroundColor: Colors.backgroundCard,
-    borderRadius: 18,
-    overflow: 'hidden',
+    borderRadius: 16,
+    padding: 10,
+    gap: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     ...Shadows.sm,
   },
-  cardImgWrap: { width: '100%', height: 172, position: 'relative' },
-  cardImg: { width: '100%', height: '100%' },
-  cardImgGrad: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '70%' },
-  cardBadgeRow: { position: 'absolute', top: 12, left: 12, flexDirection: 'row', gap: 6 },
-  badgeVerified: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.primary, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeTrust: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 9, textTransform: 'uppercase' },
-  favBtn: { position: 'absolute', top: 10, right: 10, width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
-  favBtnActive: { backgroundColor: 'rgba(255,71,87,0.2)' },
-  priceTag: { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.75)', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, flexDirection: 'row', alignItems: 'baseline', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  priceAmount: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  priceUnit: { color: Colors.textSecondary, fontSize: 10, marginLeft: 2 },
-
-  cardBody: { padding: 14 },
-  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardRow2: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  cardTitle: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 15, flex: 1, marginRight: 8 },
-  cardSubText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12 },
-  ratingPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha30, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  ratingText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 11 },
-
-  amenitiesWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  amenityChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.backgroundElevated, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  amenityChipText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 10 },
-
-  bookBtn: { marginTop: 10, borderRadius: 12, overflow: 'hidden' },
-  bookBtnInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, gap: 6 },
-  bookBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  listCardImgWrap: { width: 90, height: 90, borderRadius: 12, overflow: 'hidden' },
+  listCardImg: { width: '100%', height: '100%' },
+  favBtnCompact: { position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  favBtnActiveCompact: { backgroundColor: 'rgba(255,71,87,0.2)' },
+  listCardBody: { flex: 1, justifyContent: 'center' },
+  listCardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  listCardTitle: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 15, flex: 1, marginRight: 8 },
+  badgeVerifiedCompact: { backgroundColor: Colors.primary, borderRadius: 10, padding: 3 },
+  listCardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
+  listCardMeta: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 11 },
+  listCardDot: { color: Colors.textTertiary, fontSize: 10 },
+  listCardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  priceTagCompact: { flexDirection: 'row', alignItems: 'baseline' },
+  priceAmountCompact: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  priceUnitCompact: { color: Colors.textSecondary, fontSize: 10, marginLeft: 2 },
+  badgeTrustCompact: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  badgeTextCompact: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 9 },
 
   /* ── Player Card ── */
   playerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundCard, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 14, gap: 12 },
@@ -1189,7 +1177,7 @@ const styles = StyleSheet.create({
 
   /* ── Tournament Card ── */
   tCard: { backgroundColor: Colors.backgroundCard, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden', ...Shadows.sm },
-  tBannerWrap: { width: '100%', height: 110, backgroundColor: '#0D2136', position: 'relative' },
+  tBannerWrap: { width: '100%', height: 110, backgroundColor: Colors.backgroundElevated, position: 'relative' },
   tBanner: { width: '100%', height: '100%' },
   tBannerFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tStatusPill: { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1 },

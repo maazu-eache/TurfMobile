@@ -25,7 +25,12 @@ const EditProfileScreen = ({ navigation }) => {
     });
 
     if (result.assets && result.assets.length > 0) {
-      setPhoto(result.assets[0]);
+      const selected = result.assets[0];
+      if (selected.fileSize && selected.fileSize > 3 * 1024 * 1024) {
+        showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
+        return;
+      }
+      setPhoto(selected);
     }
   };
 
@@ -89,6 +94,7 @@ const EditProfileScreen = ({ navigation }) => {
               <Icon name="camera" size={16} color="#FFF" />
             </View>
           </TouchableOpacity>
+          <Text style={{ color: Colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 8 }}>Max 3 MB</Text>
         </View>
 
         <View style={styles.formGroup}>

@@ -302,7 +302,7 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
                   <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={handleGenerate} disabled={loading}>
-                  {loading ? <ActivityIndicator color="#011528" /> : <Text style={styles.actionBtnText}>Generate</Text>}
+                  {loading ? <ActivityIndicator color="#000000" /> : <Text style={styles.actionBtnText}>Generate</Text>}
                 </TouchableOpacity>
               </>
             ) : (
@@ -314,7 +314,7 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
                   {loading ? <ActivityIndicator color={Colors.primary} /> : <Text style={[styles.actionBtnText, { color: Colors.primary, fontSize: 13 }]}>Regenerate</Text>}
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, { flex: 1, paddingHorizontal: 5 }]} onPress={handleConfirm} disabled={loading}>
-                  {loading ? <ActivityIndicator color="#011528" /> : <Text style={[styles.actionBtnText, { fontSize: 13 }]}>Confirm</Text>}
+                  {loading ? <ActivityIndicator color="#000000" /> : <Text style={[styles.actionBtnText, { fontSize: 13 }]}>Confirm</Text>}
                 </TouchableOpacity>
               </>
             )}
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
 
   footer: { flexDirection: 'row', padding: Spacing.md, paddingBottom: Spacing.xl, borderTopWidth: 1, borderTopColor: Colors.border },
   actionBtn: { paddingVertical: 14, borderRadius: BorderRadius.xl, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
-  actionBtnText: { color: '#011528', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  actionBtnText: { color: '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
   
   previewCard: { backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
   previewDate: { color: Colors.primary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12, marginBottom: Spacing.xs },

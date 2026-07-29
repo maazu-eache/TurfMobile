@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
-import api from '../../../api/axios';
+import api, { getImageUrl } from '../../../api/axios';
 
 const OwnerReviewsScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,13 +23,6 @@ const OwnerReviewsScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getImageUrl = (path) => {
-    if (!path) return 'https://via.placeholder.com/150';
-    if (path.startsWith('http')) return path;
-    const baseUrl = api.defaults.baseURL.replace('/api', '');
-    return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
   };
 
   const renderReview = ({ item }) => (
@@ -58,7 +53,7 @@ const OwnerReviewsScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
@@ -90,8 +85,8 @@ const OwnerReviewsScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.xl, paddingTop: 60, paddingBottom: Spacing.md },
-  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.xl, paddingBottom: Spacing.md },
+  headerTitle: { fontSize: Typography.fontSize.xl, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   backBtn: { padding: Spacing.xs },
   listContainer: { padding: Spacing.lg, paddingBottom: 100 },
   reviewCard: { backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border },

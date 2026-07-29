@@ -17,7 +17,7 @@ const RootNavigator = () => {
   const [showSplash, setShowSplash] = React.useState(true);
 
   React.useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 6000); // Wait for the 6s video to finish
+    const timer = setTimeout(() => setShowSplash(false), 7000); // Wait for the 6s video to finish
     return () => clearTimeout(timer);
   }, []);
 

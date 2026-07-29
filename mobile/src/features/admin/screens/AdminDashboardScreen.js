@@ -20,6 +20,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [owners, setOwners] = useState([]);
   const [users, setUsers] = useState([]);
   const [turfs, setTurfs] = useState([]);
+  const [waitlist, setWaitlist] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [upiId, setUpiId] = useState('');
@@ -50,7 +51,12 @@ const AdminDashboardScreen = ({ navigation }) => {
   const handleSelectBanner = () => {
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (response) => {
       if (!response.didCancel && response.assets && response.assets.length > 0) {
-        setBannerImage(response.assets[0]);
+        const selected = response.assets[0];
+        if (selected.fileSize && selected.fileSize > 3 * 1024 * 1024) {
+          showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
+          return;
+        }
+        setBannerImage(selected);
       }
     });
   };
@@ -137,10 +143,17 @@ const AdminDashboardScreen = ({ navigation }) => {
       const ownersRes = await api.get('/admin/owners?limit=100');
       const usersRes = await api.get('/admin/users?limit=100');
       const turfsRes = await api.get('/admin/turfs?limit=100');
+      let waitlistRes = { data: { data: [] } };
+      try {
+        waitlistRes = await api.get('/contact/waitlist?limit=100');
+      } catch (err) {
+        console.log('Failed to fetch waitlist', err);
+      }
       
       setOwners(ownersRes.data.data || []);
       setUsers(usersRes.data.data || []);
       setTurfs(turfsRes.data.data || []);
+      setWaitlist(waitlistRes.data?.data || waitlistRes.data || []);
     } catch (err) {
       console.error('Failed to fetch admin data', err);
     } finally {
@@ -155,12 +168,12 @@ const AdminDashboardScreen = ({ navigation }) => {
 
     return (
       <View style={styles.card}>
-        <LinearGradient colors={['rgba(27,74,27,0.4)', 'transparent']} style={styles.cardGradBg}>
+        <View style={styles.cardGradBg}>
           <View style={styles.cardHeader}>
             <View style={styles.avatarWrap}>
-              <LinearGradient colors={['#1a4a1a', '#0f2b0f']} style={styles.avatar}>
+              <View style={[styles.avatar, { backgroundColor: Colors.surfaceVariant }]}>
                 <Text style={styles.avatarText}>{initials}</Text>
-              </LinearGradient>
+              </View>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{ownerName}</Text>
@@ -171,7 +184,7 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Text style={styles.joinedDate}>{joinedDate}</Text>
             </View>
           </View>
-        </LinearGradient>
+        </View>
         
         {item.turfs && item.turfs.length > 0 ? (
           <View style={styles.turfsList}>
@@ -202,9 +215,9 @@ const AdminDashboardScreen = ({ navigation }) => {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <View style={styles.avatarWrap}>
-            <LinearGradient colors={isOwner ? ['#1a2a4a', '#0a1528'] : ['#2a1a2a', '#150a15']} style={styles.avatar}>
+            <View style={[styles.avatar, { backgroundColor: Colors.surfaceVariant }]}>
               <Text style={styles.avatarText}>{initials}</Text>
-            </LinearGradient>
+            </View>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{item.name || 'Unknown User'}</Text>
@@ -250,9 +263,9 @@ const AdminDashboardScreen = ({ navigation }) => {
         <View style={[styles.turfStatusAccent, { backgroundColor: statusColor }]} />
         <View style={styles.cardHeader}>
           <View style={styles.avatarWrap}>
-            <LinearGradient colors={['#1a3a1a', '#0f200f']} style={styles.avatar}>
+            <View style={[styles.avatar, { backgroundColor: Colors.surfaceVariant }]}>
               <Icon name="soccer-field" size={22} color={Colors.primary} />
-            </LinearGradient>
+            </View>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{item.name}</Text>
@@ -322,14 +335,50 @@ const AdminDashboardScreen = ({ navigation }) => {
     );
   };
 
+  const renderWaitlistCard = ({ item }) => {
+    const joinedDate = formatISTDateSpelled(item.createdAt);
+    const initials = (item.name || item.email || '?').charAt(0).toUpperCase();
+    
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.avatarWrap}>
+            <View style={[styles.avatar, { backgroundColor: Colors.surfaceVariant }]}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>{item.name || 'Unknown'}</Text>
+            <Text style={styles.cardSubtitle} numberOfLines={1}>{item.email}</Text>
+            {item.phone && <Text style={styles.cardSubtitle}>{item.phone}</Text>}
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+             <View style={[styles.roleBadge, { backgroundColor: 'rgba(255,152,0,0.15)' }]}>
+                <Text style={[styles.roleText, { color: '#FF9800' }]}>{item.interestedIn?.toUpperCase() || 'WAITLIST'}</Text>
+             </View>
+          </View>
+        </View>
+        <View style={[styles.cardFooter, { paddingTop: 0 }]}>
+           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+             <Icon name="calendar-outline" size={12} color={Colors.textTertiary} />
+             <Text style={styles.joinedLabel}>Joined {joinedDate}</Text>
+           </View>
+           {item.city && (
+             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+               <Icon name="map-marker-outline" size={12} color={Colors.textTertiary} />
+               <Text style={styles.joinedLabel}>{item.city}</Text>
+             </View>
+           )}
+        </View>
+      </View>
+    );
+  };
+
   const handleLogout = () => {
     showCustomAlert("Confirm Logout", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
       { text: "Logout", style: "destructive", onPress: () => {
         dispatch(logout());
-        setTimeout(() => {
-          reset('Customer');
-        }, 100);
       }}
     ]);
   };
@@ -337,11 +386,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       {/* ── Premium Header ──────────────────────────────── */}
-      <LinearGradient
-        colors={['#0d2b0d', '#0a1f0a', Colors.background]}
-        style={styles.header}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      >
+      <View style={styles.header}>
         {/* Top row: title + actions */}
         <View style={styles.headerTop}>
           <View style={styles.headerTitleBlock}>
@@ -360,15 +405,6 @@ const AdminDashboardScreen = ({ navigation }) => {
             >
               <Icon name="bank-transfer" size={19} color={Colors.primary} />
               <Text style={styles.headerActionLabel}>Settle</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setShowSettings(true)}
-              style={styles.headerActionBtn}
-              activeOpacity={0.8}
-            >
-              <Icon name="tune-variant" size={19} color={Colors.textSecondary} />
-              <Text style={[styles.headerActionLabel, { color: Colors.textSecondary }]}>Config</Text>
             </TouchableOpacity>
 
             <NotificationBell onPress={() => navigation.navigate('Notifications')} />
@@ -390,28 +426,28 @@ const AdminDashboardScreen = ({ navigation }) => {
         {/* Stats Row */}
         <View style={styles.statsContainer}>
           <View style={styles.statBox}>
-            <LinearGradient colors={[Colors.primaryAlpha20, 'transparent']} style={styles.statGrad}>
+            <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
               <Icon name="account-group" size={20} color={Colors.primary} />
               <Text style={styles.statValue}>{owners.length + users.length}</Text>
               <Text style={styles.statLabel}>Total Users</Text>
-            </LinearGradient>
+            </View>
           </View>
           <View style={styles.statBox}>
-            <LinearGradient colors={['rgba(91,141,239,0.18)', 'transparent']} style={styles.statGrad}>
+            <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
               <Icon name="briefcase-account" size={20} color="#5B8DEF" />
               <Text style={[styles.statValue, { color: '#5B8DEF' }]}>{owners.length}</Text>
               <Text style={styles.statLabel}>Owners</Text>
-            </LinearGradient>
+            </View>
           </View>
           <View style={styles.statBox}>
-            <LinearGradient colors={['rgba(46,213,115,0.18)', 'transparent']} style={styles.statGrad}>
+            <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
               <Icon name="soccer-field" size={20} color="#2ED573" />
               <Text style={[styles.statValue, { color: '#2ED573' }]}>{turfs.length}</Text>
               <Text style={styles.statLabel}>Turfs</Text>
-            </LinearGradient>
+            </View>
           </View>
         </View>
-      </LinearGradient>
+      </View>
       
       {/* Settings Modal */}
       <Modal visible={showSettings} animationType="slide" transparent={true}>
@@ -441,6 +477,7 @@ const AdminDashboardScreen = ({ navigation }) => {
                 </View>
               )}
             </TouchableOpacity>
+            <Text style={{ color: Colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 8 }}>Max 3 MB</Text>
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.surfaceVariant }]} onPress={() => setShowSettings(false)}>
@@ -511,6 +548,12 @@ const AdminDashboardScreen = ({ navigation }) => {
         >
           <Text style={[styles.tabText, activeTab === 'users' && styles.tabTextActive]}>Users ({users.length})</Text>
         </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.tab, activeTab === 'waitlist' && styles.tabActive]}
+          onPress={() => setActiveTab('waitlist')}
+        >
+          <Text style={[styles.tabText, activeTab === 'waitlist' && styles.tabTextActive]}>Waitlist ({waitlist.length})</Text>
+        </TouchableOpacity>
       </View>
 
       {/* List */}
@@ -534,13 +577,21 @@ const AdminDashboardScreen = ({ navigation }) => {
           contentContainerStyle={styles.list}
           ListEmptyComponent={<Text style={styles.emptyText}>No turfs found.</Text>}
         />
-      ) : (
+      ) : activeTab === 'users' ? (
         <FlatList
           data={users}
           keyExtractor={item => item._id}
           renderItem={renderUserCard}
           contentContainerStyle={styles.list}
           ListEmptyComponent={<Text style={styles.emptyText}>No users found.</Text>}
+        />
+      ) : (
+        <FlatList
+          data={waitlist}
+          keyExtractor={item => item._id}
+          renderItem={renderWaitlistCard}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={<Text style={styles.emptyText}>No waitlist entries found.</Text>}
         />
       )}
     </View>

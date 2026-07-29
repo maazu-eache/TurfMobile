@@ -174,7 +174,7 @@ const TeamListScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* ── Header ── */}
-      <LinearGradient colors={['#0A1F35', Colors.background]} style={styles.header}>
+      <LinearGradient colors={['#111111', Colors.background]} style={styles.header}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Icon name="arrow-left" size={22} color="#fff" />
@@ -318,10 +318,10 @@ const SummaryCard = ({ icon, value, label, primary }) => (
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0A1F35' },
+  safe: { flex: 1, backgroundColor: Colors.background },
 
   header: {
-    backgroundColor: '#0A1F35',
+    backgroundColor: Colors.background,
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 0,

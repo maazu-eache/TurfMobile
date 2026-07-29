@@ -1,30 +1,42 @@
 import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, Image, Dimensions,
+  RefreshControl, Image, Dimensions
 } from 'react-native';
+import Modal from 'react-native-modal';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchOwnerDashboard } from '../ownerSlice';
+import { logout } from '../../auth/authSlice';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import { formatISTDate } from '../../../utils/dateFormatter';
 import api, { getImageUrl } from '../../../api/axios';
 import NotificationBell from '../../../components/NotificationBell';
+import { showCustomAlert } from '../../../components/CustomAlert';
 
 const { width: W } = Dimensions.get('window');
 
 // ── Reusable small metric tile ───────────────────────────────────────────────
-const MetricTile = ({ label, value, sub, accent, icon }) => (
-  <View style={[styles.tile, { borderTopColor: accent, borderTopWidth: 3 }]}>
-    <Icon name={icon} size={18} color={accent} style={{ marginBottom: 6 }} />
-    <Text style={styles.tileVal}>{value}</Text>
-    <Text style={styles.tileLbl}>{label}</Text>
-    {sub && <Text style={styles.tileSub}>{sub}</Text>}
-  </View>
-);
+const MetricTile = ({ label, value, sub, accent, icon, onPress }) => {
+  const containerStyle = [styles.tile, { borderTopColor: accent, borderTopWidth: 3 }];
+  const innerContent = (
+    <>
+      <Icon name={icon} size={18} color={accent} style={{ marginBottom: 6 }} />
+      <Text style={styles.tileVal}>{value}</Text>
+      <Text style={styles.tileLbl}>{label}</Text>
+      {sub && <Text style={styles.tileSub}>{sub}</Text>}
+    </>
+  );
+
+  if (onPress) {
+    return <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={containerStyle}>{innerContent}</TouchableOpacity>;
+  }
+  return <View style={containerStyle}>{innerContent}</View>;
+};
 
 // ── Status badge ─────────────────────────────────────────────────────────────
 const StatusBadge = ({ status }) => {
@@ -45,6 +57,8 @@ const StatusBadge = ({ status }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const OwnerDashboardScreen = ({ navigation }) => {
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
+  const [isSidebarVisible, setSidebarVisible] = useState(false);
   const { dashboard, isLoading } = useSelector((state) => state.owner);
   const { user } = useSelector((state) => state.auth);
   const [platformSettings, setPlatformSettings] = useState(null);
@@ -95,51 +109,65 @@ const OwnerDashboardScreen = ({ navigation }) => {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
+  const handleLogout = () => {
+    setSidebarVisible(false);
+    setTimeout(() => {
+      showCustomAlert(
+        "Confirm Logout",
+        "Are you sure you want to log out of your account?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Logout", onPress: () => dispatch(logout()), style: "destructive" }
+        ]
+      );
+    }, 300); // slight delay to allow modal to close smoothly
+  };
+
   return (
     <View style={styles.container}>
+      {/* ── Hero Header ─────────────────────────────── */}
+      <LinearGradient colors={[Colors.backgroundCard, Colors.background]} style={[styles.hero, { paddingTop: insets.top + 16, zIndex: 10 }]}>
+        <View style={styles.heroTop}>
+          <View style={styles.heroLeft}>
+            <TouchableOpacity onPress={() => setSidebarVisible(true)} style={{ marginRight: 8 }}>
+              <Icon name="menu" size={28} color={Colors.textPrimary} />
+            </TouchableOpacity>
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.heroName}>{user?.name || 'Owner'}</Text>
+                {dashboard?.owner?.isVerifiedOwner && (
+                  <Icon name="check-decagram" size={18} color={Colors.success} style={{ marginLeft: 6 }} />
+                )}
+              </View>
+              {dashboard?.owner?.trustScore !== undefined && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <Icon name="shield-check" size={14} color={dashboard.owner.trustScore >= 80 ? Colors.success : dashboard.owner.trustScore >= 50 ? Colors.warning : Colors.error} />
+                  <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginLeft: 4 }}>
+                    Trust Score: <Text style={{ fontWeight: 'bold', color: '#FFF' }}>{dashboard.owner.trustScore}/100</Text>
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <View style={styles.heroRight}>
+            <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+            <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.avatarBtn}>
+              <Icon name="store" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </LinearGradient>
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
-        {/* ── Hero Header ─────────────────────────────── */}
-        <LinearGradient colors={[Colors.backgroundCard, Colors.background]} style={styles.hero}>
-          <View style={styles.heroTop}>
-            <View style={styles.heroLeft}>
-              <Image source={require('../../../../SportVerse.png')} style={styles.logo} resizeMode="contain" />
-              <View>
-                <Text style={styles.heroGreet}>{greeting} 👋</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={styles.heroName}>{user?.name || 'Owner'}</Text>
-                  {dashboard?.owner?.isVerifiedOwner && (
-                    <Icon name="check-decagram" size={18} color={Colors.success} style={{ marginLeft: 6 }} />
-                  )}
-                </View>
-                {dashboard?.owner?.trustScore !== undefined && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                    <Icon name="shield-check" size={14} color={dashboard.owner.trustScore >= 80 ? Colors.success : dashboard.owner.trustScore >= 50 ? Colors.warning : Colors.error} />
-                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginLeft: 4 }}>
-                      Trust Score: <Text style={{ fontWeight: 'bold', color: '#FFF' }}>{dashboard.owner.trustScore}/100</Text>
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-            <View style={styles.heroRight}>
-              <NotificationBell onPress={() => navigation.navigate('Notifications')} />
-              <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.avatarBtn}>
-                <Icon name="store" size={20} color={Colors.primary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </LinearGradient>
 
         {/* ── Platform Banner ──────────────────────────── */}
-        {platformSettings?.bannerUrl && (
-          <View style={styles.bannerWrap}>
-            <Image source={{ uri: getImageUrl(platformSettings.bannerUrl) }} style={styles.banner} resizeMode="cover" />
-          </View>
-        )}
+        <View style={styles.bannerWrap}>
+          <Image source={require('../../../../Banner.png')} style={styles.banner} resizeMode="cover" />
+        </View>
 
         {/* ── Alert Banners ────────────────────────────── */}
         {dashboard?.kycStatus === 'pending' && (
@@ -162,7 +190,7 @@ const OwnerDashboardScreen = ({ navigation }) => {
         </View>
 
         {/* Big Revenue Hero Card */}
-        <LinearGradient colors={['#1a4a1a', '#0a280a']} style={styles.revenueHero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <LinearGradient colors={['#111', '#050505']} style={styles.revenueHero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
           <View style={styles.revenueHeroLeft}>
             <Text style={styles.revenueLabel}>Revenue from Today's Games</Text>
             <Text style={styles.revenueAmount}>₹{(s.todayTotalRevenue || 0).toLocaleString()}</Text>
@@ -188,7 +216,7 @@ const OwnerDashboardScreen = ({ navigation }) => {
         </LinearGradient>
 
         {/* Big Collected Revenue Hero Card */}
-        <LinearGradient colors={['#1a2a4a', '#0a1528']} style={[styles.revenueHero, { marginTop: 12, borderColor: '#5B8DEF' }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <LinearGradient colors={['#111', '#050505']} style={[styles.revenueHero, { marginTop: 12 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
           <View style={styles.revenueHeroLeft}>
             <Text style={styles.revenueLabel}>Cash Inflow Today</Text>
             <Text style={styles.revenueAmount}>₹{(s.todayTotalCollectedRevenue || 0).toLocaleString()}</Text>
@@ -207,8 +235,8 @@ const OwnerDashboardScreen = ({ navigation }) => {
             </View>
           </View>
           <View style={styles.revenueHeroRight}>
-            <View style={[styles.revenueBigIcon, { backgroundColor: 'rgba(91,141,239,0.2)' }]}>
-              <Icon name="cash-fast" size={32} color="#5B8DEF" />
+            <View style={[styles.revenueBigIcon, { backgroundColor: Colors.primaryAlpha10 }]}>
+              <Icon name="cash-fast" size={32} color={Colors.primary} />
             </View>
           </View>
         </LinearGradient>
@@ -227,20 +255,21 @@ const OwnerDashboardScreen = ({ navigation }) => {
             label="Turfs"
             value={s.activeTurfs || 0}
             sub="managed"
-            accent="#5B8DEF"
+            accent={Colors.primary}
           />
           <MetricTile
             icon="wallet"
             label="Wallet Balance"
             value={`₹${(dashboard?.wallet?.balance || 0).toLocaleString()}`}
             sub="Available to withdraw"
-            accent="#2ED573"
+            accent={Colors.primary}
+            onPress={() => navigation.navigate('Wallet')}
           />
         </View>
 
         {/* ── Monthly Stats ────────────────────────────── */}
         <View style={styles.sectionRow}>
-          <Icon name="calendar-month" size={16} color="#5B8DEF" />
+          <Icon name="calendar-month" size={16} color={Colors.primary} />
           <Text style={styles.sectionTitle}>This Month</Text>
         </View>
 
@@ -265,8 +294,8 @@ const OwnerDashboardScreen = ({ navigation }) => {
 
           <View style={styles.monthCard}>
             <View style={styles.monthCardTop}>
-              <View style={[styles.monthIconBg, { backgroundColor: 'rgba(91,141,239,0.15)' }]}>
-                <Icon name="ticket-confirmation" size={20} color="#5B8DEF" />
+              <View style={[styles.monthIconBg, { backgroundColor: Colors.primaryAlpha10 }]}>
+                <Icon name="ticket-confirmation" size={20} color={Colors.primary} />
               </View>
               <Text style={styles.monthVal}>{s.monthTotalBookings || 0}</Text>
             </View>
@@ -290,11 +319,11 @@ const OwnerDashboardScreen = ({ navigation }) => {
 
         <View style={styles.actionsRow}>
           {[
-            { icon: 'plus-box-multiple', label: 'Add Turf',       color: Colors.primary,  bg: Colors.primaryAlpha20, route: 'TurfRegistration' },
-            { icon: 'clock-edit-outline', label: 'Manage Slots',  color: '#FF9800',        bg: 'rgba(255,152,0,0.15)', route: 'SlotManager' },
-            { icon: 'account-group',     label: 'Customers',      color: '#9C27B0',        bg: 'rgba(156,39,176,0.15)', route: 'OwnerCustomers' },
-            { icon: 'wallet',            label: 'My Wallet',      color: '#5B8DEF',        bg: 'rgba(91,141,239,0.15)', route: 'Wallet' },
-            { icon: 'star-circle',       label: 'Reviews',        color: '#E91E63',        bg: 'rgba(233,30,99,0.15)', route: 'OwnerReviews' },
+            { icon: 'plus-box-multiple', label: 'Add Turf',       color: Colors.primary, bg: Colors.primaryAlpha20, route: 'TurfRegistration' },
+            { icon: 'clock-edit-outline', label: 'Manage Slots',  color: Colors.primary, bg: Colors.primaryAlpha20, route: 'SlotManager' },
+            { icon: 'account-group',     label: 'Customers',      color: Colors.primary, bg: Colors.primaryAlpha20, route: 'OwnerCustomers' },
+            { icon: 'wallet',            label: 'My Wallet',      color: Colors.primary, bg: Colors.primaryAlpha20, route: 'Wallet' },
+            { icon: 'star-circle',       label: 'Reviews',        color: Colors.primary, bg: Colors.primaryAlpha20, route: 'OwnerReviews' },
           ].map(({ icon, label, color, bg, route }) => (
             <TouchableOpacity key={route} style={styles.actionBtn} onPress={() => navigation.navigate(route)} activeOpacity={0.75}>
               <View style={[styles.actionIconBg, { backgroundColor: bg }]}>
@@ -306,7 +335,7 @@ const OwnerDashboardScreen = ({ navigation }) => {
         </View>
 
         {/* ── My Turfs ─────────────────────────────────── */}
-        <View style={[styles.sectionRow, { marginTop: Spacing.sm }]}>
+        <View style={[styles.sectionRow, { marginTop: 20 }]}>
           <Icon name="map-marker" size={16} color={Colors.primary} />
           <Text style={styles.sectionTitle}>My Turfs</Text>
           <View style={{ flex: 1 }} />
@@ -358,16 +387,16 @@ const OwnerDashboardScreen = ({ navigation }) => {
         )}
 
         {/* ── Recent Bookings ──────────────────────────── */}
-        <View style={[styles.sectionRow, { marginTop: Spacing.sm }]}>
+        {/* <View style={[styles.sectionRow, { marginTop: Spacing.sm }]}>
           <Icon name="history" size={16} color={Colors.primary} />
           <Text style={styles.sectionTitle}>Recent Bookings</Text>
           <View style={{ flex: 1 }} />
           <TouchableOpacity onPress={() => navigation.navigate('Bookings')}>
             <Text style={styles.seeAll}>See All</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
 
-        {recentBookings.length === 0 ? (
+        {/* {recentBookings.length === 0 ? (
           <View style={styles.emptyCard}>
             <Icon name="calendar-blank" size={32} color={Colors.textTertiary} />
             <Text style={styles.emptyTxt}>No recent bookings</Text>
@@ -395,10 +424,79 @@ const OwnerDashboardScreen = ({ navigation }) => {
               </View>
             );
           })
-        )}
+        )} */}
 
         <View style={{ height: Spacing['2xl'] }} />
       </ScrollView>
+
+      {/* ── Sidebar Modal ────────────────────────────────────── */}
+      <Modal
+        isVisible={isSidebarVisible}
+        onBackdropPress={() => setSidebarVisible(false)}
+        onSwipeComplete={() => setSidebarVisible(false)}
+        swipeDirection="left"
+        animationIn="slideInLeft"
+        animationOut="slideOutLeft"
+        style={{ margin: 0, justifyContent: 'flex-start' }}
+      >
+        <View style={[styles.sidebar, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.sidebarHeader}>
+            <Image source={require('../../../../SportVerse.png')} style={styles.sidebarLogo} resizeMode="contain" />
+            <TouchableOpacity onPress={() => setSidebarVisible(false)}>
+              <Icon name="close" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.sidebarContent}>
+            <Text style={styles.sidebarSectionTitle}>Quick Actions</Text>
+            
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => { setSidebarVisible(false); navigation.navigate('TurfRegistration'); }}>
+              <View style={[styles.sidebarIconBox, { backgroundColor: Colors.primaryAlpha10 }]}>
+                <Icon name="plus-box" size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.sidebarItemText}>Add Turf</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => { setSidebarVisible(false); navigation.navigate('SlotManager'); }}>
+              <View style={[styles.sidebarIconBox, { backgroundColor: Colors.primaryAlpha10 }]}>
+                <Icon name="clock-edit-outline" size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.sidebarItemText}>Manage Slots</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => { setSidebarVisible(false); navigation.navigate('OwnerCustomers'); }}>
+              <View style={[styles.sidebarIconBox, { backgroundColor: Colors.primaryAlpha10 }]}>
+                <Icon name="account-group" size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.sidebarItemText}>Customers</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => { setSidebarVisible(false); navigation.navigate('Wallet'); }}>
+              <View style={[styles.sidebarIconBox, { backgroundColor: Colors.primaryAlpha10 }]}>
+                <Icon name="wallet" size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.sidebarItemText}>My Wallet</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sidebarItem} onPress={() => { setSidebarVisible(false); navigation.navigate('OwnerReviews'); }}>
+              <View style={[styles.sidebarIconBox, { backgroundColor: Colors.primaryAlpha10 }]}>
+                <Icon name="star-circle" size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.sidebarItemText}>Reviews</Text>
+            </TouchableOpacity>
+
+          </ScrollView>
+
+          <View style={{ paddingHorizontal: Spacing.xl, marginTop: 'auto', paddingBottom: 20 }}>
+            <TouchableOpacity style={styles.sidebarItem} onPress={handleLogout}>
+              <View style={[styles.sidebarIconBox, { backgroundColor: '#d6303122' }]}>
+                <Icon name="logout" size={20} color="#d63031" />
+              </View>
+              <Text style={[styles.sidebarItemText, { color: '#d63031' }]}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -409,7 +507,7 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: 100 },
 
   // Hero
-  hero: { paddingTop: 60, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl },
+  hero: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl },
   heroGrad: { height: 120 },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   heroLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -420,7 +518,7 @@ const styles = StyleSheet.create({
   avatarBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primaryAlpha10, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.primaryAlpha30 },
 
   // Banner
-  bannerWrap: { marginHorizontal: Spacing.xl, marginBottom: Spacing.lg, borderRadius: BorderRadius.xl, overflow: 'hidden' },
+  bannerWrap: { marginTop: 16, marginHorizontal: Spacing.xl, marginBottom: Spacing.lg, borderRadius: BorderRadius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
   banner: { width: '100%', height: 130 },
 
   // Alerts
@@ -501,8 +599,8 @@ const styles = StyleSheet.create({
   turfMeta: { fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
 
   // Badge
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: BorderRadius.full },
-  badgeTxt: { fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  badgeTxt: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
 
   // Booking cards
   bookingCard: {
@@ -522,6 +620,16 @@ const styles = StyleSheet.create({
   emptyTxt: { fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
   addTurfBtn: { marginTop: 8, backgroundColor: Colors.primaryAlpha20, paddingHorizontal: 20, paddingVertical: 10, borderRadius: BorderRadius.full, borderWidth: 1, borderColor: Colors.primaryAlpha30 },
   addTurfTxt: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: Typography.fontSize.sm },
+
+  // Sidebar
+  sidebar: { width: 280, backgroundColor: Colors.backgroundCard, flex: 1, borderTopRightRadius: 24, borderBottomRightRadius: 24, elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 20 },
+  sidebarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.xl, marginBottom: Spacing.xl },
+  sidebarLogo: { width: 80, height: 80 },
+  sidebarContent: { paddingHorizontal: Spacing.xl },
+  sidebarSectionTitle: { fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, marginBottom: Spacing.md, textTransform: 'uppercase', letterSpacing: 1 },
+  sidebarItem: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  sidebarIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  sidebarItemText: { fontSize: Typography.fontSize.md, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary },
 });
 
 export default OwnerDashboardScreen;

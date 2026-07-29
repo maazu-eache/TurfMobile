@@ -49,7 +49,7 @@ const getThemeStyles = (theme) => {
       };
     case 'Drip':
       return {
-        bgColor: '#1A1A1A',
+        bgColor: '#000000',
         textColor: '#FFFFFF',
         secTextColor: '#A0A0A0',
         accentColor: '#F5A623',

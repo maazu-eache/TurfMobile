@@ -43,7 +43,7 @@ const SharePreviewModal = ({ visible, onClose, title, shareUrl, children }) => {
       
       const shareOptions = {
         title: 'Share Poster',
-        message: `Check out ${title} on SportVerse! ${shareUrl || ''}`.trim(),
+        message: `Check out ${title} on ScoreVerse! ${shareUrl || ''}`.trim(),
       };
       
       if (uris.length === 1) {
@@ -135,9 +135,9 @@ const SharePreviewModal = ({ visible, onClose, title, shareUrl, children }) => {
               <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.actionBtn, styles.shareBtn]} onPress={handleShare} disabled={isCapturing}>
-              {isCapturing ? <ActivityIndicator color="#011528" /> : (
+              {isCapturing ? <ActivityIndicator color="#000000" /> : (
                 <>
-                  <Icon name="share-2" size={18} color="#011528" style={{ marginRight: 8 }} />
+                  <Icon name="share-2" size={18} color="#000000" style={{ marginRight: 8 }} />
                   <Text style={styles.actionBtnText}>Share Poster</Text>
                 </>
               )}
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   actionBtnText: {
-    color: '#011528',
+    color: '#000000',
     fontFamily: Typography.fontFamily.bold,
     fontSize: 16,
   },

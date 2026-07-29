@@ -28,9 +28,6 @@ const ProfileScreen = ({ navigation }) => {
           style: "destructive",
           onPress: () => {
             dispatch(logout());
-            setTimeout(() => {
-              reset('Customer');
-            }, 100);
           }
         }
       ]

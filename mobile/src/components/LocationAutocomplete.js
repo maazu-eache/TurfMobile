@@ -41,7 +41,7 @@ const LocationAutocomplete = ({
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(searchQuery)}&limit=6`,
-        { headers: { 'User-Agent': 'SportVerseApp/1.0', 'Accept-Language': 'en-US,en;q=0.9' } }
+        { headers: { 'User-Agent': 'ScoreVerseApp/1.0', 'Accept-Language': 'en-US,en;q=0.9' } }
       );
       const data = await res.json();
       setResults(data);

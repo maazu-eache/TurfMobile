@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, Modal, TextInput } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, Modal, TextInput, ScrollView } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
@@ -10,15 +11,16 @@ import { formatISTDate, formatISTTime } from '../../../utils/dateFormatter';
 import moment from 'moment';
 import { confirmBookingPayment, rejectBookingPayment, approveCancellation, fetchOwnerDashboard } from '../ownerSlice';
 import { showCustomAlert } from '../../../components/CustomAlert';
-import { ScrollView } from 'react-native-gesture-handler';
 
 const OwnerBookingsScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
   const { dashboard } = useSelector((state) => state.owner);
   const turfs = dashboard?.owner?.turfs || [];
   
   const dispatch = useDispatch();
-  const [selectedTurf, setSelectedTurf] = useState(turfs[0]?._id || null);
+  const [selectedTurf, setSelectedTurf] = useState('all');
   const [bookings, setBookings] = useState([]);
+  const [turfModalVisible, setTurfModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   
@@ -64,7 +66,10 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
     if (pageNum > 1) setLoadingMore(true);
 
     try {
-      let url = `/bookings/owner?turfId=${selectedTurf}&page=${pageNum}&limit=10`;
+      let url = `/bookings/owner?page=${pageNum}&limit=10`;
+      if (selectedTurf && selectedTurf !== 'all') {
+        url += `&turfId=${selectedTurf}`;
+      }
       if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
       if (dateFilter) {
         const parts = dateFilter.split('/');
@@ -255,35 +260,17 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Text style={styles.headerTitle}>All Bookings</Text>
+        {turfs.length > 0 && (
+          <TouchableOpacity style={styles.headerDropdown} onPress={() => setTurfModalVisible(true)}>
+            <Text style={styles.headerDropdownText} numberOfLines={1}>
+              {selectedTurf === 'all' ? 'All Turfs' : (turfs.find(t => t._id === selectedTurf)?.name || 'Select Ground')}
+            </Text>
+            <Icon name="chevron-down" size={20} color={Colors.primary} style={{marginLeft: 4}} />
+          </TouchableOpacity>
+        )}
       </View>
-
-      {/* Turf Selector */}
-      {turfs.length > 0 && (
-        <View style={styles.turfSelector}>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={turfs}
-            keyExtractor={t => t._id}
-            contentContainerStyle={{ paddingHorizontal: Spacing.xl }}
-            renderItem={({ item: t }) => (
-              <TouchableOpacity 
-                style={[styles.turfChip, selectedTurf === t._id && styles.turfChipActive]}
-                onPress={() => setSelectedTurf(t._id)}
-              >
-                <Text style={[styles.turfChipText, selectedTurf === t._id && styles.turfChipTextActive]}>{t.name}</Text>
-                {t.pendingActionsCount > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{t.pendingActionsCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-      )}
 
       {/* Filters */}
       <View style={styles.filterContainer}>
@@ -314,18 +301,16 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
           ) : null}
         </View>
       </View>
-      <View style={styles.statusFilterContainer}>
-        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusScroll}>
-          {['All', 'Pending', 'Confirmed', 'Completed', 'Cancelled', 'Cancellation Requested'].map(status => (
-            <TouchableOpacity 
-              key={status} 
-              style={[styles.statusFilterChip, statusFilter === status && styles.statusFilterChipActive]}
-              onPress={() => setStatusFilter(status)}
-            >
-              <Text style={[styles.statusFilterText, statusFilter === status && styles.statusFilterTextActive]}>{status}</Text>
-            </TouchableOpacity>
-          ))}
-        </KeyboardAwareScrollView>
+      <View style={styles.tabsContainer}>
+        {['All', 'Confirmed', 'Completed'].map(status => (
+          <TouchableOpacity 
+            key={status} 
+            style={[styles.tabButton, statusFilter === status && styles.tabButtonActive]}
+            onPress={() => setStatusFilter(status)}
+          >
+            <Text style={[styles.tabText, statusFilter === status && styles.tabTextActive]}>{status}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Bookings List */}
@@ -403,6 +388,50 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
         </View>
       </Modal>
 
+      {/* Turf Selection Modal */}
+      <Modal visible={turfModalVisible} transparent animationType="slide" onRequestClose={() => setTurfModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { padding: 0, paddingBottom: 20 }]}>
+            <View style={[styles.modalHeader, { padding: Spacing.xl, paddingBottom: Spacing.md }]}>
+              <Text style={styles.modalTitle}>Select Ground</Text>
+              <TouchableOpacity onPress={() => setTurfModalVisible(false)}>
+                <Icon name="close" size={24} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 300, paddingHorizontal: Spacing.xl }} showsVerticalScrollIndicator={false}>
+              <TouchableOpacity 
+                style={[styles.turfOption, selectedTurf === 'all' && styles.turfOptionActive]}
+                onPress={() => {
+                  setSelectedTurf('all');
+                  setTurfModalVisible(false);
+                }}
+              >
+                <Text style={[styles.turfOptionText, selectedTurf === 'all' && styles.turfOptionTextActive]}>
+                  All Turfs
+                </Text>
+                {selectedTurf === 'all' && <Icon name="check-circle" size={24} color={Colors.primary} />}
+              </TouchableOpacity>
+
+              {turfs.map(t => (
+                <TouchableOpacity 
+                  key={t._id} 
+                  style={[styles.turfOption, selectedTurf === t._id && styles.turfOptionActive]}
+                  onPress={() => {
+                    setSelectedTurf(t._id);
+                    setTurfModalVisible(false);
+                  }}
+                >
+                  <Text style={[styles.turfOptionText, selectedTurf === t._id && styles.turfOptionTextActive]}>
+                    {t.name}
+                  </Text>
+                  {selectedTurf === t._id && <Icon name="check-circle" size={24} color={Colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Custom JS Calendar Modal */}
       {showCalendar && (
         <View style={styles.calendarOverlay}>
@@ -457,32 +486,51 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
   );
 };
 
+// We will also add the style for filterContainer back, since it was grouped with filter container in the original replace target.
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  filterContainer: { flexDirection: 'row', gap: 12, padding: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.sm, backgroundColor: Colors.backgroundElevated },
   header: { 
-    paddingHorizontal: Spacing.xl, paddingTop: 60, paddingBottom: Spacing.lg,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg,
     backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border
   },
-  headerTitle: { fontSize: 24, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  headerTitle: { fontSize: 24, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
+  headerDropdown: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, borderWidth: 1, borderColor: Colors.border, maxWidth: '55%' },
+  headerDropdownText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginRight: 4, maxWidth: '85%' },
   
-  turfSelector: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.backgroundCard },
-  turfChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.backgroundElevated, marginRight: 8, borderWidth: 1, borderColor: Colors.border },
-  turfChipActive: { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
-  turfChipText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  turfChipTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
-  badge: {
-    backgroundColor: Colors.error,
-    borderRadius: 10, paddingHorizontal: 6, height: 20, justifyContent: 'center', alignItems: 'center'
-  },
-  badgeText: { color: '#FFF', fontSize: 10, fontFamily: Typography.fontFamily.bold },
+  turfOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  turfOptionActive: { backgroundColor: Colors.primaryAlpha20, borderRadius: BorderRadius.md, borderBottomWidth: 0 },
+  turfOptionText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 16 },
+  turfOptionTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
 
-  filterContainer: { flexDirection: 'row', gap: 12, padding: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.sm, backgroundColor: Colors.backgroundElevated },
-  statusFilterContainer: { paddingBottom: Spacing.md, backgroundColor: Colors.backgroundElevated, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  statusScroll: { paddingHorizontal: Spacing.xl, gap: 8 },
-  statusFilterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
-  statusFilterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  statusFilterText: { fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  statusFilterTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: Colors.backgroundElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  tabButtonActive: {
+    borderBottomColor: Colors.primary,
+  },
+  tabText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  tabTextActive: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+  },
   searchInputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.sm, height: 40, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm },
   dateInputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.sm, height: 40, borderWidth: 1, borderColor: Colors.border },
   searchInput: { flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.regular, marginLeft: Spacing.sm, fontSize: 12 },

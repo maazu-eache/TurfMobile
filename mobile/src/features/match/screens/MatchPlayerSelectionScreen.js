@@ -1510,7 +1510,7 @@ const styles = StyleSheet.create({
   settingsModalBtnCancel: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: Colors.surfaceVariant },
   settingsModalBtnTextCancel: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
   settingsModalBtnAdd: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  settingsModalBtnTextAdd: { color: Colors.background || '#011528', fontFamily: Typography.fontFamily.bold },
+  settingsModalBtnTextAdd: { color: Colors.background || '#000000', fontFamily: Typography.fontFamily.bold },
 
   bottomSheetOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   bottomSheet: { backgroundColor: Colors.backgroundModal, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl },

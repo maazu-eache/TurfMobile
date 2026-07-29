@@ -9,8 +9,8 @@ content = content.replace(
     "import { View, Text, StyleSheet, Image, ImageBackground } from 'react-native';"
 )
 
-# 2. Change Powered by SportVerse to Powered by Decolz Sports
-content = content.replace("Powered by SportVerse", "Powered by Decolz Sports")
+# 2. Change Powered by ScoreVerse to Powered by Decolz Sports
+content = content.replace("Powered by ScoreVerse", "Powered by Decolz Sports")
 
 # 3. Update TournamentSummaryPoster
 summary_old = """export const TournamentSummaryPoster = ({ tournament, theme }) => {

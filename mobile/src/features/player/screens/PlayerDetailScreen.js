@@ -62,7 +62,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
       if (!id) return;
       setLocalLoading(true);
       try {
-        const key = 'SportVerse_ViewedPlayers';
+        const key = 'ScoreVerse_ViewedPlayers';
         const viewedStr = await AsyncStorage.getItem(key);
         let viewedList = viewedStr ? JSON.parse(viewedStr) : [];
         const hasViewed = viewedList.includes(id);
