@@ -13,6 +13,10 @@ import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../the
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import api, { getImageUrl } from '../../../api/axios';
 import NotificationBell from '../../../components/NotificationBell';
+import PlayerProfileCard from '../../../components/PlayerProfileCard';
+import Video from 'react-native-video';
+
+let hasPlayedBannerVideo = false;
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const SIDEBAR_WIDTH = SW * 0.80;
@@ -77,6 +81,7 @@ const PulseDot = () => {
 
 const HomeScreen = ({ navigation }) => {
   const dispatch = useDispatch();
+  const [showVideo, setShowVideo] = useState(!hasPlayedBannerVideo);
   const { turfs, isLoading } = useSelector(s => s.turf);
   const { user, isAuthenticated } = useSelector(s => s.auth);
   const { myProfile } = useSelector(s => s.player || {});
@@ -278,13 +283,7 @@ const HomeScreen = ({ navigation }) => {
           onPress={() => navigation.navigate('TurfDetail', { id: item._id })}
           activeOpacity={0.95}
         >
-          <Animated.Image
-            source={{ uri: getImageUrl(item.coverImage) || 'https://via.placeholder.com/400x300?text=Turf' }}
-            style={[
-              styles.premiumCardImage,
-              { transform: [{ translateX: imageTranslateX }] }
-            ]}
-          />
+          <TurfCardImage item={item} imageTranslateX={imageTranslateX} />
 
           {/* Top Badges */}
           <View style={styles.premiumTopRow}>
@@ -351,62 +350,49 @@ const HomeScreen = ({ navigation }) => {
     );
   };
 
+  const MOCK_PLAYERS = [
+    { _id: 'm1', image: 'https://i.pinimg.com/736x/8f/c9/77/8fc977e23fa2c30ec75e7a9b0c2e4cc0.jpg', playerName: 'Virat Kohli', role: 'Right Hand Batsman', team: 'Royal Challengers Bengaluru', country: 'India', isCaptain: false, matches: 252, runs: 7971, backgroundColor: '#FFCC00' },
+    { _id: 'm2', image: 'https://i.pinimg.com/736x/d6/00/f8/d600f8981504958ce1ba59df182df586.jpg', playerName: 'Rohit Sharma', role: 'Right Hand Batsman', team: 'Mumbai Indians', country: 'India', isCaptain: true, matches: 257, runs: 6628, backgroundColor: '#FFCC00' },
+    { _id: 'm3', image: 'https://i.pinimg.com/736x/91/9f/c6/919fc6374f67c06ebf1cf5938dcb9282.jpg', playerName: 'Jasprit Bumrah', role: 'Right Arm Fast', team: 'Mumbai Indians', country: 'India', isCaptain: false, matches: 133, runs: 69, backgroundColor: '#FFCC00' },
+    { _id: 'm4', image: 'https://i.pinimg.com/736x/a2/33/c2/a233c2ab5cfbc9d1ebf435015e1281ce.jpg', playerName: 'MS Dhoni', role: 'Wicket Keeper', team: 'Chennai Super Kings', country: 'India', isCaptain: false, matches: 264, runs: 5243, backgroundColor: '#FFCC00' },
+    { _id: 'm5', image: 'https://i.pinimg.com/736x/af/b1/7a/afb17af880f074d0e6598f82245b74c5.jpg', playerName: 'KL Rahul', role: 'Right Hand Batsman', team: 'Lucknow Super Giants', country: 'India', isCaptain: true, matches: 132, runs: 4683, backgroundColor: '#FFCC00' },
+    { _id: 'm6', image: 'https://i.pinimg.com/736x/6b/af/2d/6baf2dcab14282e4480e0c03dbb7c02b.jpg', playerName: 'Hardik Pandya', role: 'All Rounder', team: 'Mumbai Indians', country: 'India', isCaptain: true, matches: 137, runs: 2525, backgroundColor: '#FFCC00' },
+    { _id: 'm7', image: 'https://i.pinimg.com/736x/ee/75/a3/ee75a31b4ab4b60e6e88e7343e8bb435.jpg', playerName: 'Shubman Gill', role: 'Right Hand Batsman', team: 'Gujarat Titans', country: 'India', isCaptain: true, matches: 103, runs: 3216, backgroundColor: '#FFCC00' },
+    { _id: 'm8', image: 'https://i.pinimg.com/736x/b2/d4/07/b2d407fcf8f0d9b4c09264c781ab1d92.jpg', playerName: 'Suryakumar Yadav', role: 'Right Hand Batsman', team: 'Mumbai Indians', country: 'India', isCaptain: false, matches: 150, runs: 3594, backgroundColor: '#FFCC00' },
+    { _id: 'm9', image: 'https://i.pinimg.com/736x/32/db/38/32db38883cc065e1ebfffaad3c4ed7b8.jpg', playerName: 'Mohammed Shami', role: 'Right Arm Fast', team: 'Gujarat Titans', country: 'India', isCaptain: false, matches: 110, runs: 75, backgroundColor: '#FFCC00' },
+    { _id: 'm10', image: 'https://i.pinimg.com/736x/f0/6d/27/f06d27a4d5e751249b6b772cb52ed492.jpg', playerName: 'Ravindra Jadeja', role: 'All Rounder', team: 'Chennai Super Kings', country: 'India', isCaptain: false, matches: 240, runs: 2959, backgroundColor: '#FFCC00' }
+  ];
+
   /* ─── Player Card ───────────────────────────────────────────────────────── */
   const renderPlayerCard = ({ item }) => {
-    const isFollowing = myProfile?.following?.includes(item._id) || false;
+    // If it's a mock player, render it directly
+    if (item._id && item._id.toString().startsWith('m')) {
+      return (
+        <PlayerProfileCard
+          {...item}
+          onPress={() => {}}
+        />
+      );
+    }
+
+    // Map database user to PlayerProfileCard props
     const photo = item.photo || item.userId?.photo;
     const runs = item.career?.batting?.runs || item.batting?.runs || 0;
-    const wickets = item.career?.bowling?.wickets || item.bowling?.wickets || 0;
-    const avg = item.career?.batting?.average || item.batting?.average || 0;
+    const matches = item.career?.matches || item.matches || 0;
 
     return (
-      <TouchableOpacity style={styles.playerCard} onPress={() => navigation.navigate('PlayerDetail', { id: item._id })} activeOpacity={0.9}>
-        {/* Avatar */}
-        <View style={styles.playerAvatarWrap}>
-          {photo
-            ? <Image source={{ uri: getImageUrl(photo) || 'https://via.placeholder.com/150' }} style={styles.playerAvatar} />
-            : (
-              <LinearGradient colors={['#111111', '#1A1A1A']} style={styles.playerAvatar}>
-                <Icon name="account" size={26} color="rgba(255,255,255,0.45)" />
-              </LinearGradient>
-            )}
-          <View style={styles.rolePill}>
-            <Text style={styles.rolePillText}>{(item.playingRole || 'PLR').substring(0, 3).toUpperCase()}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.playerName} numberOfLines={1}>{item.name}</Text>
-        {item.city && (
-          <View style={styles.playerLocRow}>
-            <Icon name="map-marker" size={9} color={Colors.primary} />
-            <Text style={styles.playerLocText} numberOfLines={1}>{item.city}</Text>
-          </View>
-        )}
-
-        {/* Stats */}
-        <View style={styles.playerStats}>
-          {[{ v: runs, l: 'Runs' }, { v: wickets, l: 'Wkts' }, { v: avg > 0 ? Number(avg).toFixed(1) : '—', l: 'Avg' }].map((s, i) => (
-            <React.Fragment key={i}>
-              {i > 0 && <View style={styles.playerStatDiv} />}
-              <View style={styles.playerStatCell}>
-                <Text style={styles.playerStatVal}>{s.v}</Text>
-                <Text style={styles.playerStatLbl}>{s.l}</Text>
-              </View>
-            </React.Fragment>
-          ))}
-        </View>
-
-        <TouchableOpacity
-          style={[styles.followBtn, isFollowing && styles.followingBtn]}
-          onPress={() => authGuard(() => dispatch(followPlayer(item._id)))}
-          activeOpacity={0.8}
-        >
-          <Icon name={isFollowing ? 'check' : 'plus'} size={10} color={isFollowing ? Colors.primary : '#000'} />
-          <Text style={[styles.followBtnText, isFollowing && styles.followingBtnText]}>
-            {isFollowing ? 'Following' : 'Follow'}
-          </Text>
-        </TouchableOpacity>
-      </TouchableOpacity>
+      <PlayerProfileCard
+        image={photo ? getImageUrl(photo) : require('../../../../SportVerse.png')}
+        playerName={item.name || item.userId?.name || 'Player'}
+        role={item.playingRole || 'Cricketer'}
+        team={item.location || item.city || item.userId?.city || 'India'}
+        // country={item.country || 'India'}
+        // isCaptain={item.isCaptain || false}
+        matches={matches}
+        runs={runs}
+        backgroundColor="#ffcc00ed"
+        onPress={() => navigation.navigate('PlayerDetail', { id: item._id })}
+      />
     );
   };
 
@@ -552,12 +538,26 @@ const HomeScreen = ({ navigation }) => {
             </SafeAreaView>
 
             <View style={[styles.bannerWrap, { width: SW * 0.88, aspectRatio: 1983 / 793, alignSelf: 'center' }]}>
-              <Image
-                source={require('../../../../Banner.png')}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="cover"
-                fadeDuration={300}
-              />
+              {showVideo ? (
+                <Video
+                  source={require('../../../../Banner.mp4')}
+                  style={{ width: '100%', height: '100%', position: 'absolute' }}
+                  resizeMode="cover"
+                  repeat={false}
+                  muted={true}
+                  onEnd={() => {
+                    hasPlayedBannerVideo = true;
+                    setShowVideo(false);
+                  }}
+                />
+              ) : (
+                <Image
+                  source={require('../../../../Banner.png')}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                  fadeDuration={300}
+                />
+              )}
             </View>
           </LinearGradient>
         </Animated.View>
@@ -693,7 +693,7 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* ── PLAYERS NEAR YOU ── */}
-        {isAuthenticated && nearPlayers?.length > 0 && (
+        {isAuthenticated && (
           <View style={{ marginBottom: Spacing['2xl'] }}>
             <View style={styles.sectionHead}>
               <View>
@@ -706,11 +706,19 @@ const HomeScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
             <FlatList
-              data={nearPlayers}
-              keyExtractor={it => it._id}
+              data={nearPlayers?.length > 0 ? nearPlayers : MOCK_PLAYERS}
+              keyExtractor={it => it._id || it.id}
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: Spacing.xl, gap: 12 }}
+              contentContainerStyle={{ paddingHorizontal: Spacing.xl, gap: 16 }}
+              snapToInterval={260 + 16}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              pagingEnabled={false}
+              initialNumToRender={4}
+              maxToRenderPerBatch={4}
+              windowSize={5}
+              removeClippedSubviews={false}
               renderItem={renderPlayerCard}
             />
           </View>
@@ -1102,5 +1110,22 @@ const styles = StyleSheet.create({
   exploreSub: { fontSize: 11, color: Colors.textSecondary },
   exploreArrow: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)' },
 });
+
+const TurfCardImage = ({ item, imageTranslateX }) => {
+  const [imgError, setImgError] = useState(false);
+  const uri = getImageUrl(item.coverImage);
+  const fallback = 'https://via.placeholder.com/400x300?text=Turf';
+
+  return (
+    <Animated.Image
+      source={{ uri: (imgError || !uri) ? fallback : uri }}
+      onError={() => setImgError(true)}
+      style={[
+        styles.premiumCardImage,
+        { transform: [{ translateX: imageTranslateX }] }
+      ]}
+    />
+  );
+};
 
 export default HomeScreen;

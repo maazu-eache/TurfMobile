@@ -26,8 +26,11 @@ const ProfileScreen = ({ navigation }) => {
         { 
           text: "Logout", 
           style: "destructive",
-          onPress: () => {
-            dispatch(logout());
+          onPress: async () => {
+            if (!isOwner) {
+              navigation.navigate('Home');
+            }
+            await dispatch(logout());
           }
         }
       ]

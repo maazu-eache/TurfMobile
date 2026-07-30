@@ -17,6 +17,9 @@ import { formatISTDate } from '../../../utils/dateFormatter';
 import api, { getImageUrl } from '../../../api/axios';
 import NotificationBell from '../../../components/NotificationBell';
 import { showCustomAlert } from '../../../components/CustomAlert';
+import Video from 'react-native-video';
+
+let hasPlayedOwnerBannerVideo = false;
 
 const { width: W } = Dimensions.get('window');
 
@@ -57,6 +60,7 @@ const StatusBadge = ({ status }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const OwnerDashboardScreen = ({ navigation }) => {
   const dispatch = useDispatch();
+  const [showVideo, setShowVideo] = useState(!hasPlayedOwnerBannerVideo);
   const insets = useSafeAreaInsets();
   const [isSidebarVisible, setSidebarVisible] = useState(false);
   const { dashboard, isLoading } = useSelector((state) => state.owner);
@@ -166,7 +170,21 @@ const OwnerDashboardScreen = ({ navigation }) => {
 
         {/* ── Platform Banner ──────────────────────────── */}
         <View style={styles.bannerWrap}>
-          <Image source={require('../../../../Banner.png')} style={styles.banner} resizeMode="cover" />
+          {showVideo ? (
+            <Video
+              source={require('../../../../Banner.mp4')}
+              style={styles.banner}
+              resizeMode="cover"
+              repeat={false}
+              muted={true}
+              onEnd={() => {
+                hasPlayedOwnerBannerVideo = true;
+                setShowVideo(false);
+              }}
+            />
+          ) : (
+            <Image source={require('../../../../Banner.png')} style={styles.banner} resizeMode="cover" />
+          )}
         </View>
 
         {/* ── Alert Banners ────────────────────────────── */}

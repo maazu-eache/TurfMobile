@@ -54,12 +54,7 @@ const getMinPrice = (pricing) => {
   return prices.length ? Math.min(...prices) : 0;
 };
 
-// Estimated heights for stacked cards to calculate precise scroll-driven pinning offsets
-const CARD_HEIGHTS = [220, 200, 100, 240, 160, 150, 320, 240];
-const Y_OFFSETS = [300];
-for (let i = 1; i < CARD_HEIGHTS.length; i++) {
-  Y_OFFSETS.push(Y_OFFSETS[i-1] + CARD_HEIGHTS[i-1] - 16);
-}
+// Removed hardcoded CARD_HEIGHTS to use dynamic measurement for a flawless Apple Wallet stack
 
 const TurfDetailScreen = ({ route, navigation }) => {
   const { id } = route.params;
@@ -78,6 +73,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
   const [comment, setComment] = useState('');
   const [submittingRating, setSubmittingRating] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [cardLayouts, setCardLayouts] = useState({});
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -191,44 +187,54 @@ const TurfDetailScreen = ({ route, navigation }) => {
     extrapolateRight: 'clamp',
   });
 
-  // Scroll stacking interpolation generator
-  const createCardAnimation = (index) => {
-    if (index === 0) return { zIndex: 10 }; // Info Card scrolls normally and slides underneath
+  // Apple Wallet Dynamic Stack Engine
+  const getCardAnimation = (index) => {
+    // The Info Card (index 0) scrolls normally
+    if (index === 0) return { zIndex: 10 };
 
-    const yOffset = Y_OFFSETS[index] || 300;
-    const pinY = 60 + (index - 1) * 28; // Cards stack neatly with 28px gaps showing header tabs
-    const threshold = Math.max(0, yOffset - pinY);
+    const layout = cardLayouts[index];
+    if (!layout) return { zIndex: 20 + index }; // Native render before measurement
+
+    // Stacking offset gap
+    const TOP_INSET = 100;
+    const STACK_GAP = 24;
+    const targetY = TOP_INSET + (index - 1) * STACK_GAP;
+    
+    // threshold is when the top of the card reaches the target stack position
+    const threshold = Math.max(0, layout.y - targetY);
 
     const translateY = scrollY.interpolate({
-      inputRange: [-100, 0, threshold, threshold + 100],
-      outputRange: [0, 0, 0, 100],
+      inputRange: [-1, 0, threshold, threshold + 1],
+      outputRange: [0, 0, 0, 1],
       extrapolateLeft: 'clamp',
     });
 
-    const nextYOffset = Y_OFFSETS[index + 1] || (yOffset + 240);
-    const nextPinY = 60 + index * 28;
-    const nextThreshold = Math.max(0, nextYOffset - nextPinY);
+    const nextLayout = cardLayouts[index + 1];
+    let scale = 1;
+    let opacity = 1;
 
-    // Subtle scale down when a new card slides over
-    const scale = scrollY.interpolate({
-      inputRange: [nextThreshold - 50, nextThreshold, nextThreshold + 150],
-      outputRange: [1, 1, 0.96],
-      extrapolate: 'clamp',
-    });
+    if (nextLayout) {
+      // When the NEXT card hits its threshold, we begin compressing THIS card
+      const nextTargetY = TOP_INSET + index * STACK_GAP;
+      const nextThreshold = Math.max(0, nextLayout.y - nextTargetY);
 
-    // Dim the card slightly as it sinks into the stack
-    const opacity = scrollY.interpolate({
-      inputRange: [nextThreshold, nextThreshold + 200],
-      outputRange: [1, 0.85],
-      extrapolate: 'clamp',
-    });
+      scale = scrollY.interpolate({
+        inputRange: [nextThreshold - 60, nextThreshold + 180],
+        outputRange: [1, 0.92],
+        extrapolate: 'clamp',
+      });
 
-    const zIndex = 20 + index * 10; // Ensures strict stacking draw order
+      opacity = scrollY.interpolate({
+        inputRange: [nextThreshold, nextThreshold + 250],
+        outputRange: [1, 0.65],
+        extrapolate: 'clamp',
+      });
+    }
 
     return {
       transform: [{ translateY }, { scale }],
       opacity,
-      zIndex,
+      zIndex: 20 + index, // Next cards always slide OVER previous ones
     };
   };
 
@@ -561,7 +567,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
         </Animated.View>
 
         {/* ── 1: Floating Information Card (Overlaps Carousel by 40px) ── */}
-        <Animated.View style={[styles.infoCardContainer, createCardAnimation(0)]}>
+        <Animated.View style={[styles.infoCardContainer, getCardAnimation(0)]}>
           <View style={styles.glassHeader}>
             <Text style={styles.glassTitle} numberOfLines={2}>{selectedTurf.name}</Text>
             <View style={styles.ratingBadgeGold}>
@@ -612,10 +618,23 @@ const TurfDetailScreen = ({ route, navigation }) => {
 
         {/* ── 2+: Dynamic Card Sections (Sticking Pile Animations) ── */}
         {cards.map((card, index) => {
-          // Card stack index starts from 1 because index 0 is Info Card
-          const animStyle = createCardAnimation(index + 1);
+          const stackIndex = index + 1; // Info Card is 0
+          const animStyle = getCardAnimation(stackIndex);
           return (
-            <Animated.View key={card.key} style={[styles.stackCard, styles.stackCardOverlap, animStyle]}>
+            <Animated.View 
+              key={card.key} 
+              onLayout={(e) => {
+                const { y, height } = e.nativeEvent.layout;
+                setCardLayouts((prev) => {
+                  // Only update if dimensions meaningfully changed to prevent jitter
+                  if (!prev[stackIndex] || Math.abs(prev[stackIndex].y - y) > 5) {
+                    return { ...prev, [stackIndex]: { y, height } };
+                  }
+                  return prev;
+                });
+              }}
+              style={[styles.stackCard, animStyle]}
+            >
               {card.renderHeader()}
               {card.renderContent()}
             </Animated.View>
@@ -900,9 +919,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 8,
-  },
-  stackCardOverlap: {
-    marginTop: -16,
+    marginTop: 16, // Beautiful spacing between cards naturally
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   cardHeaderTitle: { color: '#FFF', fontSize: 14, fontFamily: Typography.fontFamily.bold, marginLeft: 8 },

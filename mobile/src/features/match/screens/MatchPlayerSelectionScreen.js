@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { fetchLiveState, setInitialPlayers, addMatchScorer } from '../matchSlice';
+import { fetchLiveState, setInitialPlayers, addMatchScorer, setLiveState } from '../matchSlice';
 import api, { getImageUrl } from '../../../api/axios';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -85,10 +85,10 @@ const MatchPlayerSelectionScreen = () => {
   const [scorecards, setScorecards] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Removed redundant fetchLiveState to make screen load instantly using Redux store
   useEffect(() => {
-    if (isNavigatingRef.current) return;
-    dispatch(fetchLiveState(matchId));
-  }, [dispatch, matchId]);
+    // Relying on Redux store and WebSocket for liveState
+  }, [matchId]);
 
   // Load team rosters and sync squads when liveState is ready
   useEffect(() => {
@@ -189,12 +189,26 @@ const MatchPlayerSelectionScreen = () => {
         payload.bowler = selectedBowler._id;
       }
 
-      await dispatch(setInitialPlayers(payload)).unwrap();
+      if (liveState) {
+        dispatch(setLiveState({
+          ...liveState,
+          striker: selectedStriker,
+          nonStriker: selectedNonStriker,
+          bowler: selectedBowler || liveState.bowler,
+          needsBowler: !selectedBowler && !isMidInnings ? false : liveState.needsBowler
+        }));
+      }
 
-      navigation.navigate('LiveScorer', { matchId, isAmbiguousStrike });
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('LiveScorer', { matchId, isAmbiguousStrike });
+      }
+
+      dispatch(setInitialPlayers(payload)).catch(e => console.log('Background setInitialPlayers failed', e));
     } catch (e) {
       isNavigatingRef.current = false;
-      showCustomAlert('Error', e?.message || e?.response?.data?.message || 'Failed to start scoring. Please try again.');
+      showCustomAlert('Error', e?.message || 'Failed to start scoring.');
     }
   };
 

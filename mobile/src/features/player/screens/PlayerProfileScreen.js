@@ -322,7 +322,7 @@ const PlayerProfileScreen = ({ navigation }) => {
         name: myProfile.userId?.name || user?.name || '',
         mobile: myProfile.userId?.mobile || user?.mobile || '',
         email: myProfile.userId?.email || user?.email || '',
-        location: myProfile.location || myProfile.city || '',
+        location: myProfile.location || myProfile.city || user?.city || '',
         dob: myProfile.dob ? new Date(myProfile.dob).toISOString().split('T')[0] : '',
         gender: myProfile.gender || 'Male',
         playingRole: myProfile.playingRole || 'Batsman',
@@ -331,7 +331,13 @@ const PlayerProfileScreen = ({ navigation }) => {
         bowlingStyle: myProfile.bowlingStyle || 'Right Arm Fast',
       });
     } else if (user) {
-      setForm(prev => ({ ...prev, name: user.name || '', mobile: user.mobile || '', email: user.email || '' }));
+      setForm(prev => ({ 
+        ...prev, 
+        name: user.name || '', 
+        mobile: user.mobile || '', 
+        email: user.email || '',
+        location: user.city || ''
+      }));
     }
   }, [myProfile, user]);
 

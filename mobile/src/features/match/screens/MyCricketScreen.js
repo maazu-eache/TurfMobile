@@ -284,10 +284,12 @@ const MyCricketScreen = ({ route }) => {
           </View>
         )}
         <View style={styles.tournamentStatusBadge}><Text style={styles.tournamentStatusText}>{
-          item.status === 'draft' ? 'Draft' : 
-          item.status === 'upcoming' ? 'Upcoming' : 
-          item.status === 'ongoing' ? 'Live' : 
-          item.status === 'completed' ? 'Completed' : 'Past'
+          item.status === 'draft' ? 'DRAFT' : 
+          item.status === 'registration_open' ? 'REG OPEN' : 
+          item.status === 'registration_closed' ? 'REG CLOSED' : 
+          item.status === 'ongoing' ? 'LIVE' : 
+          item.status === 'completed' ? 'COMPLETED' : 
+          item.status === 'cancelled' ? 'CANCELLED' : item.status.toUpperCase()
         }</Text></View>
       </View>
       <View style={styles.tournamentFooter}>

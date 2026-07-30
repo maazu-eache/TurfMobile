@@ -25,9 +25,6 @@ const OwnerPaymentScreen = () => {
 
   const handleLogout = () => {
     dispatch(logout());
-    setTimeout(() => {
-      reset('Customer');
-    }, 100);
   };
 
   return (

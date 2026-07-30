@@ -10,6 +10,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { sendOTP, clearError } from '../authSlice';
 import { Colors, Typography } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
+import LocationAutocomplete from '../../../components/LocationAutocomplete';
 
 const LoginScreen = ({ navigation }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -18,6 +19,8 @@ const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [city, setCity] = useState('');
+  const [locationObj, setLocationObj] = useState(null);
   const [focusedInput, setFocusedInput] = useState(null);
   const [activeModal, setActiveModal] = useState(null); // 'terms' | 'privacy' | null
 
@@ -88,10 +91,21 @@ const LoginScreen = ({ navigation }) => {
       if (!mobile.trim() || mobile.trim().length !== 10 || !/^\d+$/.test(mobile.trim())) {
         return showCustomAlert('Error', 'Please enter a valid 10-digit phone number');
       }
+      if (!locationObj || !city) {
+        return showCustomAlert('Error', 'Please select your location');
+      }
     }
     
     Keyboard.dismiss();
-    const result = await dispatch(sendOTP({ email: email.trim().toLowerCase(), name: name.trim(), mobile: mobile.trim(), isLogin }));
+    const result = await dispatch(sendOTP({ 
+      email: email.trim().toLowerCase(), 
+      name: name.trim(), 
+      mobile: mobile.trim(), 
+      isLogin,
+      city,
+      locationObj,
+      state: locationObj?.state || ''
+    }));
     if (sendOTP.fulfilled.match(result)) {
       navigation.navigate('OTPVerify', { 
         email: email.trim().toLowerCase(),
@@ -164,22 +178,22 @@ const LoginScreen = ({ navigation }) => {
           </View>
 
           {/* Floating Logo Container */}
-          <View style={styles.heroContainer}>
+          <View style={[styles.heroContainer, !isLogin && { height: 80, marginBottom: 10 }]}>
             <Animated.View style={[styles.icon3DWrapper, { 
               transform: [
                 { translateY: heroAnim },
                 { rotateZ: rotateAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-4deg', '4deg'] }) }
               ] 
             }]}>
-              <View style={styles.logoGlass}>
-                <Image source={require('../../../../SportVerse.png')} style={styles.logoImage} resizeMode="contain" />
+              <View style={[styles.logoGlass, !isLogin && { width: 64, height: 64, borderRadius: 20 }]}>
+                <Image source={require('../../../../SportVerse.png')} style={[styles.logoImage, !isLogin && { width: 48, height: 48, borderRadius: 14 }]} resizeMode="contain" />
               </View>
             </Animated.View>
           </View>
 
           {/* Title */}
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.title}>SCORE <Text style={styles.titleYellow}>VERSE</Text></Text>
+          <View style={[styles.headerTextContainer, !isLogin && { marginBottom: 20 }]}>
+            {isLogin && <Text style={styles.title}>SCORE <Text style={styles.titleYellow}>VERSE</Text></Text>}
             <Text style={styles.subtitle}>
               {isLogin ? 'Enter your email to log in' : 'Join ScoreVerse today'}
             </Text>
@@ -222,9 +236,29 @@ const LoginScreen = ({ navigation }) => {
             {!isLogin && (
               <>
                 {renderInput('name', 'account-outline', 'Full Name', name, setName, { autoCapitalize: 'words' })}
-                <View style={{ height: 16 }} />
+                <View style={{ height: 12 }} />
                 {renderInput('phone', 'phone-outline', 'Phone Number', mobile, setMobile, { keyboardType: 'phone-pad', maxLength: 10 })}
-                <View style={{ height: 16 }} />
+                <View style={{ height: 12 }} />
+                <View style={[styles.inputContainer, { zIndex: 1000 }]}>
+                  <Icon name="map-marker-outline" size={22} color="rgba(255,255,255,0.4)" style={styles.inputIcon} />
+                  <LocationAutocomplete
+                    value={city}
+                    onChangeText={setCity}
+                    onSelectLocation={(loc) => {
+                      setCity(loc.name);
+                      setLocationObj({
+                        name: loc.name,
+                        latitude: loc.latitude,
+                        longitude: loc.longitude,
+                        state: loc.state
+                      });
+                    }}
+                    placeholder="Search your city/location"
+                    variant="none"
+                    style={styles.input}
+                  />
+                </View>
+                <View style={{ height: 12 }} />
               </>
             )}
 

@@ -1,9 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../api/axios';
 
-export const sendOTP = createAsyncThunk('auth/sendOTP', async ({ email, name, mobile, isLogin }, { rejectWithValue }) => {
+export const sendOTP = createAsyncThunk('auth/sendOTP', async ({ email, name, mobile, isLogin, city, locationObj, state }, { rejectWithValue }) => {
   try {
-    const res = await api.post('/auth/send-otp', { email, name, mobile, isLogin });
+    const res = await api.post('/auth/send-otp', { email, name, mobile, isLogin, city, locationObj, state });
     return res.data.data;
   } catch (err) {
     return rejectWithValue(err.response?.data?.message || 'Failed to send OTP');

@@ -140,20 +140,23 @@ const AdminDashboardScreen = ({ navigation }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const ownersRes = await api.get('/admin/owners?limit=100');
-      const usersRes = await api.get('/admin/users?limit=100');
-      const turfsRes = await api.get('/admin/turfs?limit=100');
-      let waitlistRes = { data: { data: [] } };
-      try {
-        waitlistRes = await api.get('/contact/waitlist?limit=100');
-      } catch (err) {
-        console.log('Failed to fetch waitlist', err);
-      }
+      const [ownersRes, usersRes, turfsRes, waitlistRes] = await Promise.allSettled([
+        api.get('/admin/owners?limit=100'),
+        api.get('/admin/users?limit=100'),
+        api.get('/admin/turfs?limit=100'),
+        api.get('/contact/waitlist?limit=100')
+      ]);
+
+      if (ownersRes.status === 'fulfilled') setOwners(ownersRes.value.data.data || []);
+      if (usersRes.status === 'fulfilled') setUsers(usersRes.value.data.data || []);
+      if (turfsRes.status === 'fulfilled') setTurfs(turfsRes.value.data.data || []);
       
-      setOwners(ownersRes.data.data || []);
-      setUsers(usersRes.data.data || []);
-      setTurfs(turfsRes.data.data || []);
-      setWaitlist(waitlistRes.data?.data || waitlistRes.data || []);
+      if (waitlistRes.status === 'fulfilled') {
+        const wData = waitlistRes.value.data;
+        setWaitlist(wData?.data || wData || []);
+      } else {
+        console.log('Failed to fetch waitlist', waitlistRes.reason);
+      }
     } catch (err) {
       console.error('Failed to fetch admin data', err);
     } finally {

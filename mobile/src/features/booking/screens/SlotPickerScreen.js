@@ -28,12 +28,21 @@ import api from '../../../api/axios';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const isPastSlot = (selectedDate, startTime) => {
-  const slotStart = moment(`${selectedDate} ${startTime}`, 'YYYY-MM-DD HH:mm');
-  return slotStart.isBefore(moment());
+  const slotStart = moment(`${selectedDate} ${startTime}`, 'YYYY-MM-DD HH:mm').utcOffset("+05:30", true);
+  return slotStart.isBefore(moment().utcOffset("+05:30"));
 };
 
 const getTimeGroup = (timeStr) => {
   const hour = parseInt(timeStr.split(':')[0], 10);
+  if (hour >= 0 && hour < 6) return 'early_morning';
+  if (hour >= 6 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 16) return 'afternoon';
+  if (hour >= 16 && hour < 20) return 'evening';
+  return 'night';
+};
+
+const getCurrentTimeGroup = () => {
+  const hour = moment().utcOffset("+05:30").hour();
   if (hour >= 0 && hour < 6) return 'early_morning';
   if (hour >= 6 && hour < 12) return 'morning';
   if (hour >= 12 && hour < 16) return 'afternoon';
@@ -54,7 +63,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(moment().startOf('month'));
   const [activePicker, setActivePicker] = useState('none');
-  const [expandedGroup, setExpandedGroup] = useState('evening'); // Default expanded group
+  const [expandedGroup, setExpandedGroup] = useState(getCurrentTimeGroup());
 
   // Bulk Mode State
   const [showBulkModal, setShowBulkModal] = useState(false);

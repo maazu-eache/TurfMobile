@@ -10,6 +10,7 @@ import api, { BASE_URL, getImageUrl } from '../../../api/axios';
 import socketService from '../../../services/socketService';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
+import GoldenSpinner from '../../../components/GoldenSpinner';
 
 
 
@@ -289,7 +290,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     if (liveState.match?.status === 'innings_break') {
       if (isScorer) {
         navLockRef.current = true;
-        navigation.replace('MatchPlayerSelection', { matchId });
+        navigation.navigate('MatchPlayerSelection', { matchId });
       }
     } else if (liveState.match?.status === 'in_progress') {
       if (isInningsComplete || isMatchComplete) {
@@ -311,15 +312,15 @@ const LiveScorerScreen = ({ navigation, route }) => {
               }
             }
             setTimeout(() => {
-              navigation.replace('MatchPlayerSelection', { matchId, isAmbiguousStrike });
-            }, 100);
+              navigation.navigate('MatchPlayerSelection', { matchId, isAmbiguousStrike });
+            }, 50);
           }
         } else if (liveState.needsBowler) {
           if (isScorer) {
             navLockRef.current = true;
             setTimeout(() => {
               navigation.navigate('SelectBowler', { matchId });
-            }, 100);
+            }, 50);
           }
         }
       }
@@ -751,12 +752,79 @@ const LiveScorerScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleUndoBall = () => {
+    if (scoringLockRef.current) return;
+    showCustomAlert(
+      "Undo Ball",
+      "Are you sure you want to undo the last ball?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Undo",
+          style: "destructive",
+          onPress: () => {
+            if (scoringLockRef.current) return;
+            scoringLockRef.current = true;
+
+            if (liveState) {
+              const currentBalls = liveState.currentOverBalls || [];
+              let deductedRuns = 0;
+              let isWicket = false;
+              let poppedBalls = currentBalls;
+
+              if (currentBalls.length > 0) {
+                const lastOverBall = currentBalls[currentBalls.length - 1];
+                poppedBalls = currentBalls.slice(0, currentBalls.length - 1);
+                deductedRuns = lastOverBall.runs || 0;
+                isWicket = lastOverBall.type === 'wicket' || lastOverBall.display === 'W';
+              }
+              
+              let newOvers = parseFloat(liveState.score?.overs || 0);
+              if (currentBalls.length > 0) {
+                const lastOverBall = currentBalls[currentBalls.length - 1];
+                if (lastOverBall.type !== 'wide' && lastOverBall.type !== 'noball') {
+                  let overWhole = Math.floor(newOvers);
+                  let overBalls = Math.round((newOvers - overWhole) * 10);
+                  overBalls--;
+                  if (overBalls < 0) {
+                    overWhole = Math.max(0, overWhole - 1);
+                    overBalls = 5;
+                  }
+                  newOvers = overWhole + (overBalls / 10);
+                }
+              }
+
+              dispatch(setLiveState({
+                ...liveState,
+                score: {
+                  ...liveState.score,
+                  runs: Math.max(0, (liveState.score?.runs || 0) - deductedRuns),
+                  wickets: Math.max(0, (liveState.score?.wickets || 0) - (isWicket ? 1 : 0)),
+                  overs: newOvers.toFixed(1)
+                },
+                currentOverBalls: poppedBalls
+              }));
+            }
+            dispatch(undoBall(matchId))
+              .unwrap()
+              .then(() => {
+                scoringLockRef.current = false;
+              })
+              .catch((e) => {
+                showCustomAlert('Error', e || 'Failed to undo ball');
+                scoringLockRef.current = false;
+              });
+          }
+        }
+      ]
+    );
+  };
+
   const handleScore = async (runs, options = {}) => {
     if (!liveState?.match) return;
     // Prevent multiple rapid taps — ignore if a scoring action is already in progress
     if (scoringLockRef.current) return;
     scoringLockRef.current = true;
-    setIsScoring(true);
 
     // Wagon Wheel Interception Logic
     const match = liveState.match;
@@ -771,7 +839,6 @@ const LiveScorerScreen = ({ navigation, route }) => {
         setPendingScoreOptions(options);
         setShowWagonWheelModal(true);
         scoringLockRef.current = false; // release — modal takes over
-        setIsScoring(false);
         return;
       }
     }
@@ -813,7 +880,6 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   showCustomAlert('Error', 'Could not record all out');
                 } finally {
                   scoringLockRef.current = false;
-                  setIsScoring(false);
                 }
             }},
             { text: 'Single Wicket Batting', onPress: async () => {
@@ -823,7 +889,6 @@ const LiveScorerScreen = ({ navigation, route }) => {
           ]
         );
         scoringLockRef.current = false; // release — alert dialog takes over
-        setIsScoring(false);
         return;
       }
     }
@@ -920,23 +985,22 @@ const LiveScorerScreen = ({ navigation, route }) => {
           bowlerStats: newBowlerStats
         };
         dispatch(setLiveState(optimisticState));
-        
-        // INSTANT UNLOCK: Allow user to score the next ball immediately without waiting for API
-        scoringLockRef.current = false;
-        setIsScoring(false);
       }
 
       // Fire API call asynchronously
       dispatch(scoreBall({ matchId: cleanMatchId, ballData: payload }))
         .unwrap()
-        .then(() => socketService.remoteLog('LiveScorerScreen', 'Database Update Success'))
+        .then(() => {
+          socketService.remoteLog('LiveScorerScreen', 'Database Update Success');
+          scoringLockRef.current = false;
+        })
         .catch((e) => {
-           showCustomAlert('Scoring Error', e || 'Could not record ball');
+          showCustomAlert('Scoring Error', e || 'Could not record ball');
+          scoringLockRef.current = false;
         });
     } catch (e) {
       showCustomAlert('Error', e.message);
       scoringLockRef.current = false;
-      setIsScoring(false);
     }
   };
 
@@ -1012,83 +1076,85 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
       <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.content} showsVerticalScrollIndicator={false}>
         {/* ── Score Board ── */}
-        <View style={styles.scoreBoard}>
-          {/* Team Names Row */}
-          <View style={styles.teamsRow}>
-            <Text
-              style={[styles.teamLabel, liveState?.battingTeam === match?.teamA?._id && styles.teamLabelActive]}
-              numberOfLines={1}
-            >
-              {match?.teamA?.name}
-            </Text>
-            <View style={styles.vsChip}>
-              <Text style={styles.vsText}>VS</Text>
+        {useMemo(() => (
+          <View style={styles.scoreBoard}>
+            {/* Team Names Row */}
+            <View style={styles.teamsRow}>
+              <Text
+                style={[styles.teamLabel, liveState?.battingTeam === match?.teamA?._id && styles.teamLabelActive]}
+                numberOfLines={1}
+              >
+                {match?.teamA?.name}
+              </Text>
+              <View style={styles.vsChip}>
+                <Text style={styles.vsText}>VS</Text>
+              </View>
+              <Text
+                style={[styles.teamLabel, styles.teamLabelRight, liveState?.battingTeam === match?.teamB?._id && styles.teamLabelActive]}
+                numberOfLines={1}
+              >
+                {match?.teamB?.name}
+              </Text>
             </View>
-            <Text
-              style={[styles.teamLabel, styles.teamLabelRight, liveState?.battingTeam === match?.teamB?._id && styles.teamLabelActive]}
-              numberOfLines={1}
-            >
-              {match?.teamB?.name}
-            </Text>
+  
+            {/* Divider */}
+            <View style={styles.scoreBoardDivider} />
+  
+            {/* Main Score */}
+            <View style={styles.mainScore}>
+              <Text style={styles.runs}>{score?.runs || 0}</Text>
+              <View style={styles.scoreRight}>
+                <Text style={styles.wickets}>/{score?.wickets || 0}</Text>
+                <Text style={styles.oversText}>{score?.overs || '0.0'} / {liveState?.inningsNumber >= 3 ? 1 : match?.overs} ov</Text>
+              </View>
+            </View>
+  
+            {/* Innings 1: CRR */}
+            {liveState?.inningsNumber % 2 !== 0 ? (
+              <View style={styles.statsPill}>
+                <Text style={styles.statsPillText}>
+                  {(() => {
+                    const overStr = String(score?.overs || '0.0');
+                    const [o, b] = overStr.split('.');
+                    const totalBalls = parseInt(o || 0) * 6 + parseInt(b || 0);
+                    const crr = totalBalls > 0 ? ((score?.runs || 0) / totalBalls) * 6 : 0;
+                    return `CRR  ${crr.toFixed(2)}`;
+                  })()}
+                </Text>
+              </View>
+            ) : null}
+  
+            {/* Innings 2: Chase banner */}
+            {liveState?.inningsNumber % 2 === 0 && requiredRunRate ? (
+              <View style={styles.chaseBanner}>
+                <Text style={styles.chaseMainText}>
+                  Need{' '}
+                  <Text style={styles.chaseHighlight}>{toWin}</Text>
+                  {' '}runs from{' '}
+                  <Text style={styles.chaseHighlight}>{ballsRemaining}</Text>
+                  {' '}balls
+                  {isDlsTarget ? <Text style={styles.dlsTag}> · DLS</Text> : null}
+                </Text>
+                <Text style={styles.chaseSubText}>
+                  Target {(score?.runs || 0) + toWin}{'   ·   '}RRR {requiredRunRate}
+                </Text>
+                {dlsParScore !== null ? (() => {
+                  const isAhead = score?.runs > dlsParScore;
+                  const isBehind = score?.runs < dlsParScore;
+                  return (
+                    <View style={[styles.dlsParRow, { backgroundColor: isAhead ? 'rgba(34,197,94,0.12)' : isBehind ? 'rgba(239,68,68,0.12)' : 'rgba(148,163,184,0.12)' }]}>
+                      <Text style={styles.dlsParLabel}>DLS Par Score: </Text>
+                      <Text style={styles.dlsParValue}>{dlsParScore}</Text>
+                      <Text style={[styles.dlsParStatus, { color: isAhead ? '#22c55e' : isBehind ? '#ef4444' : Colors.textSecondary }]}>
+                        {isAhead ? '  ✓ Ahead' : isBehind ? '  ✗ Behind' : '  = On Par'}
+                      </Text>
+                    </View>
+                  );
+                })() : null}
+              </View>
+            ) : null}
           </View>
-
-          {/* Divider */}
-          <View style={styles.scoreBoardDivider} />
-
-          {/* Main Score */}
-          <View style={styles.mainScore}>
-            <Text style={styles.runs}>{score?.runs || 0}</Text>
-            <View style={styles.scoreRight}>
-              <Text style={styles.wickets}>/{score?.wickets || 0}</Text>
-              <Text style={styles.oversText}>{score?.overs || '0.0'} / {liveState?.inningsNumber >= 3 ? 1 : match?.overs} ov</Text>
-            </View>
-          </View>
-
-          {/* Innings 1: CRR */}
-          {liveState?.inningsNumber % 2 !== 0 ? (
-            <View style={styles.statsPill}>
-              <Text style={styles.statsPillText}>
-                {(() => {
-                  const overStr = String(score?.overs || '0.0');
-                  const [o, b] = overStr.split('.');
-                  const totalBalls = parseInt(o || 0) * 6 + parseInt(b || 0);
-                  const crr = totalBalls > 0 ? ((score?.runs || 0) / totalBalls) * 6 : 0;
-                  return `CRR  ${crr.toFixed(2)}`;
-                })()}
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Innings 2: Chase banner */}
-          {liveState?.inningsNumber % 2 === 0 && requiredRunRate ? (
-            <View style={styles.chaseBanner}>
-              <Text style={styles.chaseMainText}>
-                Need{' '}
-                <Text style={styles.chaseHighlight}>{toWin}</Text>
-                {' '}runs from{' '}
-                <Text style={styles.chaseHighlight}>{ballsRemaining}</Text>
-                {' '}balls
-                {isDlsTarget ? <Text style={styles.dlsTag}> · DLS</Text> : null}
-              </Text>
-              <Text style={styles.chaseSubText}>
-                Target {(score?.runs || 0) + toWin}{'   ·   '}RRR {requiredRunRate}
-              </Text>
-              {dlsParScore !== null ? (() => {
-                const isAhead = score?.runs > dlsParScore;
-                const isBehind = score?.runs < dlsParScore;
-                return (
-                  <View style={[styles.dlsParRow, { backgroundColor: isAhead ? 'rgba(34,197,94,0.12)' : isBehind ? 'rgba(239,68,68,0.12)' : 'rgba(148,163,184,0.12)' }]}>
-                    <Text style={styles.dlsParLabel}>DLS Par Score: </Text>
-                    <Text style={styles.dlsParValue}>{dlsParScore}</Text>
-                    <Text style={[styles.dlsParStatus, { color: isAhead ? '#22c55e' : isBehind ? '#ef4444' : Colors.textSecondary }]}>
-                      {isAhead ? '  ✓ Ahead' : isBehind ? '  ✗ Behind' : '  = On Par'}
-                    </Text>
-                  </View>
-                );
-              })() : null}
-            </View>
-          ) : null}
-        </View>
+        ), [match, liveState?.battingTeam, liveState?.inningsNumber, score?.runs, score?.wickets, score?.overs, requiredRunRate, toWin, ballsRemaining, isDlsTarget, dlsParScore])}
 
         {/* ── Players Context ── */}
         <View style={styles.playersGrid}>
@@ -1318,16 +1384,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     <Text style={styles.scoreBtnText}>{n}</Text>
                   </TouchableOpacity>
                 ))}
-                <TouchableOpacity style={styles.scoreBtnUndo} onPress={() => {
-                  showCustomAlert(
-                    "Undo Ball",
-                    "Are you sure you want to undo the last ball?",
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Undo", style: "destructive", onPress: () => dispatch(undoBall(matchId)) }
-                    ]
-                  );
-                }} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.scoreBtnUndo} onPress={handleUndoBall} activeOpacity={0.7}>
                   <Text style={styles.scoreBtnUndoText}>UNDO</Text>
                 </TouchableOpacity>
               </View>

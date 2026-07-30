@@ -208,15 +208,44 @@ const matchSlice = createSlice({
       .addCase(setInitialPlayers.fulfilled, (state, action) => {
         state.liveState = action.payload;
       })
+      .addCase(scoreBall.pending, (state, action) => {
+        // Optimistic UI Update is handled directly by LiveScorerScreen.js
+        // We only store the snapshot for rollback.
+        if (state.liveState && action.meta.arg.ballData) {
+          state.previousLiveState = JSON.stringify(state.liveState);
+        }
+      })
       .addCase(scoreBall.fulfilled, (state, action) => {
-        // We rely on optimistic updates and socket.io for liveState synchronization.
-        // Overwriting liveState here with a potentially delayed HTTP response causes rubberbanding if scoring rapidly.
         if (action.payload.ballEvent) {
           state.ballHistory = [action.payload.ballEvent, ...state.ballHistory].slice(0, 100);
         }
+        state.previousLiveState = null;
+      })
+      .addCase(scoreBall.rejected, (state, action) => {
+        // Rollback
+        if (state.previousLiveState) {
+          state.liveState = JSON.parse(state.previousLiveState);
+          state.previousLiveState = null;
+        }
+        state.error = action.payload;
+      })
+      .addCase(undoBall.pending, (state) => {
+        // Optimistic UI Update is handled directly by LiveScorerScreen.js
+        if (state.liveState) {
+          state.previousLiveState = JSON.stringify(state.liveState);
+        }
       })
       .addCase(undoBall.fulfilled, (state, action) => {
-        state.liveState = action.payload;
+        if (action.payload && action.payload.match) {
+          state.liveState = action.payload;
+        }
+        state.previousLiveState = null;
+      })
+      .addCase(undoBall.rejected, (state, action) => {
+        if (state.previousLiveState) {
+          state.liveState = JSON.parse(state.previousLiveState);
+          state.previousLiveState = null;
+        }
       });
   },
 });

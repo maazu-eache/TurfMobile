@@ -376,8 +376,18 @@ const SearchScreen = ({ navigation, route }) => {
 
 
   const renderTournamentItem = ({ item }) => {
-    const statusLabel = item.status === 'registration_open' ? 'Reg Open' : item.status === 'ongoing' ? 'Ongoing' : 'Finished';
-    const statusColor = item.status === 'registration_open' ? Colors.success : item.status === 'ongoing' ? Colors.warning : Colors.textTertiary;
+    const statusLabel = item.status === 'draft' ? 'Draft' : 
+                        item.status === 'registration_open' ? 'Reg Open' : 
+                        item.status === 'registration_closed' ? 'Reg Closed' : 
+                        item.status === 'ongoing' ? 'Ongoing' : 
+                        item.status === 'completed' ? 'Finished' : 
+                        item.status === 'cancelled' ? 'Cancelled' : 'Upcoming';
+    const statusColor = item.status === 'draft' ? Colors.warning : 
+                        item.status === 'registration_open' ? Colors.success : 
+                        item.status === 'registration_closed' ? Colors.error : 
+                        item.status === 'ongoing' ? Colors.warning : 
+                        item.status === 'completed' ? Colors.textTertiary : 
+                        item.status === 'cancelled' ? Colors.error : Colors.textSecondary;
 
     return (
       <TouchableOpacity style={styles.tCard} onPress={() => navigation.navigate('TournamentDetail', { tournamentId: item._id })} activeOpacity={0.92}>

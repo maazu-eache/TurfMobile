@@ -4,11 +4,11 @@ import { Platform } from 'react-native';
 import { store } from '../store';
 import { logout, setTokens } from '../features/auth/authSlice';
 
-// export const PROD_URL = 'https://turfbackend-pn8j.onrender.com';
+export const PROD_URL = 'https://turfbackend-pn8j.onrender.com';
 
-export const PROD_URL = __DEV__
-  ? (Platform.OS === 'ios' ? 'http://127.0.0.1:5001' : 'http://10.0.2.2:5001')
-  : 'https://turfbackend-pn8j.onrender.com';
+// export const PROD_URL = __DEV__
+//   ? (Platform.OS === 'ios' ? 'http://127.0.0.1:5001' : 'http://10.0.2.2:5001')
+//   : 'https://turfbackend-pn8j.onrender.com';
 
 // Default BASE_URL to live backend for testing & production sync
 // export const PROD_URL = 'https://turfbackend-pn8j.onrender.com';
@@ -36,6 +36,11 @@ export const getImageUrl = (path) => {
     // Wait, path.relative collapsing 'https://a.com' makes it 'https:/a.com'. 
     // replace('https:/', 'https://') turns it into 'https://a.com' which is correct.
     return extractedUrl;
+  }
+
+  // If local device path (from image picker) or data URI
+  if (path.startsWith('file://') || path.startsWith('content://') || path.startsWith('data:')) {
+    return path;
   }
 
   // If already absolute HTTP(S) URL

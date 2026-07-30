@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Image, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -41,7 +41,6 @@ const SelectBowlerScreen = ({ route, navigation }) => {
   };
 
   const loadBowlingSquad = async () => {
-    setLoading(true);
     try {
       const currentInnings = match.innings[match.currentInnings - 1];
       const batTeamStr = String(currentInnings?.battingTeam?._id || currentInnings?.battingTeam);
@@ -51,6 +50,18 @@ const SelectBowlerScreen = ({ route, navigation }) => {
       const bowlTeamId = isTeamABatting ? match.teamB._id : match.teamA._id;
       const batTeamId = isTeamABatting ? match.teamA._id : match.teamB._id;
       
+      const bowlingXI = isTeamABatting ? (match.playingXI?.teamB || []) : (match.playingXI?.teamA || []);
+      const battingXI = isTeamABatting ? (match.playingXI?.teamA || []) : (match.playingXI?.teamB || []);
+      
+      // OPTIMIZATION: Instant render if playingXI exists
+      if (bowlingXI.length > 0) {
+        setSquad(bowlingXI.filter(Boolean));
+        setOppositionSquad(battingXI.length > 0 ? battingXI.filter(Boolean) : []);
+      } else {
+        setLoading(true);
+      }
+      
+      // Fetch full roster in background for "Add Player" functionality
       const [bowlRes, batRes] = await Promise.all([
         api.get(`/teams/${bowlTeamId}`),
         api.get(`/teams/${batTeamId}`)
@@ -59,14 +70,9 @@ const SelectBowlerScreen = ({ route, navigation }) => {
       const bowlPlayers = bowlRes.data.data.players.map(p => p.player);
       const batPlayers = batRes.data.data.players.map(p => p.player);
       
-      const bowlingXI = isTeamABatting ? (match.playingXI?.teamB || []) : (match.playingXI?.teamA || []);
-      const battingXI = isTeamABatting ? (match.playingXI?.teamA || []) : (match.playingXI?.teamB || []);
+      if (bowlingXI.length === 0) setSquad(bowlPlayers.filter(Boolean));
+      if (battingXI.length === 0) setOppositionSquad(batPlayers.filter(Boolean));
       
-      const finalBowl = bowlingXI.length > 0 ? bowlingXI.filter(Boolean) : bowlPlayers.filter(Boolean);
-      const finalBat = battingXI.length > 0 ? battingXI.filter(Boolean) : batPlayers.filter(Boolean);
-      
-      setSquad(finalBowl);
-      setOppositionSquad(finalBat);
       setFullSquad(bowlPlayers.filter(Boolean));
       setFullOppositionSquad(batPlayers.filter(Boolean));
     } catch (e) {
@@ -76,17 +82,35 @@ const SelectBowlerScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleSelect = async (bowlerId) => {
+  const selectionLockRef = useRef(false);
+
+  const handleSelect = (bowlerId) => {
+    if (selectionLockRef.current) return;
+    selectionLockRef.current = true;
     try {
-      const res = await api.post(`/matches/${match._id}/set-players`, {
-        striker: liveState.striker?._id || liveState.striker,
-        nonStriker: liveState.nonStriker?._id || liveState.nonStriker,
-        bowler: bowlerId
-      });
-      dispatch(setLiveState(res.data.data));
+      const selectedBowlerObj = squad.find(p => String(p._id || p) === String(bowlerId)) || fullSquad.find(p => String(p._id || p) === String(bowlerId)) || bowlerId;
+
+      if (liveState) {
+        dispatch(setLiveState({
+          ...liveState,
+          bowler: selectedBowlerObj,
+          needsBowler: false
+        }));
+      }
+
       navigation.goBack();
+
+      api.post(`/matches/${match._id}/set-players`, {
+        striker: liveState?.striker?._id || liveState?.striker,
+        nonStriker: liveState?.nonStriker?._id || liveState?.nonStriker,
+        bowler: bowlerId
+      }).catch(e => {
+        console.log('Background bowler selection failed', e);
+        selectionLockRef.current = false;
+      });
     } catch (e) {
-      showCustomAlert('Error', e.response?.data?.message || 'Failed to select bowler');
+      selectionLockRef.current = false;
+      showCustomAlert('Error', 'Failed to select bowler');
     }
   };
 
