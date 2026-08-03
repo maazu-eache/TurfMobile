@@ -11,11 +11,15 @@ import socketService from '../../../services/socketService';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import GoldenSpinner from '../../../components/GoldenSpinner';
+import SharePreviewModal from '../../tournament/components/SharePreviewModal';
+import { MatchSummaryPoster } from '../../tournament/components/PosterTemplates';
 
 
 
 const { width } = Dimensions.get('window');
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+const globalAlwaysSkipWagonWheel = {};
 
 const LiveScorerScreen = ({ navigation, route }) => {
   const matchIdRaw = route.params?.matchId || route.params?.id || route.params?.match?._id || route.params?.match;
@@ -23,6 +27,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
   const matchId = cleanMatchId;
   const dispatch = useDispatch();
   const { liveState, isLoading } = useSelector((state) => state.match);
+  const [isFinishing, setIsFinishing] = useState(false);
 
   // Scoring Modal/Drawer states
   const [showExtrasPanel, setShowExtrasPanel] = useState(null);
@@ -37,9 +42,15 @@ const LiveScorerScreen = ({ navigation, route }) => {
   // Wagon Wheel states
   const [showWagonWheelModal, setShowWagonWheelModal] = useState(false);
   const [wagonWheelData, setWagonWheelData] = useState(null); // { angle, distance, color }
+  const [alwaysSkipWagonWheel, setAlwaysSkipWagonWheelState] = useState(globalAlwaysSkipWagonWheel[cleanMatchId] || false);
+
+  const setAlwaysSkipWagonWheel = (val) => {
+    globalAlwaysSkipWagonWheel[cleanMatchId] = val;
+    setAlwaysSkipWagonWheelState(val);
+  };
+  
   const [pendingScoreOptions, setPendingScoreOptions] = useState(null);
   const [pendingRuns, setPendingRuns] = useState(0);
-  const [alwaysSkipWagonWheel, setAlwaysSkipWagonWheel] = useState(false);
 
   // Scorer Modal
   const [showAddScorerModal, setShowAddScorerModal] = useState(false);
@@ -100,9 +111,12 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   // Scoring lock — prevents multiple rapid taps on scoring buttons
   const [isScoring, setIsScoring] = useState(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
   const scoringLockRef = useRef(false);
 
   // Socket.io for Realtime updates
+  const lastScoredAtRef = useRef(0); // timestamp of last ball scored — used to debounce socket overwrites
+
   useEffect(() => {
     if (!cleanMatchId) return;
 
@@ -110,9 +124,27 @@ const LiveScorerScreen = ({ navigation, route }) => {
     socketService.joinMatch(cleanMatchId);
 
     const handleScoreUpdate = (data) => {
+      if (!data || !data.match) {
+        socketService.remoteLog('LiveScorerScreen', 'Socket Score Update Ignored: No match data');
+        return;
+      }
+
       const updateMatchId = socketService.cleanId(data?.match?._id || data?.matchId || data);
       const activeCleanId = socketService.cleanId(cleanMatchId);
       if (activeCleanId && updateMatchId && activeCleanId !== updateMatchId) return;
+
+      // Skip socket updates for 1.5 seconds after we score to protect our optimistic UI
+      const msSinceScore = Date.now() - lastScoredAtRef.current;
+      if (msSinceScore < 1500) {
+        socketService.remoteLog('LiveScorerScreen', 'Socket Update Skipped (optimistic state active)');
+        return;
+      }
+
+      // If user has already selected a bowler for the new over, ignore lagging over-completion socket events
+      if (liveState?.bowler && !liveState?.needsBowler && data?.needsBowler && !data?.bowler) {
+        socketService.remoteLog('LiveScorerScreen', 'Socket Update Ignored: Stale over-completion event');
+        return;
+      }
 
       const runs = data?.score?.runs ?? data?.teamAScore?.runs ?? 0;
       const wickets = data?.score?.wickets ?? data?.teamAScore?.wickets ?? 0;
@@ -128,7 +160,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
     const unsubscribeFocus = navigation.addListener('focus', () => {
       console.log(`⚡ [Frontend Scorer] Re-joining Match Room on focus: match_${cleanMatchId}`);
       socketService.joinMatch(cleanMatchId);
-      dispatch(fetchLiveState(cleanMatchId));
+      if (!route.params?.skipFocusFetch) {
+        dispatch(fetchLiveState(cleanMatchId));
+      } else {
+        navigation.setParams({ skipFocusFetch: false });
+      }
     });
 
     return () => {
@@ -141,10 +177,22 @@ const LiveScorerScreen = ({ navigation, route }) => {
   // Reset nav lock every time this screen comes into focus (e.g. after returning from player selection)
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      navLockRef.current = false;
+      if (route.params?.skipAutoBowler) {
+        navLockRef.current = true;
+        navigation.setParams({ skipAutoBowler: false });
+      } else {
+        navLockRef.current = false;
+      }
     });
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, route.params?.skipAutoBowler]);
+
+  // Self-correcting reset: release nav lock when active bowler/batters are successfully set
+  useEffect(() => {
+    if (liveState && !liveState.needsBowler && liveState.bowler && liveState.striker && liveState.nonStriker) {
+      navLockRef.current = false;
+    }
+  }, [liveState?.needsBowler, liveState?.bowler, liveState?.striker, liveState?.nonStriker]);
 
   useEffect(() => {
     if (route.params?.isAmbiguousStrike) {
@@ -154,14 +202,24 @@ const LiveScorerScreen = ({ navigation, route }) => {
   }, [route.params?.isAmbiguousStrike]);
 
   useEffect(() => {
-    const backAction = () => {
-      navigation.navigate('MyCricketMain');
-      return true;
-    };
+    if (route.params?.initialAction && typeof handleSettingsAction === 'function') {
+      // Defer execution slightly to ensure LiveScorerScreen is mounted
+      setTimeout(() => {
+        handleSettingsAction(route.params.initialAction);
+      }, 500);
+    }
+  }, [route.params?.initialAction]);
 
+
+  const handleBackPress = () => {
+    navigation.navigate('MatchSummary', { matchId });
+    return true;
+  };
+
+  useEffect(() => {
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
-      backAction
+      handleBackPress
     );
 
     return () => backHandler.remove();
@@ -195,8 +253,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
       tournamentScorer = isOrganizer || isCoOrganizer || isTScorer;
     }
 
-    return (creatorMatch || scorerMatch || tournamentScorer) && !['completed', 'abandoned'].includes(liveState?.match?.status);
-  }, [liveState?.match?.creator, liveState?.match?.scorers, liveState?.match?.status, liveState?.match?.tournament, currentUser?._id]);
+    return (creatorMatch || scorerMatch || tournamentScorer) && (!['completed', 'abandoned'].includes(liveState?.match?.status) || isFinishing);
+  }, [liveState?.match?.creator, liveState?.match?.scorers, liveState?.match?.status, liveState?.match?.tournament, currentUser?._id, isFinishing]);
 
   const getLocalMatchSummary = (completedReason) => {
     if (match?.result?.summary) return match.result.summary;
@@ -287,45 +345,53 @@ const LiveScorerScreen = ({ navigation, route }) => {
     if (navLockRef.current) return;
 
     const { isInningsComplete, isMatchComplete } = liveState;
+
+    // 1. Innings break — navigate to player selection ONLY if players haven't been set yet.
+    //    If striker + nonStriker + bowler are already set, scoring has started and we should
+    //    NOT re-navigate even if match.status hasn't flipped to 'in_progress' in DB yet
+    //    (race window between set_players socket and buildLiveState DB re-fetch).
     if (liveState.match?.status === 'innings_break') {
-      if (isScorer) {
+      const allPlayersSet = liveState.striker && liveState.nonStriker && liveState.bowler;
+      if (isScorer && !allPlayersSet) {
         navLockRef.current = true;
         navigation.navigate('MatchPlayerSelection', { matchId });
       }
     } else if (liveState.match?.status === 'in_progress') {
+      // 2. Innings/Match complete — stay on live screen, show End Innings / Match Complete UI.
+      //    DO NOT navigate to batter selection or bowler selection.
       if (isInningsComplete || isMatchComplete) {
-        // No modal to close anymore
-      } else {
-        const needsBatter = (!liveState.striker || !liveState.nonStriker);
-        const hasOneBatter = liveState.striker || liveState.nonStriker;
-        const isSingleWicketValid = liveState.match?.isSingleWicketBatting && hasOneBatter;
+        return;
+      }
 
-        if (needsBatter && !isSingleWicketValid) {
-          if (isScorer) {
-            navLockRef.current = true;
-            const lastBall = liveState.ballEvent;
-            let isAmbiguousStrike = false;
-            if (lastBall && lastBall.wicket) {
-              const wType = lastBall.wicket.type;
-              if (['run_out', 'cheating', 'obstructing_field', 'retired_hurt', 'retired_out'].includes(wType)) {
-                isAmbiguousStrike = true;
-              }
+      const needsBatter = (!liveState.striker || !liveState.nonStriker);
+      const hasOneBatter = liveState.striker || liveState.nonStriker;
+      const isSingleWicketValid = liveState.match?.isSingleWicketBatting && hasOneBatter;
+
+      if (needsBatter && !isSingleWicketValid) {
+        if (isScorer) {
+          navLockRef.current = true;
+          const lastBall = liveState.ballEvent;
+          let isAmbiguousStrike = false;
+          if (lastBall && lastBall.wicket) {
+            const wType = lastBall.wicket.type;
+            if (['run_out', 'cheating', 'obstructing_field', 'retired_hurt', 'retired_out'].includes(wType)) {
+              isAmbiguousStrike = true;
             }
-            setTimeout(() => {
-              navigation.navigate('MatchPlayerSelection', { matchId, isAmbiguousStrike });
-            }, 50);
           }
-        } else if (liveState.needsBowler) {
-          if (isScorer) {
-            navLockRef.current = true;
-            setTimeout(() => {
-              navigation.navigate('SelectBowler', { matchId });
-            }, 50);
-          }
+          setTimeout(() => {
+            navigation.navigate('MatchPlayerSelection', { matchId, isAmbiguousStrike });
+          }, 50);
+        }
+      } else if (liveState.needsBowler && !liveState.bowler && !needsBatter && liveState.score?.overs === '0.0') {
+        if (isScorer) {
+          navLockRef.current = true;
+          setTimeout(() => {
+            navigation.navigate('SelectBowler', { matchId });
+          }, 50);
         }
       }
     }
-  }, [liveState?.match?.status, liveState?.striker, liveState?.nonStriker, liveState?.needsBowler, liveState?.isInningsComplete, liveState?.isMatchComplete, isScorer, matchId, navigation]);
+  }, [liveState?.match?.status, liveState?.striker, liveState?.nonStriker, liveState?.needsBowler, liveState?.bowler, liveState?.isInningsComplete, liveState?.isMatchComplete, isScorer, matchId, navigation]);
 
   const submitPenaltyRuns = async () => {
     try {
@@ -354,7 +420,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     }
   };
 
-  if (isLoading && !liveState) {
+  if (!liveState) {
     return <View style={styles.container}><Text style={styles.loading}>Loading match...</Text></View>;
   }
 
@@ -366,6 +432,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     nonStriker,
     nonStrikerStats,
     bowler,
+    previousBowler,
     bowlerStats,
     currentOverBalls,
     requiredRunRate,
@@ -377,6 +444,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
     isMatchComplete,
     completedReason
   } = liveState;
+  const needsBatter = !striker || !nonStriker;
+  const isSingleWicketValid = match?.isSingleWicketBatting && (striker || nonStriker);
+  const batterNeeded = needsBatter && !isSingleWicketValid;
 
   useEffect(() => {
     if (!striker && !nonStriker) {
@@ -435,7 +505,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
       // Prefill wicket keeper for stumped
       if (type === 'stumped') {
         const match = liveState.match;
-        const isTeamABatting = liveState.battingTeam === match.teamA._id;
+        const isTeamABatting = String(liveState.battingTeam?._id || liveState.battingTeam) === String(match.teamA?._id || match.teamA);
         const wk = isTeamABatting ? match.wicketKeeper?.teamB : match.wicketKeeper?.teamA;
         setPrimaryFielder(wk || null);
       } else {
@@ -518,6 +588,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
   const executeSettingsAction = async (action, extraParam) => {
     try {
       if (action === 'end_innings' || action === 'declare_innings') {
+        setIsFinishing(true);
         const reason = action === 'declare_innings' ? 'declared' : (liveState?.completedReason || 'overs_completed');
         await api.put(`/matches/${matchId}/end-innings`, { reason });
         const res = await dispatch(fetchLiveState(matchId)).unwrap();
@@ -532,9 +603,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
             ]
           });
         } else {
+          setIsFinishing(false);
           showCustomAlert('Success', 'Innings completed');
         }
       } else if (action === 'abandon') {
+        setIsFinishing(true);
         await api.put(`/matches/${matchId}/abandon`, { reason: extraParam });
         dispatch(fetchLiveState(matchId));
         showCustomAlert('Success', 'Match abandoned');
@@ -543,6 +616,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
           routes: [{ name: 'MyCricketMain' }]
         });
       } else if (action === 'declare_dls') {
+        setIsFinishing(true);
         await api.put(`/matches/${matchId}/declare-dls`);
         const res = await dispatch(fetchLiveState(matchId)).unwrap();
         showCustomAlert('Success', res?.completedReason ? 'Match ended (DLS Method)' : 'Match ended (DLS Method)');
@@ -568,47 +642,103 @@ const LiveScorerScreen = ({ navigation, route }) => {
         showCustomAlert('Success', 'Super Over started!');
       }
     } catch (e) {
+      setIsFinishing(false);
       showCustomAlert('Error', e.response?.data?.message || 'Failed to update settings');
     }
   };
 
-  const handleRotateStrikePress = () => {
+  const handleRotateStrikePress = (tappedBatterId = null, tappedStats = null) => {
     if (!isScorer) return;
     if (!striker || !nonStriker) return;
 
+    const options = [
+      {
+        text: 'One Short',
+        onPress: () => performStrikeSwap('One Short'),
+      },
+      {
+        text: 'Overthrow',
+        onPress: () => performStrikeSwap('Overthrow'),
+      },
+      {
+        text: 'Manual Swap',
+        onPress: () => performStrikeSwap('Manual Swap'),
+      },
+    ];
+
+    if (tappedBatterId && tappedStats && tappedStats.balls === 0) {
+      const isStriker = (tappedBatterId === striker?._id || tappedBatterId === striker);
+      const tappedPlayer = isStriker ? striker : nonStriker;
+      if (tappedPlayer) {
+        options.unshift({
+          text: `Change Batter (${tappedPlayer.name || 'Unknown'})`,
+          style: 'destructive',
+          onPress: () => {
+            showCustomAlert(
+              'Change Batter',
+              `Are you sure you want to change ${tappedPlayer.name || 'this batter'}?`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { 
+                  text: 'Change', 
+                  style: 'destructive', 
+                  onPress: () => {
+                    const payload = { matchId };
+                    if (isStriker) payload.striker = null;
+                    else payload.nonStriker = null;
+                    
+                    socketService.getSocket()?.emit('set_players', payload);
+                    
+                    if (liveState) {
+                      dispatch(setLiveState({
+                        ...liveState,
+                        striker: isStriker ? null : striker,
+                        nonStriker: isStriker ? nonStriker : null
+                      }));
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        });
+      }
+    }
+
+    options.push({
+      text: 'Cancel',
+      style: 'cancel',
+    });
+
     showCustomAlert(
-      'Change Strike',
-      'Select reason to swap batsman strike:',
-      [
-        {
-          text: 'One Short',
-          onPress: () => performStrikeSwap('One Short'),
-        },
-        {
-          text: 'Overthrow',
-          onPress: () => performStrikeSwap('Overthrow'),
-        },
-        {
-          text: 'Manual Swap',
-          onPress: () => performStrikeSwap('Manual Swap'),
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ]
+      'Batting Action',
+      'Select action:',
+      options
     );
   };
 
   const performStrikeSwap = async (reason) => {
+    if (!striker || !nonStriker) return;
+
+    // Instant 0ms Optimistic UI Update
+    if (liveState) {
+      dispatch(setLiveState({
+        ...liveState,
+        striker: nonStriker,
+        strikerStats: nonStrikerStats,
+        nonStriker: striker,
+        nonStrikerStats: strikerStats,
+      }));
+    }
+
     try {
       await api.post(`/matches/${matchId}/set-players`, {
         striker: nonStriker._id || nonStriker,
         nonStriker: striker._id || striker,
         bowler: bowler?._id || bowler,
       });
-      showCustomAlert('Success', `Strike changed due to: ${reason}`);
     } catch (e) {
+      dispatch(fetchLiveState(matchId));
       showCustomAlert('Error', e.response?.data?.message || 'Failed to change strike');
     }
   };
@@ -616,21 +746,39 @@ const LiveScorerScreen = ({ navigation, route }) => {
   const handleSelectStrike = async (selectedPlayerId) => {
     setShowStrikeModal(false);
     const currentStrikerId = striker?._id || striker;
-    if (selectedPlayerId !== currentStrikerId) {
+    if (selectedPlayerId !== currentStrikerId && striker && nonStriker) {
+      // Instant 0ms Optimistic UI Update
+      if (liveState) {
+        dispatch(setLiveState({
+          ...liveState,
+          striker: nonStriker,
+          strikerStats: nonStrikerStats,
+          nonStriker: striker,
+          nonStrikerStats: strikerStats,
+        }));
+      }
+
       try {
         await api.post(`/matches/${matchId}/set-players`, {
           striker: nonStriker?._id || nonStriker,
           nonStriker: striker?._id || striker,
           bowler: bowler?._id || bowler,
         });
-        dispatch(fetchLiveState(matchId));
       } catch (e) {
+        dispatch(fetchLiveState(matchId));
         showCustomAlert('Error', e.response?.data?.message || 'Failed to change strike');
       }
     }
   };
 
   const handleSettingsAction = async (action) => {
+    if (!action) return;
+    
+    // Check if initialAction triggered this
+    if (route.params?.initialAction) {
+      navigation.setParams({ initialAction: null });
+    }
+
     setShowSettingsModal(false);
     
     if (action === 'view_scoreboard') {
@@ -754,20 +902,50 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   const handleUndoBall = () => {
     if (scoringLockRef.current) return;
+    const currentBalls = liveState?.currentOverBalls || [];
+    const isNewOverWithNoBalls = currentBalls.length === 0 && liveState?.bowler && !liveState?.needsBowler;
+
+    const isFirstOverOfInnings = parseFloat(liveState?.score?.overs || 0) === 0;
+    const alertTitle = isNewOverWithNoBalls ? "Unselect Bowler" : "Undo Ball";
+    const alertMsg = isNewOverWithNoBalls 
+      ? (isFirstOverOfInnings
+          ? "No balls bowled in this match yet. Do you want to unselect the opening bowler?"
+          : "No balls bowled in this over yet. Unselect current bowler and return to previous over?") 
+      : "Are you sure you want to undo the last ball?";
+    const confirmBtnText = isNewOverWithNoBalls ? "Unselect Bowler" : "Undo";
+
     showCustomAlert(
-      "Undo Ball",
-      "Are you sure you want to undo the last ball?",
+      alertTitle,
+      alertMsg,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Undo",
+          text: confirmBtnText,
           style: "destructive",
-          onPress: () => {
+          onPress: async () => {
             if (scoringLockRef.current) return;
             scoringLockRef.current = true;
 
+            const socket = socketService.getSocket();
+
+            if (isNewOverWithNoBalls) {
+              try {
+                navLockRef.current = true;
+                socket.emit('change_bowler', { matchId, bowlerId: null });
+                dispatch(setLiveState({
+                  ...liveState,
+                  bowler: null,
+                  needsBowler: true
+                }));
+              } catch (err) {
+                console.log('Error unsetting bowler:', err);
+              } finally {
+                scoringLockRef.current = false;
+              }
+              return;
+            }
+
             if (liveState) {
-              const currentBalls = liveState.currentOverBalls || [];
               let deductedRuns = 0;
               let isWicket = false;
               let poppedBalls = currentBalls;
@@ -805,15 +983,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 currentOverBalls: poppedBalls
               }));
             }
-            dispatch(undoBall(matchId))
-              .unwrap()
-              .then(() => {
-                scoringLockRef.current = false;
-              })
-              .catch((e) => {
-                showCustomAlert('Error', e || 'Failed to undo ball');
-                scoringLockRef.current = false;
-              });
+            
+            socket.emit('undo_ball', { matchId });
+            setTimeout(() => {
+              scoringLockRef.current = false;
+            }, 50);
           }
         }
       ]
@@ -826,21 +1000,17 @@ const LiveScorerScreen = ({ navigation, route }) => {
     if (scoringLockRef.current) return;
     scoringLockRef.current = true;
 
-    // Wagon Wheel Interception Logic
-    const match = liveState.match;
+    // Wagon Wheel Interception Logic: trigger for 1, 2, 3, 4, 6 runs on normal deliveries
     const isExtra = options.isWide || options.isNoBall || options.isBye || options.isLegBye;
-    const isWagonWheelEligible = [1, 2, 3, 4, 6].includes(runs);
-    const isWagonWheelEnabled = match.wagonWheelEnabled === true;
+    const isWagonWheelEligible = [1, 2, 3, 4, 6].includes(runs) && !isExtra;
 
-    if (!isExtra && isWagonWheelEligible && !options.wagonWheelResolved && !alwaysSkipWagonWheel) {
-      const showForThisRun = isWagonWheelEnabled ? true : [4, 6].includes(runs);
-      if (showForThisRun) {
-        setPendingRuns(runs);
-        setPendingScoreOptions(options);
-        setShowWagonWheelModal(true);
-        scoringLockRef.current = false; // release — modal takes over
-        return;
-      }
+    if (isWagonWheelEligible && !options.wagonWheelResolved && !alwaysSkipWagonWheel) {
+      setWagonWheelData(null); // reset previous selection
+      setPendingRuns(runs);
+      setPendingScoreOptions(options);
+      setShowWagonWheelModal(true);
+      scoringLockRef.current = false; // release lock — modal handles submission
+      return;
     }
     
     if (options.isWicket && !options.singleWicketResolved) {
@@ -925,7 +1095,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
         // Optimistic ball creation
         const optimisticBallType = options.isWicket ? 'wicket' : options.isWide ? 'wide' : options.isNoBall ? 'noball' : options.isBye ? 'bye' : options.isLegBye ? 'legbye' : 'normal';
-        let optimisticBallDisplay = runs.toString();
+        let optimisticBallDisplay = runs === 0 ? '.' : runs.toString();
         if (options.isWicket) optimisticBallDisplay = 'W';
         else if (options.isWide) optimisticBallDisplay = (runs + 1) + 'Wd';
         else if (options.isNoBall) optimisticBallDisplay = (runs + 1) + 'Nb';
@@ -939,6 +1109,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
         };
         const newCurrentOverBalls = [...(liveState.currentOverBalls || []), optimisticBall];
 
+        let isOptimisticOverComplete = false;
         if (!options.isWide && !options.isNoBall) {
           let overWhole = Math.floor(currentOvers);
           let overBalls = Math.round((currentOvers - overWhole) * 10);
@@ -946,13 +1117,14 @@ const LiveScorerScreen = ({ navigation, route }) => {
           if (overBalls >= 6) {
              overWhole++;
              overBalls = 0;
+             isOptimisticOverComplete = true;
           }
           currentOvers = overWhole + (overBalls / 10);
         }
 
-        // Optimistic stats updates
-        let newStrikerStats = { ...liveState.strikerStats };
-        let newBowlerStats = { ...liveState.bowlerStats };
+        // 1. Optimistic stats updates FIRST
+        let newStrikerStats = { ...(liveState.strikerStats || { runs: 0, balls: 0, fours: 0, sixes: 0 }) };
+        let newBowlerStats = { ...(liveState.bowlerStats || { balls: 0, runs: 0, wickets: 0 }) };
         
         if (!options.isWide && !options.isNoBall && !options.isBye && !options.isLegBye) {
            newStrikerStats.runs = (newStrikerStats.runs || 0) + runs;
@@ -960,7 +1132,6 @@ const LiveScorerScreen = ({ navigation, route }) => {
            if (runs === 4) newStrikerStats.fours = (newStrikerStats.fours || 0) + 1;
            if (runs === 6) newStrikerStats.sixes = (newStrikerStats.sixes || 0) + 1;
         } else if (!options.isWide) {
-           // Byes and Leg Byes still count as balls faced
            newStrikerStats.balls = (newStrikerStats.balls || 0) + 1;
         }
 
@@ -972,6 +1143,44 @@ const LiveScorerScreen = ({ navigation, route }) => {
            newBowlerStats.wickets = (newBowlerStats.wickets || 0) + 1;
         }
 
+        // 2. Strike rotation calculation SECOND
+        const creditedToBatsman = !options.isWide && !options.isBye && !options.isLegBye ? runs : 0;
+        const shouldRotateStrike = !options.isWide && !options.isNoBall && (creditedToBatsman % 2 === 1);
+        
+        let nextStriker = liveState.striker;
+        let nextStrikerStats = newStrikerStats;
+        let nextNonStriker = liveState.nonStriker;
+        let nextNonStrikerStats = liveState.nonStrikerStats || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+
+        if (shouldRotateStrike) {
+          nextStriker = liveState.nonStriker;
+          nextStrikerStats = liveState.nonStrikerStats || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+          nextNonStriker = liveState.striker;
+          nextNonStrikerStats = newStrikerStats;
+        }
+
+        if (isOptimisticOverComplete) {
+          // On over complete, rotate strike again for next over
+          const tempS = nextStriker;
+          const tempSStats = nextStrikerStats;
+          nextStriker = nextNonStriker;
+          nextStrikerStats = nextNonStrikerStats;
+          nextNonStriker = tempS;
+          nextNonStrikerStats = tempSStats;
+        }
+
+        // Optimistically clear the dismissed batsman immediately
+        if (options.isWicket) {
+          const dismissedId = options.dismissedBatsmanId || liveState.striker?._id || liveState.striker;
+          if (String(nextStriker?._id || nextStriker) === String(dismissedId)) {
+            nextStriker = null;
+            nextStrikerStats = null;
+          } else if (String(nextNonStriker?._id || nextNonStriker) === String(dismissedId)) {
+            nextNonStriker = null;
+            nextNonStrikerStats = null;
+          }
+        }
+
         const optimisticState = {
           ...liveState,
           score: {
@@ -981,23 +1190,29 @@ const LiveScorerScreen = ({ navigation, route }) => {
             overs: currentOvers.toFixed(1)
           },
           currentOverBalls: newCurrentOverBalls,
-          strikerStats: newStrikerStats,
-          bowlerStats: newBowlerStats
+          striker: nextStriker,
+          strikerStats: nextStrikerStats,
+          nonStriker: nextNonStriker,
+          nonStrikerStats: nextNonStrikerStats,
+          bowlerStats: newBowlerStats,
+          ...(isOptimisticOverComplete ? {
+            needsBowler: true,
+            previousBowler: liveState.bowler,
+          } : {})
         };
         dispatch(setLiveState(optimisticState));
       }
 
-      // Fire API call asynchronously
-      dispatch(scoreBall({ matchId: cleanMatchId, ballData: payload }))
-        .unwrap()
-        .then(() => {
-          socketService.remoteLog('LiveScorerScreen', 'Database Update Success');
-          scoringLockRef.current = false;
-        })
-        .catch((e) => {
-          showCustomAlert('Scoring Error', e || 'Could not record ball');
-          scoringLockRef.current = false;
-        });
+      // Emit via Socket.IO instead of slow HTTP API call
+      lastScoredAtRef.current = Date.now(); // stamp so socket knows we just scored
+      const socket = socketService.getSocket();
+      socket.emit('ball_event', { matchId: cleanMatchId, ballData: payload });
+
+      // Release scoring lock quickly to keep UI responsive
+      setTimeout(() => {
+        scoringLockRef.current = false;
+        setIsScoring(false);
+      }, 50);
     } catch (e) {
       showCustomAlert('Error', e.message);
       scoringLockRef.current = false;
@@ -1013,7 +1228,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             const isWicket = ball.type === 'wicket' || ball.display === 'W';
             const isFour = ball.runs === 4;
             const isSix = ball.runs === 6;
-            const isZero = ball.runs === 0 && !isWicket && ball.display === '0';
+            const isZero = ball.runs === 0 && !isWicket;
 
             return (
               <View key={i} style={[
@@ -1032,17 +1247,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
     );
   };
 
-  const handleShare = async () => {
-    try {
-      const matchLink = `https://scoreverse.com/match/${matchId}`;
-      const summaryText = `Watch ${match?.teamA?.name} vs ${match?.teamB?.name} live on ScoreVerse!\n\n${matchLink}`;
-      
-      await Share.share({
-        message: summaryText,
-      });
-    } catch (error) {
-      showCustomAlert('Error', 'Failed to share score');
-    }
+  const handleShare = () => {
+    setShareModalVisible(true);
   };
 
   return (
@@ -1054,7 +1260,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
       )}
       {/* ── Header ── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('MyCricketMain')} style={styles.headerBackBtn}>
+        <TouchableOpacity onPress={handleBackPress} style={styles.headerBackBtn}>
           <Icon name="arrow-left" size={22} color={Colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -1127,26 +1333,34 @@ const LiveScorerScreen = ({ navigation, route }) => {
             {/* Innings 2: Chase banner */}
             {liveState?.inningsNumber % 2 === 0 && requiredRunRate ? (
               <View style={styles.chaseBanner}>
-                <Text style={styles.chaseMainText}>
-                  Need{' '}
-                  <Text style={styles.chaseHighlight}>{toWin}</Text>
-                  {' '}runs from{' '}
-                  <Text style={styles.chaseHighlight}>{ballsRemaining}</Text>
-                  {' '}balls
-                  {isDlsTarget ? <Text style={styles.dlsTag}> · DLS</Text> : null}
-                </Text>
+                {toWin <= 0 ? (
+                  <Text style={styles.chaseMainText}>Target Reached</Text>
+                ) : (
+                  <Text style={styles.chaseMainText}>
+                    Need{' '}
+                    <Text style={styles.chaseHighlight}>{toWin}</Text>
+                    {' '}runs from{' '}
+                    <Text style={styles.chaseHighlight}>{ballsRemaining}</Text>
+                    {' '}balls
+                    {isDlsTarget ? <Text style={styles.dlsTag}> · DLS</Text> : null}
+                  </Text>
+                )}
                 <Text style={styles.chaseSubText}>
-                  Target {(score?.runs || 0) + toWin}{'   ·   '}RRR {requiredRunRate}
+                  Target {(score?.runs || 0) + toWin}{toWin > 0 ? `   ·   RRR ${requiredRunRate}` : ''}
                 </Text>
-                {dlsParScore !== null ? (() => {
+                {dlsParScore !== null && dlsParScore > 0 ? (() => {
                   const isAhead = score?.runs > dlsParScore;
                   const isBehind = score?.runs < dlsParScore;
+                  const battingTeamName = liveState.battingTeam === match.teamA._id ? match.teamA.name : match.teamB.name;
+                  const fieldingTeamName = liveState.battingTeam === match.teamA._id ? match.teamB.name : match.teamA.name;
+                  const safeTeam = isAhead ? battingTeamName : (isBehind ? fieldingTeamName : 'None');
+
                   return (
                     <View style={[styles.dlsParRow, { backgroundColor: isAhead ? 'rgba(34,197,94,0.12)' : isBehind ? 'rgba(239,68,68,0.12)' : 'rgba(148,163,184,0.12)' }]}>
                       <Text style={styles.dlsParLabel}>DLS Par Score: </Text>
                       <Text style={styles.dlsParValue}>{dlsParScore}</Text>
                       <Text style={[styles.dlsParStatus, { color: isAhead ? '#22c55e' : isBehind ? '#ef4444' : Colors.textSecondary }]}>
-                        {isAhead ? '  ✓ Ahead' : isBehind ? '  ✗ Behind' : '  = On Par'}
+                        {isAhead ? `  ✓ Ahead (${safeTeam} is safe)` : isBehind ? `  ✗ Behind (${safeTeam} is safe)` : '  = On Par'}
                       </Text>
                     </View>
                   );
@@ -1184,7 +1398,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       isLeftStriker && styles.strikerHighlightCol,
                       !rightBatterId && { borderTopRightRadius: 8, borderBottomRightRadius: 8, borderTopLeftRadius: 8, borderBottomLeftRadius: 8, borderRightWidth: 0 }
                     ]}
-                    onPress={handleRotateStrikePress}
+                    onPress={() => handleRotateStrikePress(leftBatterId, leftPlayerStats)}
                     disabled={!isScorer}
                   >
                     <View style={styles.playerNameRow}>
@@ -1195,6 +1409,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       ]} numberOfLines={1}>
                         {leftPlayer?.name || 'Striker'}
                       </Text>
+                      {leftPlayerStats?.balls === 0 && (
+                        <Icon name="account-switch" size={14} color={Colors.primary} style={{ marginLeft: 6, opacity: 0.8 }} />
+                      )}
                     </View>
                     <Text style={[
                       styles.playerScore,
@@ -1215,7 +1432,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       isRightStriker && { borderTopRightRadius: 8, borderBottomRightRadius: 8, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
                       !leftBatterId && { borderTopRightRadius: 8, borderBottomRightRadius: 8, borderTopLeftRadius: 8, borderBottomLeftRadius: 8, borderLeftWidth: 0 }
                     ]}
-                    onPress={handleRotateStrikePress}
+                    onPress={() => handleRotateStrikePress(rightBatterId, rightPlayerStats)}
                     disabled={!isScorer}
                   >
                     <View style={styles.playerNameRow}>
@@ -1226,6 +1443,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       ]} numberOfLines={1}>
                         {rightPlayer?.name || 'Non-Striker'}
                       </Text>
+                      {rightPlayerStats?.balls === 0 && (
+                        <Icon name="account-switch" size={14} color={Colors.primary} style={{ marginLeft: 6, opacity: 0.8 }} />
+                      )}
                     </View>
                     <Text style={[
                       styles.playerScore,
@@ -1250,29 +1470,34 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     {isScorer && (!currentOverBalls || currentOverBalls.length === 0) ? <View style={{ width: 16 }} /> : null}
                   </View>
                   {/* Bowler Data Row */}
-                  <TouchableOpacity
-                    style={styles.bowlingTableRow}
-                    onPress={() => isScorer && navigation.navigate('SelectBowler', { matchId })}
-                    disabled={!isScorer || (currentOverBalls && currentOverBalls.length > 0)}
-                  >
-                    <Text style={[styles.bowlingTableName, { flex: 1 }]} numberOfLines={1}>
-                      {bowler?.name || 'Select Bowler'}
-                    </Text>
-                    <Text style={styles.bowlingTableCell}>
-                      {bowlerStats?.wickets || 0}-{bowlerStats?.runs || 0}
-                    </Text>
-                    <Text style={styles.bowlingTableCell}>
-                      {bowlerStats ? `${bowlerStats.overs}.${bowlerStats.balls}` : '0.0'}
-                    </Text>
-                    <Text style={styles.bowlingTableCell}>
-                      {(() => {
-                        if (!bowlerStats) return '0.00';
-                        const balls = (bowlerStats.overs * 6) + (bowlerStats.balls || 0);
-                        return balls > 0 ? ((bowlerStats.runs / balls) * 6).toFixed(2) : '0.00';
-                      })()}
-                    </Text>
-                    {isScorer && (!currentOverBalls || currentOverBalls.length === 0) ? <Icon name="chevron-right" size={16} color={Colors.textTertiary} /> : null}
-                  </TouchableOpacity>
+                  {(() => {
+                    const displayBowler = bowler || previousBowler || liveState?.previousBowler;
+                    return (
+                      <TouchableOpacity
+                        style={styles.bowlingTableRow}
+                        onPress={() => isScorer && navigation.navigate('SelectBowler', { matchId })}
+                        disabled={!isScorer || (currentOverBalls && currentOverBalls.length > 0)}
+                      >
+                        <Text style={[styles.bowlingTableName, { flex: 1 }]} numberOfLines={1}>
+                          {displayBowler?.name || 'Select Bowler'}
+                        </Text>
+                        <Text style={styles.bowlingTableCell}>
+                          {bowlerStats?.wickets || 0}-{bowlerStats?.runs || 0}
+                        </Text>
+                        <Text style={styles.bowlingTableCell}>
+                          {bowlerStats ? `${bowlerStats.overs}.${bowlerStats.balls}` : '0.0'}
+                        </Text>
+                        <Text style={styles.bowlingTableCell}>
+                          {(() => {
+                            if (!bowlerStats) return '0.00';
+                            const balls = (bowlerStats.overs * 6) + (bowlerStats.balls || 0);
+                            return balls > 0 ? ((bowlerStats.runs / balls) * 6).toFixed(2) : '0.00';
+                          })()}
+                        </Text>
+                        {isScorer && (!currentOverBalls || currentOverBalls.length === 0) ? <Icon name="chevron-right" size={16} color={Colors.textTertiary} /> : null}
+                      </TouchableOpacity>
+                    );
+                  })()}
                 </View>
               </View>
             );
@@ -1374,6 +1599,33 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
                 </View>
               )}
+            </View>
+          ) : (liveState?.needsBowler || !bowler) && !batterNeeded ? (
+            <View style={styles.needsBowlerCard}>
+              <View style={styles.needsBowlerIconRow}>
+                <Icon name="cricket" size={28} color={Colors.primary} />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.needsBowlerTitle}>Over Completed</Text>
+                  <Text style={styles.needsBowlerSub}>Select bowler for next over or undo previous ball</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+                <TouchableOpacity
+                  style={[styles.keypadActionBtnSecondary, { flex: 1, height: 48, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }]}
+                  onPress={handleUndoBall}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.keypadActionBtnSecondaryText}>UNDO LAST</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.selectBowlerBtnAction, { flex: 2, height: 48 }]}
+                  onPress={() => navigation.navigate('SelectBowler', { matchId })}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="account-plus" size={20} color="#000" />
+                  <Text style={styles.selectBowlerBtnActionText}>SELECT BOWLER</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : (
             <View style={styles.keypad}>
@@ -1719,7 +1971,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   </View>
                   <FlatList
                     data={(() => {
-                      const isTeamABatting = liveState?.battingTeam === liveState?.match?.teamA?._id;
+                      const batId = String(liveState?.battingTeam?._id || liveState?.battingTeam || '');
+                      const tAId = String(liveState?.match?.teamA?._id || liveState?.match?.teamA || '');
+                      const isTeamABatting = batId === tAId;
                       return (isTeamABatting ? liveState?.match?.playingXI?.teamB : liveState?.match?.playingXI?.teamA) || [];
                     })()}
                     keyExtractor={item => item._id}
@@ -1798,9 +2052,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
                           {advWicketType === 'run_out' ? 'Primary Fielder (Assisted by)' : advWicketType === 'stumped' ? 'Stumped by' : 'Catcher'}
                         </Text>
                         {(() => {
-                          const isTeamABatting = liveState?.battingTeam === liveState?.match?.teamA?._id;
+                          const _batId = String(liveState?.battingTeam?._id || liveState?.battingTeam || '');
+                          const _tAId = String(liveState?.match?.teamA?._id || liveState?.match?.teamA || '');
+                          const isTeamABatting = _batId === _tAId;
                           const fieldingSquad = (isTeamABatting ? liveState?.match?.playingXI?.teamB : liveState?.match?.playingXI?.teamA) || [];
-                          const selected = fieldingSquad.find(f => f._id === primaryFielder);
+                          const selected = fieldingSquad.find(f => String(f._id) === String(primaryFielder));
                           return (
                             <TouchableOpacity
                               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border }}
@@ -1834,9 +2090,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       <View style={{ marginBottom: 20 }}>
                         <Text style={{ color: Colors.textSecondary, marginBottom: 10 }}>Secondary Fielder (Optional)</Text>
                         {(() => {
-                          const isTeamABatting = liveState?.battingTeam === liveState?.match?.teamA?._id;
+                          const _batId2 = String(liveState?.battingTeam?._id || liveState?.battingTeam || '');
+                          const _tAId2 = String(liveState?.match?.teamA?._id || liveState?.match?.teamA || '');
+                          const isTeamABatting = _batId2 === _tAId2;
                           const fieldingSquad = (isTeamABatting ? liveState?.match?.playingXI?.teamB : liveState?.match?.playingXI?.teamA) || [];
-                          const selected = fieldingSquad.find(f => f._id === secondaryFielder);
+                          const selected = fieldingSquad.find(f => String(f._id) === String(secondaryFielder));
                           return (
                             <TouchableOpacity
                               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border }}
@@ -2362,6 +2620,16 @@ const LiveScorerScreen = ({ navigation, route }) => {
         </Modal>
       ) : null}
 
+      {/* Share Preview Modal */}
+      <SharePreviewModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        title={`${match?.teamA?.name || 'Team A'} vs ${match?.teamB?.name || 'Team B'}`}
+        shareUrl={`https://scoreverse.maazibrahimoo0.workers.dev/match/${cleanMatchId}`}
+      >
+        <MatchSummaryPoster liveState={liveState} />
+      </SharePreviewModal>
+
     </SafeAreaView>
   );
 };
@@ -2468,9 +2736,9 @@ const styles = StyleSheet.create({
 
   // ── Score Board ──
   scoreBoard: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
     alignItems: 'center',
     backgroundColor: Colors.backgroundCard,
     borderBottomWidth: 1,
@@ -2480,8 +2748,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    marginBottom: 10,
-    gap: 8,
+    marginBottom: 4,
+    gap: 6,
   },
   teamLabel: {
     flex: 1,
@@ -2511,15 +2779,15 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   scoreBoardDivider: {
-    width: 40,
+    width: 30,
     height: 1,
     backgroundColor: Colors.border,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   mainScore: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   scoreRight: {
     marginLeft: 4,
@@ -2527,11 +2795,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   runs: {
-    fontSize: 64,
+    fontSize: 52,
     color: Colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
-    lineHeight: 70,
-    letterSpacing: -2,
+    lineHeight: 56,
+    letterSpacing: -1.5,
   },
   slash: {
     fontSize: 0,
@@ -2565,22 +2833,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   chaseBanner: {
-    marginTop: 10,
+    marginTop: 6,
     width: '100%',
     backgroundColor: Colors.primaryAlpha20 || 'rgba(154,188,47,0.1)',
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.primary + '40',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     alignItems: 'center',
   },
   chaseMainText: {
     color: Colors.textPrimary,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Typography.fontFamily.semiBold,
     textAlign: 'center',
-    marginBottom: 3,
+    marginBottom: 1,
   },
   chaseHighlight: {
     color: Colors.primary,
@@ -2594,19 +2862,19 @@ const styles = StyleSheet.create({
   },
   chaseSubText: {
     color: Colors.textTertiary,
-    fontSize: 11,
+    fontSize: 10.5,
     fontFamily: Typography.fontFamily.regular,
     textAlign: 'center',
     letterSpacing: 0.2,
-    marginBottom: 6,
+    marginBottom: 3,
   },
   dlsParRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginTop: 2,
+    borderRadius: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: 1,
   },
   dlsParLabel: {
     color: Colors.textTertiary,
@@ -3001,6 +3269,47 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
     fontSize: 14,
     color: '#fff',
+  },
+
+  needsBowlerCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginVertical: Spacing.sm,
+  },
+  needsBowlerIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  needsBowlerTitle: {
+    color: Colors.textPrimary,
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  needsBowlerSub: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  selectBowlerBtnAction: {
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: 50,
+    borderRadius: BorderRadius.md,
+    gap: 8,
+  },
+  selectBowlerBtnActionText: {
+    color: '#000000',
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
   },
 });
 

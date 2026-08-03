@@ -85,6 +85,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [financeData, setFinanceData] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'online' | 'offline'
+  const [isUnauthorized, setIsUnauthorized] = useState(false);
   const scaleAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
@@ -101,9 +102,15 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
   };
 
   const loadFinanceData = async (isRefresh = false) => {
+    if (!auctionId || auctionId === 'undefined') {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
+      setIsUnauthorized(false);
       const res = await api.get(`/auctions/${auctionId}/finance`);
       if (res.data.success) {
         setFinanceData(res.data.data);
@@ -112,7 +119,11 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
         showCustomAlert('Error', res.data.message || 'Failed to load finance data');
       }
     } catch (error) {
-      showCustomAlert('Error', error?.response?.data?.message || 'Failed to load finance data');
+      if (error?.response?.status === 403 || error?.response?.status === 401 || error?.response?.data?.message === 'Unauthorized') {
+        setIsUnauthorized(true);
+      } else {
+        showCustomAlert('Error', error?.response?.data?.message || 'Failed to load finance data');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -126,6 +137,15 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loaderText}>Loading Finance...</Text>
+      </View>
+    );
+  }
+
+  if (isUnauthorized) {
+    return (
+      <View style={[styles.emptyContainer, { paddingHorizontal: 24, paddingVertical: 40 }]}>
+        <Icon name="shield-lock-outline" size={56} color={Colors.primary} />
+        <Text style={[styles.emptyTitle, { textAlign: 'center', lineHeight: 22 }]}>Only organisers will handle this section</Text>
       </View>
     );
   }

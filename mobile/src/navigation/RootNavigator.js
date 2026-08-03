@@ -45,15 +45,15 @@ const RootNavigator = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {showSplash ? (
         <Stack.Screen name="Splash" component={SplashScreen} />
-      ) : !isAuthenticated && !isGuest ? (
-        <Stack.Screen name="Auth" component={AuthNavigator} />
-      ) : (
+      ) : isAuthenticated ? (
+        getMainNavigator()
+      ) : isGuest ? (
         <>
-          {getMainNavigator()}
-          {isGuest && !isAuthenticated && (
-            <Stack.Screen name="AuthModal" component={AuthNavigator} options={{ presentation: 'fullScreenModal' }} />
-          )}
+          <Stack.Screen name="Customer" component={CustomerNavigator} />
+          <Stack.Screen name="AuthModal" component={AuthNavigator} options={{ presentation: 'fullScreenModal' }} />
         </>
+      ) : (
+        <Stack.Screen name="Auth" component={AuthNavigator} />
       )}
     </Stack.Navigator>
   );

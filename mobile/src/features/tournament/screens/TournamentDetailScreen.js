@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, FlatList, Share, Modal, TextInput, RefreshControl, StatusBar, ToastAndroid, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, FlatList, Share, Modal, TextInput, RefreshControl, StatusBar, ToastAndroid, Platform, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -45,15 +45,17 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [searching, setSearching] = useState(false);
   const [showGhostForm, setShowGhostForm] = useState(false);
   const [ghostForm, setGhostForm] = useState({ teamName: '', captainName: '', captainMobile: '', city: '' });
-  const [actionLoading, setActionLoading] = useState(false);
   const [showSettingsSidebar, setShowSettingsSidebar] = useState(false);
   const [showFixturePreview, setShowFixturePreview] = useState(false);
+  const [knockoutPreviewTeams, setKnockoutPreviewTeams] = useState([]);
   const [shareData, setShareData] = useState(null);
   const [showTeamShareModal, setShowTeamShareModal] = useState(false);
-
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [auctionDetails, setAuctionDetails] = useState(null);
   const [isAuctionRegistered, setIsAuctionRegistered] = useState(false);
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [myRegistrationData, setMyRegistrationData] = useState(null);
+  const [ownerData, setOwnerData] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
   const [myTeams, setMyTeams] = useState([]);
 
   // New Management Modals
@@ -63,6 +65,19 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [roleType, setRoleType] = useState('coOrganizers');
   const [showEditDetailsModal, setShowEditDetailsModal] = useState(false);
   const [showStartMatchModal, setShowStartMatchModal] = useState(false);
+  const [selectedScenario, setSelectedScenario] = useState(null);
+  const [showScenarioModal, setShowScenarioModal] = useState(false);
+  const [calculatingQualifications, setCalculatingQualifications] = useState(false);
+  const [showScenarioCalculator, setShowScenarioCalculator] = useState(false);
+  const [scenarioData, setScenarioData] = useState({
+    teamId: '',
+    opponentId: '',
+    battingFirst: true,
+    firstInningsScore: '',
+    targetRank: '4'
+  });
+  const [scenarioResult, setScenarioResult] = useState(null);
+  const [scenarioLoading, setScenarioLoading] = useState(false);
 
   const matchesRef = useRef([]);
 
@@ -149,11 +164,14 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               const regRes = await auctionService.getMyRegistration(res.data._id);
               if (regRes.data) {
                 setIsAuctionRegistered(true);
+                setMyRegistrationData(regRes.data);
               } else {
                 setIsAuctionRegistered(false);
+                setMyRegistrationData(null);
               }
             } catch (e) {
               setIsAuctionRegistered(false);
+              setMyRegistrationData(null);
             }
           }
         }
@@ -162,6 +180,19 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       }
     }
   }, [activeTab, tournamentId]);
+
+  useEffect(() => {
+    if (auctionDetails?._id && tournament?.teams && user?._id) {
+      const isOwner = tournament.teams.find(
+        (t) => t.captain === user._id || t.owner === user._id
+      );
+      if (isOwner) {
+        auctionService.getOwnerDashboard(auctionDetails._id)
+          .then(res => setOwnerData(res.data))
+          .catch(e => console.log('Error fetching owner data', e));
+      }
+    }
+  }, [auctionDetails?._id, tournament?.teams, user?._id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -189,18 +220,34 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     }, 1000);
   };
 
+  const handleRegenerateKnockoutPreview = () => {
+    if (!tournament?.registeredTeams) return;
+    const shuffled = [...tournament.registeredTeams].sort(() => Math.random() - 0.5);
+    setKnockoutPreviewTeams(shuffled);
+  };
+
   const handleGenerateFixtures = () => {
     if (!tournament?.registeredTeams || tournament.registeredTeams.length < 2) {
       showCustomAlert('Error', 'Not enough teams to generate fixtures.');
       return;
     }
-    setShowWizardModal(true);
+    if (tournament.format?.toLowerCase() === 'knockout') {
+      const shuffled = [...tournament.registeredTeams].sort(() => Math.random() - 0.5);
+      setKnockoutPreviewTeams(shuffled);
+      setShowFixturePreview(true);
+    } else {
+      setShowWizardModal(true);
+    }
   };
 
   const confirmGenerateFixtures = async () => {
     try {
       setLoading(true);
-      await api.post(`/tournaments/${tournamentId}/generate-fixtures`);
+      const teamIds = tournament.format?.toLowerCase() === 'knockout'
+        ? knockoutPreviewTeams.map(rt => rt.team?._id || rt.team)
+        : null;
+
+      await api.post(`/tournaments/${tournamentId}/generate-fixtures`, { teamIds });
       await fetchDashboard();
       setShowFixturePreview(false);
       showCustomAlert('Success', 'Fixtures generated successfully!');
@@ -209,6 +256,63 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       showCustomAlert('Error', e.response?.data?.message || 'Failed to generate fixtures');
       setLoading(false);
     }
+  };
+
+  const renderKnockoutPreviewCards = () => {
+    const cards = [];
+    let matchCount = 1;
+    for (let i = 0; i < knockoutPreviewTeams.length; i += 2) {
+      const teamA = knockoutPreviewTeams[i]?.team;
+      const teamB = knockoutPreviewTeams[i + 1]?.team;
+
+      cards.push(
+        <View key={matchCount} style={{
+          backgroundColor: Colors.background,
+          borderRadius: 12,
+          padding: 14,
+          marginBottom: 10,
+          borderWidth: 1,
+          borderColor: Colors.borderLight,
+        }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', paddingBottom: 6 }}>
+            <Text style={{ fontSize: 11, color: Colors.primary, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>
+              MATCH {matchCount}
+            </Text>
+            <Text style={{ fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>
+              Knockout Round 1
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+                <MCIcon name="cricket" size={16} color={Colors.textSecondary} />
+              </View>
+              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' }} numberOfLines={1}>
+                {teamA?.name || 'TBD'}
+              </Text>
+            </View>
+
+            <View style={{ paddingHorizontal: 12, alignItems: 'center' }}>
+              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 9, color: Colors.primary, fontFamily: Typography.fontFamily.bold }}>VS</Text>
+              </View>
+            </View>
+
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+                <MCIcon name="cricket" size={16} color={Colors.textSecondary} />
+              </View>
+              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' }} numberOfLines={1}>
+                {teamB?.name || 'BYE'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      );
+      matchCount++;
+    }
+    return cards;
   };
 
   const generatePreviewText = () => {
@@ -266,8 +370,37 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       await Share.share({
         message: `Join ${tournament.name} on ScoreVerse! Click the link to register your team: https://scoreverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}?action=join-team`,
       });
-    } catch (error) {
-      console.log('Error sharing', error);
+    } catch (e) {
+      console.log('Follow error:', e);
+    }
+  };
+
+  const handleCalculateQualifications = async () => {
+    try {
+      setCalculatingQualifications(true);
+      await api.post(`/tournaments/${tournamentId}/calculate-qualifications`);
+      Alert.alert('Success', 'Qualifications calculated successfully');
+      fetchDashboard();
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Failed to calculate qualifications');
+    } finally {
+      setCalculatingQualifications(false);
+    }
+  };
+
+  const handleCalculateScenario = async () => {
+    if (!scenarioData.teamId || !scenarioData.opponentId || !scenarioData.firstInningsScore || !scenarioData.targetRank) {
+      Alert.alert('Error', 'Please fill all fields');
+      return;
+    }
+    try {
+      setScenarioLoading(true);
+      const res = await api.post(`/tournaments/${tournamentId}/scenario-calculator`, scenarioData);
+      setScenarioResult(res.data);
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Failed to calculate scenario');
+    } finally {
+      setScenarioLoading(false);
     }
   };
 
@@ -425,7 +558,6 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         <InfoRow iconLib="mc" iconName="cricket" label="Format" value={tournament.format?.toUpperCase() || 'Custom'} />
         <InfoRow iconLib="mc" iconName="circle-outline" label="Ball Type" value={tournament.ballType || '-'} />
         <InfoRow iconLib="mc" iconName="grass" label="Ground Type" value={tournament.groundType || '-'} />
-        <InfoRow iconLib="mc" iconName="account-group" label="Players/Team" value={String(tournament.playersPerTeam || '-')} />
       </View>
 
       <View style={styles.card}>
@@ -481,39 +613,35 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
     return (
       <View style={{ flex: 1 }}>
-        {/* Team count header */}
-        <View style={styles.teamHeaderStrip}>
-          <View style={styles.teamCountBox}>
-            <Text style={styles.teamCountNum}>{teamCount}</Text>
-            <Text style={styles.teamCountLabel}>Registered</Text>
-          </View>
-          <View style={styles.teamCountDivider} />
-          <View style={styles.teamCountBox}>
-            <Text style={[styles.teamCountNum, { color: spotsLeft === 0 ? Colors.error : Colors.success }]}>{spotsLeft}</Text>
-            <Text style={styles.teamCountLabel}>Spots Left</Text>
-          </View>
-          <View style={styles.teamCountDivider} />
-          <View style={styles.teamCountBox}>
-            <Text style={styles.teamCountNum}>{maxTeams}</Text>
-            <Text style={styles.teamCountLabel}>Max Teams</Text>
-          </View>
-        </View>
-
         {isOrganizer && (
           <View style={styles.actionGrid}>
             <TouchableOpacity
-              style={[styles.actionGridBtn, !hasTournamentStarted && { opacity: 0.5 }]}
+              style={[
+                styles.actionGridBtn,
+                (!hasTournamentStarted || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') && { opacity: 0.5 }
+              ]}
               onPress={() => {
                 if (!hasTournamentStarted) {
                   showCustomAlert('Tournament Not Started', 'Fixtures can only be generated after the tournament starts.');
-                  return;
+                } else if (tournament.status === 'completed') {
+                  showCustomAlert('Completed', 'Tournament has already finished.');
+                } else if (tournament.matches?.some(m => m.status !== 'scheduled')) {
+                  showCustomAlert('Locked', 'Fixtures cannot be generated after matches have started.');
+                } else {
+                  handleGenerateFixtures();
                 }
-                handleGenerateFixtures();
               }}
-              disabled={loading}
+              disabled={loading || !hasTournamentStarted || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed'}
             >
-              <View style={[styles.actionGridIcon, !hasTournamentStarted && { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                <Icon name={hasTournamentStarted ? "calendar" : "lock"} size={20} color={hasTournamentStarted ? Colors.primary : Colors.textTertiary} />
+              <View style={[
+                styles.actionGridIcon,
+                (!hasTournamentStarted || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') && { backgroundColor: 'rgba(255,255,255,0.05)' }
+              ]}>
+                <Icon
+                  name={(!hasTournamentStarted || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? "lock" : "calendar"}
+                  size={20}
+                  color={(!hasTournamentStarted || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? Colors.textTertiary : Colors.primary}
+                />
               </View>
               <Text style={styles.actionGridText}>Fixtures</Text>
             </TouchableOpacity>
@@ -538,21 +666,24 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           </View>
         )}
 
-        {/* {!isOrganizer && (
-          <View style={styles.actionGrid}>
-            <TouchableOpacity style={styles.actionGridBtn} onPress={() => setShowRegisterModal(true)}>
-              <View style={styles.actionGridIcon}>
-                <Icon name="user-plus" size={20} color={Colors.primary} />
-              </View>
-              <Text style={styles.actionGridText}>Register Team</Text>
-            </TouchableOpacity>
-          </View>
-        )} */}
-
         <FlatList
           data={tournament.registeredTeams}
           keyExtractor={(item, index) => item?.team?._id || item?._id || index.toString()}
           contentContainerStyle={[styles.tabContent, { paddingTop: 8 }]}
+          ListHeaderComponent={
+            teamCount > 0 ? (
+              <Text style={{
+                fontSize: 14,
+                color: Colors.textSecondary,
+                fontFamily: Typography.fontFamily.semiBold,
+                marginHorizontal: Spacing.md,
+                marginTop: Spacing.xs,
+                marginBottom: Spacing.sm
+              }}>
+                Registered Teams ({teamCount})
+              </Text>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
               <MCIcon name="account-group-outline" size={48} color={Colors.textTertiary} />
@@ -580,7 +711,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.teamSub}>{item.team.city || 'Unknown City'}</Text>
                   </View>
                 </View>
-                {isOrganizer ? (
+                {isMainOrganizer ? (
                   <TouchableOpacity
                     style={styles.removeTeamBtn}
                     onPress={() => handleRemoveTeam(item.team._id, item.team.name)}
@@ -766,6 +897,33 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     </Text>
                   </View>
                 ) : null}
+
+                {/* Start Match button — only for organizer / scorers, on scheduled matches */}
+                {item.status === 'scheduled' && isOrganizer && (
+                  <TouchableOpacity
+                    style={{
+                      marginTop: 10,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: Colors.primary,
+                      borderRadius: BorderRadius.lg,
+                      paddingVertical: 9,
+                    }}
+                    onPress={() => navigation.navigate('MatchSetup', {
+                      matchId: item._id,
+                      matchData: item,
+                      tournamentId: tournament._id,
+                      tournamentDetails: tournament,
+                      stage: item.stage,
+                    })}
+                  >
+                    <MCIcon name="play-circle" size={16} color={Colors.background} style={{ marginRight: 6 }} />
+                    <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>
+                      Start Match
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </TouchableOpacity>
             );
           }}
@@ -777,40 +935,142 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const renderPointsTable = () => {
     const hasGroups = tournament.pointsTable?.some(row => row.groupName);
 
-    if (hasGroups) {
-      const grouped = tournament.pointsTable.reduce((acc, row) => {
-        const g = row.groupName || 'Other';
-        if (!acc[g]) acc[g] = [];
-        acc[g].push(row);
-        return acc;
-      }, {});
+    return (
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}>
+        {tournament.pointsTable && tournament.pointsTable.length > 0 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12, paddingHorizontal: Spacing.md }}>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primaryAlpha10, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, marginRight: 8 }}
+              onPress={() => navigation.navigate('QualificationCalculator', {
+                tournamentId,
+                pointsTable: tournament.pointsTable,
+                tournamentOvers: tournament.overs,
+              })}
+            >
+              <Icon name="activity" size={14} color="#ffffff" style={{ marginRight: 6 }} />
+              <Text style={{ color: '#ffffff', fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>NRR Calculator</Text>
+            </TouchableOpacity>
+            {/* {isOrganizer && (
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,165,0,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginRight: 8 }}
+                onPress={handleCalculateQualifications}
+                disabled={calculatingQualifications}
+              >
+                {calculatingQualifications ? (
+                  <ActivityIndicator size="small" color="#FFA500" style={{ marginRight: 6 }} />
+                ) : (
+                  <Icon name="refresh-cw" size={14} color="#FFA500" style={{ marginRight: 6 }} />
+                )}
+                <Text style={{ color: '#FFA500', fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Finalize Qualifiers</Text>
+              </TouchableOpacity>
+            )} */}
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}
+              onPress={() => setShareData({ type: 'pointsTable', data: { table: tournament.pointsTable } })}
+            >
+              <Icon name="share-2" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share Standings</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-      return (
-        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}>
-          {Object.entries(grouped).map(([groupName, rows], gIdx) => (
-            <View key={gIdx} style={[styles.table, { marginBottom: Spacing.lg }]}>
-              <View style={[styles.tableRowHeader, { backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, justifyContent: 'space-between' }]}>
-                <Text style={[styles.sectionTitle, { marginBottom: 0, padding: Spacing.sm }]}>{groupName}</Text>
-                <TouchableOpacity onPress={() => setShareData({ type: 'pointsTable', data: { table: rows, groupName } })} style={{ padding: 8 }}>
-                  <Icon name="share-2" size={16} color={Colors.primary} />
-                </TouchableOpacity>
+        {hasGroups ? (
+          (() => {
+            const grouped = tournament.pointsTable.reduce((acc, row) => {
+              const g = row.groupName || 'Other';
+              if (!acc[g]) acc[g] = [];
+              acc[g].push(row);
+              return acc;
+            }, {});
+
+            return Object.entries(grouped).map(([groupName, rows], gIdx) => (
+              <View key={gIdx} style={[styles.table, { marginBottom: Spacing.lg }]}>
+                <View style={[styles.tableRowHeader, { backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, justifyContent: 'space-between' }]}>
+                  <Text style={[styles.sectionTitle, { marginBottom: 0, padding: Spacing.sm }]}>{groupName}</Text>
+                </View>
+                <View style={styles.tableRowHeader}>
+                  <Text style={[styles.tableCell, { flex: 2 }]}>Team</Text>
+                  <Text style={styles.tableCell}>P</Text>
+                  <Text style={styles.tableCell}>W</Text>
+                  <Text style={styles.tableCell}>L</Text>
+                  <Text style={styles.tableCell}>NR</Text>
+                  <Text style={styles.tableCell}>Pts</Text>
+                  <Text style={styles.tableCell}>NRR</Text>
+                </View>
+                {rows.map((row, idx) => {
+                  const scenario = tournament.qualificationScenarios?.[row.team?._id];
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}
+                      onPress={() => {
+                        if (scenario) {
+                          setSelectedScenario({ ...scenario, teamName: row.team?.name });
+                          setShowScenarioModal(true);
+                        }
+                      }}
+                      activeOpacity={scenario ? 0.7 : 1}
+                    >
+                      <View style={[styles.tableCellFlex2, { flexDirection: 'row', alignItems: 'center' }]}>
+                        <Text style={[styles.tableCell, { flex: 1, textAlign: 'left' }]} numberOfLines={1}>
+                          {row.team?.name}
+                          {row.qualified || scenario?.statusCode === 'Q' ? ' ✓' : ''}
+                          {row.eliminated || scenario?.statusCode === 'E' ? ' ✗' : ''}
+                        </Text>
+                        {scenario && scenario.statusCode !== 'Q' && scenario.statusCode !== 'E' && (
+                          <View style={{ backgroundColor: scenario.color, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4, marginLeft: 4 }}>
+                            <Text style={{ color: '#fff', fontSize: 8, fontFamily: Typography.fontFamily.bold }}>{scenario.statusCode}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.tableCell}>{row.played}</Text>
+                      <Text style={[styles.tableCell, { color: Colors.success }]}>{row.won}</Text>
+                      <Text style={[styles.tableCell, { color: Colors.error }]}>{row.lost}</Text>
+                      <Text style={styles.tableCell}>{row.noResult}</Text>
+                      <Text style={[styles.tableCell, { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
+                      <Text style={[styles.tableCell, { color: row.netRunRate >= 0 ? Colors.success : Colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              <View style={styles.tableRowHeader}>
-                <Text style={[styles.tableCell, { flex: 2 }]}>Team</Text>
-                <Text style={styles.tableCell}>P</Text>
-                <Text style={styles.tableCell}>W</Text>
-                <Text style={styles.tableCell}>L</Text>
-                <Text style={styles.tableCell}>NR</Text>
-                <Text style={styles.tableCell}>Pts</Text>
-                <Text style={styles.tableCell}>NRR</Text>
-              </View>
-              {rows.map((row, idx) => (
-                <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
+            ));
+          })()
+        ) : (
+          <View style={styles.table}>
+            <View style={styles.tableRowHeader}>
+              <Text style={[styles.tableCell, { flex: 2 }]}>Team</Text>
+              <Text style={styles.tableCell}>P</Text>
+              <Text style={styles.tableCell}>W</Text>
+              <Text style={styles.tableCell}>L</Text>
+              <Text style={styles.tableCell}>NR</Text>
+              <Text style={styles.tableCell}>Pts</Text>
+              <Text style={styles.tableCell}>NRR</Text>
+            </View>
+            {tournament.pointsTable?.map((row, idx) => {
+              const scenario = tournament.qualificationScenarios?.[row.team?._id];
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}
+                  onPress={() => {
+                    if (scenario) {
+                      setSelectedScenario({ ...scenario, teamName: row.team?.name });
+                      setShowScenarioModal(true);
+                    }
+                  }}
+                  activeOpacity={scenario ? 0.7 : 1}
+                >
                   <View style={[styles.tableCellFlex2, { flexDirection: 'row', alignItems: 'center' }]}>
-                    {idx === 0 && <MCIcon name="trophy" size={12} color={Colors.warning} style={{ marginRight: 4 }} />}
                     <Text style={[styles.tableCell, { flex: 1, textAlign: 'left' }]} numberOfLines={1}>
-                      {row.team?.name}{row.qualified ? ' ✓' : ''}{row.eliminated ? ' ✗' : ''}
+                      {row.team?.name}
+                      {row.qualified || scenario?.statusCode === 'Q' ? ' ✓' : ''}
+                      {row.eliminated || scenario?.statusCode === 'E' ? ' ✗' : ''}
                     </Text>
+                    {scenario && scenario.statusCode !== 'Q' && scenario.statusCode !== 'E' && (
+                      <View style={{ backgroundColor: scenario.color, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4, marginLeft: 4 }}>
+                        <Text style={{ color: '#fff', fontSize: 8, fontFamily: Typography.fontFamily.bold }}>{scenario.statusCode}</Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={styles.tableCell}>{row.played}</Text>
                   <Text style={[styles.tableCell, { color: Colors.success }]}>{row.won}</Text>
@@ -818,52 +1078,11 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   <Text style={styles.tableCell}>{row.noResult}</Text>
                   <Text style={[styles.tableCell, { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
                   <Text style={[styles.tableCell, { color: row.netRunRate >= 0 ? Colors.success : Colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
-                </View>
-              ))}
-            </View>
-          ))}
-        </KeyboardAwareScrollView>
-      );
-    }
-
-    return (
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}>
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12, paddingHorizontal: Spacing.md }}>
-          <TouchableOpacity
-            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}
-            onPress={() => setShareData({ type: 'pointsTable', data: { table: tournament.pointsTable } })}
-          >
-            <Icon name="share-2" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
-            <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share Standings</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.table}>
-          <View style={styles.tableRowHeader}>
-            <Text style={[styles.tableCell, { flex: 2 }]}>Team</Text>
-            <Text style={styles.tableCell}>P</Text>
-            <Text style={styles.tableCell}>W</Text>
-            <Text style={styles.tableCell}>L</Text>
-            <Text style={styles.tableCell}>NR</Text>
-            <Text style={styles.tableCell}>Pts</Text>
-            <Text style={styles.tableCell}>NRR</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-          {tournament.pointsTable?.map((row, idx) => (
-            <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
-              <View style={[styles.tableCellFlex2, { flexDirection: 'row', alignItems: 'center' }]}>
-                {idx === 0 && <MCIcon name="trophy" size={12} color={Colors.warning} style={{ marginRight: 4 }} />}
-                <Text style={[styles.tableCell, { flex: 1, textAlign: 'left' }]} numberOfLines={1}>
-                  {row.team?.name}{row.qualified ? ' ✓' : ''}{row.eliminated ? ' ✗' : ''}
-                </Text>
-              </View>
-              <Text style={styles.tableCell}>{row.played}</Text>
-              <Text style={[styles.tableCell, { color: Colors.success }]}>{row.won}</Text>
-              <Text style={[styles.tableCell, { color: Colors.error }]}>{row.lost}</Text>
-              <Text style={styles.tableCell}>{row.noResult}</Text>
-              <Text style={[styles.tableCell, { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
-              <Text style={[styles.tableCell, { color: row.netRunRate >= 0 ? Colors.success : Colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
-            </View>
-          ))}
-        </View>
+        )}
       </KeyboardAwareScrollView>
     );
   };
@@ -1062,7 +1281,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <Text style={auctionStyles.sectionTitle}>Organiser (Auction Closed)</Text>
             <TouchableOpacity
               style={auctionStyles.actionRow}
-              onPress={() => navigation.navigate('AuctionCreateSets', { tournamentId: tournament._id, mode: 'registrations', isReadOnly: true, showFinanceForOrganizer: true })}
+              onPress={() => navigation.navigate('AuctionCreateSets', { tournamentId: tournament._id, mode: 'registrations', isReadOnly: true, showFinanceForOrganizer: isOrganizer })}
             >
               <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(56,189,248,0.12)' }]}>
                 <MCIcon name="format-list-bulleted" size={20} color="#38BDF8" />
@@ -1080,25 +1299,65 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         {isTeamCaptainOrOwner && (
           <View style={auctionStyles.sectionCard}>
             <Text style={auctionStyles.sectionTitle}>Team Owner</Text>
-            <TouchableOpacity
-              style={auctionStyles.actionRow}
-              onPress={() => {
-                if (!auctionDetails?._id) {
-                  showCustomAlert('Error', 'Auction details not found.');
-                  return;
-                }
-                navigation.navigate('AuctionLiveTeamOwner', { tournamentId: tournament._id, auctionId: auctionDetails._id });
-              }}
-            >
-              <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(234,179,8,0.12)' }]}>
-                <MCIcon name="shield-crown" size={20} color={Colors.warning} />
+
+            {auctionDetails?.status === 'completed' && ownerData ? (
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, backgroundColor: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 8 }}>
+                  <View>
+                    <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>Purse Left</Text>
+                    <Text style={{ color: Colors.warning, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>{ownerData.purseAvailable || 0}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>Squad Size</Text>
+                    <Text style={{ color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>{ownerData.squad?.length || 0}</Text>
+                  </View>
+                </View>
+                <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8 }}>Squad Contact List</Text>
+                {ownerData.squad?.length > 0 ? ownerData.squad.map((p, idx) => (
+                  <View key={p.playerId || idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: Colors.textPrimary, fontSize: 14 }}>{p.fullName}</Text>
+                      <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>{p.role || 'Player'} • {p.soldPrice} pts</Text>
+                    </View>
+                    <Text style={{ color: Colors.primary, fontSize: 13 }} onPress={() => { if (p.mobile) Linking.openURL(`tel:${p.mobile}`) }}>{p.mobile || 'No contact'}</Text>
+                  </View>
+                )) : <Text style={{ color: Colors.textTertiary, fontSize: 13 }}>No players bought yet.</Text>}
+
+                <TouchableOpacity
+                  style={[auctionStyles.actionRow, { marginTop: 16 }]}
+                  onPress={() => navigation.navigate('AuctionLiveTeamOwner', { tournamentId: tournament._id, auctionId: auctionDetails._id })}
+                >
+                  <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(234,179,8,0.12)' }]}>
+                    <MCIcon name="shield-crown" size={20} color={Colors.warning} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={auctionStyles.actionTitle}>Full Team Dashboard</Text>
+                    <Text style={auctionStyles.actionSub}>View bids & deep stats</Text>
+                  </View>
+                  <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+                </TouchableOpacity>
               </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={auctionStyles.actionTitle}>My Team Dashboard</Text>
-                <Text style={auctionStyles.actionSub}>View bids, purse & squad</Text>
-              </View>
-              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
-            </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={auctionStyles.actionRow}
+                onPress={() => {
+                  if (!auctionDetails?._id) {
+                    showCustomAlert('Error', 'Auction details not found.');
+                    return;
+                  }
+                  navigation.navigate('AuctionLiveTeamOwner', { tournamentId: tournament._id, auctionId: auctionDetails._id });
+                }}
+              >
+                <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(234,179,8,0.12)' }]}>
+                  <MCIcon name="shield-crown" size={20} color={Colors.warning} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={auctionStyles.actionTitle}>My Team Dashboard</Text>
+                  <Text style={auctionStyles.actionSub}>View bids, purse & squad</Text>
+                </View>
+                <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            )}
 
             <View style={auctionStyles.divider} />
 
@@ -1119,48 +1378,71 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         )}
 
         {/* Viewer / Player Section */}
-    {!(isOrganizer && auctionDetails?.status === 'completed') && (
-          auctionDetails?.status === 'completed' ? (
+        {!(isOrganizer && auctionDetails?.status === 'completed') && (
           <View style={auctionStyles.sectionCard}>
-            <Text style={auctionStyles.sectionTitle}>Auction Status</Text>
-            <View style={auctionStyles.actionRow}>
-              <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(74,222,128,0.12)' }]}>
-                <MCIcon name="check-decagram" size={20} color="#4ADE80" />
+            <Text style={auctionStyles.sectionTitle}>{auctionDetails?.status === 'completed' ? 'Auction Status' : 'Player'}</Text>
+
+            {auctionDetails?.status === 'completed' && myRegistrationData ? (
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: myRegistrationData.soldStatus === 'sold' ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.textTertiary, fontSize: 13 }}>Auction Result</Text>
+                    <Text style={{
+                      color: myRegistrationData.soldStatus === 'sold' ? '#4ADE80' : (myRegistrationData.soldStatus === 'unsold' ? '#EF4444' : Colors.textPrimary),
+                      fontSize: 20,
+                      fontFamily: Typography.fontFamily.bold,
+                      marginTop: 4
+                    }}>
+                      {myRegistrationData.soldStatus === 'sold' ? 'SOLD' : (myRegistrationData.soldStatus === 'unsold' ? 'UNSOLD' : 'UNSOLD')}
+                    </Text>
+                  </View>
+                  {myRegistrationData.soldStatus === 'sold' && (
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ color: Colors.textTertiary, fontSize: 13 }}>Sold to</Text>
+                      <Text style={{ color: Colors.white, fontSize: 16, fontFamily: Typography.fontFamily.semiBold, marginTop: 4 }}>{myRegistrationData.soldToTeam?.name || 'A Team'}</Text>
+                      <Text style={{ color: Colors.warning, fontSize: 14, marginTop: 2 }}>{myRegistrationData.soldPrice} points</Text>
+                    </View>
+                  )}
+                </View>
               </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={auctionStyles.actionTitle}>Auction is Over</Text>
-                <Text style={auctionStyles.actionSub}>The bidding process has concluded.</Text>
+            ) : null}
+
+            {auctionDetails?.status === 'completed' ? (
+              <View style={auctionStyles.actionRow}>
+                <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(74,222,128,0.12)' }]}>
+                  <MCIcon name="check-decagram" size={20} color="#4ADE80" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={auctionStyles.actionTitle}>Auction is Over</Text>
+                  <Text style={auctionStyles.actionSub}>The bidding process has concluded.</Text>
+                </View>
               </View>
-            </View>
-          </View>
-        ) : (
-          <View style={auctionStyles.sectionCard}>
-            <Text style={auctionStyles.sectionTitle}>Player</Text>
-            <TouchableOpacity
-              style={[auctionStyles.actionRow, !isAuctionRegistered && regEndPassed && { opacity: 0.6 }]}
-              onPress={() => navigation.navigate('AuctionRegistration', { tournamentId: tournament._id })}
-              disabled={!isAuctionRegistered && regEndPassed}
-            >
-              <View style={[
-                auctionStyles.actionIcon,
-                { backgroundColor: isAuctionRegistered ? 'rgba(74,222,128,0.12)' : (!isAuctionRegistered && regEndPassed ? 'rgba(239,68,68,0.12)' : 'rgba(99,102,241,0.12)') }
-              ]}>
-                <MCIcon
-                  name={isAuctionRegistered ? 'check-circle' : (!isAuctionRegistered && regEndPassed ? 'close-circle' : 'account-plus')}
-                  size={20}
-                  color={isAuctionRegistered ? '#4ADE80' : (!isAuctionRegistered && regEndPassed ? '#EF4444' : '#818CF8')}
-                />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={auctionStyles.actionTitle}>
-                  {isAuctionRegistered ? 'You Are Registered' : (regEndPassed ? 'Registration Closed' : 'Register for Auction')}
-                </Text>
-                <Text style={auctionStyles.actionSub}>
-                  {isAuctionRegistered ? 'Tap to view your registration' : (regEndPassed ? 'The deadline has passed' : 'Join the player pool')}
-                </Text>
-              </View>
-              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
-            </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={auctionStyles.actionRow}
+                onPress={() => navigation.navigate('AuctionRegistration', { tournamentId: tournament._id })}
+              >
+                <View style={[
+                  auctionStyles.actionIcon,
+                  { backgroundColor: isAuctionRegistered ? 'rgba(74,222,128,0.12)' : (!isAuctionRegistered && regEndPassed ? 'rgba(239,68,68,0.12)' : 'rgba(99,102,241,0.12)') }
+                ]}>
+                  <MCIcon
+                    name={isAuctionRegistered ? 'check-circle' : (!isAuctionRegistered && regEndPassed ? 'lock' : 'account-plus')}
+                    size={20}
+                    color={isAuctionRegistered ? '#4ADE80' : (!isAuctionRegistered && regEndPassed ? '#EF4444' : '#818CF8')}
+                  />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={auctionStyles.actionTitle}>
+                    {isAuctionRegistered ? 'You Are Registered' : (regEndPassed ? 'Registration Closed' : 'Register for Auction')}
+                  </Text>
+                  <Text style={auctionStyles.actionSub}>
+                    {isAuctionRegistered ? 'Tap to view your registration' : (regEndPassed ? 'Registration ended. Tap for details.' : 'Join the player pool')}
+                  </Text>
+                </View>
+                <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            )}
 
             {!isOrganizer && auctionDateReached && (
               <>
@@ -1180,8 +1462,30 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               </>
             )}
+
+            <View style={auctionStyles.divider} />
+            <TouchableOpacity
+              style={auctionStyles.actionRow}
+              onPress={async () => {
+                try {
+                  await Share.share({
+                    message: `Register for the ${tournament?.name || 'Tournament'} Auction!\n\nLink: https://scoreverse.maazibrahimoo0.workers.dev/tournament/${tournament._id}/register`
+                  });
+                } catch (e) {
+                  console.log('Error sharing registration link:', e);
+                }
+              }}
+            >
+              <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(56,189,248,0.12)' }]}>
+                <MCIcon name="share-variant" size={20} color="#38BDF8" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={auctionStyles.actionTitle}>Share Registration Link</Text>
+                <Text style={auctionStyles.actionSub}>Invite players to register</Text>
+              </View>
+              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+            </TouchableOpacity>
           </View>
-        )
         )}
       </ScrollView>
     );
@@ -1258,13 +1562,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               <View style={styles.statusBadge}>
                 <View style={[styles.statusDot, {
                   backgroundColor: tournament.status === 'ongoing' ? Colors.error
-                    : tournament.status === 'upcoming' ? Colors.warning
+                    : (tournament.status === 'upcoming' || tournament.status === 'draft') ? Colors.warning
                       : tournament.status === 'completed' ? Colors.success
                         : Colors.primary
                 }]} />
                 <Text style={styles.statusLabel}>
                   {tournament.status === 'ongoing' ? 'Live'
-                    : tournament.status === 'upcoming' ? 'Upcoming'
+                    : (tournament.status === 'upcoming' || tournament.status === 'draft') ? 'Upcoming'
                       : tournament.status === 'completed' ? 'Completed'
                         : tournament.status}
                 </Text>
@@ -1300,13 +1604,14 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       <View style={styles.tabsWrapper}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
           {(() => {
-            const isOrganizer = tournament?.organizer?._id === user?._id || tournament?.organizer === user?._id;
+            const isOrganizer = tournament?.organizer?._id === user?._id || tournament?.organizer === user?._id || tournament?.coOrganizers?.some(o => (o._id || o) === user?._id);
             const userTeam = tournament?.teams?.find(
               (t) => t.captain === user?._id || t.owner === user?._id
             );
             const isTeamOwnerOrCaptain = !!userTeam;
 
             // Hide Auction tab once matches have been played (tournament started)
+            // But KEEP IT VISIBLE for Auction tournaments always.
             const hasMatchesPlayed = (tournament?.matches || []).some(m =>
               ['in_progress', 'toss_done', 'innings_break', 'super_over', 'completed', 'abandoned'].includes(m.status)
             );
@@ -1314,22 +1619,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
             let visibleTabs = TABS.filter(tab => {
               if (tab === 'Auction') {
-                // Show Auction tab only for Auction tournaments that haven't started playing yet
-                return isAuctionTournament && !hasMatchesPlayed;
+                return isAuctionTournament; // Always show Auction tab for Auction tournaments
               }
               return true;
             });
 
             const auctionDate = tournament?.auctionDate || tournament?.auctionDetails?.auctionDate;
             const auctionDateReached = auctionDate && new Date() >= new Date(auctionDate);
-
-            if (isAuctionTournament && !isOrganizer && !isTeamOwnerOrCaptain) {
-              // Public spectators of Auction tournaments see only Overview + Auction (if not started) 
-              // UNLESS the auction date has passed, then show all tabs.
-              if (!auctionDateReached) {
-                visibleTabs = ['Overview', ...(hasMatchesPlayed ? [] : ['Auction'])];
-              }
-            }
 
             return visibleTabs.map((tab) => (
               <TouchableOpacity
@@ -1349,6 +1645,88 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       </View>
 
       {/* Sticky Footer Removed as per user request */}
+
+      {/* Scenario Calculator Modal */}
+      <Modal visible={showScenarioCalculator} animationType="slide" transparent={true} onRequestClose={() => setShowScenarioCalculator(false)}>
+        <View style={styles.modalBg}>
+          <KeyboardAwareScrollView contentContainerStyle={styles.modalContainer} style={{ flex: 1, width: '100%' }}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>NRR Scenario Calculator</Text>
+              <TouchableOpacity onPress={() => setShowScenarioCalculator(false)}>
+                <Icon name="x" size={24} color={Colors.white} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.label}>Select Your Team</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 15 }}>
+              {tournament?.pointsTable?.map(pt => (
+                <TouchableOpacity
+                  key={pt.team._id}
+                  style={[styles.scenarioTeamBtn, scenarioData.teamId === pt.team._id && styles.scenarioTeamBtnActive]}
+                  onPress={() => setScenarioData({ ...scenarioData, teamId: pt.team._id })}
+                >
+                  <Text style={[styles.scenarioTeamBtnText, scenarioData.teamId === pt.team._id && styles.scenarioTeamBtnTextActive]}>{pt.team.shortName || pt.team.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.label}>Select Opponent Team</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 15 }}>
+              {tournament?.pointsTable?.filter(pt => pt.team._id !== scenarioData.teamId).map(pt => (
+                <TouchableOpacity
+                  key={pt.team._id}
+                  style={[styles.scenarioTeamBtn, scenarioData.opponentId === pt.team._id && styles.scenarioTeamBtnActive]}
+                  onPress={() => setScenarioData({ ...scenarioData, opponentId: pt.team._id })}
+                >
+                  <Text style={[styles.scenarioTeamBtnText, scenarioData.opponentId === pt.team._id && styles.scenarioTeamBtnTextActive]}>{pt.team.shortName || pt.team.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.label}>Toss Choice</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
+              <TouchableOpacity style={[styles.choiceBtn, scenarioData.battingFirst && styles.choiceBtnActive]} onPress={() => setScenarioData({ ...scenarioData, battingFirst: true })}>
+                <Text style={[styles.choiceBtnText, scenarioData.battingFirst && styles.choiceBtnTextActive]}>Bat First</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.choiceBtn, !scenarioData.battingFirst && styles.choiceBtnActive]} onPress={() => setScenarioData({ ...scenarioData, battingFirst: false })}>
+                <Text style={[styles.choiceBtnText, !scenarioData.battingFirst && styles.choiceBtnTextActive]}>Bowl First</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.label}>{scenarioData.battingFirst ? 'Projected Target (Your Score)' : 'Opponent First Innings Score'}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 150"
+              placeholderTextColor={Colors.textTertiary}
+              keyboardType="number-pad"
+              value={scenarioData.firstInningsScore}
+              onChangeText={val => setScenarioData({ ...scenarioData, firstInningsScore: val })}
+            />
+
+            <Text style={styles.label}>Target Rank</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 1 or 4"
+              placeholderTextColor={Colors.textTertiary}
+              keyboardType="number-pad"
+              value={scenarioData.targetRank}
+              onChangeText={val => setScenarioData({ ...scenarioData, targetRank: val })}
+            />
+
+            <TouchableOpacity style={styles.actionBtn} onPress={handleCalculateScenario} disabled={scenarioLoading}>
+              {scenarioLoading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.actionBtnText}>Calculate Margin</Text>}
+            </TouchableOpacity>
+
+            {scenarioResult && (
+              <View style={[styles.scenarioResultCard, { backgroundColor: scenarioResult.possible ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)' }]}>
+                <Text style={[styles.scenarioResultText, { color: scenarioResult.possible ? '#22c55e' : '#ef4444' }]}>
+                  {scenarioResult.message}
+                </Text>
+              </View>
+            )}
+          </KeyboardAwareScrollView>
+        </View>
+      </Modal>
 
       {/* Fixture Wizard Modal */}
       <FixtureWizardModal
@@ -1408,7 +1786,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               )}
               ListFooterComponent={
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.teamCard, { justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', backgroundColor: 'transparent' }]}
                   onPress={() => {
                     setShowRegisterModal(false);
@@ -1472,26 +1850,45 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             </View>
             <Text style={[styles.bodyText, { marginBottom: Spacing.md }]}>
               {tournament?.format?.toLowerCase() === 'knockout'
-                ? 'Note: Actual pairings will be randomized upon generation.'
+                ? 'Review the generated knockout pairings before final confirmation.'
                 : 'Note: Teams will be randomized into groups upon generation.'}
             </Text>
 
             <View style={{ flex: 1, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border }}>
               <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled">
-                <Text style={[styles.bodyText, { color: Colors.textPrimary, lineHeight: 22 }]}>
-                  {generatePreviewText()}
-                </Text>
+                {tournament?.format?.toLowerCase() === 'knockout' ? (
+                  renderKnockoutPreviewCards()
+                ) : (
+                  <Text style={[styles.bodyText, { color: Colors.textPrimary, lineHeight: 22 }]}>
+                    {generatePreviewText()}
+                  </Text>
+                )}
               </KeyboardAwareScrollView>
             </View>
 
-            <View style={{ flexDirection: 'row', marginTop: Spacing.lg }}>
-              <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={() => setShowFixturePreview(false)}>
-                <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={confirmGenerateFixtures} disabled={loading}>
-                {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.actionBtnText}>Confirm & Generate</Text>}
-              </TouchableOpacity>
-            </View>
+            {tournament?.format?.toLowerCase() === 'knockout' ? (
+              <View style={{ flexDirection: 'row', marginTop: Spacing.lg, gap: 8 }}>
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border }]} onPress={() => setShowFixturePreview(false)}>
+                  <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1.2, backgroundColor: 'rgba(154,188,47,0.1)' }]} onPress={handleRegenerateKnockoutPreview}>
+                  <MCIcon name="shuffle-variant" size={16} color={Colors.primary} style={{ marginRight: 6 }} />
+                  <Text style={[styles.actionBtnText, { color: Colors.primary }]}>Shuffle</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1.5 }]} onPress={confirmGenerateFixtures} disabled={loading}>
+                  {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.actionBtnText}>Confirm</Text>}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', marginTop: Spacing.lg }}>
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={() => setShowFixturePreview(false)}>
+                  <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={confirmGenerateFixtures} disabled={loading}>
+                  {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.actionBtnText}>Confirm & Generate</Text>}
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -1610,6 +2007,63 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         roleType={roleType}
         onRefresh={fetchDashboard}
       />
+
+      {/* Qualification Scenario Modal */}
+      <Modal visible={showScenarioModal} transparent animationType="slide" onRequestClose={() => setShowScenarioModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: Colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: '80%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <View>
+                <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>
+                  {selectedScenario?.teamName}
+                </Text>
+                <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 4 }}>Qualification Scenario</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowScenarioModal(false)}>
+                <Icon name="x" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ backgroundColor: Colors.backgroundElevated, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: selectedScenario?.color || Colors.border }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: selectedScenario?.color, marginRight: 8 }} />
+                <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>
+                  {selectedScenario?.status}
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight }}>
+                <View>
+                  <Text style={{ fontSize: 11, color: Colors.textTertiary }}>Max Points Possible</Text>
+                  <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.primary }}>{selectedScenario?.maxPoints}</Text>
+                </View>
+                <View>
+                  <Text style={{ fontSize: 11, color: Colors.textTertiary }}>Matches Remaining</Text>
+                  <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>{selectedScenario?.matchesRemaining}</Text>
+                </View>
+                <View>
+                  <Text style={{ fontSize: 11, color: Colors.textTertiary }}>Probability</Text>
+                  <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>{selectedScenario?.probability}</Text>
+                </View>
+              </View>
+
+              <View style={{ marginTop: 12 }}>
+                <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 8 }}>Details:</Text>
+                {selectedScenario?.details && selectedScenario.details.length > 0 ? (
+                  selectedScenario.details.map((detail, idx) => (
+                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 }}>
+                      <Text style={{ color: Colors.textTertiary, marginRight: 6 }}>•</Text>
+                      <Text style={{ fontSize: 13, color: Colors.textSecondary, flex: 1, lineHeight: 18 }}>{detail}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={{ fontSize: 13, color: Colors.textSecondary }}>No additional details available.</Text>
+                )}
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -1983,6 +2437,18 @@ const styles = StyleSheet.create({
   footerContainer: { padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.background },
   footerBtn: { backgroundColor: Colors.primary, flexDirection: 'row', height: 52, borderRadius: BorderRadius.lg, justifyContent: 'center', alignItems: 'center' },
   footerBtnText: { color: '#000000', fontSize: 16, fontFamily: Typography.fontFamily.bold, marginLeft: 8 },
+
+  // NRR Calculator Modal Styles
+  scenarioTeamBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginRight: 8 },
+  scenarioTeamBtnActive: { backgroundColor: 'rgba(59, 130, 246, 0.2)', borderColor: '#3b82f6' },
+  scenarioTeamBtnText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
+  scenarioTeamBtnTextActive: { color: '#3b82f6', fontFamily: Typography.fontFamily.bold },
+  choiceBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+  choiceBtnActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
+  choiceBtnText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  choiceBtnTextActive: { color: Colors.white, fontFamily: Typography.fontFamily.bold },
+  scenarioResultCard: { marginTop: 20, padding: 15, borderRadius: 12, alignItems: 'center' },
+  scenarioResultText: { fontFamily: Typography.fontFamily.semiBold, fontSize: 15, textAlign: 'center' }
 });
 
 export default TournamentDetailScreen;

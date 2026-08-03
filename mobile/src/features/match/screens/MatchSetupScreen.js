@@ -21,7 +21,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { createMatch } from '../matchSlice';
+import { createMatch, clearLiveState } from '../matchSlice';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, createTeam } from '../../team/teamSlice';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
@@ -96,21 +96,27 @@ const MatchSetupScreen = ({ navigation, route }) => {
       if (matchData.pitchType) setPitchType(matchData.pitchType);
       if (matchData.groundType) setGroundType(matchData.groundType);
       if (matchData.wagonWheelEnabled !== undefined) setWagonWheel(matchData.wagonWheelEnabled);
-      
+
       if (matchData.teamA) setTeamA(typeof matchData.teamA === 'object' ? matchData.teamA : { _id: matchData.teamA });
       if (matchData.teamB) setTeamB(typeof matchData.teamB === 'object' ? matchData.teamB : { _id: matchData.teamB });
 
-      if (matchData.playingXI) {
-        if (matchData.playingXI.teamA) setPlayingXIA(matchData.playingXI.teamA);
-        if (matchData.playingXI.teamB) setPlayingXIB(matchData.playingXI.teamB);
+      // Only restore playing XI if the match has already progressed past scheduling.
+      // For a scheduled match being freshly set up, always start with an empty squad
+      // so the user manually picks their playing XI.
+      const isEditingInProgress = matchData.status && matchData.status !== 'scheduled';
+      if (isEditingInProgress && matchData.playingXI) {
+        const normalizeIdArr = (arr) =>
+          (arr || []).map((item) => (typeof item === 'object' && item !== null ? String(item._id) : String(item)));
+        if (matchData.playingXI.teamA?.length) setPlayingXIA(normalizeIdArr(matchData.playingXI.teamA));
+        if (matchData.playingXI.teamB?.length) setPlayingXIB(normalizeIdArr(matchData.playingXI.teamB));
       }
       if (matchData.captain) {
-        if (matchData.captain.teamA) setCaptainA(matchData.captain.teamA);
-        if (matchData.captain.teamB) setCaptainB(matchData.captain.teamB);
+        if (matchData.captain.teamA) setCaptainA(typeof matchData.captain.teamA === 'object' ? String(matchData.captain.teamA._id) : String(matchData.captain.teamA));
+        if (matchData.captain.teamB) setCaptainB(typeof matchData.captain.teamB === 'object' ? String(matchData.captain.teamB._id) : String(matchData.captain.teamB));
       }
       if (matchData.wicketKeeper) {
-        if (matchData.wicketKeeper.teamA) setWkA(matchData.wicketKeeper.teamA);
-        if (matchData.wicketKeeper.teamB) setWkB(matchData.wicketKeeper.teamB);
+        if (matchData.wicketKeeper.teamA) setWkA(typeof matchData.wicketKeeper.teamA === 'object' ? String(matchData.wicketKeeper.teamA._id) : String(matchData.wicketKeeper.teamA));
+        if (matchData.wicketKeeper.teamB) setWkB(typeof matchData.wicketKeeper.teamB === 'object' ? String(matchData.wicketKeeper.teamB._id) : String(matchData.wicketKeeper.teamB));
       }
     }
   }, [matchData]);
@@ -147,6 +153,8 @@ const MatchSetupScreen = ({ navigation, route }) => {
       wk,
       selectingFor: teamTag,
       opposingXI,
+      matchId: existingMatchId,
+      tournamentId,
       onDone: (updatedXI, updatedCaptain, updatedWk, tTag) => {
         if (tTag === 'A') {
           setPlayingXIA(updatedXI);
@@ -190,6 +198,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
           ground,
           scheduledAt: tempDate.toISOString()
         });
+        dispatch(clearLiveState()); // Clear any old state before entering the new match
         navigation.replace('Toss', { matchId: existingMatchId });
       } catch (err) {
         showCustomAlert('Error', err.response?.data?.message || 'Failed to update match details');
@@ -225,7 +234,9 @@ const MatchSetupScreen = ({ navigation, route }) => {
       wicketKeeper: {
         teamA: wkA,
         teamB: wkB,
-      }
+      },
+      tournament: tournamentId,
+      stage: matchStage,
     };
 
     const res = await dispatch(createMatch(payload));
@@ -404,6 +415,8 @@ const MatchSetupScreen = ({ navigation, route }) => {
                           wk: null,
                           selectingFor: 'A',
                           opposingXI: playingXIB,
+                          matchId: existingMatchId,
+                          tournamentId,
                           onDone: (updatedXI, updatedCaptain, updatedWk, tTag) => {
                             if (tTag === 'A') {
                               setTeamA(team);
@@ -468,6 +481,8 @@ const MatchSetupScreen = ({ navigation, route }) => {
                           wk: null,
                           selectingFor: 'B',
                           opposingXI: playingXIA,
+                          matchId: existingMatchId,
+                          tournamentId,
                           onDone: (updatedXI, updatedCaptain, updatedWk, tTag) => {
                             if (tTag === 'B') {
                               setTeamB(team);

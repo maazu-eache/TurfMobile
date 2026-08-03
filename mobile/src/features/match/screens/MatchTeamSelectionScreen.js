@@ -92,8 +92,9 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
 
     if (tournamentDetails) {
       const isKnockout = matchStage && !['League Match', 'Group Stage', 'Practice Match'].includes(matchStage);
+      const isThirdPlaceMatch = matchStage && (matchStage.toLowerCase().includes('third') || matchStage.toLowerCase().includes('3rd') || matchStage.toLowerCase().includes('3rd position') || matchStage.toLowerCase().includes('third position'));
 
-      if (isKnockout) {
+      if (isKnockout && !isThirdPlaceMatch) {
         // Find teams eliminated in previous knockouts
         const eliminationStages = ['Super Knockout', 'Knockout', 'Pre Quarter Final', 'Quarter Final', 'Semi Final', 'Round of 16', 'Eliminator', 'Qualifier 2'];
         const eliminatedIds = new Set();

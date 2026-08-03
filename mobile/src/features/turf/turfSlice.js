@@ -121,8 +121,10 @@ const turfSlice = createSlice({
       })
       .addCase('auth/verifyOTP/fulfilled', (state, action) => {
         if (action.payload?.user?.favourites) {
-          // ensure we only store the IDs (in case they were populated somehow, though usually they are just IDs on login)
-          state.favourites = action.payload.user.favourites.map(f => typeof f === 'string' ? f : f._id || f);
+          // ensure we only store the IDs, filtering out any null values (e.g. from deleted turfs)
+          state.favourites = action.payload.user.favourites
+            .filter(f => f != null)
+            .map(f => typeof f === 'string' ? f : f._id || f);
         }
       });
   },

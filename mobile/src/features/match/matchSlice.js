@@ -100,6 +100,15 @@ const matchSlice = createSlice({
     setLiveState: (state, action) => {
       state.liveState = action.payload;
     },
+    clearLiveState: (state) => {
+      state.liveState = null;
+    },
+    clearMatchState: (state) => {
+      state.currentMatch = null;
+      state.liveState = null;
+      state.scorecard = null;
+      state.ballHistory = [];
+    },
     addBallToHistory: (state, action) => {
       state.ballHistory = [action.payload, ...state.ballHistory].slice(0, 100);
     },
@@ -196,17 +205,31 @@ const matchSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
+      .addCase(fetchLiveState.pending, (state) => {
+        // Do not set isLoading = true here, as it would cause full-screen flashes during background refreshes
+        state.error = null;
+      })
       .addCase(fetchLiveState.fulfilled, (state, action) => {
         state.liveState = action.payload;
+      })
+      .addCase(fetchLiveState.rejected, (state, action) => {
+        state.error = action.payload;
+        // Do not nullify liveState on network error, so the user can still see the cached summary
       })
       .addCase(fetchScorecard.fulfilled, (state, action) => {
         state.scorecard = action.payload;
       })
+      .addCase(createMatch.pending, (state) => {
+        state.liveState = null; // Clear old live state when creating a new match to prevent bleeding old state into the new screens
+      })
       .addCase(createMatch.fulfilled, (state, action) => {
         state.currentMatch = action.payload;
+        state.liveState = null; // Ensure old live state is cleared
       })
       .addCase(setInitialPlayers.fulfilled, (state, action) => {
-        state.liveState = action.payload;
+        if (action.payload && action.payload.match) {
+          state.liveState = action.payload;
+        }
       })
       .addCase(scoreBall.pending, (state, action) => {
         // Optimistic UI Update is handled directly by LiveScorerScreen.js
@@ -250,5 +273,5 @@ const matchSlice = createSlice({
   },
 });
 
-export const { setLiveState, addBallToHistory, setSocketConnected, resetMatch, updateLiveMatchScore } = matchSlice.actions;
+export const { setLiveState, clearLiveState, clearMatchState, addBallToHistory, setSocketConnected, resetMatch, updateLiveMatchScore } = matchSlice.actions;
 export default matchSlice.reducer;

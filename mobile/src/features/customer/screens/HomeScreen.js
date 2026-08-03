@@ -14,9 +14,6 @@ import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import api, { getImageUrl } from '../../../api/axios';
 import NotificationBell from '../../../components/NotificationBell';
 import PlayerProfileCard from '../../../components/PlayerProfileCard';
-import Video from 'react-native-video';
-
-let hasPlayedBannerVideo = false;
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const SIDEBAR_WIDTH = SW * 0.80;
@@ -81,7 +78,6 @@ const PulseDot = () => {
 
 const HomeScreen = ({ navigation }) => {
   const dispatch = useDispatch();
-  const [showVideo, setShowVideo] = useState(!hasPlayedBannerVideo);
   const { turfs, isLoading } = useSelector(s => s.turf);
   const { user, isAuthenticated } = useSelector(s => s.auth);
   const { myProfile } = useSelector(s => s.player || {});
@@ -538,26 +534,12 @@ const HomeScreen = ({ navigation }) => {
             </SafeAreaView>
 
             <View style={[styles.bannerWrap, { width: SW * 0.88, aspectRatio: 1983 / 793, alignSelf: 'center' }]}>
-              {showVideo ? (
-                <Video
-                  source={require('../../../../Banner.mp4')}
-                  style={{ width: '100%', height: '100%', position: 'absolute' }}
-                  resizeMode="cover"
-                  repeat={false}
-                  muted={true}
-                  onEnd={() => {
-                    hasPlayedBannerVideo = true;
-                    setShowVideo(false);
-                  }}
-                />
-              ) : (
-                <Image
-                  source={require('../../../../Banner.png')}
-                  style={{ width: '100%', height: '100%' }}
-                  resizeMode="cover"
-                  fadeDuration={300}
-                />
-              )}
+              <Image
+                source={require('../../../../Banner.png')}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+                fadeDuration={300}
+              />
             </View>
           </LinearGradient>
         </Animated.View>

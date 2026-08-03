@@ -45,6 +45,10 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
   };
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const soldCardAnim = useRef(new Animated.Value(0)).current;
+  const soldStampScale = useRef(new Animated.Value(0)).current;
+  const soldStampRotate = useRef(new Animated.Value(0)).current;
+  const soldShimmerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Blinking LIVE badge
@@ -52,6 +56,14 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
       Animated.sequence([
         Animated.timing(fadeAnim, { toValue: 0.3, duration: 700, useNativeDriver: true }),
         Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Shimmer loop for decorative elements
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(soldShimmerAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(soldShimmerAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
       ])
     ).start();
 
@@ -88,11 +100,18 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
           showCustomAlert('Winning Team Required', 'Please select the winning team before marking SOLD');
           return;
         }
-        const winningTeam = selectedTeamId || liveState?.auction?.currentHighestTeam?._id;
+        // SOLD always goes to the actual current highest bidder, NOT the manually selected team.
+        // selectedTeamId is only for placing bids, not for marking sold.
+        const winningTeam = liveState?.auction?.currentHighestTeam?._id || selectedTeamId;
         const finalPrice = liveState?.auction?.currentHighestBid || 0;
         
         const winningTeamObj = teams.find(t => t._id === winningTeam) || currentHighestTeam;
         setSoldData({ player: currentPlayer, team: winningTeamObj, price: finalPrice });
+
+        // Reset & animate sold card in
+        soldCardAnim.setValue(0);
+        soldStampScale.setValue(0);
+        soldStampRotate.setValue(0);
 
         // Optimistic Update
         const prevLiveState = liveState;
@@ -104,6 +123,30 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
           }
         });
         setSoldPopup(true);
+
+        // Animate: card slides up, then stamp pops in
+        Animated.parallel([
+          Animated.spring(soldCardAnim, {
+            toValue: 1,
+            tension: 65,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          // After card settles, pop the stamp
+          Animated.spring(soldStampScale, {
+            toValue: 1,
+            tension: 120,
+            friction: 5,
+            useNativeDriver: true,
+          }).start();
+          Animated.spring(soldStampRotate, {
+            toValue: 1,
+            tension: 80,
+            friction: 8,
+            useNativeDriver: true,
+          }).start();
+        });
 
         try {
           const res = await auctionService.markSold(auctionId, winningTeam, finalPrice);
@@ -438,68 +481,107 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
             <>
               {/* ── SOLD POPUP ── */}
               {soldPopup && soldData ? (
-            <View style={styles.soldCard}>
-              {/* Player Photo with Stamp Overlay */}
-              <View style={styles.soldPhotoWrap}>
-                {soldData.player?.photo ? (
-                  <Image source={{ uri: getImageUrl(soldData.player.photo) }} style={styles.soldPlayerPhoto} />
-                ) : (
-                  <View style={[styles.soldPlayerPhoto, { backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center' }]}>
-                    <Icon name="account" size={60} color="#555" />
+                <Animated.View
+                  style={[
+                    styles.soldCard,
+                    {
+                      opacity: soldCardAnim,
+                      transform: [{
+                        translateY: soldCardAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [40, 0],
+                        })
+                      }]
+                    }
+                  ]}
+                >
+                  {/* Glowing top accent line */}
+                  <View style={styles.soldTopAccent} />
+
+                  {/* Decorative shimmer orbs */}
+                  <Animated.View style={[styles.soldOrb1, { opacity: soldShimmerAnim }]} />
+                  <Animated.View style={[styles.soldOrb2, { opacity: soldShimmerAnim.interpolate({ inputRange: [0,1], outputRange: [1,0] }) }]} />
+
+                  {/* Player Photo with Stamp Overlay */}
+                  <View style={styles.soldPhotoWrap}>
+                    {soldData.player?.photo ? (
+                      <Image source={{ uri: getImageUrl(soldData.player.photo) }} style={styles.soldPlayerPhoto} />
+                    ) : (
+                      <View style={[styles.soldPlayerPhoto, { backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' }]}>
+                        <Icon name="account" size={50} color="#444" />
+                      </View>
+                    )}
+                    {/* SOLD Stamp */}
+                    <Animated.View
+                      style={[
+                        styles.stampWrap,
+                        {
+                          transform: [
+                            {
+                              scale: soldStampScale
+                            },
+                            {
+                              rotate: soldStampRotate.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0deg', '-22deg'],
+                              })
+                            }
+                          ]
+                        }
+                      ]}
+                      pointerEvents="none"
+                    >
+                      <View style={styles.stampInner}>
+                        <Text style={styles.stampText}>SOLD</Text>
+                      </View>
+                    </Animated.View>
                   </View>
-                )}
-                {/* SOLD Stamp */}
-                <View style={styles.stampWrap} pointerEvents="none">
-                  <View style={styles.stampInner}>
-                    <Text style={styles.stampText}>SOLD</Text>
+
+                  {/* Player Name */}
+                  <Text style={styles.soldPlayerName} numberOfLines={1}>{soldData.player?.fullName}</Text>
+
+                  {/* Role pill */}
+                  <View style={styles.soldRolePill}>
+                    <Icon name="cricket" size={11} color={Colors.primary} />
+                    <Text style={styles.soldRoleText}>{soldData.player?.role}</Text>
+                    {soldData.player?.battingStyle ? (
+                      <Text style={styles.soldStyleText}> · {soldData.player.battingStyle}</Text>
+                    ) : null}
                   </View>
-                </View>
-              </View>
 
-              {/* Player Info */}
-              <Text style={styles.soldPlayerName} numberOfLines={1}>{soldData.player?.fullName}</Text>
-              <View style={styles.soldRolePill}>
-                <Icon name="cricket" size={12} color={Colors.primary} />
-                <Text style={styles.soldRoleText}>{soldData.player?.role}</Text>
-                {soldData.player?.battingStyle ? (
-                  <Text style={styles.soldStyleText}> · {soldData.player.battingStyle}</Text>
-                ) : null}
-              </View>
+                  {/* Divider */}
+                  <View style={styles.soldDivider} />
 
-              {/* Divider */}
-              <View style={styles.soldDivider} />
-
-              {/* Team + Price Row */}
-              <View style={styles.soldTeamPriceRow}>
-                <View style={styles.soldTeamBox}>
-                  {soldData.team?.logo ? (
-                    <Image source={{ uri: getImageUrl(soldData.team.logo) }} style={styles.soldTeamLogo} />
-                  ) : (
-                    <View style={[styles.soldTeamLogo, { backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
-                      <Icon name="shield-crown" size={20} color={Colors.primary} />
+                  {/* Team + Price Row */}
+                  <View style={styles.soldTeamPriceRow}>
+                    <View style={styles.soldTeamBox}>
+                      {soldData.team?.logo ? (
+                        <Image source={{ uri: getImageUrl(soldData.team.logo) }} style={styles.soldTeamLogo} />
+                      ) : (
+                        <View style={[styles.soldTeamLogo, { backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
+                          <Icon name="shield-crown" size={18} color={Colors.primary} />
+                        </View>
+                      )}
+                      <View style={{ marginLeft: 10 }}>
+                        <Text style={styles.soldTeamLabel}>SOLD TO</Text>
+                        <Text style={styles.soldTeamName} numberOfLines={1}>{soldData.team?.name || soldData.team?.shortName}</Text>
+                      </View>
                     </View>
-                  )}
-                  <View style={{ marginLeft: 8 }}>
-                    <Text style={styles.soldTeamLabel}>SOLD TO</Text>
-                    <Text style={styles.soldTeamName} numberOfLines={1}>{soldData.team?.name || soldData.team?.shortName}</Text>
+                    <View style={styles.soldPriceBox}>
+                      <Text style={styles.soldPriceLabel}>FINAL PRICE</Text>
+                      <Text style={styles.soldPriceValue}>{soldData.price}</Text>
+                      <Text style={styles.soldPriceUnit}>Pts</Text>
+                    </View>
                   </View>
-                </View>
-                <View style={styles.soldPriceBox}>
-                  <Text style={styles.soldPriceLabel}>FINAL PRICE</Text>
-                  <Text style={styles.soldPriceValue}>{soldData.price}</Text>
-                  <Text style={styles.soldPriceUnit}>Pts</Text>
-                </View>
-              </View>
 
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleNextPlayer}>
-                {loading ? <ActivityIndicator color={Colors.background} /> : (
-                  <><Icon name="skip-next" size={18} color={Colors.background} />
-                    <Text style={styles.primaryBtnText}>NEXT PLAYER</Text></>
-                )}
-              </TouchableOpacity>
-            </View>
-
-          ) : !currentPlayer && !liveState?.auction?.currentSet ? (
+                  <TouchableOpacity style={styles.primaryBtn} onPress={handleNextPlayer}>
+                    {loading ? <ActivityIndicator color={Colors.background} /> : (
+                      <><Icon name="skip-next" size={18} color={Colors.background} />
+                        <Text style={styles.primaryBtnText}>NEXT PLAYER</Text></>
+                    )}
+                  </TouchableOpacity>
+                </Animated.View>
+              ) : !currentPlayer && !liveState?.auction?.currentSet ? (
             /* ── SELECT SET ── */
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.sectionTitle}>Select a Set to Begin</Text>
@@ -1199,22 +1281,52 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#16a34a',
+    borderColor: Colors.primary,
     marginTop: 8,
-    shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 10,
+    overflow: 'hidden',
+  },
+  soldTopAccent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: Colors.primary,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  soldOrb1: {
+    position: 'absolute',
+    top: -30,
+    right: -30,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 204, 0, 0.06)',
+  },
+  soldOrb2: {
+    position: 'absolute',
+    bottom: 60,
+    left: -40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 204, 0, 0.05)',
   },
   soldPhotoWrap: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     overflow: 'hidden',
     marginBottom: 12,
-    borderWidth: 3,
-    borderColor: '#16a34a',
+    marginTop: 8,
+    borderWidth: 2.5,
+    borderColor: Colors.primary,
     position: 'relative',
   },
   soldPlayerPhoto: {
@@ -1227,24 +1339,23 @@ const styles = StyleSheet.create({
     top: 0, left: 0, right: 0, bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    transform: [{ rotate: '-25deg' }],
   },
   stampInner: {
-    borderWidth: 4,
-    borderColor: '#16a34a',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 2.5,
+    borderColor: Colors.primary,
+    borderRadius: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(0,0,0,0.72)',
   },
   stampText: {
-    color: '#22c55e',
-    fontSize: 30,
+    color: Colors.primary,
+    fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
-    letterSpacing: 6,
-    textShadowColor: '#000',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 4,
+    letterSpacing: 5,
+    textShadowColor: 'rgba(255,204,0,0.6)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
   soldPlayerName: {
     fontSize: 20,
@@ -1308,27 +1419,27 @@ const styles = StyleSheet.create({
   },
   soldPriceBox: {
     alignItems: 'flex-end',
-    backgroundColor: 'rgba(22,163,74,0.12)',
+    backgroundColor: 'rgba(255, 204, 0, 0.1)',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#16a34a',
+    borderColor: Colors.primary,
   },
   soldPriceLabel: {
-    color: '#16a34a',
+    color: Colors.textTertiary,
     fontSize: 8,
     fontFamily: Typography.fontFamily.bold,
     letterSpacing: 1,
   },
   soldPriceValue: {
-    color: '#22c55e',
-    fontSize: 28,
+    color: Colors.primary,
+    fontSize: 26,
     fontFamily: Typography.fontFamily.bold,
-    lineHeight: 30,
+    lineHeight: 28,
   },
   soldPriceUnit: {
-    color: '#16a34a',
+    color: Colors.textTertiary,
     fontSize: 10,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -1650,16 +1761,11 @@ const styles = StyleSheet.create({
   },
   teamChipSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.primaryAlpha10,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 4,
+    backgroundColor: 'transparent',
   },
   teamChipHighest: {
     borderColor: '#FFD700',
-    backgroundColor: '#2a2200',
+    backgroundColor: 'rgba(255, 215, 0, 0.08)',
   },
   teamLogo: { width: 28, height: 28, borderRadius: 14 },
   teamLogoPlaceholder: {

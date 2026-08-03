@@ -22,13 +22,17 @@ const LocationAutocomplete = ({
   const [isLoading, setIsLoading] = useState(false);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [dropdownLayout, setDropdownLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [isLocSelected, setIsLocSelected] = useState(!!value);
 
   const timeoutRef = useRef(null);
   const inputRef = useRef(null);
 
   // Sync controlled value
   React.useEffect(() => {
-    if (value !== undefined && value !== query) setQuery(value);
+    if (value !== undefined && value !== query) {
+      setQuery(value);
+      setIsLocSelected(true);
+    }
   }, [value]);
 
   const fetchLocations = async (searchQuery) => {
@@ -55,7 +59,14 @@ const LocationAutocomplete = ({
 
   const handleTextChange = (text) => {
     setQuery(text);
+    setIsLocSelected(false);
     onChangeText?.(text);
+    if (text === '') {
+      onSelectLocation?.(null);
+      setResults([]);
+      setDropdownVisible(false);
+      return;
+    }
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => fetchLocations(text), 300);
   };
@@ -63,6 +74,7 @@ const LocationAutocomplete = ({
   const handleSelect = (item) => {
     const locName = item.display_name.split(',')[0];
     setQuery(locName);
+    setIsLocSelected(true);
     setDropdownVisible(false);
     Keyboard.dismiss();
     onSelectLocation?.({
@@ -72,6 +84,28 @@ const LocationAutocomplete = ({
       longitude: parseFloat(item.lon),
       state: item.address?.state || '',
     });
+  };
+
+  const handleBlurOrSubmit = async () => {
+    if (isLocSelected) return;
+    const searchQuery = query.trim();
+    if (searchQuery.length < 3) return;
+
+    setIsLoading(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(searchQuery)}&limit=1`,
+        { headers: { 'User-Agent': 'ScoreVerseApp/1.0', 'Accept-Language': 'en-US,en;q=0.9' } }
+      );
+      const data = await res.json();
+      if (data && data.length > 0) {
+        handleSelect(data[0]);
+      }
+    } catch (e) {
+      console.log('LocationAutocomplete autocomplete fetch error', e);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const measureInput = () => {
@@ -111,6 +145,8 @@ const LocationAutocomplete = ({
             measureInput();
             if (results.length > 0) setDropdownVisible(true);
           }}
+          onBlur={handleBlurOrSubmit}
+          onSubmitEditing={handleBlurOrSubmit}
         />
         {isLoading && <ActivityIndicator size="small" color={Colors.primary} style={{ marginLeft: 8 }} />}
       </TouchableOpacity>

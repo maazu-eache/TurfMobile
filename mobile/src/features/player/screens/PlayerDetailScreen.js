@@ -299,26 +299,59 @@ const PlayerDetailScreen = ({ navigation, route }) => {
     return (
       <>
         <BallTypeFilter />
-        {[...matchHistory].reverse().map((match, idx) => (
-          <TouchableOpacity key={idx} style={styles.matchCard} activeOpacity={0.8}
-            onPress={() => { if (match.matchId) navigation.navigate('MatchSummary', { matchId: match.matchId }); }}>
-            <View style={styles.matchCardLeft}>
-              <View style={styles.matchBallTypeBadge}>
-                <Text style={styles.matchBallTypeBadgeText}>{match.ballType || 'N/A'}</Text>
+        {[...matchHistory].reverse().map((match, idx) => {
+          const isLive = match.status === 'in_progress';
+          const teamAName = match.teamA?.shortName || match.teamA?.name || 'Team A';
+          const teamBName = match.teamB?.shortName || match.teamB?.name || 'Team B';
+          const statusText = isLive 
+            ? 'Match is Ongoing' 
+            : (match.resultSummary || 'Match Completed');
+
+          return (
+            <TouchableOpacity key={idx} style={[styles.matchCard, isLive && styles.matchCardLive]} activeOpacity={0.8}
+              onPress={() => { if (match.matchId) navigation.navigate('MatchSummary', { matchId: match.matchId }); }}>
+              <View style={{ flex: 1 }}>
+                {/* Top row: Team Names + Status Indicator */}
+                <View style={styles.matchCardHeader}>
+                  <Text style={styles.matchTeamsText} numberOfLines={1}>
+                    {teamAName} <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold }}>vs</Text> {teamBName}
+                  </Text>
+                </View>
+
+                {/* Center row: Score/Stats + Live/Date Indicator */}
+                <View style={styles.matchCardBody}>
+                  <View style={{ flex: 1 }}>
+                    {match.runs !== null ? (
+                      <>
+                        <Text style={styles.matchRunsValue}>{match.runs}{match.isNotOut ? '*' : ''} <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular }}>runs</Text></Text>
+                        <Text style={styles.matchRunsLabel}>{match.balls || 0} balls · {match.fours || 0}×4s · {match.sixes || 0}×6s</Text>
+                      </>
+                    ) : <Text style={styles.matchDNB}>Did Not Bat</Text>}
+                  </View>
+
+                  <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                    {isLive ? (
+                      <View style={styles.liveBadge}>
+                        <View style={styles.liveDot} />
+                        <Text style={styles.liveText}>LIVE</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.matchDate}>{match.date ? new Date(match.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Bottom row: Match Status / Result Summary */}
+                <View style={styles.matchCardFooter}>
+                  <Text style={[styles.matchStatusText, isLive && { color: Colors.primary }]} numberOfLines={1}>
+                    {statusText}
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.matchDate}>{match.date ? new Date(match.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}</Text>
-            </View>
-            <View style={styles.matchCardCenter}>
-              {match.runs !== null ? (
-                <>
-                  <Text style={styles.matchRunsValue}>{match.runs}{match.isNotOut ? '*' : ''}</Text>
-                  <Text style={styles.matchRunsLabel}>{match.balls || 0} balls · {match.fours || 0}×4s · {match.sixes || 0}×6s</Text>
-                </>
-              ) : <Text style={styles.matchDNB}>Did Not Bat</Text>}
-            </View>
-            <Icon name="chevron-forward" size={16} color={Colors.textTertiary} />
-          </TouchableOpacity>
-        ))}
+              <Icon name="chevron-forward" size={16} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
+            </TouchableOpacity>
+          );
+        })}
       </>
     );
   };
@@ -582,10 +615,19 @@ const styles = StyleSheet.create({
   infoValuePill: { backgroundColor: Colors.backgroundElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: Colors.border },
   infoValue: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary },
   matchCard: { marginHorizontal: 16, marginBottom: 10, padding: 14, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'center', ...Shadows.sm },
+  matchCardLive: { borderColor: Colors.primaryAlpha40, shadowColor: Colors.primary, shadowOpacity: 0.15, shadowRadius: 8 },
   matchCardLeft: { marginRight: 12, alignItems: 'flex-start', minWidth: 80 },
   matchBallTypeBadge: { backgroundColor: Colors.primaryAlpha10, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: Colors.primaryAlpha20, marginBottom: 5 },
   matchBallTypeBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 71, 87, 0.15)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(255, 71, 87, 0.3)' },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF4757', marginRight: 5 },
+  liveText: { color: '#FF4757', fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
   matchDate: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
+  matchCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingBottom: 8, marginBottom: 10 },
+  matchTeamsText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  matchCardBody: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  matchCardFooter: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingTop: 8 },
+  matchStatusText: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, flex: 1 },
   matchCardCenter: { flex: 1 },
   matchRunsValue: { fontSize: 22, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   matchRunsLabel: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },

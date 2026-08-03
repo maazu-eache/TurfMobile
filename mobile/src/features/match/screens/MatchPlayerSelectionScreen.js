@@ -18,6 +18,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { fetchLiveState, setInitialPlayers, addMatchScorer, setLiveState } from '../matchSlice';
+import socketService from '../../../services/socketService';
 import api, { getImageUrl } from '../../../api/axios';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -35,6 +36,7 @@ const MatchPlayerSelectionScreen = () => {
   const [selectedStriker, setSelectedStriker] = useState(null);
   const [selectedNonStriker, setSelectedNonStriker] = useState(null);
   const [selectedBowler, setSelectedBowler] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Modal states
   const [activeSelectionMode, setActiveSelectionMode] = useState(null); // 'striker', 'nonStriker', 'bowler'
@@ -85,52 +87,53 @@ const MatchPlayerSelectionScreen = () => {
   const [scorecards, setScorecards] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Removed redundant fetchLiveState to make screen load instantly using Redux store
   useEffect(() => {
-    // Relying on Redux store and WebSocket for liveState
-  }, [matchId]);
+    // Fetch live state if missing or for a different match (e.g. after clearing old state)
+    if (!liveState || !liveState.match || String(liveState.match._id) !== String(matchId)) {
+      dispatch(fetchLiveState(matchId));
+    }
+  }, [matchId, dispatch, liveState]);
 
   // Load team rosters and sync squads when liveState is ready
   useEffect(() => {
     if (isNavigatingRef.current) return;
-    if (liveState && liveState.match && liveState.match._id === matchId) {
-      const match = liveState.match;
-      const batTeamId = liveState.battingTeam;
+    if (!liveState || !liveState.match) return;
+    if (String(liveState.match._id) !== String(matchId)) return;
 
-      const isTeamABatting = batTeamId === match.teamA._id;
-      const batTeam = isTeamABatting ? match.teamA : match.teamB;
-      const bowlTeam = isTeamABatting ? match.teamB : match.teamA;
+    const match = liveState.match;
+    const batTeamId = String(liveState.battingTeam?._id || liveState.battingTeam || '');
+    const teamAId = String(match.teamA?._id || match.teamA || '');
 
-      setBattingSquad(isTeamABatting ? match.playingXI.teamA : match.playingXI.teamB);
-      setBowlingSquad(isTeamABatting ? match.playingXI.teamB : match.playingXI.teamA);
+    const isTeamABatting = batTeamId === teamAId;
+    const batTeam = isTeamABatting ? match.teamA : match.teamB;
+    const bowlTeam = isTeamABatting ? match.teamB : match.teamA;
 
-      // Fetch full rosters if not already loaded
-      if (battingTeamRoster.length === 0) {
-        fetchTeam(batTeam._id, setBattingTeamRoster);
-      }
-      if (bowlingTeamRoster.length === 0) {
-        fetchTeam(bowlTeam._id, setBowlingTeamRoster);
-      }
+    // Squad assignment: batting squad = playing XI of batting team, bowling squad = fielding team's XI
+    const batXI = isTeamABatting ? match.playingXI?.teamA : match.playingXI?.teamB;
+    const bowlXI = isTeamABatting ? match.playingXI?.teamB : match.playingXI?.teamA;
 
-      if (liveState.striker && !selectedStriker) {
-        const str = (isTeamABatting ? match.playingXI.teamA : match.playingXI.teamB).find(p => p._id === liveState.striker._id) || liveState.striker;
-        setSelectedStriker(str);
-      }
-      if (liveState.nonStriker && !selectedNonStriker) {
-        const nStr = (isTeamABatting ? match.playingXI.teamA : match.playingXI.teamB).find(p => p._id === liveState.nonStriker._id) || liveState.nonStriker;
-        setSelectedNonStriker(nStr);
-      }
-      if (liveState.bowler && !selectedBowler) {
-        const bwlr = (isTeamABatting ? match.playingXI.teamB : match.playingXI.teamA).find(p => p._id === liveState.bowler._id) || liveState.bowler;
-        setSelectedBowler(bwlr);
-      }
+    // Unconditionally sync squads reactively
+    setBattingSquad(batXI || []);
+    setBowlingSquad(bowlXI || []);
 
-      // Fetch scorecards for validations if not loaded
-      if (scorecards.length === 0) {
-        fetchScorecards();
-      }
+    // Fetch full rosters only once
+    if (battingTeamRoster.length === 0 && batTeam?._id) {
+      fetchTeam(batTeam._id, setBattingTeamRoster);
     }
-  }, [liveState, selectedStriker, selectedNonStriker, selectedBowler, battingTeamRoster.length, bowlingTeamRoster.length, scorecards.length]);
+    if (bowlingTeamRoster.length === 0 && bowlTeam?._id) {
+      fetchTeam(bowlTeam._id, setBowlingTeamRoster);
+    }
+
+    // Reactively sync selected players with liveState
+    setSelectedStriker(liveState.striker || null);
+    setSelectedNonStriker(liveState.nonStriker || null);
+    setSelectedBowler(liveState.bowler || null);
+
+    // Fetch scorecards for validations if not loaded
+    if (scorecards.length === 0) {
+      fetchScorecards();
+    }
+  }, [liveState?.striker?._id, liveState?.nonStriker?._id, liveState?.bowler?._id, liveState?.match?.currentInnings]);
 
   const fetchScorecards = async () => {
     try {
@@ -180,6 +183,7 @@ const MatchPlayerSelectionScreen = () => {
 
     try {
       isNavigatingRef.current = true;
+      setSubmitting(true);
       const payload = {
         matchId,
         striker: selectedStriker._id,
@@ -199,14 +203,18 @@ const MatchPlayerSelectionScreen = () => {
         }));
       }
 
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        navigation.navigate('LiveScorer', { matchId, isAmbiguousStrike });
-      }
+      const socket = socketService.getSocket();
+      socket.emit('set_players', {
+        matchId,
+        striker: selectedStriker._id,
+        nonStriker: selectedNonStriker?._id,
+        bowler: selectedBowler?._id
+      });
 
-      dispatch(setInitialPlayers(payload)).catch(e => console.log('Background setInitialPlayers failed', e));
+      setSubmitting(false);
+      navigation.navigate('LiveScorer', { matchId, isAmbiguousStrike, skipFocusFetch: true });
     } catch (e) {
+      setSubmitting(false);
       isNavigatingRef.current = false;
       showCustomAlert('Error', e?.message || 'Failed to start scoring.');
     }
@@ -253,14 +261,14 @@ const MatchPlayerSelectionScreen = () => {
     const isBatting = activeSelectionMode === 'striker' || activeSelectionMode === 'nonStriker';
     const currentSquad = isBatting ? battingSquad : bowlingSquad;
     const otherSquad = isBatting ? bowlingSquad : battingSquad;
-    const isMember = currentSquad.some(p => p._id === player._id);
+    const isMember = currentSquad.some(p => String(p._id || p) === String(player._id || player));
 
     if (isMember) {
-      const newSquad = currentSquad.filter(p => p._id !== player._id);
+      const newSquad = currentSquad.filter(p => String(p._id || p) !== String(player._id || player));
       if (isBatting) setBattingSquad(newSquad);
       else setBowlingSquad(newSquad);
     } else {
-      const isInOtherSquad = otherSquad.some(p => p._id === player._id);
+      const isInOtherSquad = otherSquad.some(p => String(p._id || p) === String(player._id || player));
       if (isInOtherSquad) {
         const match = liveState?.match;
         const isTeamABatting = liveState?.battingTeam === match?.teamA?._id;
@@ -431,7 +439,9 @@ const MatchPlayerSelectionScreen = () => {
   }
 
   const match = liveState.match;
-  const isTeamABatting = liveState.battingTeam === match.teamA._id;
+  const batTeamId = String(liveState.battingTeam?._id || liveState.battingTeam || '');
+  const teamAId = String(match.teamA?._id || match.teamA || '');
+  const isTeamABatting = batTeamId === teamAId;
   const batTeam = isTeamABatting ? match.teamA : match.teamB;
   const bowlTeam = isTeamABatting ? match.teamB : match.teamA;
 
@@ -470,6 +480,11 @@ const MatchPlayerSelectionScreen = () => {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {submitting && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      )}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="chevron-left" size={28} color={Colors.textPrimary} />
@@ -527,26 +542,7 @@ const MatchPlayerSelectionScreen = () => {
           </>
         )}
 
-        {/* Scorer Profile */}
-        <Text style={styles.sectionHeader}>Match Scorer</Text>
-        <View style={styles.card}>
-          <View style={styles.scorerRow}>
-            {user?.photo ? (
-              <Image source={{ uri: getImageUrl(user.photo) }} style={styles.scorerAvatar} />
-            ) : (
-              <View style={[styles.scorerAvatar, { backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>{user?.name?.charAt(0).toUpperCase() || 'S'}</Text>
-              </View>
-            )}
-            <View style={styles.scorerInfo}>
-              <Text style={styles.scorerName}>{user?.name || 'Scorer'}</Text>
-              <Text style={styles.scorerRole}>Official Scorer</Text>
-            </View>
-            <View style={styles.verifiedBadgeLarge}>
-              <Icon name="check-decagram" size={20} color={Colors.accent} />
-            </View>
-          </View>
-        </View>
+        {/* Scorer section removed per UX feedback */}
 
       </KeyboardAwareScrollView>
 
@@ -690,7 +686,7 @@ const MatchPlayerSelectionScreen = () => {
               <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.modalList}>
                 {(activeSelectionMode === 'bowler' ? bowlingTeamRoster : battingTeamRoster).map((p, idx) => {
                   const currentSquad = activeSelectionMode === 'bowler' ? bowlingSquad : battingSquad;
-                  const isSelected = currentSquad.some(s => s._id === p._id);
+                  const isSelected = currentSquad.some(s => String(s._id || s) === String(p._id || p));
                   return (
                     <TouchableOpacity
                       key={p._id + '_' + idx}
@@ -729,14 +725,48 @@ const MatchPlayerSelectionScreen = () => {
                       oppositionRoster,
                       squad,
                       onClose: () => setShowEditSquadModal(true),
-                      onPlayerAdded: (newPlayer) => {
+                      onPlayerAdded: async (newPlayer) => {
                         const isBattingLocal = activeSelectionMode === 'striker' || activeSelectionMode === 'nonStriker';
-                        if (isBattingLocal) {
-                          setBattingTeamRoster(prev => prev.some(p => p._id === newPlayer._id) ? prev : [...prev, newPlayer]);
-                          setBattingSquad(prev => prev.some(p => p._id === newPlayer._id) ? prev : [...prev, newPlayer]);
-                        } else {
-                          setBowlingTeamRoster(prev => prev.some(p => p._id === newPlayer._id) ? prev : [...prev, newPlayer]);
-                          setBowlingSquad(prev => prev.some(p => p._id === newPlayer._id) ? prev : [...prev, newPlayer]);
+                        try {
+                          const currentTeamA_XI = match?.playingXI?.teamA?.map(p => p._id || p) || [];
+                          const currentTeamB_XI = match?.playingXI?.teamB?.map(p => p._id || p) || [];
+                          
+                          const isTeamABattingLocal = liveState.battingTeam === match.teamA._id;
+                          if (isBattingLocal) {
+                            if (isTeamABattingLocal) {
+                              currentTeamA_XI.push(newPlayer._id);
+                            } else {
+                              currentTeamB_XI.push(newPlayer._id);
+                            }
+                          } else {
+                            if (isTeamABattingLocal) {
+                              currentTeamB_XI.push(newPlayer._id);
+                            } else {
+                              currentTeamA_XI.push(newPlayer._id);
+                            }
+                          }
+
+                          await api.post(`/matches/${matchId}/playing-xi`, {
+                            teamA: currentTeamA_XI,
+                            teamB: currentTeamB_XI
+                          });
+
+                          // Reload roster
+                          const activeTeamId = getActiveTeamId();
+                          if (isBattingLocal) {
+                            fetchTeam(activeTeamId, setBattingTeamRoster);
+                          } else {
+                            fetchTeam(activeTeamId, setBowlingTeamRoster);
+                          }
+
+                          // Refresh live state
+                          const res = await api.get(`/matches/${matchId}/live`);
+                          dispatch(setLiveState(res.data.data));
+
+                          // Instantly reopen modal
+                          setShowSquadModal(true);
+                        } catch (e) {
+                          console.log('Error adding player to playing XI:', e);
                         }
                       }
                     });

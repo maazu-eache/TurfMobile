@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StatusBar } from 'react-native';
+import { StatusBar, Linking } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
@@ -16,6 +16,53 @@ import NotificationService from './src/services/NotificationService';
 import CustomAlert, { customAlertRef } from './src/components/CustomAlert';
 
 const App = () => {
+  const navigateUrl = (url, retries = 0) => {
+    if (!url) return;
+    
+    let cleanPath = url
+      .replace('roughturf://', '')
+      .replace('https://roughturf.com/', '')
+      .replace('https://scoreverse.maazibrahimoo0.workers.dev/', '')
+      .replace('https://scoreverse.app/', '');
+
+    if (cleanPath.includes('?')) {
+      cleanPath = cleanPath.split('?')[0];
+    }
+
+    const parts = cleanPath.split('/');
+    if (parts.length >= 2) {
+      const route = parts[0];
+      const id = parts[1];
+
+      const isReady = navigationRef.isReady();
+      const currentRoute = isReady ? navigationRef.getCurrentRoute() : null;
+
+      if (isReady && currentRoute && currentRoute.name !== 'Splash') {
+        if (route === 'tournament') {
+          navigate('Customer', {
+            screen: 'My Cricket',
+            params: {
+              screen: 'TournamentDetail',
+              params: { tournamentId: id }
+            }
+          });
+        } else if (route === 'match') {
+          navigate('Customer', {
+            screen: 'My Cricket',
+            params: {
+              screen: 'MatchSummary',
+              params: { matchId: id }
+            }
+          });
+        }
+      } else {
+        if (retries < 15) {
+          setTimeout(() => navigateUrl(url, retries + 1), 1000);
+        }
+      }
+    }
+  };
+
   useEffect(() => {
     try {
       NotificationService.requestUserPermission();
@@ -38,9 +85,25 @@ const App = () => {
         if (remoteMessage) handleNotificationNavigation(remoteMessage);
       });
 
-      return unsubscribe;
+      // Handle deep linking
+      const handleDeepLink = (event) => {
+        navigateUrl(event.url);
+      };
+
+      Linking.getInitialURL().then((url) => {
+        if (url) {
+          navigateUrl(url);
+        }
+      });
+
+      const subscription = Linking.addEventListener('url', handleDeepLink);
+
+      return () => {
+        unsubscribe?.();
+        subscription.remove();
+      };
     } catch (err) {
-      console.log('Firebase messaging is not configured:', err.message);
+      console.log('App initialization error:', err.message);
     }
   }, []);
   const linking = {
@@ -64,7 +127,8 @@ const App = () => {
                 TournamentDetail: 'tournament/:tournamentId',
                 MatchSummary: 'match/:matchId',
               }
-            }
+            },
+            AuctionRegistration: 'tournament/:tournamentId/register',
           }
         },
         Player: {
@@ -74,7 +138,8 @@ const App = () => {
                 TournamentDetail: 'tournament/:tournamentId',
                 MatchSummary: 'match/:matchId',
               }
-            }
+            },
+            AuctionRegistration: 'tournament/:tournamentId/register',
           }
         }
       }

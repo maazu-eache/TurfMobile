@@ -27,7 +27,7 @@ const BATTING_ORDERS = ['Top Order', 'Middle Order', 'Lower Order', 'Tailender']
 const BOWLING_STYLES = ['Right Arm Fast', 'Right Arm Medium', 'Right Arm Off Spin', 'Right Arm Leg Spin', 'Left Arm Fast', 'Left Arm Medium', 'Left Arm Orthodox', 'Left Arm Wrist Spin', 'None'];
 const GENDERS = ['Male', 'Female', 'Other'];
 const BALL_TYPES = ['Overall', 'Tennis', 'Leather', 'Other'];
-const STAT_TABS = ['Statistics', 'Analytics', 'Achievements', 'Awards'];
+const STAT_TABS = ['Statistics', 'Matches', 'Analytics', 'Achievements', 'Awards'];
 
 // ─── Dropdown ────────────────────────────────────────────────────────────────
 const Dropdown = ({ label, value, options, onSelect }) => {
@@ -472,6 +472,75 @@ const PlayerProfileScreen = ({ navigation }) => {
       );
     }
 
+    // ── MATCHES ─────────────────────────────────────────────────────────────
+    if (activeStatTab === 'Matches') {
+      if (isLoading) return <View style={styles.tabCenteredEmpty}><ActivityIndicator color={Colors.primary} size="large" /></View>;
+      if (!matchHistory || matchHistory.length === 0) return (
+        <View style={styles.tabCenteredEmpty}>
+          <MCIcon name="baseball" size={52} color={Colors.textTertiary} />
+          <Text style={styles.emptyText}>No match history yet</Text>
+        </View>
+      );
+      return (
+        <View>
+          <BallFilter />
+          {[...matchHistory].reverse().map((match, idx) => {
+            const isLive = match.status === 'in_progress';
+            const teamAName = match.teamA?.shortName || match.teamA?.name || 'Team A';
+            const teamBName = match.teamB?.shortName || match.teamB?.name || 'Team B';
+            const statusText = isLive 
+              ? 'Match is Ongoing' 
+              : (match.resultSummary || 'Match Completed');
+
+            return (
+              <TouchableOpacity key={idx} style={[styles.matchCard, isLive && styles.matchCardLive]} activeOpacity={0.8}
+                onPress={() => { if (match.matchId) navigation.navigate('MatchSummary', { matchId: match.matchId }); }}>
+                <View style={{ flex: 1 }}>
+                  {/* Top row: Team Names + Status Indicator */}
+                  <View style={styles.matchCardHeader}>
+                    <Text style={styles.matchTeamsText} numberOfLines={1}>
+                      {teamAName} <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold }}>vs</Text> {teamBName}
+                    </Text>
+                  </View>
+
+                  {/* Center row: Score/Stats + Live/Date Indicator */}
+                  <View style={styles.matchCardBody}>
+                    <View style={{ flex: 1 }}>
+                      {match.runs !== null ? (
+                        <>
+                          <Text style={styles.matchRunsValue}>{match.runs}{match.isNotOut ? '*' : ''} <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular }}>runs</Text></Text>
+                          <Text style={styles.matchRunsLabel}>{match.balls || 0} balls · {match.fours || 0}×4s · {match.sixes || 0}×6s</Text>
+                        </>
+                      ) : <Text style={styles.matchDNB}>Did Not Bat</Text>}
+                    </View>
+
+                    <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                      {isLive ? (
+                        <View style={styles.liveBadge}>
+                          <View style={styles.liveDot} />
+                          <Text style={styles.liveText}>LIVE</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.matchDate}>{match.date ? new Date(match.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Bottom row: Match Status / Result Summary */}
+                  <View style={styles.matchCardFooter}>
+                    <Text style={[styles.matchStatusText, isLive && { color: Colors.primary }]} numberOfLines={1}>
+                      {statusText}
+                    </Text>
+                  </View>
+                </View>
+                <Icon name="chevron-forward" size={16} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      );
+    }
+
     // ── ANALYTICS ───────────────────────────────────────────────────────────
     if (activeStatTab === 'Analytics') {
       return (
@@ -657,15 +726,27 @@ const PlayerProfileScreen = ({ navigation }) => {
             <SectionHeading icon="medal" title="Batting Milestones" color={Colors.primary} />
             <View style={styles.achieveGrid}>
               <AchievementBadge icon="numeric-1-circle" color={Colors.primary} title="First Run" desc="Score your first run" earned={totalRuns >= 1} />
-              <AchievementBadge icon="counter" color={Colors.primary} title="Half Century" desc="Score 50+ runs" earned={totalRuns >= 50} timesEarned={overallBat.fifties || 0} />
-              <AchievementBadge icon="trophy" color={Colors.primary} title="Century" desc="100+ runs in an innings" earned={(overallBat.hundreds || 0) > 0} timesEarned={overallBat.hundreds || 0} />
+              <AchievementBadge icon="star" color={Colors.primary} title="Hundred Runs" desc="100+ total runs" earned={totalRuns >= 100} />
               <AchievementBadge icon="star" color={Colors.primary} title="Run Machine" desc="500+ total runs" earned={totalRuns >= 500} />
-              <AchievementBadge icon="fire" color={Colors.primary} title="Six Hitter" desc="Hit 10+ sixes" earned={(overallBat.sixes || 0) >= 10} />
-              <AchievementBadge icon="lightning-bolt" color={Colors.primary} title="Powerhouse" desc="Strike Rate 150+" earned={parseFloat(batSR) >= 150} />
-              <AchievementBadge icon="flash" color={Colors.primary} title="Blaster" desc="Hit 25+ fours" earned={(overallBat.fours || 0) >= 25} timesEarned={Math.floor((overallBat.fours || 0)/25)} />
+              <AchievementBadge icon="star" color={Colors.primary} title="Run Accumulator" desc="1000+ total runs" earned={totalRuns >= 1000} />
+              
+              <AchievementBadge icon="counter" color={Colors.primary} title="Cool Thirty" desc="Score 30+ runs" earned={(overallBat.thirties || 0) > 0} timesEarned={overallBat.thirties || 0} />
+              <AchievementBadge icon="counter" color={Colors.primary} title="Thirty Machine" desc="Score 10 30+ scores" earned={(overallBat.thirties || 0) >= 10} />
+              
+              <AchievementBadge icon="counter" color={Colors.primary} title="First Fifty" desc="Score 50+ runs" earned={(overallBat.fifties || 0) > 0} timesEarned={overallBat.fifties || 0} />
+              <AchievementBadge icon="counter" color={Colors.primary} title="Half-Century Machine" desc="Score 10 50+ scores" earned={(overallBat.fifties || 0) >= 10} />
+              
+              <AchievementBadge icon="trophy" color={Colors.primary} title="Centurion" desc="100+ runs in an innings" earned={(overallBat.hundreds || 0) > 0} timesEarned={overallBat.hundreds || 0} />
+              <AchievementBadge icon="trophy" color={Colors.primary} title="Legendary Centurion" desc="Score 10 centuries" earned={(overallBat.hundreds || 0) >= 10} />
+              
+              <AchievementBadge icon="flash" color={Colors.primary} title="Boundary Hitter" desc="Hit 50+ fours" earned={(overallBat.fours || 0) >= 50} timesEarned={Math.floor((overallBat.fours || 0)/50)} />
+              <AchievementBadge icon="flash" color={Colors.primary} title="Boundary Machine" desc="Hit 100+ fours" earned={(overallBat.fours || 0) >= 100} />
+              
+              <AchievementBadge icon="fire" color={Colors.primary} title="Six Hitter" desc="Hit 50+ sixes" earned={(overallBat.sixes || 0) >= 50} />
+              <AchievementBadge icon="fire" color={Colors.primary} title="Six Machine" desc="Hit 100+ sixes" earned={(overallBat.sixes || 0) >= 100} />
+              
               <AchievementBadge icon="shield" color={Colors.primary} title="The Wall" desc="Stay Not Out 10+ times" earned={(overallBat.notOuts || 0) >= 10} timesEarned={overallBat.notOuts || 0} />
-              <AchievementBadge icon="run-fast" color={Colors.primary} title="Boundary Rider" desc="Hit 50+ fours" earned={(overallBat.fours || 0) >= 50} timesEarned={Math.floor((overallBat.fours || 0)/50)} />
-
+              <AchievementBadge icon="lightning-bolt" color={Colors.primary} title="Powerhouse" desc="Strike Rate 150+" earned={parseFloat(batSR) >= 150} />
             </View>
           </View>
 
@@ -673,11 +754,12 @@ const PlayerProfileScreen = ({ navigation }) => {
             <SectionHeading icon="medal-outline" title="Bowling Milestones" color={Colors.primary} />
             <View style={styles.achieveGrid}>
               <AchievementBadge icon="numeric-1-circle" color={Colors.primary} title="First Wicket" desc="Take your first wicket" earned={totalWickets >= 1} />
+              <AchievementBadge icon="star" color={Colors.primary} title="First 10 Wickets" desc="Take 10+ wickets" earned={totalWickets >= 10} />
+              <AchievementBadge icon="star-circle" color={Colors.primary} title="Wicket Taker" desc="Take 50+ wickets" earned={totalWickets >= 50} />
+              <AchievementBadge icon="star-circle" color={Colors.primary} title="Wicket Machine" desc="Take 100+ wickets" earned={totalWickets >= 100} />
               <AchievementBadge icon="target" color={Colors.primary} title="5-Wicket Haul" desc="Take a 5-for in an innings" earned={(overallBowl.fiveWickets || 0) > 0} timesEarned={overallBowl.fiveWickets || 0} />
               <AchievementBadge icon="bowling" color={Colors.primary} title="Hat-Trick" desc="3 wickets in 3 balls" earned={false} />
               <AchievementBadge icon="chart-line" color={Colors.primary} title="Economy King" desc="Economy below 6.0" earned={parseFloat(bowlEcon) > 0 && parseFloat(bowlEcon) < 6} />
-              <AchievementBadge icon="star-circle" color={Colors.primary} title="Golden Arm" desc="Take 50+ wickets" earned={totalWickets >= 50} />
-              <AchievementBadge icon="star" color={Colors.primary} title="Wicket Taker" desc="Take 25+ wickets" earned={totalWickets >= 25} />
 
             </View>
           </View>
@@ -1165,6 +1247,27 @@ const styles = StyleSheet.create({
   socialRole: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 1 },
   socialActionBtn: { borderRadius: 8, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 6 },
   socialActionBtnText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.error },
+
+  // Matches Tab cards and badges
+  tabCenteredEmpty: { alignItems: 'center', paddingVertical: 64 },
+  emptyText: { marginTop: 14, fontSize: 14, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium },
+  matchCard: { marginHorizontal: 2, marginBottom: 10, padding: 14, backgroundColor: Colors.backgroundCard, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'center' },
+  matchCardLive: { borderColor: Colors.primaryAlpha40 },
+  matchCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingBottom: 8, marginBottom: 10 },
+  matchTeamsText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  matchCardBody: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  matchCardFooter: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingTop: 8 },
+  matchStatusText: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, flex: 1 },
+  matchRunsValue: { fontSize: 22, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  matchRunsLabel: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },
+  matchDNB: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, fontStyle: 'italic' },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 71, 87, 0.15)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(255, 71, 87, 0.3)' },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF4757', marginRight: 5 },
+  liveText: { color: '#FF4757', fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  matchDate: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
+  matchBallTypeBadge: { backgroundColor: Colors.primaryAlpha10, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: Colors.primaryAlpha20 },
+  matchBallTypeBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+
 });
 
 export default PlayerProfileScreen;

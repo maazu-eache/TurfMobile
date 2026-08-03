@@ -98,7 +98,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
       const fetchedReviews = res.data.data.reviews || [];
       setReviews(fetchedReviews);
       if (user) {
-        const existing = fetchedReviews.find(r => r.user?._id === user._id);
+        const existing = fetchedReviews.find(r => r.user?._id === user?._id);
         if (existing) setUserReview(existing);
       }
     } catch (e) {
@@ -656,7 +656,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
               onPress={async () => {
                 try {
                   await Share.share({
-                    message: `Check out ${selectedTurf?.name} on RoughTurf! \n\nhttps://scoreverse.app/turf/${selectedTurf?._id}`,
+                    message: `Check out ${selectedTurf?.name} on RoughTurf! \n\nhttps://scoreverse.maazibrahimoo0.workers.dev/turf/${selectedTurf?._id}`,
                   });
                 } catch (error) {
                   console.error(error.message);

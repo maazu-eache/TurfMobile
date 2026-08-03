@@ -408,14 +408,6 @@
 	[
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_rnworklets::@68f58d84d4754f193387"
-		},
-		{
-			"backtrace" : 4,
-			"id" : "react_codegen_RNWorkletsSpec::@c787b30dd2b0f948dced"
-		},
-		{
-			"backtrace" : 4,
 			"id" : "react_codegen_AsyncStorageSpec::@15af80695a6281ecf900"
 		},
 		{
@@ -481,6 +473,14 @@
 		{
 			"backtrace" : 4,
 			"id" : "react_codegen_rnviewshot::@0ba03d237e60b9258a87"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_rnworklets::@68f58d84d4754f193387"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_RNWorkletsSpec::@c787b30dd2b0f948dced"
 		}
 	],
 	"id" : "appmodules::@6890427a1f51a3e7e1df",

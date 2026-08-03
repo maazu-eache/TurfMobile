@@ -31,24 +31,24 @@ import LocationAutocomplete from '../../../components/LocationAutocomplete';
 
 // Ground (Turfs) is LAST
 const TABS = [
-  { id: 'players',     label: 'Players',     icon: 'account-multiple' },
-  { id: 'matches',     label: 'Matches',     icon: 'cricket' },
+  { id: 'players', label: 'Players', icon: 'account-multiple' },
+  { id: 'matches', label: 'Matches', icon: 'cricket' },
   { id: 'tournaments', label: 'Tournaments', icon: 'trophy' },
-  { id: 'turfs',       label: 'Ground',      icon: 'soccer-field' },
+  { id: 'turfs', label: 'Ground', icon: 'soccer-field' },
 ];
 
 const PLAYER_QUICK_FILTERS = [
-  { id: 'all',           icon: 'account',   label: 'All',          value: '' },
-  { id: 'batsman',       icon: 'cricket',   label: 'Batsman',      value: 'Batsman' },
-  { id: 'bowler',        icon: 'baseball',  label: 'Bowler',       value: 'Bowler' },
-  { id: 'all_rounder',   icon: 'star',      label: 'All-Rounder',  value: 'All Rounder' },
-  { id: 'wicket_keeper', icon: 'handball',  label: 'WK',           value: 'Wicket Keeper' },
+  { id: 'all', icon: 'account', label: 'All', value: '' },
+  { id: 'batsman', icon: 'cricket', label: 'Batsman', value: 'Batsman' },
+  { id: 'bowler', icon: 'baseball', label: 'Bowler', value: 'Bowler' },
+  { id: 'all_rounder', icon: 'star', label: 'All-Rounder', value: 'All Rounder' },
+  { id: 'wicket_keeper', icon: 'handball', label: 'WK', value: 'Wicket Keeper' },
 ];
 const MATCH_QUICK_FILTERS = [
-  { id: 'all',       icon: 'cricket',              label: 'All',       value: '' },
-  { id: 'live',      icon: 'record-circle-outline', label: 'Live',      value: 'in_progress' },
-  { id: 'scheduled', icon: 'calendar-clock',        label: 'Scheduled', value: 'scheduled' },
-  { id: 'completed', icon: 'check-circle-outline',  label: 'Completed', value: 'completed' },
+  { id: 'all', icon: 'cricket', label: 'All', value: '' },
+  { id: 'live', icon: 'record-circle-outline', label: 'Live', value: 'in_progress' },
+  { id: 'scheduled', icon: 'calendar-clock', label: 'Scheduled', value: 'scheduled' },
+  { id: 'completed', icon: 'check-circle-outline', label: 'Completed', value: 'completed' },
 ];
 const SearchScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
@@ -62,7 +62,7 @@ const SearchScreen = ({ navigation, route }) => {
 
   const [activeTab, setActiveTab] = useState('players');
   const [isFilterVisible, setFilterVisible] = useState(false);
-  
+
   // Location State
   const [selectedLocation, setSelectedLocation] = useState(null);
 
@@ -71,11 +71,21 @@ const SearchScreen = ({ navigation, route }) => {
   const [sortOrder, setSortOrder] = useState('');
   const [playerRoleFilter, setPlayerRoleFilter] = useState('');
   const [matchStatusFilter, setMatchStatusFilter] = useState('');
-  
+
   const hasInitializedLocation = useRef(false);
 
   const slideAnim = useRef(new Animated.Value(700)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
+
+  // Location modal
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const locationSlideAnim = useRef(new Animated.Value(700)).current;
+  const locationOverlayAnim = useRef(new Animated.Value(0)).current;
+  const [locQuery, setLocQuery] = useState('');
+  const [locResults, setLocResults] = useState([]);
+  const [locLoading, setLocLoading] = useState(false);
+  const locTimeoutRef = useRef(null);
+  const locInputRef = useRef(null);
 
   useEffect(() => {
     if (!myProfile && user) dispatch(fetchMyPlayer());
@@ -111,7 +121,7 @@ const SearchScreen = ({ navigation, route }) => {
   const [hasMore, setHasMore] = useState(true);
   const isFirstMount = React.useRef(true);
   const prevFiltersRef = React.useRef('');
-  
+
   useEffect(() => {
     if (!selectedLocation) return;
     const filterKey = `${searchQuery}|${selectedLocation?.name}|${activeTab}|${minTrustScore}|${maxPrice}|${sortOrder}|${playerRoleFilter}|${matchStatusFilter}`;
@@ -166,6 +176,61 @@ const SearchScreen = ({ navigation, route }) => {
     ]).start(() => setFilterVisible(false));
   };
 
+  const openLocationModal = () => {
+    setLocQuery('');
+    setLocResults([]);
+    setLocationModalVisible(true);
+    Animated.parallel([
+      Animated.spring(locationSlideAnim, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 150 }),
+      Animated.timing(locationOverlayAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+    ]).start(() => {
+      setTimeout(() => locInputRef.current?.focus(), 100);
+    });
+  };
+
+  const closeLocationModal = () => {
+    Animated.parallel([
+      Animated.timing(locationSlideAnim, { toValue: 700, duration: 300, useNativeDriver: true }),
+      Animated.timing(locationOverlayAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => setLocationModalVisible(false));
+  };
+
+  const fetchLocSuggestions = async (text) => {
+    if (!text || text.length < 2) { setLocResults([]); return; }
+    setLocLoading(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(text)}&limit=7`,
+        { headers: { 'User-Agent': 'ScoreVerseApp/1.0', 'Accept-Language': 'en-US,en;q=0.9' } }
+      );
+      const data = await res.json();
+      setLocResults(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setLocResults([]);
+    } finally {
+      setLocLoading(false);
+    }
+  };
+
+  const handleLocQueryChange = (text) => {
+    setLocQuery(text);
+    clearTimeout(locTimeoutRef.current);
+    locTimeoutRef.current = setTimeout(() => fetchLocSuggestions(text), 350);
+  };
+
+  const handleLocationSelect = (item) => {
+    const locName = item.display_name.split(',')[0];
+    setSelectedLocation({
+      name: locName,
+      fullName: item.display_name,
+      city: item.address?.city || item.address?.town || item.address?.county || locName,
+      latitude: parseFloat(item.lat),
+      longitude: parseFloat(item.lon),
+      state: item.address?.state || '',
+    });
+    closeLocationModal();
+  };
+
   const resetFilters = () => {
     setMinTrustScore(''); setMaxPrice(''); setSortOrder('');
     setPlayerRoleFilter(''); setMatchStatusFilter('');
@@ -186,12 +251,12 @@ const SearchScreen = ({ navigation, route }) => {
 
   const getMatchScore = (match) => {
     if (match.teamAScore && match.teamBScore) {
-       const teamAStr = `${match.teamA?.shortName || match.teamA?.name} ${match.teamAScore.runs}/${match.teamAScore.wickets} (${match.teamAScore.overs})`;
-       const teamBStr = `${match.teamB?.shortName || match.teamB?.name} ${match.teamBScore.runs}/${match.teamBScore.wickets} (${match.teamBScore.overs})`;
-       if (match.teamAScore.runs === 0 && match.teamAScore.wickets === 0 && match.teamBScore.runs === 0 && match.teamBScore.wickets === 0) return null;
-       return `${teamAStr} vs ${teamBStr}`;
+      const teamAStr = `${match.teamA?.shortName || match.teamA?.name} ${match.teamAScore.runs}/${match.teamAScore.wickets} (${match.teamAScore.overs})`;
+      const teamBStr = `${match.teamB?.shortName || match.teamB?.name} ${match.teamBScore.runs}/${match.teamBScore.wickets} (${match.teamBScore.overs})`;
+      if (match.teamAScore.runs === 0 && match.teamAScore.wickets === 0 && match.teamBScore.runs === 0 && match.teamBScore.wickets === 0) return null;
+      return `${teamAStr} vs ${teamBStr}`;
     }
-    
+
     if (!match.innings?.length) return null;
     return match.innings.map(inn => {
       if (typeof inn === 'string') return null;
@@ -291,28 +356,24 @@ const SearchScreen = ({ navigation, route }) => {
   };
 
   const renderMatchItem = ({ item }) => {
-    const STATUS = { scheduled: 'Scheduled', toss_done: 'Toss Done', in_progress: 'LIVE', innings_break: 'Break', super_over: 'Super Over', completed: 'Completed', abandoned: 'Abandoned', no_result: 'No Result' };
-    const isLive = item.status === 'in_progress' || item.status === 'super_over';
-    const isDone = item.status === 'completed' || item.status === 'abandoned' || item.status === 'no_result';
-    const isScheduled = !isLive && !isDone;
-    const score = getMatchScore(item);
+    const STATUS = { scheduled: 'Scheduled', toss_done: 'Toss Done', in_progress: 'LIVE', innings_break: 'Innings Break', super_over: 'Super Over', completed: 'Completed', abandoned: 'Abandoned', no_result: 'No Result' };
+    const isLive = ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status);
+    const isDone = ['completed', 'abandoned', 'no_result'].includes(item.status);
+    const isScheduled = item.status === 'scheduled';
+
     const venue = item.turf
-      ? `${item.turf.name}${item.turf.city ? ` · ${item.turf.city}` : ''}`
-      : `${item.ground || 'Open Ground'}${item.city ? ` · ${item.city}` : ''}`;
+      ? `${item.turf.name}${item.turf.city ? `, ${item.turf.city}` : ''}`
+      : `${item.ground || 'Ground'}${item.city ? `, ${item.city}` : ''}`;
 
     const handlePress = () => {
-      if (isLive) {
-        navigation.navigate('Spectator', { matchId: item._id });
-      } else {
-        navigation.navigate('MatchSummary', { matchId: item._id });
-      }
+      navigation.navigate('MatchSummary', { matchId: item._id });
     };
 
     return (
       <TouchableOpacity style={styles.matchCard} onPress={handlePress} activeOpacity={0.88}>
-        {/* Top: Format + Status */}
+        {/* Card Header: Format & Status */}
         <View style={styles.matchCardHeader}>
-          <Text style={styles.matchFormat}>{item.format || 'Custom'} · {item.overs} Overs</Text>
+          <Text style={styles.matchFormat}>{item.tournament ? item.tournament.name : 'Individual Match'} • {item.format?.toUpperCase() || 'CUSTOM'} ({item.overs || 10} Ov)</Text>
           <View style={[
             styles.matchStatusBadge,
             isLive && styles.matchStatusLive,
@@ -325,49 +386,60 @@ const SearchScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Teams Row */}
-        <View style={styles.matchTeamsRow}>
+        {/* Teams & Score Section */}
+        <View style={styles.matchBodyRow}>
           {/* Team A */}
-          <View style={styles.matchTeam}>
-            {item.teamA?.logo
-              ? <Image source={{ uri: getImageUrl(item.teamA.logo) }} style={styles.matchTeamLogo} />
-              : (
-                <View style={styles.matchTeamLogoFallback}>
-                  <Text style={styles.matchTeamLogoLetter}>{item.teamA?.name?.[0]?.toUpperCase() || '?'}</Text>
-                </View>
-              )
-            }
-            <Text style={styles.matchTeamName} numberOfLines={2}>{item.teamA?.name || 'TBD'}</Text>
+          <View style={styles.matchTeamSide}>
+            {item.teamA?.logo ? (
+              <Image source={{ uri: getImageUrl(item.teamA.logo) }} style={styles.matchTeamLogo} />
+            ) : (
+              <View style={styles.matchTeamLogoFallback}>
+                <Text style={styles.matchTeamLogoLetter}>{item.teamA?.name?.[0]?.toUpperCase() || 'A'}</Text>
+              </View>
+            )}
+            <Text style={styles.matchTeamName} numberOfLines={1}>{item.teamA?.name || 'Team A'}</Text>
           </View>
 
-          {/* VS + Score */}
+          {/* Scores or VS */}
           <View style={styles.matchCenterBox}>
-            {score ? (
-              <Text style={styles.matchScoreText} numberOfLines={2}>{score}</Text>
-            ) : item.result?.summary ? (
-              <Text style={styles.matchResultText} numberOfLines={2}>{item.result.summary}</Text>
+            {item.teamAScore || item.teamBScore ? (
+              <View style={styles.scoreBox}>
+                <Text style={styles.scoreTextMain}>
+                  {item.teamAScore?.runs || 0}/{item.teamAScore?.wickets || 0}
+                </Text>
+                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14, }}>VS</Text>
+                <Text style={styles.scoreTextMain}>
+                  {item.teamBScore?.runs || 0}/{item.teamBScore?.wickets || 0}
+                </Text>
+              </View>
             ) : (
-              <Text style={styles.matchVsText}>VS</Text>
+              <View style={styles.vsBadge}>
+                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14, }}>VS</Text>
+              </View>
             )}
           </View>
 
           {/* Team B */}
-          <View style={[styles.matchTeam, { alignItems: 'flex-end' }]}>
-            {item.teamB?.logo
-              ? <Image source={{ uri: getImageUrl(item.teamB.logo) }} style={styles.matchTeamLogo} />
-              : (
-                <View style={styles.matchTeamLogoFallback}>
-                  <Text style={styles.matchTeamLogoLetter}>{item.teamB?.name?.[0]?.toUpperCase() || '?'}</Text>
-                </View>
-              )
-            }
-            <Text style={[styles.matchTeamName, { textAlign: 'right' }]} numberOfLines={2}>{item.teamB?.name || 'TBD'}</Text>
+          <View style={[styles.matchTeamSide, { alignItems: 'flex-end' }]}>
+            {item.teamB?.logo ? (
+              <Image source={{ uri: getImageUrl(item.teamB.logo) }} style={styles.matchTeamLogo} />
+            ) : (
+              <View style={styles.matchTeamLogoFallback}>
+                <Text style={styles.matchTeamLogoLetter}>{item.teamB?.name?.[0]?.toUpperCase() || 'B'}</Text>
+              </View>
+            )}
+            <Text style={[styles.matchTeamName, { textAlign: 'right' }]} numberOfLines={1}>{item.teamB?.name || 'Team B'}</Text>
           </View>
         </View>
 
-        {/* Venue row */}
+        {/* Match Result / Status Note */}
+        {item.result?.summary ? (
+          <Text style={styles.matchSummarySub} numberOfLines={1}>{item.result.summary}</Text>
+        ) : null}
+
+        {/* Venue footer */}
         <View style={styles.matchVenueRow}>
-          <Icon name="map-marker-outline" size={12} color={Colors.textTertiary} />
+          <Icon name="map-marker" size={12} color={Colors.textTertiary} />
           <Text style={styles.matchVenueText} numberOfLines={1}>{venue}</Text>
         </View>
       </TouchableOpacity>
@@ -376,18 +448,18 @@ const SearchScreen = ({ navigation, route }) => {
 
 
   const renderTournamentItem = ({ item }) => {
-    const statusLabel = item.status === 'draft' ? 'Draft' : 
-                        item.status === 'registration_open' ? 'Reg Open' : 
-                        item.status === 'registration_closed' ? 'Reg Closed' : 
-                        item.status === 'ongoing' ? 'Ongoing' : 
-                        item.status === 'completed' ? 'Finished' : 
-                        item.status === 'cancelled' ? 'Cancelled' : 'Upcoming';
-    const statusColor = item.status === 'draft' ? Colors.warning : 
-                        item.status === 'registration_open' ? Colors.success : 
-                        item.status === 'registration_closed' ? Colors.error : 
-                        item.status === 'ongoing' ? Colors.warning : 
-                        item.status === 'completed' ? Colors.textTertiary : 
-                        item.status === 'cancelled' ? Colors.error : Colors.textSecondary;
+    const statusLabel = item.status === 'draft' ? 'Upcoming' :
+      item.status === 'registration_open' ? 'Reg Open' :
+        item.status === 'registration_closed' ? 'Reg Closed' :
+          item.status === 'ongoing' ? 'Ongoing' :
+            item.status === 'completed' ? 'Finished' :
+              item.status === 'cancelled' ? 'Cancelled' : 'Upcoming';
+    const statusColor = item.status === 'draft' ? Colors.warning :
+      item.status === 'registration_open' ? Colors.success :
+        item.status === 'registration_closed' ? Colors.error :
+          item.status === 'ongoing' ? Colors.warning :
+            item.status === 'completed' ? Colors.textTertiary :
+              item.status === 'cancelled' ? Colors.error : Colors.textSecondary;
 
     return (
       <TouchableOpacity style={styles.tCard} onPress={() => navigation.navigate('TournamentDetail', { tournamentId: item._id })} activeOpacity={0.92}>
@@ -395,8 +467,8 @@ const SearchScreen = ({ navigation, route }) => {
           {item.banner
             ? <Image source={{ uri: getImageUrl(item.banner) }} style={styles.tBanner} />
             : <LinearGradient colors={['#0D2136', '#000000']} style={styles.tBannerFallback}>
-                <Icon name="trophy" size={44} color={Colors.primaryAlpha30} />
-              </LinearGradient>
+              <Icon name="trophy" size={44} color={Colors.primaryAlpha30} />
+            </LinearGradient>
           }
           {/* Status pill */}
           <View style={[styles.tStatusPill, { borderColor: statusColor }]}>
@@ -436,8 +508,8 @@ const SearchScreen = ({ navigation, route }) => {
                 <View style={{ width: '70%', height: 16, borderRadius: 4 }} />
                 <View style={{ width: '50%', height: 12, borderRadius: 4 }} />
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                   <View style={{ width: '30%', height: 14, borderRadius: 4 }} />
-                   <View style={{ width: '20%', height: 12, borderRadius: 4 }} />
+                  <View style={{ width: '30%', height: 14, borderRadius: 4 }} />
+                  <View style={{ width: '20%', height: 12, borderRadius: 4 }} />
                 </View>
               </View>
             </View>
@@ -475,88 +547,84 @@ const SearchScreen = ({ navigation, route }) => {
 
       {/* ── HEADER ── */}
       <View style={styles.header}>
-        {/* Title row */}
+        {/* Title row — title left, location button right */}
         <View style={styles.titleRow}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.screenLabel}>SEARCH DIRECTORY</Text>
             <Text style={styles.screenTitle}>Find Turf & Cricket</Text>
           </View>
-        </View>
-
-        {/* Location picker */}
-        <View style={styles.locationWrap}>
-          <LocationAutocomplete
-            value={selectedLocation ? selectedLocation.name || selectedLocation.city : ''}
-            onSelectLocation={setSelectedLocation}
-            placeholder="Select your city or location..."
-            variant="outlined"
-            style={styles.locationInput}
-          />
-        </View>
-
-        {/* Search bar */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchBar}>
-            <Icon name="magnify" size={20} color={Colors.textTertiary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder={`Search ${activeTab === 'turfs' ? 'grounds' : activeTab}…`}
-              placeholderTextColor={Colors.textTertiary}
-              value={searchQuery}
-              onChangeText={t => dispatch(setSearchQuery(t))}
-              autoCorrect={false}
-              autoCapitalize="none"
-              returnKeyType="search"
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => dispatch(setSearchQuery(''))} style={{ padding: 2 }}>
-                <Icon name="close-circle" size={18} color={Colors.textTertiary} />
-              </TouchableOpacity>
-            )}
-          </View>
-          <TouchableOpacity onPress={openModal} style={[styles.filterIconBtn, hasActiveFilters && styles.filterIconBtnActive]} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-            <Icon name="tune-variant" size={20} color={hasActiveFilters ? '#000' : Colors.textSecondary} />
-            {hasActiveFilters && <View style={styles.filterDot} />}
+          {/* Location button — top right */}
+          <TouchableOpacity style={styles.locationBtn} onPress={openLocationModal} activeOpacity={0.8}>
+            <Icon name="map-marker" size={13} color={Colors.primary} />
+            <Text style={styles.locationBtnText} numberOfLines={1}>
+              {selectedLocation ? (selectedLocation.city || selectedLocation.name || '').split(',')[0] : 'City'}
+            </Text>
+            <Icon name="chevron-down" size={13} color={Colors.primary} />
           </TouchableOpacity>
         </View>
 
-        {/* ── MAIN TABS ── */}
+        {/* Search bar — only when location selected */}
+        {selectedLocation && (
+          <View style={styles.searchRow}>
+            <View style={styles.searchBar}>
+              <Icon name="magnify" size={18} color={Colors.textTertiary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder={`Search ${activeTab === 'turfs' ? 'grounds' : activeTab}…`}
+                placeholderTextColor={Colors.textTertiary}
+                value={searchQuery}
+                onChangeText={t => dispatch(setSearchQuery(t))}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => dispatch(setSearchQuery(''))} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Icon name="close-circle" size={16} color={Colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+
+        {/* ── MAIN TABS: Cricket | Grounds ── */}
         <View style={styles.mainTabContainer}>
-          <TouchableOpacity 
-            style={[styles.mainTab, (activeTab !== 'turfs') && styles.mainTabActive]}
+          <TouchableOpacity
+            style={[styles.mainTab, activeTab !== 'turfs' && styles.mainTabActive]}
             onPress={() => setActiveTab('players')}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
-            {(activeTab !== 'turfs')
-              ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{x:0,y:0}} end={{x:1,y:0}}>
-                  <Icon name="cricket" size={15} color="#000" />
-                  <Text style={styles.mainTabTextActive}>Cricket</Text>
-                </LinearGradient>
+            {activeTab !== 'turfs'
+              ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                <Icon name="cricket" size={14} color="#000" />
+                <Text style={styles.mainTabTextActive}>Cricket</Text>
+              </LinearGradient>
               : <View style={styles.mainTabGrad}>
-                  <Icon name="cricket" size={15} color={Colors.textSecondary} />
-                  <Text style={styles.mainTabText}>Cricket</Text>
-                </View>
+                <Icon name="cricket" size={14} color={Colors.textTertiary} />
+                <Text style={styles.mainTabText}>Cricket</Text>
+              </View>
             }
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.mainTab, activeTab === 'turfs' && styles.mainTabActive]}
             onPress={() => setActiveTab('turfs')}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
             {activeTab === 'turfs'
-              ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{x:0,y:0}} end={{x:1,y:0}}>
-                  <Icon name="soccer-field" size={15} color="#000" />
-                  <Text style={styles.mainTabTextActive}>Grounds</Text>
-                </LinearGradient>
+              ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                <Icon name="soccer-field" size={14} color="#000" />
+                <Text style={styles.mainTabTextActive}>Grounds</Text>
+              </LinearGradient>
               : <View style={styles.mainTabGrad}>
-                  <Icon name="soccer-field" size={15} color={Colors.textSecondary} />
-                  <Text style={styles.mainTabText}>Grounds</Text>
-                </View>
+                <Icon name="soccer-field" size={14} color={Colors.textTertiary} />
+                <Text style={styles.mainTabText}>Grounds</Text>
+              </View>
             }
           </TouchableOpacity>
         </View>
 
-        {/* ── SUB TABS (only for cricket) ── */}
+        {/* ── SUB TABS — cricket sub-types ── */}
         {activeTab !== 'turfs' && (
           <ScrollView
             horizontal
@@ -564,6 +632,7 @@ const SearchScreen = ({ navigation, route }) => {
             contentContainerStyle={styles.tabBarContent}
             style={styles.tabBarScroll}
             keyboardShouldPersistTaps="always"
+            decelerationRate="fast"
           >
             {TABS.filter(t => t.id !== 'turfs').map(tab => {
               const active = activeTab === tab.id;
@@ -574,14 +643,21 @@ const SearchScreen = ({ navigation, route }) => {
                   activeOpacity={0.75}
                   style={[styles.tab, active && styles.tabActive]}
                 >
-                  <Icon name={tab.icon} size={13} color={active ? '#000' : Colors.textSecondary} />
-                  <Text style={[styles.tabText, active && styles.tabTextActive]}>{tab.label}</Text>
+                  {active
+                    ? <LinearGradient colors={Colors.primaryGradient} style={styles.tabInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                      <Icon name={tab.icon} size={12} color="#000" />
+                      <Text style={styles.tabTextActive}>{tab.label}</Text>
+                    </LinearGradient>
+                    : <View style={styles.tabInner}>
+                      <Icon name={tab.icon} size={12} color={Colors.textTertiary} />
+                      <Text style={styles.tabText}>{tab.label}</Text>
+                    </View>
+                  }
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
         )}
-
       </View>
 
       {/* ── CONTENT LIST ── */}
@@ -628,11 +704,109 @@ const SearchScreen = ({ navigation, route }) => {
         <View style={styles.locationPromptWrap}>
           <Icon name="map-marker-radius-outline" size={54} color={Colors.primary} />
           <Text style={styles.locationPromptTitle}>Where do you play?</Text>
-          <Text style={styles.locationPromptSub}>Select your location to discover players, grounds, matches, and tournaments nearby.</Text>
+          <Text style={styles.locationPromptSub}>Tap the <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold }}>city pill ↗</Text> at the top right to set your location and discover players, grounds, matches & tournaments nearby.</Text>
         </View>
       )}
 
-      {/* ── FILTER MODAL ── */}
+      {/* ── LOCATION MODAL ── */}
+      <Modal visible={locationModalVisible} transparent animationType="none" onRequestClose={closeLocationModal}>
+        <Animated.View style={[styles.overlay, { opacity: locationOverlayAnim }]}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeLocationModal} />
+        </Animated.View>
+        <Animated.View style={[styles.locationSheet, { transform: [{ translateY: locationSlideAnim }] }]}>
+          <View style={styles.sheetHandle} />
+          {/* Header */}
+          <View style={styles.locationSheetHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={styles.sheetIconBox}>
+                <Icon name="map-marker-outline" size={17} color={Colors.primary} />
+              </View>
+              <View>
+                <Text style={styles.sheetTitle}>Set Location</Text>
+                <Text style={styles.sheetSub}>Search your city or area</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.sheetCloseBtn} onPress={closeLocationModal}>
+              <Icon name="close" size={18} color={Colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Inline search input */}
+          <View style={styles.locationSheetBody}>
+            <View style={styles.locSearchRow}>
+              <Icon name="magnify" size={18} color={Colors.textTertiary} />
+              <TextInput
+                ref={locInputRef}
+                style={styles.locSearchInput}
+                value={locQuery}
+                onChangeText={handleLocQueryChange}
+                placeholder="Search city, area..."
+                placeholderTextColor={Colors.textTertiary}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+              />
+              {locLoading
+                ? <ActivityIndicator size="small" color={Colors.primary} />
+                : locQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => { setLocQuery(''); setLocResults([]); }}>
+                    <Icon name="close-circle" size={16} color={Colors.textTertiary} />
+                  </TouchableOpacity>
+                )
+              }
+            </View>
+
+            {/* Currently selected location chip */}
+            {selectedLocation && locQuery.length === 0 && (
+              <View style={styles.selectedLocRow}>
+                <Icon name="map-marker-check" size={15} color={Colors.primary} />
+                <Text style={styles.selectedLocText} numberOfLines={1}>
+                  {selectedLocation.city || selectedLocation.name}
+                </Text>
+                <TouchableOpacity onPress={() => setSelectedLocation(null)}>
+                  <Icon name="close" size={14} color={Colors.textTertiary} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Inline results list */}
+            {locResults.length > 0 && (
+              <View style={styles.locResultsContainer}>
+                {locResults.map((item, idx) => {
+                  const city = item.display_name.split(',')[0];
+                  const sub = item.display_name.split(',').slice(1, 3).join(',').trim();
+                  return (
+                    <TouchableOpacity
+                      key={item.place_id || idx}
+                      style={[styles.locResultItem, idx < locResults.length - 1 && styles.locResultBorder]}
+                      onPress={() => handleLocationSelect(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.locResultIcon}>
+                        <Icon name="map-marker" size={14} color={Colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.locResultTitle} numberOfLines={1}>{city}</Text>
+                        {sub ? <Text style={styles.locResultSub} numberOfLines={1}>{sub}</Text> : null}
+                      </View>
+                      <Icon name="chevron-right" size={14} color={Colors.textTertiary} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {locQuery.length >= 2 && !locLoading && locResults.length === 0 && (
+              <View style={styles.locEmptyWrap}>
+                <Icon name="map-search-outline" size={32} color={Colors.textTertiary} />
+                <Text style={styles.locEmptyText}>No locations found</Text>
+              </View>
+            )}
+          </View>
+        </Animated.View>
+      </Modal>
+
+
       <Modal visible={isFilterVisible} transparent animationType="none" onRequestClose={closeModal}>
         <Animated.View style={[styles.overlay, { opacity: overlayAnim }]}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeModal} />
@@ -776,13 +950,13 @@ const SortChip = ({ label, icon, active, onPress }) => (
   <TouchableOpacity style={[styles.sortChip, active && styles.sortChipActive]} onPress={onPress}>
     {active
       ? <LinearGradient colors={Colors.primaryGradient} style={styles.sortChipGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-          <Icon name={icon} size={13} color="#000" />
-          <Text style={styles.sortChipTextActive}>{label}</Text>
-        </LinearGradient>
+        <Icon name={icon} size={13} color="#000" />
+        <Text style={styles.sortChipTextActive}>{label}</Text>
+      </LinearGradient>
       : <>
-          <Icon name={icon} size={13} color={Colors.textSecondary} />
-          <Text style={styles.sortChipText}>{label}</Text>
-        </>
+        <Icon name={icon} size={13} color={Colors.textSecondary} />
+        <Text style={styles.sortChipText}>{label}</Text>
+      </>
     }
   </TouchableOpacity>
 );
@@ -793,44 +967,173 @@ const styles = StyleSheet.create({
 
   header: {
     backgroundColor: Colors.background,
-    paddingBottom: 12,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   titleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 8,
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    marginTop: 6,
+    marginBottom: 10,
+    gap: 10,
   },
   screenLabel: {
     color: Colors.primary,
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 10,
-    letterSpacing: 2,
-    marginBottom: 2,
-    opacity: 0.85,
+    fontSize: 9,
+    letterSpacing: 2.5,
+    marginBottom: 1,
+    opacity: 0.9,
   },
   screenTitle: {
     color: '#FFFFFF',
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 22,
+    fontSize: 20,
+    letterSpacing: -0.3,
   },
-  locationWrap: {
-    paddingHorizontal: 16,
-    marginBottom: 10,
+
+  /* Location button — top right */
+  locationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,212,0,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,212,0,0.3)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 4,
+    maxWidth: 120,
+  },
+  locationBtnText: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 12,
+    flex: 1,
+  },
+
+  /* Location modal sheet */
+  locationSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.backgroundCard,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 24,
+    zIndex: 1000,
+  },
+  locationSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 16,
+  },
+  locationSheetBody: {
+    paddingHorizontal: 20,
+    gap: 14,
     zIndex: 999,
     elevation: 999,
   },
-  locationInput: {
-    width: '100%',
+  selectedLocRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,212,0,0.08)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,212,0,0.2)',
+  },
+  selectedLocText: {
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 13,
+    flex: 1,
+  },
+
+  /* Inline location search */
+  locSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundElevated,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 48,
+    gap: 10,
+  },
+  locSearchInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 14,
+    height: '100%',
+    padding: 0,
+  },
+  locResultsContainer: {
+    backgroundColor: Colors.backgroundElevated,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  locResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 10,
+  },
+  locResultBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  locResultIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,212,0,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locResultTitle: {
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 13,
+  },
+  locResultSub: {
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  locEmptyWrap: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 8,
+  },
+  locEmptyText: {
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 13,
   },
 
   /* Search Row */
@@ -838,35 +1141,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginBottom: 12,
-    gap: 10,
+    marginBottom: 10,
+    gap: 8,
   },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 14,
-    paddingHorizontal: 13,
-    height: 46,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 42,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     color: '#FFFFFF',
     fontFamily: Typography.fontFamily.regular,
-    fontSize: 14,
+    fontSize: 13,
     height: '100%',
   },
   filterIconBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -876,30 +1179,28 @@ const styles = StyleSheet.create({
   },
   filterDot: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    top: 5,
+    right: 5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#000',
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
   },
 
-  /* Main Tabs */
+  /* Main Tabs: Cricket / Grounds */
   mainTabContainer: {
     flexDirection: 'row',
     marginHorizontal: 16,
     marginBottom: 10,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 10,
     padding: 3,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
   },
   mainTab: {
     flex: 1,
-    borderRadius: 10,
+    borderRadius: 8,
     overflow: 'hidden',
   },
   mainTabActive: {},
@@ -907,11 +1208,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 10,
+    gap: 6,
+    paddingVertical: 9,
   },
   mainTabText: {
-    color: Colors.textSecondary,
+    color: Colors.textTertiary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 13,
   },
@@ -921,38 +1222,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  /* Tab Bar */
+  /* Sub-tab pill bar */
   tabBarScroll: {
     marginBottom: 4,
   },
   tabBarContent: {
     paddingVertical: 2,
-    gap: 8,
+    gap: 6,
     paddingLeft: 16,
     paddingRight: 16,
   },
   tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   tabActive: {
-    backgroundColor: Colors.primaryAlpha20,
     borderColor: Colors.primary,
+    backgroundColor: 'transparent',
+  },
+  tabInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
   },
   tabText: {
-    color: Colors.textSecondary,
-    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
   },
   tabTextActive: {
-    color: Colors.primary,
+    color: '#000',
     fontFamily: Typography.fontFamily.bold,
     fontSize: 12,
   },
@@ -1044,35 +1348,36 @@ const styles = StyleSheet.create({
   /* ── Match Card ── */
   matchCard: {
     backgroundColor: Colors.backgroundCard,
-    borderRadius: 16,
+    borderRadius: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    padding: 14,
     gap: 10,
+    marginBottom: 10,
     ...Shadows.sm,
   },
   matchCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   matchFormat: {
-    color: Colors.textSecondary,
-    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
     fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    flex: 1,
+    marginRight: 8,
   },
   matchStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.backgroundElevated,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    gap: 4,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   matchStatusLive: {
     backgroundColor: 'rgba(239,68,68,0.15)',
@@ -1082,7 +1387,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryAlpha10,
     borderColor: Colors.primaryAlpha30,
   },
-  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#EF4444' },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
   matchStatusText: {
     color: Colors.textSecondary,
     fontFamily: Typography.fontFamily.bold,
@@ -1090,29 +1395,29 @@ const styles = StyleSheet.create({
   },
   matchStatusTextLive: { color: '#EF4444' },
 
-  matchTeamsRow: {
+  matchBodyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  matchTeam: {
-    alignItems: 'flex-start',
+  matchTeamSide: {
     flex: 1,
+    alignItems: 'flex-start',
     gap: 6,
   },
   matchTeamLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1.5,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
     borderColor: Colors.primaryAlpha30,
   },
   matchTeamLogoFallback: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: Colors.primaryAlpha10,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: Colors.primaryAlpha30,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1120,39 +1425,32 @@ const styles = StyleSheet.create({
   matchTeamLogoLetter: {
     color: Colors.primary,
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 16,
+    fontSize: 14,
   },
   matchTeamName: {
     color: '#FFFFFF',
-    fontFamily: Typography.fontFamily.bold,
+    fontFamily: Typography.fontFamily.semiBold,
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 15,
   },
   matchCenterBox: {
-    flex: 0,
-    width: 70,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
   },
-  matchVsText: {
-    color: Colors.textTertiary,
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: 14,
-    letterSpacing: 1,
+  scoreBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  matchScoreText: {
+  scoreTextMain: {
     color: Colors.primary,
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 10,
-    textAlign: 'center',
-    lineHeight: 14,
+    fontSize: 13,
   },
-  matchResultText: {
-    color: Colors.textSecondary,
-    fontFamily: Typography.fontFamily.regular,
+  vsBadgeText: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: 9,
-    textAlign: 'center',
     lineHeight: 13,
   },
   matchVenueRow: {

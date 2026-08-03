@@ -59,8 +59,8 @@ export const lookupPlayerByMobile = createAsyncThunk('team/lookupPlayer', async 
   catch (err) { return rejectWithValue(err.response?.data?.message || 'Player lookup failed'); }
 });
 
-export const addPlayerToTeam = createAsyncThunk('team/addPlayer', async ({ teamId, mobile, name, role }, { rejectWithValue }) => {
-  try { return (await api.post(`/teams/${teamId}/players`, { mobile, name, role })).data.data; }
+export const addPlayerToTeam = createAsyncThunk('team/addPlayer', async ({ teamId, mobile, name, role, matchId, tournamentId }, { rejectWithValue }) => {
+  try { return (await api.post(`/teams/${teamId}/players`, { mobile, name, role, matchId, tournamentId })).data.data; }
   catch (err) { return rejectWithValue(err.response?.data?.message || 'Failed to add player'); }
 });
 

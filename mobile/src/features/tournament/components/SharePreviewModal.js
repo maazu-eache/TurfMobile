@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   modalContainer: {
-    backgroundColor: Colors.background,
+    backgroundColor: '#090909ff',
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     maxHeight: '92%',
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   modalTitle: {
     fontSize: 18,
@@ -180,8 +180,8 @@ const styles = StyleSheet.create({
   // Theme Selector
   themeSelectorWrapper: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.01)',
   },
   themeRow: {
     flexDirection: 'row',
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
 
   // Preview
   previewScroll: {
-    backgroundColor: '#090D16',
+    backgroundColor: 'transparent',
   },
   previewContainer: {
     padding: Spacing.lg,
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
   actionBtn: {
     paddingVertical: 14,

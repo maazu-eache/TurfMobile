@@ -32,8 +32,13 @@ const tournamentSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase(fetchTournaments.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(fetchTournaments.fulfilled, (state, a) => {
-        if (a.meta.arg.page > 1) {
+        state.isLoading = false;
+        if (a.meta.arg?.page > 1) {
           const existingIds = new Set(state.tournaments.map(t => t._id));
           const newItems = (a.payload.data || []).filter(t => !existingIds.has(t._id));
           state.tournaments = [...state.tournaments, ...newItems];
@@ -41,8 +46,34 @@ const tournamentSlice = createSlice({
           state.tournaments = a.payload.data || [];
         }
       })
-      .addCase(fetchTournamentById.fulfilled, (state, a) => { state.selectedTournament = a.payload; })
-      .addCase(createTournament.fulfilled, (state, a) => { state.tournaments.unshift(a.payload); });
+      .addCase(fetchTournaments.rejected, (state, a) => {
+        state.isLoading = false;
+        state.error = a.payload;
+      })
+      .addCase(fetchTournamentById.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchTournamentById.fulfilled, (state, a) => {
+        state.isLoading = false;
+        state.selectedTournament = a.payload;
+      })
+      .addCase(fetchTournamentById.rejected, (state, a) => {
+        state.isLoading = false;
+        state.error = a.payload;
+      })
+      .addCase(createTournament.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(createTournament.fulfilled, (state, a) => {
+        state.isLoading = false;
+        state.tournaments.unshift(a.payload);
+      })
+      .addCase(createTournament.rejected, (state, a) => {
+        state.isLoading = false;
+        state.error = a.payload;
+      });
   },
 });
 export const { clearSelectedTournament, toggleTournamentFollow } = tournamentSlice.actions;

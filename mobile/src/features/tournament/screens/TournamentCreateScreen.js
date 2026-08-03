@@ -18,6 +18,55 @@ const BALL_OPTIONS = ['Tennis', 'Leather', 'Other'];
 const GROUND_OPTIONS = ['Open Ground', 'Indoor', 'Box Cricket', 'Other'];
 const TEAMS_OPTIONS = ['2', '4', '6', '8', '10', '12', '16', '24', '32'];
 const PLAYERS_OPTIONS = ['5', '6', '7', '8', '9', '10', '11', '15'];
+const OVERS_OPTIONS = ['3', '5', '8', '10', '12', '15', '20', '50'];
+const WICKETS_OPTIONS = ['10', '11', '15', '20'];
+
+const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
+  const [visible, setVisible] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  return (
+    <>
+      <View 
+        style={[
+          styles.numberInputWrapper,
+          isFocused && { borderColor: Colors.primary }
+        ]}
+      >
+        <TextInput
+          style={[styles.input, { flex: 1, borderWidth: 0, backgroundColor: 'transparent', height: '100%', paddingVertical: 0 }]}
+          keyboardType="numeric"
+          placeholderTextColor="rgba(255,255,255,0.4)"
+          value={value}
+          onChangeText={onChangeText}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+        />
+        <TouchableOpacity 
+          onPress={() => setVisible(true)} 
+          style={styles.dropdownTrigger}
+          activeOpacity={0.8}
+        >
+          <Icon name="chevron-down" size={16} color="rgba(255,255,255,0.5)" />
+        </TouchableOpacity>
+      </View>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setVisible(false)}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select {label}</Text>
+            <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
+              {options.map(opt => (
+                <TouchableOpacity key={opt} style={styles.modalOption} onPress={() => { onChangeText(opt); setVisible(false); }}>
+                  <Text style={[styles.modalOptionText, value === opt && { color: Colors.primary }]}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+};
 
 
 
@@ -69,7 +118,7 @@ const TournamentCreateScreen = ({ navigation }) => {
     ballType: 'Tennis',
     overs: '10',
     wickets: '10',
-    maxTeams: '16',
+    maxTeams: '999',
     playersPerTeam: '11',
     groundType: 'Open Ground',
     entryFee: '0',
@@ -230,7 +279,7 @@ const TournamentCreateScreen = ({ navigation }) => {
             payload.append('latitude', form.locationObj.latitude);
             payload.append('longitude', form.locationObj.longitude);
           }
-        } else if (key === 'overs' || key === 'wickets' || key === 'maxTeams' || key === 'playersPerTeam') {
+        } else if (key === 'overs' || key === 'wickets') {
           payload.append(key, parseInt(form[key]));
         } else if (key === 'entryFee') {
           payload.append(key, parseFloat(form[key]));
@@ -249,7 +298,11 @@ const TournamentCreateScreen = ({ navigation }) => {
         } else if (key === 'scorers' && form.scorers.length > 0) {
           payload.append('scorers', JSON.stringify(form.scorers.map(s => s._id)));
         } else if (key === 'rules') {
-          payload.append('rules', rulesList.join('\n'));
+          const finalRules = [...rulesList];
+          if (newRule.trim()) {
+            finalRules.push(newRule.trim());
+          }
+          payload.append('rules', finalRules.join('\n'));
         } else if (form[key] !== null && form[key] !== undefined && form[key] !== '' && key !== 'coOrganizers' && key !== 'scorers') {
           payload.append(key, form[key]);
         }
@@ -422,25 +475,15 @@ const TournamentCreateScreen = ({ navigation }) => {
               <View style={styles.row}>
                 <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                   <Text style={styles.label}>Overs</Text>
-                  <TextInput style={styles.input} keyboardType="numeric" placeholderTextColor={offWhite} value={form.overs} onChangeText={(t) => setForm({ ...form, overs: t })} />
+                  <CustomNumberDropdown label="Overs" value={form.overs} options={OVERS_OPTIONS} onChangeText={(val) => setForm({...form, overs: val})} />
                   {bowlerQuota > 0 && <Text style={styles.infoText}>Max overs / bowler: {bowlerQuota}</Text>}
                 </View>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
                   <Text style={styles.label}>Wickets / Match</Text>
-                  <TextInput style={styles.input} keyboardType="numeric" placeholderTextColor={offWhite} value={form.wickets} onChangeText={(t) => setForm({ ...form, wickets: t })} />
+                  <CustomNumberDropdown label="Wickets" value={form.wickets} options={WICKETS_OPTIONS} onChangeText={(val) => setForm({...form, wickets: val})} />
                 </View>
               </View>
-              
-              <View style={styles.row}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-                  <Text style={styles.label}>Max Teams</Text>
-                  <CustomDropdown label="Max Teams" value={form.maxTeams} options={TEAMS_OPTIONS} onSelect={(val) => setForm({...form, maxTeams: val})} />
-                </View>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.label}>Players per Team</Text>
-                  <CustomDropdown label="Players per Team" value={form.playersPerTeam} options={PLAYERS_OPTIONS} onSelect={(val) => setForm({...form, playersPerTeam: val})} />
-                </View>
-              </View>
+
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>{form.tournamentType === 'Auction' ? 'Player Registration Fee (₹)' : 'Team Registration Fee (₹)'}</Text>
@@ -475,7 +518,7 @@ const TournamentCreateScreen = ({ navigation }) => {
 
                   <View style={styles.row}>
                     <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-                      <Text style={styles.label}>Auction Date (Optional)</Text>
+                      <Text style={styles.label}>Auction Date</Text>
                       <TouchableOpacity onPress={() => { setDatePickerTarget('auctionDate'); setDatePickerMode('date'); setShowDatePicker(true); }} activeOpacity={0.8}>
                         <View pointerEvents="none">
                           <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.auctionDate} editable={false} placeholder="DD/MM/YYYY" />
@@ -486,7 +529,19 @@ const TournamentCreateScreen = ({ navigation }) => {
                       <Text style={styles.label}>Auction Time (Optional)</Text>
                       <TouchableOpacity onPress={() => { setDatePickerTarget('auctionTime'); setDatePickerMode('time'); setShowDatePicker(true); }} activeOpacity={0.8}>
                         <View pointerEvents="none">
-                          <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.auctionTime} editable={false} placeholder="HH:MM" />
+                          <TextInput 
+                            style={styles.input} 
+                            placeholderTextColor={offWhite} 
+                            value={form.auctionTime ? (() => {
+                              const [h, m] = form.auctionTime.split(':');
+                              const hours = parseInt(h, 10);
+                              const ampm = hours >= 12 ? 'PM' : 'AM';
+                              const formattedHours = hours % 12 || 12;
+                              return `${String(formattedHours).padStart(2, '0')}:${m} ${ampm}`;
+                            })() : ''} 
+                            editable={false} 
+                            placeholder="hh:mm A" 
+                          />
                         </View>
                       </TouchableOpacity>
                     </View>
@@ -607,6 +662,23 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginBottom: Spacing.md },
   modalOption: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
   modalOptionText: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
+  numberInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundElevated,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    height: 50,
+  },
+  dropdownTrigger: {
+    paddingHorizontal: Spacing.md,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: Colors.border,
+  },
 });
 
 export default TournamentCreateScreen;

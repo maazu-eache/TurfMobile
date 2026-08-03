@@ -93,7 +93,7 @@ const authSlice = createSlice({
       if (state.user) {
         if (!state.user.favourites) state.user.favourites = [];
         const id = action.payload;
-        const idx = state.user.favourites.findIndex(f => (f._id || f) === id);
+        const idx = state.user.favourites.findIndex(f => f && (f._id || f) === id);
         if (idx > -1) state.user.favourites.splice(idx, 1);
         else state.user.favourites.push(id);
       }
@@ -102,7 +102,7 @@ const authSlice = createSlice({
       if (state.user) {
         if (!state.user.favourites) state.user.favourites = [];
         const { id, isFavourite } = action.payload;
-        const idx = state.user.favourites.findIndex(f => (f._id || f) === id);
+        const idx = state.user.favourites.findIndex(f => f && (f._id || f) === id);
         if (isFavourite && idx === -1) {
           state.user.favourites.push(id);
         } else if (!isFavourite && idx > -1) {
@@ -113,6 +113,13 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase('persist/REHYDRATE', (state) => {
+        // Safe reset: ensure we are never stuck in a loading state if the app crashed
+        if (state) {
+          state.isLoading = false;
+          state.error = null;
+        }
+      })
       .addCase(sendOTP.pending, (state) => { state.isLoading = true; state.error = null; })
       .addCase(sendOTP.fulfilled, (state, action) => {
         state.isLoading = false;

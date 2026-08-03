@@ -868,7 +868,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 onPress={() => switchTab(tab.id)}
                 activeOpacity={0.75}
               >
-                <Icon name={tab.icon} size={14} color={active ? '#000' : Colors.textSecondary} />
+                <Icon name={tab.icon} size={14} color={active ? Colors.primary : Colors.textSecondary} />
                 <Text style={[styles.detailTabText, active && styles.detailTabTextActive]}>{tab.label}</Text>
               </TouchableOpacity>
             );

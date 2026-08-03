@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Image, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -7,6 +7,7 @@ import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import { useDispatch, useSelector } from 'react-redux';
 import { setLiveState } from '../matchSlice';
+import socketService from '../../../services/socketService';
 // Removed imageUtils import
 
 const SelectBowlerScreen = ({ route, navigation }) => {
@@ -17,19 +18,51 @@ const SelectBowlerScreen = ({ route, navigation }) => {
   const match = liveState?.match;
   const score = liveState?.score;
 
-  const [squad, setSquad] = useState([]);
-  const [oppositionSquad, setOppositionSquad] = useState([]);
   const [fullSquad, setFullSquad] = useState([]);
   const [fullOppositionSquad, setFullOppositionSquad] = useState([]);
   const [loading, setLoading] = useState(false);
   const [scorecards, setScorecards] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadedOnceRef = useRef(false);
 
   useEffect(() => {
-    if (match) {
-      loadBowlingSquad();
+    const backAction = () => {
+      navigation.navigate('LiveScorer', { matchId, skipAutoBowler: true });
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [navigation, matchId]);
+
+  // derive squads reactively from Redux liveState
+  const currentInnings = match?.innings?.[match?.currentInnings - 1];
+  const batTeamStr = String(currentInnings?.battingTeam?._id || currentInnings?.battingTeam || '');
+  const teamAStr = String(match?.teamA?._id || match?.teamA || '');
+  const isTeamABatting = batTeamStr === teamAStr;
+
+  const squad = useMemo(() => {
+    const XI = isTeamABatting ? (match?.playingXI?.teamB || []) : (match?.playingXI?.teamA || []);
+    return XI.filter(Boolean);
+  }, [match?.playingXI, isTeamABatting]);
+
+  const oppositionSquad = useMemo(() => {
+    const XI = isTeamABatting ? (match?.playingXI?.teamA || []) : (match?.playingXI?.teamB || []);
+    return XI.filter(Boolean);
+  }, [match?.playingXI, isTeamABatting]);
+
+  useEffect(() => {
+    if (match && !loadedOnceRef.current) {
+      loadedOnceRef.current = true;
+      loadFullRosterData();
       fetchScorecards();
     }
-  }, [match]);
+  }, [match?._id]);
 
   const fetchScorecards = async () => {
     try {
@@ -40,28 +73,11 @@ const SelectBowlerScreen = ({ route, navigation }) => {
     }
   };
 
-  const loadBowlingSquad = async () => {
+  const loadFullRosterData = async () => {
     try {
-      const currentInnings = match.innings[match.currentInnings - 1];
-      const batTeamStr = String(currentInnings?.battingTeam?._id || currentInnings?.battingTeam);
-      const teamAStr = String(match.teamA?._id);
-      const isTeamABatting = batTeamStr === teamAStr;
-      
       const bowlTeamId = isTeamABatting ? match.teamB._id : match.teamA._id;
       const batTeamId = isTeamABatting ? match.teamA._id : match.teamB._id;
       
-      const bowlingXI = isTeamABatting ? (match.playingXI?.teamB || []) : (match.playingXI?.teamA || []);
-      const battingXI = isTeamABatting ? (match.playingXI?.teamA || []) : (match.playingXI?.teamB || []);
-      
-      // OPTIMIZATION: Instant render if playingXI exists
-      if (bowlingXI.length > 0) {
-        setSquad(bowlingXI.filter(Boolean));
-        setOppositionSquad(battingXI.length > 0 ? battingXI.filter(Boolean) : []);
-      } else {
-        setLoading(true);
-      }
-      
-      // Fetch full roster in background for "Add Player" functionality
       const [bowlRes, batRes] = await Promise.all([
         api.get(`/teams/${bowlTeamId}`),
         api.get(`/teams/${batTeamId}`)
@@ -70,15 +86,10 @@ const SelectBowlerScreen = ({ route, navigation }) => {
       const bowlPlayers = bowlRes.data.data.players.map(p => p.player);
       const batPlayers = batRes.data.data.players.map(p => p.player);
       
-      if (bowlingXI.length === 0) setSquad(bowlPlayers.filter(Boolean));
-      if (battingXI.length === 0) setOppositionSquad(batPlayers.filter(Boolean));
-      
       setFullSquad(bowlPlayers.filter(Boolean));
       setFullOppositionSquad(batPlayers.filter(Boolean));
     } catch (e) {
-      console.log('Error loading squad:', e);
-    } finally {
-      setLoading(false);
+      console.log('Error loading roster:', e);
     }
   };
 
@@ -94,20 +105,21 @@ const SelectBowlerScreen = ({ route, navigation }) => {
         dispatch(setLiveState({
           ...liveState,
           bowler: selectedBowlerObj,
-          needsBowler: false
+          needsBowler: false,
+          currentOverBalls: []
         }));
       }
 
-      navigation.goBack();
+      // Instant 0ms navigation to LiveScorerScreen
+      navigation.navigate('LiveScorer', { matchId: match._id, skipFocusFetch: true });
 
-      api.post(`/matches/${match._id}/set-players`, {
-        striker: liveState?.striker?._id || liveState?.striker,
-        nonStriker: liveState?.nonStriker?._id || liveState?.nonStriker,
-        bowler: bowlerId
-      }).catch(e => {
-        console.log('Background bowler selection failed', e);
+      // Emit via Socket.IO instead of slow HTTP API call
+      const socket = socketService.getSocket();
+      socket.emit('change_bowler', { matchId: match._id, bowlerId });
+
+      setTimeout(() => {
         selectionLockRef.current = false;
-      });
+      }, 50);
     } catch (e) {
       selectionLockRef.current = false;
       showCustomAlert('Error', 'Failed to select bowler');
@@ -116,9 +128,14 @@ const SelectBowlerScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {submitting && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      )}
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('LiveScorer', { matchId, skipAutoBowler: true })}>
           <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Select Bowler</Text>
@@ -127,11 +144,11 @@ const SelectBowlerScreen = ({ route, navigation }) => {
 
       <View style={styles.scoreContainer}>
         <Text style={styles.scoreText}>{score?.runs}/{score?.wickets} <Text style={styles.oversText}>({score?.overs} Ov)</Text></Text>
-        {match?.currentInnings === 2 && liveState?.toWin && liveState?.ballsRemaining && (
+        {match?.currentInnings === 2 && liveState?.toWin && liveState?.ballsRemaining ? (
           <Text style={{ marginTop: 4, color: Colors.primary, fontFamily: Typography.fontFamily.semiBold }}>
             Need {liveState.toWin} runs from {liveState.ballsRemaining} balls
           </Text>
-        )}
+        ) : null}
       </View>
 
       {loading ? (
@@ -147,7 +164,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
             let isQuotaCompleted = false;
             let bowledOvers = 0;
             if (currentScorecard) {
-              const bowlerStat = currentScorecard.bowling.find(b => b.player?._id === item._id || b.player === item._id);
+              const bowlerStat = currentScorecard.bowling.find(b => String(b.player?._id || b.player) === String(item._id || item));
               if (bowlerStat) {
                 bowledOvers = bowlerStat.overs;
                 if (bowlerStat.overs >= match.bowlerQuota) {
@@ -155,8 +172,25 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                 }
               }
             }
-            const isPreviousBowler = liveState?.previousBowler?._id === item._id;
-            const isDisabled = isQuotaCompleted || isPreviousBowler;
+
+            const prevBowlerId = String(liveState?.previousBowler?._id || liveState?.previousBowler || '');
+            const itemId = String(item._id || item);
+            const isPreviousBowler = prevBowlerId !== '' && prevBowlerId === itemId;
+
+            // Check if there are ANY other bowlers in the squad who are eligible (not quota completed)
+            const otherEligibleBowlers = squad.filter(p => {
+              const pId = String(p._id || p);
+              if (pId === itemId) return false;
+              if (currentScorecard) {
+                const bStat = currentScorecard.bowling.find(b => String(b.player?._id || b.player) === pId);
+                if (bStat && bStat.overs >= match.bowlerQuota) return false;
+              }
+              return true;
+            });
+
+            // Only block previous bowler if there is at least one other eligible bowler available
+            const isPreviousBowlerBlocked = isPreviousBowler && otherEligibleBowlers.length > 0;
+            const isDisabled = isQuotaCompleted || isPreviousBowlerBlocked;
 
             const photoUrl = item.photo || item.userId?.photo;
 
@@ -178,12 +212,15 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                   <Text style={styles.playerName}>{item.name}</Text>
                   {isQuotaCompleted ? (
                     <Text style={{ color: Colors.error, fontSize: 12 }}>Quota Completed ({bowledOvers} Ov)</Text>
+                  ) : isPreviousBowlerBlocked ? (
+                    <Text style={{ color: Colors.error, fontSize: 12 }}>Bowled previous over</Text>
                   ) : (
                     <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Bowled: {bowledOvers} Ov • Remaining: {match.bowlerQuota - bowledOvers} Ov</Text>
                   )}
-                  {isPreviousBowler && !isQuotaCompleted && <Text style={{ color: Colors.error, fontSize: 12 }}>Bowled previous over</Text>}
                 </View>
-                <Icon name="chevron-right" size={20} color={Colors.textSecondary} />
+                {!isDisabled && (
+                  <Icon name="chevron-right" size={24} color={Colors.primary} />
+                )}
               </TouchableOpacity>
             );
           }}
@@ -196,7 +233,9 @@ const SelectBowlerScreen = ({ route, navigation }) => {
         <TouchableOpacity 
           style={styles.addBtn} 
           onPress={() => {
-            const isTeamABatting = match?.innings?.[match?.currentInnings - 1]?.battingTeam === match?.teamA?._id;
+            const _bTeam = String(match?.innings?.[match?.currentInnings - 1]?.battingTeam?._id || match?.innings?.[match?.currentInnings - 1]?.battingTeam || '');
+            const _aTeam = String(match?.teamA?._id || match?.teamA || '');
+            const isTeamABatting = _bTeam === _aTeam;
             const teamId = isTeamABatting ? match?.teamB?._id : match?.teamA?._id;
             const playingXI = isTeamABatting ? match?.playingXI?.teamB : match?.playingXI?.teamA;
             navigation.navigate('AddPlayer', { 
@@ -223,6 +262,9 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                   
                   const res = await api.get(`/matches/${matchId}/live`);
                   dispatch(setLiveState(res.data.data));
+                  
+                  // Reload list
+                  loadFullRosterData();
                 } catch (e) {
                   console.log('Error adding player to playing XI', e);
                 }

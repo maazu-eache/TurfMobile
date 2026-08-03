@@ -1,8 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { store } from '../store';
-import { logout, setTokens } from '../features/auth/authSlice';
+// Top-level imports removed to prevent circular dependencies with Redux store
 
 export const PROD_URL = 'https://turfbackend-pn8j.onrender.com';
 
@@ -77,6 +76,7 @@ const api = axios.create({
 // Request interceptor — attach access token
 api.interceptors.request.use(
   async (config) => {
+    const { store } = require('../store');
     const state = store.getState();
     const token = state.auth?.accessToken;
     if (token) {
@@ -105,6 +105,11 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Don't intercept refresh-token or logout requests to avoid infinite recursion
+      if (originalRequest.url?.includes('/auth/refresh-token') || originalRequest.url?.includes('/auth/logout')) {
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -120,6 +125,8 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        const { store } = require('../store');
+        const { setTokens } = require('../features/auth/authSlice');
         const state = store.getState();
         const refreshToken = state.auth?.refreshToken;
 
@@ -133,8 +140,10 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
+        const { store } = require('../store');
+        const { logoutLocal } = require('../features/auth/authSlice');
         processQueue(refreshError, null);
-        store.dispatch(logout());
+        store.dispatch(logoutLocal());
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -41,6 +41,53 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
   );
 };
 
+const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
+  const [visible, setVisible] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  return (
+    <>
+      <View 
+        style={[
+          styles.numberInputWrapper,
+          isFocused && { borderColor: Colors.primary }
+        ]}
+      >
+        <TextInput
+          style={[styles.input, { flex: 1, borderWidth: 0, backgroundColor: 'transparent', height: '100%', paddingVertical: 0 }]}
+          keyboardType="numeric"
+          placeholderTextColor={Colors.textTertiary}
+          value={value}
+          onChangeText={onChangeText}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+        />
+        <TouchableOpacity 
+          onPress={() => setVisible(true)} 
+          style={styles.dropdownTrigger}
+          activeOpacity={0.8}
+        >
+          <Icon name="chevron-down" size={16} color={Colors.textTertiary} />
+        </TouchableOpacity>
+      </View>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setVisible(false)}>
+          <View style={styles.dropdownModalContent}>
+            <Text style={styles.modalTitle}>Select {label}</Text>
+            <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
+              {options.map(opt => (
+                <TouchableOpacity key={opt} style={styles.modalOption} onPress={() => { onChangeText(opt); setVisible(false); }}>
+                  <Text style={[styles.modalOptionText, value === opt && { color: Colors.primary }]}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+};
+
 const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
   const [form, setForm] = useState({
     name: '',
@@ -104,28 +151,21 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
       return;
     }
     
-    if (!form.maxTeams || isNaN(form.maxTeams) || parseInt(form.maxTeams) < 2) {
-      showCustomAlert('Error', 'Please select a valid max teams number.');
-      return;
-    }
-    
-    if (parseInt(form.maxTeams) < tournament.registeredTeams?.length) {
-      showCustomAlert('Error', `Max teams cannot be less than already registered teams (${tournament.registeredTeams.length}).`);
-      return;
-    }
-
     setLoading(true);
     try {
+      const finalRules = [...rules];
+      if (newRule.trim()) {
+        finalRules.push(newRule.trim());
+      }
+
       const payload = {
         name: form.name,
         description: form.description,
         city: form.city,
         groundName: form.groundName,
-        maxTeams: parseInt(form.maxTeams),
         overs: parseInt(form.overs) || undefined,
-        playersPerTeam: parseInt(form.playersPerTeam) || undefined,
         entryFee: parseInt(form.entryFee) || 0,
-        rules: rules.join('\n')
+        rules: finalRules.join('\n')
       };
 
       await api.put(`/tournaments/${tournament._id}`, payload);
@@ -182,19 +222,9 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', gap: Spacing.md }}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Max Teams *</Text>
-                <CustomDropdown label="Teams" value={form.maxTeams} options={TEAMS_OPTIONS} onSelect={t => handleChange('maxTeams', t)} />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Overs</Text>
-                <CustomDropdown label="Overs" value={form.overs} options={OVERS_OPTIONS} onSelect={t => handleChange('overs', t)} />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Players/Team</Text>
-                <CustomDropdown label="Players" value={form.playersPerTeam} options={PLAYERS_OPTIONS} onSelect={t => handleChange('playersPerTeam', t)} />
-              </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Overs</Text>
+              <CustomNumberDropdown label="Overs" value={form.overs} options={OVERS_OPTIONS} onChangeText={t => handleChange('overs', t)} />
             </View>
 
             <View style={styles.inputGroup}>
@@ -303,7 +333,24 @@ const styles = StyleSheet.create({
   addRuleBtn: { backgroundColor: Colors.primary, width: 44, height: 44, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' },
   ruleItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm },
   ruleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary, marginRight: Spacing.sm },
-  ruleText: { flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14 }
+  ruleText: { flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14 },
+  numberInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundElevated,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    height: 50,
+  },
+  dropdownTrigger: {
+    paddingHorizontal: Spacing.md,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: Colors.border,
+  },
 });
 
 export default EditTournamentModal;

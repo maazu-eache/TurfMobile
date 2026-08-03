@@ -53,6 +53,7 @@ import TournamentDetailScreen from '../features/tournament/screens/TournamentDet
 import TournamentCreateScreen from '../features/tournament/screens/TournamentCreateScreen';
 import FixturesScreen from '../features/tournament/screens/FixturesScreen';
 import PointsTableScreen from '../features/tournament/screens/PointsTableScreen';
+import QualificationCalculatorScreen from '../features/tournament/screens/QualificationCalculatorScreen';
 
 // Auction
 import AuctionRegistrationScreen from '../features/tournament/screens/AuctionRegistrationScreen';
@@ -290,6 +291,7 @@ const MatchStack = () => (
     <Stack.Screen name="TournamentCreate" component={TournamentCreateScreen} />
     <Stack.Screen name="Fixtures" component={FixturesScreen} />
     <Stack.Screen name="PointsTable" component={PointsTableScreen} />
+    <Stack.Screen name="QualificationCalculator" component={QualificationCalculatorScreen} />
 
     {/* Auction Screens */}
     <Stack.Screen name="AuctionRegistration" component={AuctionRegistrationScreen} />
@@ -349,7 +351,7 @@ const CustomerNavigator = ({ navigation }) => {
       tabBar={(props) => <CustomTabBar {...props} insets={insets} />}
       screenOptions={({ route }) => {
         const routeName = getFocusedRouteNameFromRoute(route) ?? '';
-        const hiddenRoutes = ['MatchSetup', 'MatchTeamSelection', 'Toss', 'PlayingXI', 'LiveScorer', 'MatchPlayerSelection', 'SuperOver', 'AddPlayer', 'SelectBowler', 'Scorecard', 'MatchSummary', 'TournamentDetail', 'AuctionLiveOrganiser', 'AuctionLivePublic', 'AuctionLiveTeamOwner', 'GlobalLeaderboard'];
+        const hiddenRoutes = ['MatchSetup', 'MatchTeamSelection', 'Toss', 'PlayingXI', 'LiveScorer', 'MatchPlayerSelection', 'SuperOver', 'AddPlayer', 'SelectBowler', 'Scorecard', 'MatchSummary', 'TournamentDetail', 'AuctionLiveOrganiser', 'AuctionLivePublic', 'AuctionLiveTeamOwner', 'GlobalLeaderboard', 'QualificationCalculator'];
         const isHidden = hiddenRoutes.includes(routeName);
         return {
           headerShown: false,

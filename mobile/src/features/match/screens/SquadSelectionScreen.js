@@ -37,13 +37,24 @@ const SquadSelectionScreen = () => {
     captain: initialCaptain = null,
     wk: initialWk = null,
     selectingFor,
-    opposingXI = []
+    opposingXI = [],
+    matchId,
+    tournamentId
   } = route.params;
 
+  // Normalize: selectedXI may contain full populated Player objects (from API) or plain string IDs.
+  // Always store as plain string IDs so .includes() comparisons work correctly.
+  const normalizeIds = (arr) =>
+    (arr || []).map((item) => (typeof item === 'object' && item !== null ? String(item._id) : String(item)));
+
   const [roster, setRoster] = useState(initialRoster);
-  const [selectedXI, setSelectedXI] = useState(initialSelectedXI);
-  const [captain, setCaptain] = useState(initialCaptain);
-  const [wk, setWk] = useState(initialWk);
+  const [selectedXI, setSelectedXI] = useState(() => normalizeIds(initialSelectedXI));
+  const [captain, setCaptain] = useState(
+    initialCaptain && typeof initialCaptain === 'object' ? String(initialCaptain._id) : (initialCaptain ? String(initialCaptain) : null)
+  );
+  const [wk, setWk] = useState(
+    initialWk && typeof initialWk === 'object' ? String(initialWk._id) : (initialWk ? String(initialWk) : null)
+  );
   
   // Add Player Modal State
   const [isAddPlayerModalVisible, setAddPlayerModalVisible] = useState(false);
@@ -106,8 +117,8 @@ const SquadSelectionScreen = () => {
       // Update roster and apply sorting immediately
       let latestRoster = fetchedTeam?.players || roster;
       const newRoster = [...latestRoster].sort((a, b) => {
-        const aSelected = selectedXI.includes(a.player?._id);
-        const bSelected = selectedXI.includes(b.player?._id);
+        const aSelected = selectedXI.includes(String(a.player?._id));
+        const bSelected = selectedXI.includes(String(b.player?._id));
         if (aSelected && !bSelected) return -1;
         if (!aSelected && bSelected) return 1;
         return 0;
@@ -125,8 +136,8 @@ const SquadSelectionScreen = () => {
     setRoster(prev => {
       const newRoster = [...prev];
       return newRoster.sort((a, b) => {
-        const aSelected = selectedXI.includes(a.player?._id);
-        const bSelected = selectedXI.includes(b.player?._id);
+        const aSelected = selectedXI.includes(String(a.player?._id));
+        const bSelected = selectedXI.includes(String(b.player?._id));
         if (aSelected && !bSelected) return -1;
         if (!aSelected && bSelected) return 1;
         return 0;
@@ -135,16 +146,18 @@ const SquadSelectionScreen = () => {
   };
 
   const togglePlayerXI = (playerId) => {
-    if (selectedXI.includes(playerId)) {
-      setSelectedXI((prev) => prev.filter((id) => id !== playerId));
-      if (captain === playerId) setCaptain(null);
-      if (wk === playerId) setWk(null);
+    const pid = String(playerId);
+    if (selectedXI.includes(pid)) {
+      setSelectedXI((prev) => prev.filter((id) => id !== pid));
+      if (captain === pid) setCaptain(null);
+      if (wk === pid) setWk(null);
     } else {
-      if (opposingXI.includes(playerId)) {
+      const opposingNormalized = (opposingXI || []).map(id => String(typeof id === 'object' ? id._id : id));
+      if (opposingNormalized.includes(pid)) {
         showCustomAlert('Cannot Select Player', 'This player is already in the opposing squad. A player cannot play for both teams.');
       } else {
-        setSelectedXI((prev) => [...prev, playerId]);
-        if (!captain) setCaptain(playerId);
+        setSelectedXI((prev) => [...prev, pid]);
+        // Do NOT auto-assign captain — user must explicitly tap C badge
       }
     }
   };
@@ -203,7 +216,9 @@ const SquadSelectionScreen = () => {
           await dispatch(addPlayerToTeam({
             teamId: team._id,
             mobile: player.mobile,
-            name: player.name
+            name: player.name,
+            matchId,
+            tournamentId
           })).unwrap();
           successCount++;
         } catch (err) {
@@ -322,8 +337,9 @@ const SquadSelectionScreen = () => {
         renderItem={({ item }) => {
           const p = item.player;
           if (!p) return null;
-          const isSelected = selectedXI.includes(p._id);
-          const isCaptain = captain === p._id;
+          const pid = String(p._id);
+          const isSelected = selectedXI.includes(pid);
+          const isCaptain = captain === pid;
           
           return (
             <TouchableOpacity style={styles.playerItemRow} onPress={() => togglePlayerXI(p._id)}>

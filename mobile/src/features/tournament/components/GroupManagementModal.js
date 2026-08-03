@@ -86,11 +86,17 @@ const GroupManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
     updated[index].name = newName;
     setGroups(updated);
   };
-
   const handleSave = async () => {
-    // Validations
     if (groups.length === 0) {
-      return showCustomAlert('Error', 'Please create at least one group.');
+      showCustomAlert(
+        'Reset Groups',
+        'Are you sure you want to delete all groups? This will merge all teams into a single points table.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Reset', onPress: saveToBackend }
+        ]
+      );
+      return;
     }
     
     for (let i = 0; i < groups.length; i++) {

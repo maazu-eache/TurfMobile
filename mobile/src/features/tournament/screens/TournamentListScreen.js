@@ -32,7 +32,11 @@ const TournamentListScreen = ({ navigation }) => {
       let data = res.data.data;
 
       if (activeTab === 'My Tournaments') {
-        data = data.filter(t => t.organizer?._id === user?._id || t.registeredTeams?.some(rt => rt.team?.captain === user?._id));
+        data = data.filter(t => 
+          t.organizer?._id === user?._id || 
+          t.coOrganizers?.some(o => (o._id || o) === user?._id) ||
+          t.registeredTeams?.some(rt => rt.team?.captain === user?._id)
+        );
       }
       setTournaments(data);
     } catch (e) {

@@ -15,7 +15,7 @@ import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const TOP_TABS = ['Matches', 'Tournaments', 'Teams'];
-const MATCH_SUB_TABS = ['My', 'Played', 'Network'];
+const MATCH_SUB_TABS = ['My', 'Played', 'Network', 'Near By'];
 const TEAM_SUB_TABS = ['My', 'Opponents', 'Following'];
 const TOURNAMENT_SUB_TABS = ['My', 'Following', 'Near By'];
 
@@ -52,8 +52,7 @@ const MyCricketScreen = ({ route }) => {
     }
   }, [isAuthenticated, navigation]);
 
-  // Show nothing while redirecting
-  if (!isAuthenticated) return null;
+
 
   useEffect(() => {
     let intervalId;
@@ -61,7 +60,15 @@ const MyCricketScreen = ({ route }) => {
 
     if (isFocused) {
       if (activeTopTab === 'Matches') {
-        dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
+        const params = { status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase().replace(' ', ''), limit: 20 };
+        if (activeSubTab === 'Near By') {
+          if (myProfile?.city || user?.city) params.city = myProfile?.city || user?.city;
+          if (myProfile?.latitude && myProfile?.longitude) {
+            params.lat = myProfile.latitude;
+            params.lng = myProfile.longitude;
+          }
+        }
+        dispatch(fetchMyMatches(params));
 
         unsubscribeScore = socketService.onScoreUpdate((data) => {
           socketService.remoteLog('MyCricketScreen', 'Score update event received', { matchId: data?.matchId || data?.match?._id, score: data?.score });
@@ -174,7 +181,15 @@ const MyCricketScreen = ({ route }) => {
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
     if (activeTopTab === 'Matches') {
-      dispatch(fetchMyMatches({ status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase(), limit: 20 }));
+      const params = { status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase().replace(' ', ''), limit: 20 };
+      if (activeSubTab === 'Near By') {
+        if (myProfile?.city || user?.city) params.city = myProfile?.city || user?.city;
+        if (myProfile?.latitude && myProfile?.longitude) {
+          params.lat = myProfile.latitude;
+          params.lng = myProfile.longitude;
+        }
+      }
+      dispatch(fetchMyMatches(params));
     } else if (activeTopTab === 'Tournaments') {
       const params = { limit: 20 };
       if (activeSubTab === 'My') params.filterType = 'my';
@@ -284,7 +299,7 @@ const MyCricketScreen = ({ route }) => {
           </View>
         )}
         <View style={styles.tournamentStatusBadge}><Text style={styles.tournamentStatusText}>{
-          item.status === 'draft' ? 'DRAFT' : 
+          item.status === 'draft' ? 'UPCOMING' : 
           item.status === 'registration_open' ? 'REG OPEN' : 
           item.status === 'registration_closed' ? 'REG CLOSED' : 
           item.status === 'ongoing' ? 'LIVE' : 
@@ -352,35 +367,34 @@ const MyCricketScreen = ({ route }) => {
 
   const renderMatchSkeleton = () => (
     <View style={styles.cardContainer}>
-      <SkeletonPlaceholder borderRadius={4} backgroundColor="#1A2836" highlightColor="#2B3A48">
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-          <View style={{ width: 150, height: 16, borderRadius: 4 }} />
-          <View style={{ width: 60, height: 20, borderRadius: 10 }} />
+      <SkeletonPlaceholder borderRadius={4} backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
+        <View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+            <View style={{ width: 120, height: 24, borderRadius: 4 }} />
+            <View style={{ width: 60, height: 24, borderRadius: 4 }} />
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+            <View style={{ width: 100, height: 16, borderRadius: 4 }} />
+            <View style={{ width: 40, height: 16, borderRadius: 4 }} />
+          </View>
+          <View style={{ width: 120, height: 14, borderRadius: 4 }} />
         </View>
-        <View style={{ width: 200, height: 12, borderRadius: 4, marginBottom: 16 }} />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-          <View style={{ width: 100, height: 16, borderRadius: 4 }} />
-          <View style={{ width: 40, height: 16, borderRadius: 4 }} />
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-          <View style={{ width: 100, height: 16, borderRadius: 4 }} />
-          <View style={{ width: 40, height: 16, borderRadius: 4 }} />
-        </View>
-        <View style={{ width: 120, height: 14, borderRadius: 4 }} />
       </SkeletonPlaceholder>
     </View>
   );
 
   const renderTournamentSkeleton = () => (
     <View style={styles.tournamentCard}>
-      <SkeletonPlaceholder borderRadius={4} backgroundColor="#1A2836" highlightColor="#2B3A48">
-        <View style={{ width: '100%', height: 140 }} />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 12 }}>
-          <View>
-            <View style={{ width: 120, height: 14, borderRadius: 4, marginBottom: 8 }} />
-            <View style={{ width: 80, height: 12, borderRadius: 4 }} />
+      <SkeletonPlaceholder borderRadius={4} backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
+        <View>
+          <View style={{ width: '100%', height: 140 }} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 12 }}>
+            <View>
+              <View style={{ width: 120, height: 14, borderRadius: 4, marginBottom: 8 }} />
+              <View style={{ width: 80, height: 12, borderRadius: 4 }} />
+            </View>
+            <View style={{ width: 60, height: 20, borderRadius: 4 }} />
           </View>
-          <View style={{ width: 60, height: 20, borderRadius: 4 }} />
         </View>
       </SkeletonPlaceholder>
     </View>
@@ -388,7 +402,7 @@ const MyCricketScreen = ({ route }) => {
 
   const renderTeamSkeleton = () => (
     <View style={styles.teamCard}>
-      <SkeletonPlaceholder borderRadius={4} backgroundColor="#1A2836" highlightColor="#2B3A48">
+      <SkeletonPlaceholder borderRadius={4} backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ width: 48, height: 48, borderRadius: 24, marginRight: 12 }} />
           <View style={{ flex: 1 }}>
@@ -515,6 +529,8 @@ const MyCricketScreen = ({ route }) => {
       );
     }
   };
+
+  if (!isAuthenticated) return null;
 
   return (
     <View style={styles.safe}>

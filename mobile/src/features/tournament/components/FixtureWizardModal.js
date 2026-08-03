@@ -7,6 +7,15 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme'
 import api from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
+const formatDateIndian = (date) => {
+  if (!date) return '';
+  const d = new Date(date);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
   const [loading, setLoading] = useState(false);
   const [groupMode, setGroupMode] = useState(false);
@@ -129,8 +138,8 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
         })),
         preview: false,
         confirmedMatches: previewMatches.map(m => ({
-          teamA: m.teamA._id,
-          teamB: m.teamB._id,
+          teamA: m.teamA?._id || m.teamA || null,
+          teamB: m.teamB?._id || m.teamB || null,
           scheduledAt: m.scheduledAt
         }))
       };
@@ -194,7 +203,7 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
                       <View style={{ flex: 1, marginRight: Spacing.sm }}>
                         <Text style={styles.label}>Start Date</Text>
                         <TouchableOpacity style={styles.pickerBtn} onPress={() => openPicker('date', index)}>
-                          <Text style={styles.pickerText}>{gs.startTime.toLocaleDateString()}</Text>
+                          <Text style={styles.pickerText}>{formatDateIndian(gs.startTime)}</Text>
                           <Icon name="calendar" size={16} color={Colors.primary} />
                         </TouchableOpacity>
                       </View>
@@ -226,7 +235,7 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
                 <View style={styles.pickerRow}>
                   <View style={{ flex: 1, marginRight: Spacing.sm }}>
                     <TouchableOpacity style={styles.pickerBtn} onPress={() => openPicker('date')}>
-                      <Text style={styles.pickerText}>{firstMatchDate.toLocaleDateString()}</Text>
+                      <Text style={styles.pickerText}>{formatDateIndian(firstMatchDate)}</Text>
                       <Icon name="calendar" size={16} color={Colors.primary} />
                     </TouchableOpacity>
                   </View>

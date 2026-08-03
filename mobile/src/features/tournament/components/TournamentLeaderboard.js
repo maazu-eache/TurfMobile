@@ -43,7 +43,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
       case 'Batters': return tournament.leaderboard.mostRuns || [];
       case 'Bowlers': return tournament.leaderboard.mostWickets || [];
       case 'Fielders': return tournament.leaderboard.bestFielders || [];
-      case 'MVP': return tournament.leaderboard.mvp || [];
+      case 'MVP': return tournament.mvpLeaderboard || [];
       default: return [];
     }
   };
@@ -53,7 +53,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
       case 'Batters': return { value: item.runs || 0, unit: 'Runs' };
       case 'Bowlers': return { value: item.wickets || 0, unit: 'Wkts' };
       case 'Fielders': return { value: item.dismissals || 0, unit: 'Dis' };
-      case 'MVP': return { value: item.points || 0, unit: 'Pts' };
+      case 'MVP': return { value: item.totalMvp || 0, unit: 'Pts' };
       default: return { value: 0, unit: '' };
     }
   };
@@ -77,6 +77,14 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
           { label: 'Ct', value: item.catches || '0' },
           { label: 'RO', value: item.runOuts || '0' },
           { label: 'St', value: item.stumpings || '0' },
+        ];
+      case 'MVP':
+        return [
+          { label: 'Bat', value: item.battingMvp?.toFixed(2) || '0.00' },
+          { label: 'Bowl', value: item.bowlingMvp?.toFixed(2) || '0.00' },
+          { label: 'Field', value: item.fieldingMvp?.toFixed(2) || '0.00' },
+          { label: 'M', value: item.matches || '0' },
+          { label: 'POM', value: item.pomCount || '0' },
         ];
       default:
         return [];
@@ -196,7 +204,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
       </View>
 
       {onShare && (
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.md, paddingTop: 12 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.md, paddingTop: 12, paddingBottom: 16 }}>
           <TouchableOpacity 
             style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}
             onPress={() => {

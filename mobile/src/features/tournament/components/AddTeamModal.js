@@ -14,6 +14,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
   const [activeTab, setActiveTab] = useState('Search');
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [addingTeamId, setAddingTeamId] = useState(null);
   
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -143,6 +144,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
 
   const handleRegisterTeam = async (teamId) => {
     setActionLoading(true);
+    setAddingTeamId(teamId);
     try {
       await api.post(`/tournaments/${tournamentId}/register`, { teamId });
       showCustomAlert('Success', 'Team registered successfully!');
@@ -152,6 +154,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
       showCustomAlert('Error', e.response?.data?.message || 'Failed to register team');
     } finally {
       setActionLoading(false);
+      setAddingTeamId(null);
     }
   };
 
@@ -208,7 +211,11 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
           </View>
         ) : (
           <TouchableOpacity style={styles.smallActionBtn} onPress={() => handleRegisterTeam(item._id)} disabled={actionLoading}>
-            <Text style={styles.smallActionBtnText}>Add</Text>
+            {addingTeamId === item._id ? (
+              <ActivityIndicator size="small" color={Colors.textPrimary} />
+            ) : (
+              <Text style={styles.smallActionBtnText}>Add</Text>
+            )}
           </TouchableOpacity>
         )}
       </View>
