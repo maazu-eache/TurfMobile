@@ -645,8 +645,9 @@ const GlobalLeaderboardScreen = () => {
                 variant="outlined"
                 placeholder="Type a city or town..."
                 onSelectLocation={(loc) => {
-                  const city = loc.name || loc.fullName?.split(',')[0] || null;
+                  const city = loc ? (loc.name || loc.fullName?.split(',')[0] || null) : null;
                   if (city) setSelectedCity(city);
+                  else setSelectedCity(null);
                   setShowModal(false);
                 }}
               />

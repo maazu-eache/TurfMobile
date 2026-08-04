@@ -25,8 +25,16 @@ const App = () => {
       .replace('https://scoreverse.maazibrahimoo0.workers.dev/', '')
       .replace('https://scoreverse.app/', '');
 
+    let queryParams = {};
     if (cleanPath.includes('?')) {
-      cleanPath = cleanPath.split('?')[0];
+      const [pathPart, queryPart] = cleanPath.split('?');
+      cleanPath = pathPart;
+      if (queryPart) {
+        queryPart.split('&').forEach(pair => {
+          const [key, val] = pair.split('=');
+          if (key) queryParams[key] = decodeURIComponent(val || '');
+        });
+      }
     }
 
     const parts = cleanPath.split('/');
@@ -43,7 +51,7 @@ const App = () => {
             screen: 'My Cricket',
             params: {
               screen: 'TournamentDetail',
-              params: { tournamentId: id }
+              params: { tournamentId: id, ...queryParams }
             }
           });
         } else if (route === 'match') {
@@ -51,7 +59,7 @@ const App = () => {
             screen: 'My Cricket',
             params: {
               screen: 'MatchSummary',
-              params: { matchId: id }
+              params: { matchId: id, ...queryParams }
             }
           });
         }

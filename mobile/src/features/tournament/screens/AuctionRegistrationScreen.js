@@ -47,11 +47,18 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
   const [auction, setAuction] = useState(null);
   const [myRegistration, setMyRegistration] = useState(null);
   const { user } = useSelector(state => state.auth);
+  const { myProfile } = useSelector(state => state.player);
+
+  const mapBattingStyle = (style) => {
+    if (style === 'Right Hand') return 'Right Handed';
+    if (style === 'Left Hand') return 'Left Handed';
+    return style || 'Right Handed';
+  };
 
   const [fullName, setFullName] = useState(user?.name || '');
-  const [role, setRole] = useState('All Rounder');
-  const [battingStyle, setBattingStyle] = useState('Right Handed');
-  const [bowlingStyle, setBowlingStyle] = useState('Right Arm Medium');
+  const [role, setRole] = useState(myProfile?.playingRole || user?.playerProfile?.playingRole || 'All Rounder');
+  const [battingStyle, setBattingStyle] = useState(mapBattingStyle(myProfile?.battingStyle) || mapBattingStyle(user?.playerProfile?.battingStyle));
+  const [bowlingStyle, setBowlingStyle] = useState(myProfile?.bowlingStyle || user?.playerProfile?.bowlingStyle || 'Right Arm Medium');
   const [photo, setPhoto] = useState(null);
   const [agreed, setAgreed] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -125,8 +132,8 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
       showCustomAlert('Error', 'Please upload a player photo');
       return;
     }
-    if (photo && photo.fileSize > 1 * 1024 * 1024) {
-      showCustomAlert('Error', 'Photo size must be less than 1MB');
+    if (photo && photo.fileSize > 3 * 1024 * 1024) {
+      showCustomAlert('Error', 'Photo size must be less than 3MB');
       return;
     }
     if (!agreed) {

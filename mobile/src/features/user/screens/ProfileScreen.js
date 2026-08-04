@@ -102,12 +102,13 @@ const ProfileScreen = ({ navigation }) => {
             {isOwner && renderOption('account-group', 'My Customers', 'View your unified customer list', () => navigation.navigate('Dashboard', { screen: 'OwnerCustomers' }))}
             {renderOption('calendar-clock', 'Booking History', 'View past and upcoming bookings', () => navigation.navigate('Bookings'))}
             {!isOwner && renderOption('heart', 'Favourites', 'View your favourite turfs', () => navigation.navigate('Favourites'))}
+            {renderOption('lock-reset', 'Change Password', 'Update your password', () => navigation.navigate('ChangePassword'))}
             {renderOption('bell', 'Notifications', 'Manage alert preferences', () => navigation.navigate('Notifications'))}
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Other</Text>
-            {renderOption('help-circle', 'Help & Support', 'Get help with your bookings', () => navigation.navigate('HelpSupport'))}
+            {renderOption('headset', 'Help & Support', 'Get help with your bookings', () => navigation.navigate('HelpSupport'))}
             {renderOption('shield-check', 'Privacy Policy', 'Your data and privacy rights', () => navigation.navigate('PrivacyPolicy'))}
             {renderOption('logout', 'Logout', 'Sign out of your account', handleLogout, true)}
           </View>

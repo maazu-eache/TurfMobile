@@ -418,6 +418,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           );
         })}
+        {canManageRoster && <View style={{ height: 100 }} />}
       </KeyboardAwareScrollView>
 
       {/* Floating Add Player Button */}
@@ -446,8 +447,8 @@ const TeamDetailScreen = ({ navigation, route }) => {
             onPress={() => navigation.navigate('MatchSummary', { id: m.matchId || m._id })}
             activeOpacity={0.85}
           >
-            <View style={[styles.resultBadge, m.result === 'W' ? styles.winBadge : m.result === 'L' ? styles.lossBadge : styles.nrBadge]}>
-              <Text style={styles.resultBadgeText}>{m.result || 'NR'}</Text>
+            <View style={[styles.resultBadge, m.result === 'W' ? styles.winBadge : m.result === 'L' ? styles.lossBadge : m.result === 'LIVE' ? styles.liveBadge : styles.nrBadge]}>
+              <Text style={[styles.resultBadgeText, m.result === 'LIVE' && { fontSize: 9, color: Colors.primary }]}>{m.result || 'NR'}</Text>
             </View>
             <View style={styles.matchRowInfo}>
               <View style={styles.matchRowTop}>
@@ -463,7 +464,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 </View>
               </View>
               {m.resultSummary ? (
-                <Text style={[styles.matchResultText, m.result === 'W' ? { color: Colors.success } : { color: Colors.error }]} numberOfLines={1}>
+                <Text style={[styles.matchResultText, m.result === 'W' ? { color: Colors.success } : m.result === 'LIVE' ? { color: Colors.primary } : { color: Colors.error }]} numberOfLines={1}>
                   {m.resultSummary}
                 </Text>
               ) : null}
@@ -960,8 +961,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
       </Modal>
 
       {/* ── ROLE MODAL ── */}
-      <Modal visible={roleModalVisible} transparent animationType="fade" onRequestClose={() => setRoleModalVisible(false)}>
+      <Modal visible={roleModalVisible} transparent animationType="slide" onRequestClose={() => setRoleModalVisible(false)}>
         <View style={styles.modalOverlay}>
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setRoleModalVisible(false)} />
           <View style={[styles.modalSheet, { borderRadius: 20 }]}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Change Role</Text>
@@ -1013,8 +1015,8 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 value={editCity}
                 onChangeText={setEditCity}
                 onSelectLocation={(loc) => {
-                  setEditCity(loc.name);
-                  if (loc.state) setEditState(loc.state);
+                  setEditCity(loc ? loc.name : '');
+                  if (loc && loc.state) setEditState(loc.state);
                 }}
                 placeholder="Search City..."
                 variant="outlined"
@@ -1252,6 +1254,7 @@ const styles = StyleSheet.create({
   winBadge: { backgroundColor: 'rgba(46,213,115,0.15)', borderWidth: 1, borderColor: Colors.success },
   lossBadge: { backgroundColor: 'rgba(244,67,54,0.15)', borderWidth: 1, borderColor: Colors.error },
   nrBadge: { backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border },
+  liveBadge: { backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primary },
   resultBadgeText: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 11 },
   matchRowInfo: { flex: 1 },
   matchRowTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },

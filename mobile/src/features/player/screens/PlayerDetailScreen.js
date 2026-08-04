@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Image, Modal, FlatList, Platform, ToastAndroid
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchPlayerById, followPlayer, fetchMyPlayer,
@@ -56,6 +57,21 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   const [teamsLoading, setTeamsLoading] = useState(false);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [localLoading, setLocalLoading] = useState(true);
+  const [imgErrors, setImgErrors] = useState({});
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (id && viewedPlayer && viewedPlayer._id !== id) {
+        setLocalLoading(true);
+        Promise.all([
+          dispatch(fetchPlayerById({ id, trackView: false })),
+          dispatch(fetchPlayerAchievements(id)),
+          dispatch(fetchPlayerBallTypes(id))
+        ]).finally(() => setLocalLoading(false));
+      }
+    }, [id, viewedPlayer?._id, dispatch])
+  );
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -228,15 +244,6 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   const renderStatsTab = () => (
     <>
       <BallTypeFilter />
-      <SectionHeader icon="trophy-outline" label="Career" />
-      <View style={styles.card}>
-        <View style={styles.statsGrid}>
-          <StatPill value={career.matches || 0} label="Matches" />
-          <StatPill value={career.wins || 0} label="Wins" highlight />
-          <StatPill value={career.losses || 0} label="Losses" />
-          <StatPill value={winPct} label="Win %" highlight />
-        </View>
-      </View>
       <SectionHeader icon="stats-chart-outline" label="Batting" />
       <View style={styles.card}>
         <View style={styles.infoGrid}>
@@ -429,11 +436,11 @@ const PlayerDetailScreen = ({ navigation, route }) => {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Hero Card */}
         <View style={styles.heroCard}>
-          <View style={styles.avatarRing}>
+          <TouchableOpacity style={styles.avatarRing} activeOpacity={0.85} onPress={() => photoUrl && setImageModalVisible(true)}>
             {photoUrl ? (<Image source={{ uri: getImageUrl(photoUrl) }} style={styles.avatar} />) : (
               <View style={styles.avatarFallback}><Text style={styles.avatarFallbackLetter}>{viewedPlayer.name ? viewedPlayer.name.charAt(0).toUpperCase() : '?'}</Text></View>
             )}
-          </View>
+          </TouchableOpacity>
           <Text style={styles.heroName}>{viewedPlayer.name}</Text>
           <View style={styles.rolePill}>
             <Icon name="baseball-outline" size={12} color={Colors.primary} />
@@ -447,12 +454,17 @@ const PlayerDetailScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             ))}
           </View>
-          {(viewedPlayer.city || viewedPlayer.state) && (
-            <View style={styles.locationRow}>
-              <Icon name="location-outline" size={13} color={Colors.textSecondary} />
-              <Text style={styles.locationText}>{[viewedPlayer.city, viewedPlayer.state].filter(Boolean).join(', ')}</Text>
-            </View>
-          )}
+          {(() => {
+            const city = viewedPlayer.city || viewedPlayer.userId?.city || viewedPlayer.location;
+            const state = viewedPlayer.state || viewedPlayer.userId?.state;
+            const locStr = [city, state].filter(Boolean).join(', ');
+            return (
+              <View style={styles.locationRow}>
+                <Icon name="location-outline" size={13} color={Colors.textSecondary} />
+                <Text style={styles.locationText}>{locStr || 'Location not set'}</Text>
+              </View>
+            );
+          })()}
           <View style={styles.socialRow}>
             <TouchableOpacity style={styles.socialItem} onPress={() => loadSocialList('followers')}>
               <Text style={styles.socialCount}>{viewedPlayer.followers?.length || 0}</Text>
@@ -514,10 +526,19 @@ const PlayerDetailScreen = ({ navigation, route }) => {
               <FlatList data={socialList} keyExtractor={item => item._id} contentContainerStyle={{ paddingBottom: 40 }}
                 renderItem={({ item }) => {
                   const itemPhoto = item.photo || item.userId?.photo;
+                  const hasError = imgErrors[item._id];
                   return (
                     <View style={styles.socialListItem}>
                       <TouchableOpacity style={styles.socialListLeft} onPress={() => { setSocialModalVisible(false); navigation.push('PlayerDetail', { id: item._id }); }}>
-                        {itemPhoto ? (<Image source={{ uri: getImageUrl(itemPhoto) }} style={styles.listAvatar} />) : (<View style={styles.listAvatarFallback}><Icon name="person" size={18} color={Colors.primary} /></View>)}
+                        {itemPhoto && !hasError ? (
+                          <Image 
+                            source={{ uri: getImageUrl(itemPhoto) }} 
+                            style={styles.listAvatar} 
+                            onError={() => setImgErrors(prev => ({ ...prev, [item._id]: true }))} 
+                          />
+                        ) : (
+                          <View style={styles.listAvatarFallback}><Icon name="person" size={18} color={Colors.primary} /></View>
+                        )}
                         <View style={{ flex: 1 }}><Text style={styles.listName}>{item.name}</Text><Text style={styles.listRole}>{item.playingRole || 'Cricket Player'}</Text></View>
                       </TouchableOpacity>
                       {isOwnProfile && (
@@ -548,6 +569,16 @@ const PlayerDetailScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Fullscreen Image Modal */}
+      <Modal visible={imageModalVisible} transparent animationType="fade" onRequestClose={() => setImageModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }} onPress={() => setImageModalVisible(false)}>
+            <Icon name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+          <Image source={{ uri: photoUrl ? getImageUrl(photoUrl) : 'https://via.placeholder.com/400' }} style={{ width: '90%', height: '70%', resizeMode: 'contain' }} />
+        </View>
       </Modal>
     </View>
   );

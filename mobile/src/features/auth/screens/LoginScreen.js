@@ -7,7 +7,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { sendOTP, clearError } from '../authSlice';
+import { loginWithPassword, registerWithPassword, clearError } from '../authSlice';
 import { Colors, Typography } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
@@ -16,10 +16,15 @@ const LoginScreen = ({ navigation }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [registerRole, setRegisterRole] = useState('customer'); // 'customer' or 'owner'
   
+  const [identifier, setIdentifier] = useState(''); // Email or Mobile for Login
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [city, setCity] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [locationObj, setLocationObj] = useState(null);
   const [focusedInput, setFocusedInput] = useState(null);
   const [activeModal, setActiveModal] = useState(null); // 'terms' | 'privacy' | null
@@ -40,13 +45,11 @@ const LoginScreen = ({ navigation }) => {
   const segmentSlide = useRef(new Animated.Value(0)).current; // 0 for Player, 1 for Owner
 
   useEffect(() => {
-    // Initial Page Load Animations
     Animated.parallel([
       Animated.timing(pageFade, { toValue: 1, duration: 800, useNativeDriver: true }),
       Animated.timing(pageSlide, { toValue: 0, duration: 800, easing: Easing.out(Easing.exp), useNativeDriver: true })
     ]).start();
 
-    // Floating Hero Animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(heroAnim, { toValue: -6, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
@@ -54,7 +57,6 @@ const LoginScreen = ({ navigation }) => {
       ])
     ).start();
 
-    // Subtle Rotation
     Animated.loop(
       Animated.sequence([
         Animated.timing(rotateAnim, { toValue: 1, duration: 5000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
@@ -63,7 +65,6 @@ const LoginScreen = ({ navigation }) => {
       ])
     ).start();
 
-    // Floating Particles
     particles.forEach((p, i) => {
       Animated.loop(
         Animated.sequence([
@@ -74,7 +75,6 @@ const LoginScreen = ({ navigation }) => {
     });
   }, []);
 
-  // Animate segment selector when role changes
   useEffect(() => {
     Animated.spring(segmentSlide, {
       toValue: registerRole === 'customer' ? 0 : 1,
@@ -84,35 +84,42 @@ const LoginScreen = ({ navigation }) => {
     }).start();
   }, [registerRole]);
 
-  const handleSendOTP = async () => {
-    if (!email.trim()) return showCustomAlert('Error', 'Please enter your email');
-    if (!isLogin) {
+  const handleSubmit = async () => {
+    Keyboard.dismiss();
+    dispatch(clearError());
+    
+    if (isLogin) {
+      if (!identifier.trim()) return showCustomAlert('Error', 'Please enter your email or phone number');
+      if (!password) return showCustomAlert('Error', 'Please enter your password');
+
+      const result = await dispatch(loginWithPassword({ identifier: identifier.trim(), password }));
+      if (loginWithPassword.rejected.match(result)) {
+        showCustomAlert('Error', result.payload || 'Login failed');
+      }
+    } else {
       if (!name.trim()) return showCustomAlert('Error', 'Please enter your full name');
+      if (!email.trim()) return showCustomAlert('Error', 'Please enter your email');
       if (!mobile.trim() || mobile.trim().length !== 10 || !/^\d+$/.test(mobile.trim())) {
         return showCustomAlert('Error', 'Please enter a valid 10-digit phone number');
       }
-      if (!locationObj || !city) {
-        return showCustomAlert('Error', 'Please select your location');
-      }
-    }
-    
-    Keyboard.dismiss();
-    const result = await dispatch(sendOTP({ 
-      email: email.trim().toLowerCase(), 
-      name: name.trim(), 
-      mobile: mobile.trim(), 
-      isLogin,
-      city,
-      locationObj,
-      state: locationObj?.state || ''
-    }));
-    if (sendOTP.fulfilled.match(result)) {
-      navigation.navigate('OTPVerify', { 
+      if (!locationObj || !city) return showCustomAlert('Error', 'Please select your location');
+      if (!password) return showCustomAlert('Error', 'Please enter a password');
+      if (password !== confirmPassword) return showCustomAlert('Error', 'Passwords do not match');
+
+      const result = await dispatch(registerWithPassword({
         email: email.trim().toLowerCase(),
-        role: !isLogin ? registerRole : null 
-      });
-    } else {
-      showCustomAlert('Error', result.payload || 'Failed to send OTP');
+        name: name.trim(),
+        mobile: mobile.trim(),
+        password,
+        role: registerRole,
+        city,
+        locationObj,
+        state: locationObj?.state || ''
+      }));
+
+      if (registerWithPassword.rejected.match(result)) {
+        showCustomAlert('Error', result.payload || 'Registration failed');
+      }
     }
   };
 
@@ -121,6 +128,14 @@ const LoginScreen = ({ navigation }) => {
 
   const renderInput = (id, icon, placeholder, value, setValue, options = {}) => {
     const isFocused = focusedInput === id;
+    const isPasswordField = id === 'password';
+    const isConfirmPasswordField = id === 'confirmPassword';
+    const isPasswordType = isPasswordField || isConfirmPasswordField;
+    
+    let secureTextEntry = false;
+    if (isPasswordField) secureTextEntry = !showPassword;
+    if (isConfirmPasswordField) secureTextEntry = !showConfirmPassword;
+
     return (
       <View style={[styles.inputContainer, isFocused && styles.inputFocused]}>
         <Icon name={icon} size={22} color={isFocused ? '#FFD400' : 'rgba(255,255,255,0.4)'} style={styles.inputIcon} />
@@ -133,18 +148,25 @@ const LoginScreen = ({ navigation }) => {
           onFocus={() => setFocusedInput(id)}
           onBlur={() => setFocusedInput(null)}
           selectionColor="#FFD400"
+          secureTextEntry={isPasswordType ? secureTextEntry : false}
           {...options}
         />
+        {isPasswordType && (
+          <TouchableOpacity 
+            onPress={() => isPasswordField ? setShowPassword(!showPassword) : setShowConfirmPassword(!showConfirmPassword)} 
+            style={styles.eyeIcon}
+          >
+            <Icon name={secureTextEntry ? "eye-outline" : "eye-off-outline"} size={22} color="rgba(255,255,255,0.4)" />
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      {/* Background Radial Glow */}
       <View style={styles.radialGlow} />
 
-      {/* Floating Particles */}
       {particles.map((p, i) => {
          const angle = (i * Math.PI * 2) / particles.length;
          return (
@@ -170,88 +192,74 @@ const LoginScreen = ({ navigation }) => {
       >
         <Animated.View style={{ opacity: pageFade, transform: [{ translateY: pageSlide }], flexGrow: 1 }}>
           
-          {/* Top Bar */}
           <View style={styles.topBar}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
               <Icon name="chevron-left" size={28} color="#FFF" />
             </TouchableOpacity>
           </View>
 
-          {/* Floating Logo Container */}
-          <View style={[styles.heroContainer, !isLogin && { height: 80, marginBottom: 10 }]}>
-            <Animated.View style={[styles.icon3DWrapper, { 
-              transform: [
-                { translateY: heroAnim },
-                { rotateZ: rotateAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-4deg', '4deg'] }) }
-              ] 
-            }]}>
-              <View style={[styles.logoGlass, !isLogin && { width: 64, height: 64, borderRadius: 20 }]}>
-                <Image source={require('../../../../SportVerse.png')} style={[styles.logoImage, !isLogin && { width: 48, height: 48, borderRadius: 14 }]} resizeMode="contain" />
-              </View>
-            </Animated.View>
-          </View>
+          {isLogin && (
+            <View style={styles.heroContainer}>
+              <Animated.View style={[styles.icon3DWrapper, { 
+                transform: [
+                  { translateY: heroAnim },
+                  { rotateZ: rotateAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-4deg', '4deg'] }) }
+                ] 
+              }]}>
+                <View style={styles.logoGlass}>
+                  <Image source={require('../../../../SportVerse.png')} style={styles.logoImage} resizeMode="contain" />
+                </View>
+              </Animated.View>
+            </View>
+          )}
 
-          {/* Title */}
-          <View style={[styles.headerTextContainer, !isLogin && { marginBottom: 20 }]}>
+          <View style={[styles.headerTextContainer, !isLogin && { marginBottom: 16, marginTop: -10 }]}>
             {isLogin && <Text style={styles.title}>SCORE <Text style={styles.titleYellow}>VERSE</Text></Text>}
             <Text style={styles.subtitle}>
-              {isLogin ? 'Enter your email to log in' : 'Join ScoreVerse today'}
+              {isLogin ? 'Log in to your account' : 'Join ScoreVerse today'}
             </Text>
           </View>
 
-          {/* Authentication Card Layer */}
           <View style={styles.authCard}>
             
             {!isLogin && (
               <View style={styles.segmentContainer}>
                 <Animated.View style={[
                   styles.segmentHighlight,
-                  {
-                    transform: [{
-                      translateX: segmentSlide.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 150] // Assuming roughly half of container width
-                      })
-                    }]
-                  }
+                  { transform: [{ translateX: segmentSlide.interpolate({ inputRange: [0, 1], outputRange: [0, 150] }) }] }
                 ]} />
-                <TouchableOpacity 
-                  style={styles.segmentTab} 
-                  onPress={() => setRegisterRole('customer')}
-                  activeOpacity={1}
-                >
+                <TouchableOpacity style={styles.segmentTab} onPress={() => setRegisterRole('customer')} activeOpacity={1}>
                   <Text style={[styles.segmentText, registerRole === 'customer' && styles.segmentTextActive]}>Player</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.segmentTab} 
-                  onPress={() => setRegisterRole('owner')}
-                  activeOpacity={1}
-                >
+                <TouchableOpacity style={styles.segmentTab} onPress={() => setRegisterRole('owner')} activeOpacity={1}>
                   <Text style={[styles.segmentText, registerRole === 'owner' && styles.segmentTextActive]}>Turf Owner</Text>
                 </TouchableOpacity>
               </View>
             )}
 
-            {/* Inputs */}
-            {!isLogin && (
+            {isLogin ? (
+              <>
+                {renderInput('identifier', 'account-outline', 'Email or Mobile Number', identifier, setIdentifier, { autoCapitalize: 'none', autoCorrect: false })}
+                <View style={{ height: 12 }} />
+                {renderInput('password', 'lock-outline', 'Password', password, setPassword)}
+              </>
+            ) : (
               <>
                 {renderInput('name', 'account-outline', 'Full Name', name, setName, { autoCapitalize: 'words' })}
                 <View style={{ height: 12 }} />
+                {renderInput('email', 'email-outline', 'Email Address', email, setEmail, { keyboardType: 'email-address', autoCapitalize: 'none', autoCorrect: false })}
+                <View style={{ height: 12 }} />
                 {renderInput('phone', 'phone-outline', 'Phone Number', mobile, setMobile, { keyboardType: 'phone-pad', maxLength: 10 })}
                 <View style={{ height: 12 }} />
+                
                 <View style={[styles.inputContainer, { zIndex: 1000 }]}>
-                  <Icon name="map-marker-outline" size={22} color="rgba(255,255,255,0.4)" style={styles.inputIcon} />
+                  {/* <Icon name="map-marker-outline" size={22} color="rgba(255,255,255,0.4)" style={styles.inputIcon} /> */}
                   <LocationAutocomplete
                     value={city}
                     onChangeText={setCity}
                     onSelectLocation={(loc) => {
-                      setCity(loc.name);
-                      setLocationObj({
-                        name: loc.name,
-                        latitude: loc.latitude,
-                        longitude: loc.longitude,
-                        state: loc.state
-                      });
+                      setCity(loc ? loc.name : '');
+                      setLocationObj(loc ? { name: loc.name, latitude: loc.latitude, longitude: loc.longitude, state: loc.state } : null);
                     }}
                     placeholder="Search your city/location"
                     variant="none"
@@ -259,35 +267,44 @@ const LoginScreen = ({ navigation }) => {
                   />
                 </View>
                 <View style={{ height: 12 }} />
+                
+                {renderInput('password', 'lock-outline', 'Password', password, setPassword)}
+                <View style={{ height: 12 }} />
+                {renderInput('confirmPassword', 'lock-check-outline', 'Confirm Password', confirmPassword, setConfirmPassword)}
               </>
             )}
 
-            {renderInput('email', 'email-outline', 'Email Address', email, setEmail, { keyboardType: 'email-address', autoCapitalize: 'none', autoCorrect: false })}
+            {isLogin && (
+              <TouchableOpacity 
+                style={styles.forgotBtn}
+                onPress={() => navigation.navigate('ForgotPassword')}
+              >
+                <Text style={styles.forgotBtnText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            )}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            {/* Send OTP Button */}
             <Animated.View style={{ transform: [{ scale: btnScale }], marginTop: 24 }}>
               <TouchableOpacity 
                 style={[styles.verifyBtn, isLoading && styles.verifyBtnDisabled]}
                 activeOpacity={1}
                 onPressIn={animateBtnPressIn}
                 onPressOut={animateBtnPressOut}
-                onPress={handleSendOTP}
+                onPress={handleSubmit}
                 disabled={isLoading}
               >
                 {isLoading ? (
                   <ActivityIndicator color="#000" size="small" />
                 ) : (
                   <>
-                    <Text style={styles.verifyBtnText}>Send OTP</Text>
+                    <Text style={styles.verifyBtnText}>{isLogin ? 'Log In' : 'Sign Up'}</Text>
                     <Icon name="arrow-right" size={24} color="#000" style={{ marginLeft: 8 }} />
                   </>
                 )}
               </TouchableOpacity>
             </Animated.View>
 
-            {/* Toggle Login/Sign Up */}
             <TouchableOpacity 
               style={styles.toggleButton} 
               onPress={() => {
@@ -305,7 +322,6 @@ const LoginScreen = ({ navigation }) => {
 
           </View>
 
-          {/* Terms Footer */}
           <View style={[styles.termsFooter, { marginBottom: Platform.OS === 'android' ? 80 : Math.max(insets.bottom + 40, 60) }]}>
             <Text style={styles.termsText}>By continuing, you agree to our</Text>
             <View style={styles.termsLinkContainer}>
@@ -418,9 +434,13 @@ const styles = StyleSheet.create({
     shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 6,
   },
   inputIcon: { marginRight: 12 },
+  eyeIcon: { padding: 4 },
   input: {
     flex: 1, color: '#FFFFFF', fontFamily: Typography.fontFamily.medium, fontSize: 16, paddingVertical: Platform.OS === 'ios' ? 16 : 12,
   },
+
+  forgotBtn: { alignSelf: 'flex-end', marginTop: 12 },
+  forgotBtnText: { color: '#FFD400', fontFamily: Typography.fontFamily.medium, fontSize: 14 },
 
   error: { color: Colors.error, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginTop: 12, textAlign: 'center' },
 

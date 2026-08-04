@@ -241,10 +241,12 @@ const PlayerProfileScreen = ({ navigation }) => {
     battingOrder: 'Top Order', bowlingStyle: 'Right Arm Fast',
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [socialModalVisible, setSocialModalVisible] = useState(false);
   const [socialType, setSocialType] = useState('followers');
   const [socialList, setSocialList] = useState([]);
   const [socialLoading, setSocialLoading] = useState(false);
+  const [imgErrors, setImgErrors] = useState({});
   const [activeStatTab, setActiveStatTab] = useState('Statistics');
   const [scoringWindowOffset, setScoringWindowOffset] = useState(0); // 0 = show latest 7
   const [activeBallType, setActiveBallType] = useState('Overall');
@@ -343,12 +345,15 @@ const PlayerProfileScreen = ({ navigation }) => {
 
   const handleSave = async () => {
     try {
+      setIsSaving(true);
       await dispatch(updatePlayerProfile(form)).unwrap();
       showCustomAlert('Success', 'Cricket profile updated successfully!');
       setIsEditModalVisible(false);
     } catch (err) {
       const msg = typeof err === 'string' ? err : (err?.message || err?.error || 'Failed to update profile');
       showCustomAlert('Error', msg);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -956,8 +961,8 @@ const PlayerProfileScreen = ({ navigation }) => {
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Edit Profile</Text>
-            <TouchableOpacity onPress={handleSave} disabled={isLoading}>
-              {isLoading ? <ActivityIndicator color={Colors.primary} size="small" /> : <Text style={styles.modalSaveText}>Save</Text>}
+            <TouchableOpacity onPress={handleSave} disabled={isSaving || isLoading}>
+              {isSaving ? <ActivityIndicator color={Colors.primary} size="small" /> : <Text style={styles.modalSaveText}>Save</Text>}
             </TouchableOpacity>
           </View>
           <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
@@ -998,8 +1003,8 @@ const PlayerProfileScreen = ({ navigation }) => {
                 onSelectLocation={(loc) => {
                   setForm({
                     ...form,
-                    location: loc.name,
-                    locationObj: { name: loc.name, latitude: loc.latitude, longitude: loc.longitude }
+                    location: loc ? loc.name : '',
+                    locationObj: loc ? { name: loc.name, latitude: loc.latitude, longitude: loc.longitude } : null
                   });
                 }}
                 placeholder="City or Area"
@@ -1041,11 +1046,16 @@ const PlayerProfileScreen = ({ navigation }) => {
                 keyExtractor={item => item._id}
                 renderItem={({ item }) => {
                   const photo = item.photo || item.userId?.photo;
+                  const hasError = imgErrors[item._id];
                   return (
                     <View style={styles.socialItem}>
                       <TouchableOpacity style={styles.socialItemLeft} onPress={() => { setSocialModalVisible(false); navigation.navigate('PlayerDetail', { id: item._id }); }}>
-                        {photo ? (
-                          <Image source={{ uri: getImageUrl(photo) }} style={styles.socialAvatar} />
+                        {photo && !hasError ? (
+                          <Image 
+                            source={{ uri: getImageUrl(photo) }} 
+                            style={styles.socialAvatar} 
+                            onError={() => setImgErrors(prev => ({ ...prev, [item._id]: true }))} 
+                          />
                         ) : (
                           <View style={[styles.socialAvatar, styles.socialAvatarPlaceholder]}>
                             <Icon name="person" size={18} color={Colors.primary} />

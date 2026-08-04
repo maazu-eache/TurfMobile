@@ -353,10 +353,16 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                     variant="none"
                     onChangeText={onChange}
                     onSelectLocation={(loc) => {
-                      onChange(loc.name);
-                      setValue('latitude', String(loc.latitude));
-                      setValue('longitude', String(loc.longitude));
-                      if (loc.state) setValue('state', loc.state);
+                      onChange(loc ? loc.name : '');
+                      if (loc) {
+                        setValue('latitude', String(loc.latitude));
+                        setValue('longitude', String(loc.longitude));
+                        if (loc.state) setValue('state', loc.state);
+                      } else {
+                        setValue('latitude', '');
+                        setValue('longitude', '');
+                        setValue('state', '');
+                      }
                     }}
                     placeholder="Search location..."
                     style={{ flex: 1 }}

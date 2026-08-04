@@ -440,10 +440,6 @@
 		},
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_RNPermissionsSpec::@7ad697819b753921c957"
-		},
-		{
-			"backtrace" : 4,
 			"id" : "react_codegen_RNRazorpayCheckoutSpec::@ba471378ee2eecf9e7b3"
 		},
 		{
@@ -481,6 +477,10 @@
 		{
 			"backtrace" : 4,
 			"id" : "react_codegen_RNWorkletsSpec::@c787b30dd2b0f948dced"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_RNPermissionsSpec::@7ad697819b753921c957"
 		}
 	],
 	"id" : "appmodules::@6890427a1f51a3e7e1df",

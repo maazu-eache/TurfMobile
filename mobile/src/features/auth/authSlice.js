@@ -1,21 +1,57 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../api/axios';
 
-export const sendOTP = createAsyncThunk('auth/sendOTP', async ({ email, name, mobile, isLogin, city, locationObj, state }, { rejectWithValue }) => {
+export const registerWithPassword = createAsyncThunk('auth/register', async (userData, { rejectWithValue }) => {
   try {
-    const res = await api.post('/auth/send-otp', { email, name, mobile, isLogin, city, locationObj, state });
+    const res = await api.post('/auth/register', userData);
     return res.data.data;
   } catch (err) {
-    return rejectWithValue(err.response?.data?.message || 'Failed to send OTP');
+    return rejectWithValue(err.response?.data?.message || 'Registration failed');
   }
 });
 
-export const verifyOTP = createAsyncThunk('auth/verifyOTP', async ({ email, otp, role, fcmToken }, { rejectWithValue }) => {
+export const loginWithPassword = createAsyncThunk('auth/login', async ({ identifier, password, fcmToken }, { rejectWithValue }) => {
   try {
-    const res = await api.post('/auth/verify-otp', { email, otp, role, fcmToken });
+    const res = await api.post('/auth/login', { identifier, password, fcmToken });
     return res.data.data;
   } catch (err) {
-    return rejectWithValue(err.response?.data?.message || 'OTP verification failed');
+    return rejectWithValue(err.response?.data?.message || 'Login failed');
+  }
+});
+
+export const forgotPassword = createAsyncThunk('auth/forgotPassword', async (email, { rejectWithValue }) => {
+  try {
+    const res = await api.post('/auth/forgot-password', { email });
+    return res.data.data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to send reset OTP');
+  }
+});
+
+export const verifyResetOtp = createAsyncThunk('auth/verifyResetOtp', async ({ email, otp }, { rejectWithValue }) => {
+  try {
+    const res = await api.post('/auth/verify-reset-otp', { email, otp });
+    return res.data.data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Invalid or expired OTP');
+  }
+});
+
+export const resetPassword = createAsyncThunk('auth/resetPassword', async ({ email, otp, newPassword }, { rejectWithValue }) => {
+  try {
+    const res = await api.post('/auth/reset-password', { email, otp, newPassword });
+    return res.data.data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to reset password');
+  }
+});
+
+export const changePassword = createAsyncThunk('auth/changePassword', async ({ currentPassword, newPassword }, { rejectWithValue }) => {
+  try {
+    const res = await api.put('/auth/change-password', { currentPassword, newPassword });
+    return res.data.data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to change password');
   }
 });
 
@@ -60,8 +96,6 @@ const authSlice = createSlice({
     isAuthenticated: false,
     isLoading: false,
     error: null,
-    otpSent: false,
-    email: null,
     isGuest: false,
   },
   reducers: {
@@ -74,12 +108,9 @@ const authSlice = createSlice({
       state.accessToken = null;
       state.refreshToken = null;
       state.isAuthenticated = false;
-      state.otpSent = false;
-      state.email = null;
       state.isGuest = true; // Stay in guest mode to skip onboarding
     },
     clearError: (state) => { state.error = null; },
-    setOtpSent: (state, action) => { state.otpSent = action.payload; },
     setGuestMode: (state, action) => { state.isGuest = action.payload; },
     updateUserRole: (state, action) => { 
       if (state.user) {
@@ -114,36 +145,37 @@ const authSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase('persist/REHYDRATE', (state) => {
-        // Safe reset: ensure we are never stuck in a loading state if the app crashed
         if (state) {
           state.isLoading = false;
           state.error = null;
         }
       })
-      .addCase(sendOTP.pending, (state) => { state.isLoading = true; state.error = null; })
-      .addCase(sendOTP.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.otpSent = true;
-        state.email = action.meta.arg.email;
-      })
-      .addCase(sendOTP.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
-      })
-      .addCase(verifyOTP.pending, (state) => { state.isLoading = true; state.error = null; })
-      .addCase(verifyOTP.fulfilled, (state, action) => {
+      // Register
+      .addCase(registerWithPassword.pending, (state) => { state.isLoading = true; state.error = null; })
+      .addCase(registerWithPassword.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.accessToken = action.payload.accessToken;
         state.refreshToken = action.payload.refreshToken;
-        state.otpSent = false;
       })
-      .addCase(verifyOTP.rejected, (state, action) => {
+      .addCase(registerWithPassword.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
-
+      // Login
+      .addCase(loginWithPassword.pending, (state) => { state.isLoading = true; state.error = null; })
+      .addCase(loginWithPassword.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.accessToken;
+        state.refreshToken = action.payload.refreshToken;
+      })
+      .addCase(loginWithPassword.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
       // payOwnerFee
       .addCase(payOwnerFee.pending, (state) => {
         state.isLoading = true;
@@ -161,5 +193,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setTokens, logoutLocal, clearError, setOtpSent, setGuestMode, updateUserRole, updateUser, toggleUserFavourite, setUserFavouriteStatus } = authSlice.actions;
+export const { setTokens, logoutLocal, clearError, setGuestMode, updateUserRole, updateUser, toggleUserFavourite, setUserFavouriteStatus } = authSlice.actions;
 export default authSlice.reducer;

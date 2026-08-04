@@ -22,6 +22,7 @@ import WalletScreen from '../features/owner/screens/WalletScreen';
 import OwnerReviewsScreen from '../features/owner/screens/OwnerReviewsScreen';
 import ProfileScreen from '../features/user/screens/ProfileScreen';
 import NotificationsScreen from '../features/notification/screens/NotificationsScreen';
+import ChangePasswordScreen from '../features/auth/screens/ChangePasswordScreen';
 import EditProfileScreen from '../features/user/screens/EditProfileScreen';
 import PrivacyPolicyScreen from '../features/user/screens/PrivacyPolicyScreen';
 import HelpSupportScreen from '../features/user/screens/HelpSupportScreen';
@@ -57,6 +58,7 @@ const ProfileStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ProfileMain" component={ProfileScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
+    <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />

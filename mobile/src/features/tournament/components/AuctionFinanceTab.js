@@ -11,6 +11,7 @@ import {
   RefreshControl,
   Animated,
 } from 'react-native';
+import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, BorderRadius } from '../../../theme/theme';
 import api from '../../../api/axios';
@@ -134,9 +135,29 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
 
   if (loading) {
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loaderText}>Loading Finance...</Text>
+      <View style={{ flex: 1, padding: 16 }}>
+        <SkeletonPlaceholder backgroundColor={Colors.surface} highlightColor="#2A2A2A">
+          <SkeletonPlaceholder.Item>
+            <SkeletonPlaceholder.Item width="100%" height={160} borderRadius={16} marginBottom={24} />
+            <SkeletonPlaceholder.Item flexDirection="row" justifyContent="space-between" marginBottom={24}>
+              <SkeletonPlaceholder.Item width="48%" height={100} borderRadius={16} />
+              <SkeletonPlaceholder.Item width="48%" height={100} borderRadius={16} />
+            </SkeletonPlaceholder.Item>
+            <SkeletonPlaceholder.Item width={150} height={20} borderRadius={4} marginBottom={16} />
+            {[1, 2, 3].map(i => (
+              <SkeletonPlaceholder.Item key={i} flexDirection="row" justifyContent="space-between" alignItems="center" padding={12} marginBottom={12} borderWidth={1} borderColor={Colors.border} borderRadius={12}>
+                <SkeletonPlaceholder.Item flexDirection="row" alignItems="center">
+                  <SkeletonPlaceholder.Item width={40} height={40} borderRadius={20} />
+                  <SkeletonPlaceholder.Item marginLeft={12}>
+                    <SkeletonPlaceholder.Item width={120} height={14} borderRadius={4} />
+                    <SkeletonPlaceholder.Item width={80} height={10} borderRadius={4} marginTop={6} />
+                  </SkeletonPlaceholder.Item>
+                </SkeletonPlaceholder.Item>
+                <SkeletonPlaceholder.Item width={60} height={14} borderRadius={4} />
+              </SkeletonPlaceholder.Item>
+            ))}
+          </SkeletonPlaceholder.Item>
+        </SkeletonPlaceholder>
       </View>
     );
   }

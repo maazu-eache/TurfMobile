@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { Colors, Typography, BorderRadius } from '../theme/theme';
 import Icon from 'react-native-vector-icons/Ionicons';
+import api from '../api/axios';
 
 const LocationAutocomplete = ({
   value,
@@ -43,11 +44,8 @@ const LocationAutocomplete = ({
     }
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(searchQuery)}&limit=6`,
-        { headers: { 'User-Agent': 'ScoreVerseApp/1.0', 'Accept-Language': 'en-US,en;q=0.9' } }
-      );
-      const data = await res.json();
+      const res = await api.get(`/location/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = res.data;
       setResults(data);
       if (data.length > 0) setDropdownVisible(true);
     } catch (e) {
@@ -72,17 +70,16 @@ const LocationAutocomplete = ({
   };
 
   const handleSelect = (item) => {
-    const locName = item.display_name.split(',')[0];
-    setQuery(locName);
+    setQuery(item.name);
     setIsLocSelected(true);
     setDropdownVisible(false);
     Keyboard.dismiss();
     onSelectLocation?.({
-      name: locName,
-      fullName: item.display_name,
-      latitude: parseFloat(item.lat),
-      longitude: parseFloat(item.lon),
-      state: item.address?.state || '',
+      name: item.name,
+      fullName: `${item.name}, ${item.state}`,
+      latitude: parseFloat(item.latitude),
+      longitude: parseFloat(item.longitude),
+      state: item.state || '',
     });
   };
 
@@ -93,11 +90,8 @@ const LocationAutocomplete = ({
 
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(searchQuery)}&limit=1`,
-        { headers: { 'User-Agent': 'ScoreVerseApp/1.0', 'Accept-Language': 'en-US,en;q=0.9' } }
-      );
-      const data = await res.json();
+      const res = await api.get(`/location/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = res.data;
       if (data && data.length > 0) {
         handleSelect(data[0]);
       }
@@ -176,7 +170,7 @@ const LocationAutocomplete = ({
           >
             <FlatList
               data={results}
-              keyExtractor={(item) => String(item.place_id)}
+              keyExtractor={(item) => String(item._id)}
               keyboardShouldPersistTaps="handled"
               style={{ maxHeight: 220 }}
               renderItem={({ item }) => (
@@ -188,10 +182,10 @@ const LocationAutocomplete = ({
                   <Icon name="location" size={15} color={Colors.primary} style={{ marginTop: 2, marginRight: 8 }} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.itemTitle} numberOfLines={1}>
-                      {item.display_name.split(',')[0]}
+                      {item.name}
                     </Text>
                     <Text style={styles.itemSub} numberOfLines={1}>
-                      {item.display_name}
+                      {item.name}, {item.state}
                     </Text>
                   </View>
                 </TouchableOpacity>

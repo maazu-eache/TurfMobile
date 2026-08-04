@@ -324,6 +324,88 @@ export const TournamentSummaryPoster = ({ tournament, theme }) => {
   );
 };
 
+export const RegistrationPoster = ({ tournament, theme }) => {
+  const t = getThemeStyles(theme);
+  const bgImage = STADIUM_BG;
+
+  return (
+    <ImageBackground source={bgImage} style={getContainerStyle(t, 280)}>
+      <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
+        <Image
+          source={{
+            uri: tournament?.banner
+              ? getImageUrl(tournament.banner)
+              : "https://i.imgur.com/3g7nmJC.png",
+          }}
+          style={[styles.posterBanner, !tournament?.banner && { resizeMode: 'contain', backgroundColor: '#111' }]}
+        />
+        <View style={styles.posterContent}>
+          <Text style={[styles.posterTitle, { color: t.textColor, fontSize: 24, textAlign: 'center' }]}>
+            {tournament?.name}
+          </Text>
+          <Text style={[styles.posterSubtitle, { color: Colors.primary, fontSize: 16, marginTop: 8, textAlign: 'center' }]}>
+            {tournament?.tournamentType === 'Auction' ? 'AUCTION REGISTRATIONS OPEN' : 'REGISTRATIONS OPEN'}
+          </Text>
+          <Text style={[{ color: t.secTextColor, fontSize: 14, marginTop: 12, textAlign: 'center', fontFamily: Typography.fontFamily.medium }]}>
+            Join the Player Pool and get ready to play!
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.footer,
+            t.type === "liquid_metal" && { borderTopColor: t.borderColor },
+          ]}
+        >
+          <Text style={[styles.footerText, { color: t.secTextColor }]}>
+            Powered by Decolz x OCA
+          </Text>
+        </View>
+      </View>
+    </ImageBackground>
+  );
+};
+
+export const TeamInvitePoster = ({ tournament, theme }) => {
+  const t = getThemeStyles(theme);
+  const bgImage = STADIUM_BG;
+
+  return (
+    <ImageBackground source={bgImage} style={getContainerStyle(t, 280)}>
+      <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
+        <Image
+          source={{
+            uri: tournament?.banner
+              ? getImageUrl(tournament.banner)
+              : "https://i.imgur.com/3g7nmJC.png",
+          }}
+          style={[styles.posterBanner, !tournament?.banner && { resizeMode: 'contain', backgroundColor: '#111' }]}
+        />
+        <View style={styles.posterContent}>
+          <Text style={[styles.posterTitle, { color: t.textColor, fontSize: 24, textAlign: 'center' }]}>
+            {tournament?.name}
+          </Text>
+          <Text style={[styles.posterSubtitle, { color: Colors.primary, fontSize: 16, marginTop: 8, textAlign: 'center' }]}>
+            REGISTER YOUR TEAM
+          </Text>
+          <Text style={[{ color: t.secTextColor, fontSize: 14, marginTop: 12, textAlign: 'center', fontFamily: Typography.fontFamily.medium }]}>
+            Join the tournament and compete!
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.footer,
+            t.type === "liquid_metal" && { borderTopColor: t.borderColor },
+          ]}
+        >
+          <Text style={[styles.footerText, { color: t.secTextColor }]}>
+            Powered by Decolz x OCA
+          </Text>
+        </View>
+      </View>
+    </ImageBackground>
+  );
+};
+
 export const FixturePoster = ({
   match,
   tournamentName,

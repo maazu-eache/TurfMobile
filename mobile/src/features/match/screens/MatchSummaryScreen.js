@@ -330,8 +330,25 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         fetchScorecards(true);
       }
 
-      // Trigger Celebration Logic
-      if (data?.recentCommentary?.length > 0) {
+      // Trigger Celebration Logic (Instantly using ballEvent)
+      if (data?.ballEvent) {
+        const latestBall = data.ballEvent;
+        const ballId = latestBall._id || latestBall.timestamp || JSON.stringify(latestBall);
+        if (ballId !== lastBallRef.current) {
+          lastBallRef.current = ballId;
+
+          if (data.isMatchComplete || data.match?.status === 'completed') {
+            const winnerName = data.result?.winner === data.match?.teamA?._id ? data.match?.teamA?.name : data.result?.winner === data.match?.teamB?._id ? data.match?.teamB?.name : 'TEAM';
+            triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
+          } else if (latestBall.isWicket || latestBall.wicketType) {
+            triggerCelebration('wicket', 'W', Colors.error);
+          } else if (latestBall.batsmanRuns === 6) {
+            triggerCelebration('six', '6', Colors.primary);
+          } else if (latestBall.batsmanRuns === 4) {
+            triggerCelebration('four', '4', Colors.primary);
+          }
+        }
+      } else if (data?.recentCommentary?.length > 0) {
         const latestBall = data.recentCommentary[0];
         if (latestBall._id && latestBall._id !== lastBallRef.current) {
           lastBallRef.current = latestBall._id;
@@ -342,9 +359,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           } else if (latestBall.isWicket) {
             triggerCelebration('wicket', 'W', Colors.error);
           } else if (latestBall.batsmanRuns === 6) {
-            triggerCelebration('six', '6', '#1976D2');
+            triggerCelebration('six', '6', Colors.primary);
           } else if (latestBall.batsmanRuns === 4) {
-            triggerCelebration('four', '4', '#4CAF50');
+            triggerCelebration('four', '4', Colors.primary);
           }
         }
       }
@@ -383,10 +400,30 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   if (!isCurrentMatchLoaded) {
     socketService.remoteLog('MatchSummaryScreen', `Loading condition met: isCurrentMatchLoaded=${isCurrentMatchLoaded}, cleanMatchId=${cleanMatchId}, liveStateMatchId=${liveState?.match?._id || liveState?.matchId}`);
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginTop: 14 }}>
-          Loading match details...
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }]}>
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginBottom: 16 }} />
+        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 18 }}>
+          Loading Match Summary...
+        </Text>
+        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginTop: 8 }}>
+          Fetching statistics and details
+        </Text>
+      </View>
+    );
+  }
+
+  const isMatchComplete = liveState?.match?.status === 'completed';
+  const isAwardCalculationPending = isMatchComplete && (!liveState.match?.playerOfMatch || !liveState.match?.result);
+
+  if (isAwardCalculationPending) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }]}>
+        <ActivityIndicator size="large" color={Colors.warning} style={{ marginBottom: 16 }} />
+        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 18 }}>
+          Calculating Awards...
+        </Text>
+        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginTop: 8 }}>
+          Finalizing match statistics and Player of the Match
         </Text>
       </View>
     );
@@ -403,7 +440,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     );
   }
 
-  const { match, score, striker, strikerStats, nonStriker, nonStrikerStats, bowler, bowlerStats } = liveState;
+  const { match, score, striker, strikerStats, nonStriker, nonStrikerStats, bowler, previousBowler, bowlerStats } = liveState;
 
   const teamA = match.teamA?.name || 'Team A';
   const teamB = match.teamB?.name || 'Team B';
@@ -517,7 +554,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const renderTabHeader = () => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
-      {['Info', 'Summary', 'Scorecard', 'Comms', 'Squads', 'Analysis', 'Partnerships', 'Leaderboard', 'MVP'].map(tab => (
+      {['Info', 'Summary', 'Scorecard', 'Comms', 'Squads', 'Analysis', 'Partnerships', 'Leaderboard'].map(tab => (
         <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={styles.tabItem}>
           {activeTab === tab && <View style={styles.tabActivePill} />}
           <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
@@ -682,8 +719,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {(player?.photo || player?.userId?.photo) ? (
               <Image source={{ uri: getImageUrl(player.photo || player.userId?.photo) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Icon name="account-circle" size={56} color={`${accentColor}55`} />
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surfaceVariant }}>
+                <Text style={{ color: accentColor, fontFamily: Typography.fontFamily.bold, fontSize: 40 }}>{player?.name?.charAt(0)?.toUpperCase() || '?'}</Text>
               </View>
             )}
             <LinearGradient colors={['transparent', Colors.backgroundCard]} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 55 }} />
@@ -781,8 +818,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       {(mvp.photo || mvp.userId?.photo) ? (
                         <Image source={{ uri: getImageUrl(mvp.photo || mvp.userId?.photo) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       ) : (
-                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                          <Icon name="account-circle" size={120} color={`${Colors.primary}50`} />
+                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surfaceVariant }}>
+                          <Text style={{ color: Colors.warning, fontFamily: Typography.fontFamily.bold, fontSize: 80 }}>{mvp?.name?.charAt(0)?.toUpperCase() || '?'}</Text>
                         </View>
                       )}
                       {/* Gold badge strip at top */}
@@ -794,28 +831,28 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       </LinearGradient>
 
                       {/* Bottom info overlay */}
-                      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.97)']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 190, justifyContent: 'flex-end', padding: 18 }}>
-                        <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 28, lineHeight: 32, letterSpacing: -0.3 }}>{mvp.name}</Text>
-                        <Text style={{ color: 'rgba(255,255,255,0.5)', fontFamily: Typography.fontFamily.medium, fontSize: 12, marginTop: 2, marginBottom: 14 }}>
+                      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)', 'rgba(0,0,0,1)']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 220, justifyContent: 'flex-end', padding: 18 }}>
+                        <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 28, lineHeight: 32, letterSpacing: -0.3, textShadowColor: 'rgba(0, 0, 0, 1)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>{mvp.name}</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: Typography.fontFamily.medium, fontSize: 12, marginTop: 2, marginBottom: 14, textShadowColor: 'rgba(0, 0, 0, 1)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
                           {mvp.team?.name || (mvp._id && match.playingXI?.teamA?.some(p => p._id === mvp._id) ? match.teamA?.name : match.teamB?.name) || ''}
                         </Text>
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                           {bestBatter && bestBatter.player?._id === mvp._id && (
-                            <View style={{ backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 1, borderColor: `${Colors.primary}55`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
+                            <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', borderWidth: 1, borderColor: `${Colors.primary}88`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
                               <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
-                                {bestBatter.runs}<Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>({bestBatter.balls})</Text>
+                                {bestBatter.runs}<Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>({bestBatter.balls})</Text>
                               </Text>
-                              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginTop: 1 }}>
+                              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 1 }}>
                                 {bestBatter.fours || 0}×4s · {bestBatter.sixes || 0}×6s
                               </Text>
                             </View>
                           )}
                           {bestBowler && bestBowler.player?._id === mvp._id && (
-                            <View style={{ backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 1, borderColor: `${Colors.info}55`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
+                            <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', borderWidth: 1, borderColor: `${Colors.info}88`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
                               <Text style={{ color: Colors.info, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
-                                {bestBowler.wickets}<Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>/{bestBowler.runs}</Text>
+                                {bestBowler.wickets}<Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>/{bestBowler.runs}</Text>
                               </Text>
-                              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginTop: 1 }}>
+                              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 1 }}>
                                 {bestBowler.overs} ov
                               </Text>
                             </View>
@@ -1034,9 +1071,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: 'right' }]}>SR</Text>
                   </View>
 
-                  <TouchableOpacity style={styles.tableRow} onPress={() => setSelectedPlayerPreview(striker)}>
+                  <TouchableOpacity style={styles.tableRow} onPress={() => striker && setSelectedPlayerPreview(striker)}>
                     <View style={{ flex: 3, flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={styles.playerNameActive}>{striker?.name || 'Striker'} *</Text>
+                      <Text style={styles.playerNameActive}>{striker?.name || 'TBA'} {striker ? '*' : ''}</Text>
                     </View>
                     <Text style={styles.tableRowText}>{strikerStats?.runs || 0}</Text>
                     <Text style={styles.tableRowText}>{strikerStats?.balls || 0}</Text>
@@ -1045,9 +1082,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     <Text style={[styles.tableRowText, { flex: 1.5, textAlign: 'right' }]}>{strikerStats?.strikeRate || '0.00'}</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.tableRow} onPress={() => setSelectedPlayerPreview(nonStriker)}>
+                  <TouchableOpacity style={styles.tableRow} onPress={() => nonStriker && setSelectedPlayerPreview(nonStriker)}>
                     <View style={{ flex: 3 }}>
-                      <Text style={styles.playerNameNormal}>{nonStriker?.name || 'Non-Striker'}</Text>
+                      <Text style={styles.playerNameNormal}>{nonStriker?.name || 'TBA'}</Text>
                     </View>
                     <Text style={styles.tableRowText}>{nonStrikerStats?.runs || 0}</Text>
                     <Text style={styles.tableRowText}>{nonStrikerStats?.balls || 0}</Text>
@@ -1072,11 +1109,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: 'right' }]}>ER</Text>
                   </View>
 
-                  <TouchableOpacity style={styles.tableRow} onPress={() => setSelectedPlayerPreview(bowler)}>
+                  <TouchableOpacity style={styles.tableRow} onPress={() => (bowler || previousBowler) && setSelectedPlayerPreview(bowler || previousBowler)}>
                     <View style={{ flex: 3, flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={styles.playerNameActive}>{bowler?.name || 'Bowler'}</Text>
+                      <Text style={styles.playerNameActive}>{(bowler || previousBowler)?.name || 'TBA'}</Text>
                     </View>
-                    <Text style={styles.tableRowText}>{bowlerStats ? `${bowlerStats.overs}.${bowlerStats.balls}` : '0.0'}</Text>
+                    <Text style={styles.tableRowText}>{bowlerStats ? `${bowlerStats.overs}.${bowlerStats.balls || 0}` : '0.0'}</Text>
                     <Text style={styles.tableRowText}>{bowlerStats?.maidens || 0}</Text>
                     <Text style={styles.tableRowText}>{bowlerStats?.runs || 0}</Text>
                     <Text style={styles.tableRowText}>{bowlerStats?.wickets || 0}</Text>
@@ -1482,30 +1519,28 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
         if (ball.isWicket) {
             outcome = 'W';
-            bgColor = Colors.error;
-            borderColor = Colors.error;
-            textColor = '#FFF';
-            glow = Colors.error;
-        } else if (ball.isWide) { outcome = `${ball.totalRuns}Wd`; bgColor = '#9C27B0'; textColor = '#FFF'; borderColor = '#9C27B0'; }
-        else if (ball.isNoBall) { outcome = `${ball.totalRuns}Nb`; bgColor = '#9C27B0'; textColor = '#FFF'; borderColor = '#9C27B0'; }
-        else if (ball.isLegBye) { outcome = `${ball.totalRuns}Lb`; bgColor = '#9C27B0'; textColor = '#FFF'; borderColor = '#9C27B0'; }
-        else if (ball.isBye) { outcome = `${ball.totalRuns}B`; bgColor = '#9C27B0'; textColor = '#FFF'; borderColor = '#9C27B0'; }
+            bgColor = Colors.primary;
+            borderColor = Colors.primary;
+            textColor = '#000';
+            glow = Colors.primary;
+        } else if (ball.isWide) { outcome = `${ball.totalRuns}Wd`; }
+        else if (ball.isNoBall) { outcome = `${ball.totalRuns}Nb`; }
+        else if (ball.isLegBye) { outcome = `${ball.totalRuns}Lb`; }
+        else if (ball.isBye) { outcome = `${ball.totalRuns}B`; }
         else if (ball.batsmanRuns === 4) {
             outcome = '4';
-            bgColor = Colors.warning;
-            borderColor = Colors.warning;
+            bgColor = Colors.primary;
+            borderColor = Colors.primary;
             textColor = '#000';
-            glow = Colors.warning;
+            glow = Colors.primary;
         } else if (ball.batsmanRuns === 6) {
             outcome = '6';
-            bgColor = '#4CAF50';
-            borderColor = '#4CAF50';
-            textColor = '#FFF';
-            glow = '#4CAF50';
+            bgColor = Colors.primary;
+            borderColor = Colors.primary;
+            textColor = '#000';
+            glow = Colors.primary;
         } else if (ball.batsmanRuns > 0) {
-            bgColor = '#1976D2';
-            borderColor = '#1976D2';
-            textColor = '#FFF';
+            // default Colors.surfaceVariant
         } else {
             bgColor = Colors.surface;
         }
@@ -1580,7 +1615,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     
                     <Text style={{ fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 14, marginTop: 8, lineHeight: 22 }}>
                         <Text 
-                            style={{ fontFamily: Typography.fontFamily.bold, color: Colors.primary }}
+                            style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}
                             onPress={() => {
                                 const bowlerId = ball.bowler?._id || ball.bowler;
                                 if (bowlerId) navigation.navigate('PlayerDetail', { id: bowlerId.toString() });
@@ -1590,7 +1625,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         </Text>
                         {' to '}
                         <Text 
-                            style={{ fontFamily: Typography.fontFamily.bold, color: Colors.primary }}
+                            style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}
                             onPress={() => {
                                 const batsmanId = ball.batsman?._id || ball.batsman;
                                 if (batsmanId) navigation.navigate('PlayerDetail', { id: batsmanId.toString() });
@@ -1658,10 +1693,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             else if (b.batsmanRuns === 0) outcome = '•';
             
             let clr = Colors.textSecondary;
-            if (b.isWicket) clr = Colors.error;
-            else if (b.batsmanRuns === 4) clr = Colors.warning;
-            else if (b.batsmanRuns === 6) clr = '#4CAF50';
-            else if (b.batsmanRuns > 0) clr = Colors.primary;
+            if (b.isWicket || b.batsmanRuns === 4 || b.batsmanRuns === 6) clr = Colors.primary;
+            else if (b.batsmanRuns > 0) clr = Colors.textPrimary;
 
             return (
                 <Text key={i} style={{ color: clr, fontFamily: Typography.fontFamily.bold, fontSize: 14 }}>
@@ -2667,66 +2700,66 @@ const renderSquads = () => {
     );
   };
 
-  const renderMvp = () => {
-    const mvpData = match?.mvpBreakdown || {};
-    const teamA_players = match?.playingXI?.teamA || [];
-    const teamB_players = match?.playingXI?.teamB || [];
-    const allPlayers = [...teamA_players, ...teamB_players];
+  // const renderMvp = () => {
+  //   const mvpData = match?.mvpBreakdown || {};
+  //   const teamA_players = match?.playingXI?.teamA || [];
+  //   const teamB_players = match?.playingXI?.teamB || [];
+  //   const allPlayers = [...teamA_players, ...teamB_players];
 
-    const playersWithMvp = allPlayers.map(p => {
-      const pid = p._id || p;
-      let stats = { battingMvp: 0, bowlingMvp: 0, fieldingMvp: 0, totalMvp: 0 };
-      if (match?.mvpBreakdown) {
-        if (typeof match.mvpBreakdown.get === 'function') {
-          const breakdown = match.mvpBreakdown.get(String(pid));
-          if (breakdown) stats = breakdown;
-        } else if (match.mvpBreakdown[String(pid)]) {
-          stats = match.mvpBreakdown[String(pid)];
-        }
-      }
-      return {
-        player: p,
-        ...stats
-      };
-    }).sort((a, b) => b.totalMvp - a.totalMvp);
+  //   const playersWithMvp = allPlayers.map(p => {
+  //     const pid = p._id || p;
+  //     let stats = { battingMvp: 0, bowlingMvp: 0, fieldingMvp: 0, totalMvp: 0 };
+  //     if (match?.mvpBreakdown) {
+  //       if (typeof match.mvpBreakdown.get === 'function') {
+  //         const breakdown = match.mvpBreakdown.get(String(pid));
+  //         if (breakdown) stats = breakdown;
+  //       } else if (match.mvpBreakdown[String(pid)]) {
+  //         stats = match.mvpBreakdown[String(pid)];
+  //       }
+  //     }
+  //     return {
+  //       player: p,
+  //       ...stats
+  //     };
+  //   }).sort((a, b) => b.totalMvp - a.totalMvp);
 
-    return (
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 32 }]} refreshControl={getRefreshControl()}>
-        <View style={styles.section}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <Text style={styles.sectionTitle}>🏆 MVP Leaderboard</Text>
-            {match?.playerOfMatch && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#eab308', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4 }}>
-                <Icon name="trophy" size={14} color="#000" />
-                <Text style={{ color: '#000', fontSize: 11, fontWeight: 'bold' }}>POM Awarded</Text>
-              </View>
-            )}
-          </View>
+  //   return (
+  //     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 32 }]} refreshControl={getRefreshControl()}>
+  //       <View style={styles.section}>
+  //         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+  //           <Text style={styles.sectionTitle}>🏆 MVP Leaderboard</Text>
+  //           {match?.playerOfMatch && (
+  //             <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#eab308', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4 }}>
+  //               <Icon name="trophy" size={14} color="#000" />
+  //               <Text style={{ color: '#000', fontSize: 11, fontWeight: 'bold' }}>POM Awarded</Text>
+  //             </View>
+  //           )}
+  //         </View>
 
-          {playersWithMvp.length === 0 ? (
-            <Text style={styles.emptyText}>No MVP data available yet.</Text>
-          ) : (
-            playersWithMvp.map((item, idx) => {
-              const p = item.player;
-              const isPom = match?.playerOfMatch && String(match.playerOfMatch._id || match.playerOfMatch) === String(p._id);
-              const isTop = idx === 0;
+  //         {playersWithMvp.length === 0 ? (
+  //           <Text style={styles.emptyText}>No MVP data available yet.</Text>
+  //         ) : (
+  //           playersWithMvp.map((item, idx) => {
+  //             const p = item.player;
+  //             const isPom = match?.playerOfMatch && String(match.playerOfMatch._id || match.playerOfMatch) === String(p._id);
+  //             const isTop = idx === 0;
 
-              return (
-                <MvpPlayerRow
-                  key={p._id || idx}
-                  player={p}
-                  idx={idx}
-                  isPom={isPom}
-                  isTop={isTop}
-                  item={item}
-                />
-              );
-            })
-          )}
-        </View>
-      </ScrollView>
-    );
-  };
+  //             return (
+  //               <MvpPlayerRow
+  //                 key={p._id || idx}
+  //                 player={p}
+  //                 idx={idx}
+  //                 isPom={isPom}
+  //                 isTop={isTop}
+  //                 item={item}
+  //               />
+  //             );
+  //           })
+  //         )}
+  //       </View>
+  //     </ScrollView>
+  //   );
+  // };
 
   const executeAddScorer = async () => {
     if (!newScorerMobile) {
@@ -2843,7 +2876,7 @@ const renderSquads = () => {
         {activeTab === 'Analysis' && renderAnalysis()}
         {activeTab === 'Partnerships' && renderPartnerships()}
         {activeTab === 'Leaderboard' && renderLeaderboard()}
-        {activeTab === 'MVP' && renderMvp()}
+        {/* {activeTab === 'MVP' && renderMvp()} */}
       </View>
 
       {/* Floating Action Bar */}
@@ -3571,7 +3604,7 @@ const styles = StyleSheet.create({
   tableHeaderRow: { flexDirection: 'row', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, marginBottom: 4 },
   tableHeaderText: { flex: 1, color: Colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.bold, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.5 },
   tableRow: { flexDirection: 'row', paddingVertical: 12, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  playerNameActive: { color: '#2ED573', fontSize: 14, fontFamily: Typography.fontFamily.semiBold },
+  playerNameActive: { color: Colors.primary, fontSize: 14, fontFamily: Typography.fontFamily.semiBold },
   playerNameNormal: { color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium },
   playerNameClickable: {
     color: Colors.textPrimary,

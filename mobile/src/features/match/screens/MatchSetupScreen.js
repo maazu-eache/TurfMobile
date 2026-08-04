@@ -169,15 +169,17 @@ const MatchSetupScreen = ({ navigation, route }) => {
     });
   };
 
-  const handleStartMatch = async () => {
-    if (!isAuthenticated) return navigation.navigate('AuthModal', { screen: 'Login' });
-    if (!teamA || !teamB) return showCustomAlert('Error', 'Please select both teams');
-    if (!overs || parseInt(overs, 10) <= 0) return showCustomAlert('Error', 'Valid overs required');
-    if (!wickets || parseInt(wickets, 10) <= 0) return showCustomAlert('Error', 'Valid wickets required');
-    if (!city?.trim() || !ground?.trim() || !groundType?.trim() || !pitchType?.trim()) {
-      return showCustomAlert('Error', 'City, Ground Name, Ground Type, and Pitch Type are required.');
-    }
+  // --- OTP Verification State ---
+  const [otpModalVisible, setOtpModalVisible] = useState(false);
+  const [verificationPlayerId, setVerificationPlayerId] = useState(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // 'toss' or 'schedule'
 
+  const user = useSelector(state => state.auth.user);
+
+  const executeMatchSetup = async (actionType) => {
     if (existingMatchId) {
       // Just set playing XI and update match details for an already scheduled match
       try {
@@ -198,8 +200,9 @@ const MatchSetupScreen = ({ navigation, route }) => {
           ground,
           scheduledAt: tempDate.toISOString()
         });
-        dispatch(clearLiveState()); // Clear any old state before entering the new match
-        navigation.replace('Toss', { matchId: existingMatchId });
+        dispatch(clearLiveState()); 
+        if (actionType === 'toss') navigation.replace('Toss', { matchId: existingMatchId });
+        else navigation.navigate('MyCricketMain');
       } catch (err) {
         showCustomAlert('Error', err.response?.data?.message || 'Failed to update match details');
       }
@@ -217,7 +220,6 @@ const MatchSetupScreen = ({ navigation, route }) => {
       pitchType,
       groundType,
       wagonWheelEnabled: wagonWheel,
-
       venueDetails: ground || 'Unknown Ground',
       city,
       ground,
@@ -241,11 +243,80 @@ const MatchSetupScreen = ({ navigation, route }) => {
 
     const res = await dispatch(createMatch(payload));
     if (createMatch.fulfilled.match(res)) {
-      navigation.replace('Toss', { matchId: res.payload._id });
+      if (actionType === 'toss') navigation.replace('Toss', { matchId: res.payload._id });
+      else navigation.navigate('MyCricketMain');
     } else {
       showCustomAlert('Match Setup Failed', res.payload);
     }
   };
+
+  const handleStartMatch = async () => {
+    if (!isAuthenticated) return navigation.navigate('AuthModal', { screen: 'Login' });
+    if (!teamA || !teamB) return showCustomAlert('Error', 'Please select both teams');
+    if (!overs || parseInt(overs, 10) <= 0) return showCustomAlert('Error', 'Valid overs required');
+    if (!wickets || parseInt(wickets, 10) <= 0) return showCustomAlert('Error', 'Valid wickets required');
+    if (!city?.trim() || !ground?.trim() || !groundType?.trim() || !pitchType?.trim()) {
+      return showCustomAlert('Error', 'City, Ground Name, Ground Type, and Pitch Type are required.');
+    }
+
+    // Require OTP if creating a new individual match (not tournament, not existing match)
+    if (!tournamentId && !existingMatchId) {
+      setPendingAction('toss');
+      setOtpModalVisible(true);
+      return;
+    }
+    
+    executeMatchSetup('toss');
+  };
+
+  const handleScheduleMatch = async () => {
+    if (!isAuthenticated) return navigation.navigate('AuthModal', { screen: 'Login' });
+    if (!teamA || !teamB) return showCustomAlert('Error', 'Please select both teams');
+    if (!overs || parseInt(overs, 10) <= 0) return showCustomAlert('Error', 'Valid overs required');
+    if (!wickets || parseInt(wickets, 10) <= 0) return showCustomAlert('Error', 'Valid wickets required');
+    if (!city?.trim() || !ground?.trim() || !groundType?.trim() || !pitchType?.trim()) {
+      return showCustomAlert('Error', 'City, Ground Name, Ground Type, and Pitch Type are required.');
+    }
+
+    // Require OTP if creating a new individual match
+    if (!tournamentId && !existingMatchId) {
+      setPendingAction('schedule');
+      setOtpModalVisible(true);
+      return;
+    }
+
+    executeMatchSetup('schedule');
+  };
+
+  const sendOTP = async () => {
+    if (!verificationPlayerId) return showCustomAlert('Error', 'Please select a player');
+    setOtpLoading(true);
+    try {
+      await api.post('/matches/send-otp', { playerId: verificationPlayerId });
+      setOtpSent(true);
+      showCustomAlert('OTP Sent', 'An OTP has been sent to the selected player\'s email.');
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to send OTP');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const verifyOTP = async () => {
+    if (!otpCode || otpCode.length !== 6) return showCustomAlert('Error', 'Enter a valid 6-digit OTP');
+    setOtpLoading(true);
+    try {
+      await api.post('/matches/verify-otp', { playerId: verificationPlayerId, otpCode: otpCode });
+      setOtpModalVisible(false);
+      executeMatchSetup(pendingAction);
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Invalid or expired OTP');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // executeMatchSetup handles the API calls now
 
   const handleScheduleClick = () => {
     setDatePickerMode('date');
@@ -273,61 +344,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleScheduleMatch = async () => {
-    if (!isAuthenticated) return navigation.navigate('AuthModal', { screen: 'Login' });
-    if (!teamA || !teamB) return showCustomAlert('Error', 'Please select both teams');
-    if (!overs || parseInt(overs, 10) <= 0) return showCustomAlert('Error', 'Valid overs required');
-    if (!wickets || parseInt(wickets, 10) <= 0) return showCustomAlert('Error', 'Valid wickets required');
-    if (!city?.trim() || !ground?.trim() || !groundType?.trim() || !pitchType?.trim()) {
-      return showCustomAlert('Error', 'City, Ground Name, Ground Type, and Pitch Type are required.');
-    }
-
-    const payload = {
-      teamA: teamA._id,
-      teamB: teamB._id,
-      overs: parseInt(overs, 10),
-      wickets: parseInt(wickets, 10),
-      bowlerQuota: parseInt(bowlerQuota, 10) || Math.ceil(parseInt(overs, 10) / 5),
-      format,
-      ballType,
-      pitchType,
-      groundType,
-
-      venueDetails: ground || 'Unknown Ground',
-      city,
-      ground,
-      locationObj: cityObj ? { name: cityObj.name, latitude: cityObj.latitude, longitude: cityObj.longitude } : null,
-      playingXI: {
-        teamA: playingXIA,
-        teamB: playingXIB,
-      },
-      captain: {
-        teamA: captainA,
-        teamB: captainB,
-      },
-      wicketKeeper: {
-        teamA: wkA,
-        teamB: wkB,
-      },
-      scheduledAt: tempDate.toISOString(),
-      status: 'scheduled'
-    };
-
-    if (tournamentId) {
-      payload.tournament = tournamentId;
-      if (matchStage) {
-        payload.stage = matchStage;
-      }
-    }
-
-    const res = await dispatch(createMatch(payload));
-    if (createMatch.fulfilled.match(res)) {
-      showCustomAlert('Success', 'Match Scheduled Successfully!');
-      navigation.goBack();
-    } else {
-      showCustomAlert('Match Schedule Failed', res.payload);
-    }
-  };
+  // Old handleScheduleMatch removed.
 
   const renderChip = (label, selected, onPress) => (
     <TouchableOpacity
@@ -432,7 +449,11 @@ const MatchSetupScreen = ({ navigation, route }) => {
                 }}
               >
                 {teamA ? (
-                  <Image source={{ uri: getImageUrl(teamA.logo) }} style={styles.teamLogoImg} />
+                  teamA.logo ? (
+                    <Image source={{ uri: getImageUrl(teamA.logo) }} style={styles.teamLogoImg} />
+                  ) : (
+                    <Image source={require('../../../../SportVerse.png')} style={styles.teamLogoImg} resizeMode="contain" />
+                  )
                 ) : (
                   <Icon name="plus" size={32} color={Colors.primary} />
                 )}
@@ -498,7 +519,11 @@ const MatchSetupScreen = ({ navigation, route }) => {
                 }}
               >
                 {teamB ? (
-                  <Image source={{ uri: getImageUrl(teamB.logo) }} style={styles.teamLogoImg} />
+                  teamB.logo ? (
+                    <Image source={{ uri: getImageUrl(teamB.logo) }} style={styles.teamLogoImg} />
+                  ) : (
+                    <Image source={require('../../../../SportVerse.png')} style={styles.teamLogoImg} resizeMode="contain" />
+                  )
                 ) : (
                   <Icon name="plus" size={32} color={Colors.primary} />
                 )}
@@ -568,8 +593,8 @@ const MatchSetupScreen = ({ navigation, route }) => {
               value={city}
               onChangeText={setCity}
               onSelectLocation={(loc) => {
-                setCity(loc.name);
-                setCityObj(loc);
+                setCity(loc ? loc.name : '');
+                setCityObj(loc || null);
               }}
               placeholder="Search city..."
             />
@@ -656,6 +681,117 @@ const MatchSetupScreen = ({ navigation, route }) => {
           onChange={onDateChange}
         />
       )}
+
+      <Modal visible={otpModalVisible} transparent={true} animationType="fade" onRequestClose={() => setOtpModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Match Verification</Text>
+            {!otpSent ? (
+              <>
+                <Text style={styles.modalSubtitle}>Select a registered player to receive an OTP.</Text>
+                
+                <View style={{ maxHeight: 350, marginBottom: Spacing.md }}>
+                  <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                    {/* Team A Players */}
+                    {teamA && (teamA.players || []).filter(p => p && p.player && p.player.isClaimed && p.player._id !== user?._id).length > 0 && (
+                      <View style={{ marginBottom: Spacing.md }}>
+                        <View style={{ backgroundColor: Colors.borderLight, padding: 8, borderRadius: 6, marginBottom: 8 }}>
+                          <Text style={{ color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{teamA.name}</Text>
+                        </View>
+                        {(teamA.players || []).filter(p => p && p.player && p.player.isClaimed && p.player._id !== user?._id).map((p, index) => {
+                          const photoUrl = p.player.photo || p.player.userId?.photo;
+                          return (
+                            <TouchableOpacity
+                              key={`${p.player._id}-A-${index}`}
+                              style={[styles.playerSelectRow, { paddingVertical: 10, borderBottomWidth: 0 }]}
+                              onPress={() => setVerificationPlayerId(p.player._id)}
+                            >
+                              <Icon name={verificationPlayerId === p.player._id ? "radiobox-marked" : "radiobox-blank"} size={22} color={Colors.primary} style={{ marginRight: 12 }} />
+                              {photoUrl ? (
+                                <Image source={{ uri: getImageUrl(photoUrl) }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }} />
+                              ) : (
+                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.backgroundElevated, marginRight: 12, alignItems: 'center', justifyContent: 'center' }}>
+                                  <Icon name="account" size={20} color={Colors.textSecondary} />
+                                </View>
+                              )}
+                              <Text style={styles.playerSelectName}>{p.player.name}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+
+                    {/* Team B Players */}
+                    {teamB && (teamB.players || []).filter(p => p && p.player && p.player.isClaimed && p.player._id !== user?._id).length > 0 && (
+                      <View style={{ marginBottom: Spacing.md }}>
+                        <View style={{ backgroundColor: Colors.borderLight, padding: 8, borderRadius: 6, marginBottom: 8 }}>
+                          <Text style={{ color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{teamB.name}</Text>
+                        </View>
+                        {(teamB.players || []).filter(p => p && p.player && p.player.isClaimed && p.player._id !== user?._id).map((p, index) => {
+                          const photoUrl = p.player.photo || p.player.userId?.photo;
+                          return (
+                            <TouchableOpacity
+                              key={`${p.player._id}-B-${index}`}
+                              style={[styles.playerSelectRow, { paddingVertical: 10, borderBottomWidth: 0 }]}
+                              onPress={() => setVerificationPlayerId(p.player._id)}
+                            >
+                              <Icon name={verificationPlayerId === p.player._id ? "radiobox-marked" : "radiobox-blank"} size={22} color={Colors.primary} style={{ marginRight: 12 }} />
+                              {photoUrl ? (
+                                <Image source={{ uri: getImageUrl(photoUrl) }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }} />
+                              ) : (
+                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.backgroundElevated, marginRight: 12, alignItems: 'center', justifyContent: 'center' }}>
+                                  <Icon name="account" size={20} color={Colors.textSecondary} />
+                                </View>
+                              )}
+                              <Text style={styles.playerSelectName}>{p.player.name}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+
+                    {[
+                      ...(teamA?.players || []),
+                      ...(teamB?.players || [])
+                    ].filter(p => p && p.player && p.player.isClaimed && p.player._id !== user?._id).length === 0 && (
+                      <Text style={{ color: Colors.textSecondary, textAlign: 'center', marginVertical: 10 }}>No registered players found in these teams to send an OTP to.</Text>
+                    )}
+                  </ScrollView>
+                </View>
+
+                <TouchableOpacity style={styles.sendOtpBtn} onPress={sendOTP} disabled={otpLoading}>
+                  {otpLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.sendOtpBtnText}>Send OTP</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setOtpModalVisible(false); setVerificationPlayerId(null); }}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalSubtitle}>Enter the 6-digit OTP sent to the player.</Text>
+                
+                <TextInput
+                  style={[styles.input, { textAlign: 'center', fontSize: 20, letterSpacing: 4, color: '#fff' }]}
+                  placeholder="------"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={otpCode}
+                  onChangeText={setOtpCode}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+
+                <TouchableOpacity style={styles.sendOtpBtn} onPress={verifyOTP} disabled={otpLoading}>
+                  {otpLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.sendOtpBtnText}>Verify Match</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setOtpModalVisible(false); setOtpSent(false); setOtpCode(''); setVerificationPlayerId(null); }}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -921,6 +1057,66 @@ const styles = StyleSheet.create({
     color: Colors.background || '#000000',
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    padding: Spacing.xl,
+  },
+  modalContent: {
+    backgroundColor: Colors.backgroundCard,
+    borderRadius: 16,
+    padding: Spacing.xl,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#fff',
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
+    textAlign: 'center',
+  },
+  playerSelectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  playerSelectName: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.medium,
+    color: '#fff',
+    flex: 1,
+  },
+  sendOtpBtn: {
+    backgroundColor: Colors.primary,
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: Spacing.lg,
+  },
+  sendOtpBtnText: {
+    color: Colors.background,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 16,
+  },
+  cancelBtn: {
+    marginTop: Spacing.md,
+    padding: 10,
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 14,
   },
 });
 

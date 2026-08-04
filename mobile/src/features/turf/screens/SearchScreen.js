@@ -23,6 +23,7 @@ import { fetchRankings, fetchMyPlayer } from '../../player/playerSlice';
 import { fetchMatches } from '../../match/matchSlice';
 import { fetchTournaments } from '../../tournament/tournamentSlice';
 import { toggleUserFavourite, setUserFavouriteStatus } from '../../auth/authSlice';
+
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import api, { getImageUrl } from '../../../api/axios';
@@ -199,13 +200,22 @@ const SearchScreen = ({ navigation, route }) => {
     if (!text || text.length < 2) { setLocResults([]); return; }
     setLocLoading(true);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(text)}&limit=7`,
-        { headers: { 'User-Agent': 'ScoreVerseApp/1.0', 'Accept-Language': 'en-US,en;q=0.9' } }
-      );
-      const data = await res.json();
-      setLocResults(Array.isArray(data) ? data : []);
-    } catch (e) {
+      const locationRes = await api.get(`/location/search?q=${encodeURIComponent(text)}`);
+      const locationData = locationRes.data;
+      
+      if (locationData && locationData.length > 0) {
+        const mappedLocations = locationData.map(loc => ({
+          _id: loc._id,
+          name: loc.name,
+          subtitle: loc.state,
+          type: 'location',
+          latitude: parseFloat(loc.latitude),
+          longitude: parseFloat(loc.longitude)
+        }));
+        setLocResults(mappedLocations);
+      }
+    } catch (err) {
+      console.log('Location search error:', err);
       setLocResults([]);
     } finally {
       setLocLoading(false);
@@ -219,14 +229,13 @@ const SearchScreen = ({ navigation, route }) => {
   };
 
   const handleLocationSelect = (item) => {
-    const locName = item.display_name.split(',')[0];
     setSelectedLocation({
-      name: locName,
-      fullName: item.display_name,
-      city: item.address?.city || item.address?.town || item.address?.county || locName,
-      latitude: parseFloat(item.lat),
-      longitude: parseFloat(item.lon),
-      state: item.address?.state || '',
+      name: item.name,
+      fullName: `${item.name}, ${item.subtitle}`,
+      city: item.name,
+      state: item.subtitle,
+      latitude: parseFloat(item.latitude),
+      longitude: parseFloat(item.longitude),
     });
     closeLocationModal();
   };
@@ -773,11 +782,11 @@ const SearchScreen = ({ navigation, route }) => {
             {locResults.length > 0 && (
               <View style={styles.locResultsContainer}>
                 {locResults.map((item, idx) => {
-                  const city = item.display_name.split(',')[0];
-                  const sub = item.display_name.split(',').slice(1, 3).join(',').trim();
+                  const city = item.name;
+                  const sub = item.subtitle;
                   return (
                     <TouchableOpacity
-                      key={item.place_id || idx}
+                      key={item._id || idx}
                       style={[styles.locResultItem, idx < locResults.length - 1 && styles.locResultBorder]}
                       onPress={() => handleLocationSelect(item)}
                       activeOpacity={0.7}

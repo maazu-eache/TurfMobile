@@ -211,7 +211,7 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
                 <LocationAutocomplete
                   value={form.city}
                   onChangeText={t => handleChange('city', t)}
-                  onSelectLocation={loc => handleChange('city', loc.name)}
+                  onSelectLocation={loc => handleChange('city', loc ? loc.name : '')}
                   placeholder="Search city..."
                   variant="outlined"
                 />

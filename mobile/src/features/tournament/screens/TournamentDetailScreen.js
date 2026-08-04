@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, FlatList, Share, Modal, TextInput, RefreshControl, StatusBar, ToastAndroid, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, FlatList, Share, Modal, TextInput, RefreshControl, StatusBar, ToastAndroid, Platform, Alert, Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,7 +21,7 @@ import TournamentStartMatchModal from '../components/TournamentStartMatchModal';
 import TournamentLeaderboard from '../components/TournamentLeaderboard';
 import TournamentStatistics from '../components/TournamentStatistics';
 import SharePreviewModal from '../components/SharePreviewModal';
-import { TournamentSummaryPoster, FixturePoster, PointsTablePoster, LeaderboardPoster, FullSchedulePoster } from '../components/PosterTemplates';
+import { TournamentSummaryPoster, FixturePoster, PointsTablePoster, LeaderboardPoster, FullSchedulePoster, RegistrationPoster, TeamInvitePoster } from '../components/PosterTemplates';
 
 const TABS = [
   'Overview', 'Matches', 'Auction', 'Teams', 'Points Table',
@@ -38,6 +38,24 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [selectedTeamFilter, setSelectedTeamFilter] = useState('');
   const { user } = useSelector(state => state.auth);
 
+  const lockAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(lockAnim, {
+          toValue: 1.15,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(lockAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [lockAnim]);
   // Modals state
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -366,13 +384,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   };
 
   const handleShareJoinLink = async () => {
-    try {
-      await Share.share({
-        message: `Join ${tournament.name} on ScoreVerse! Click the link to register your team: https://scoreverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}?action=join-team`,
-      });
-    } catch (e) {
-      console.log('Follow error:', e);
-    }
+    setShareData({ type: 'teamInvite', data: tournament });
   };
 
   const handleCalculateQualifications = async () => {
@@ -525,6 +537,108 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
   const renderOverview = () => (
     <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}>
+
+      {tournament.tournamentType === 'Auction' && !isOrganizer && (
+        <View style={styles.card}>
+          <View style={styles.cardTitleRow}>
+            <MCIcon name="gavel" size={16} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>Auction Registration</Text>
+          </View>
+          
+          {(() => {
+            const regEndDate = auctionDetails?.registrationEndDate;
+            const regEndPassed = regEndDate ? moment().isAfter(moment(regEndDate).endOf('day')) : false;
+            const auctionDate = auctionDetails?.auctionDate;
+            const auctionDateReached = !auctionDate || new Date() >= new Date(auctionDate);
+
+            if (isAuctionRegistered) {
+              return (
+                <TouchableOpacity
+                  style={[auctionStyles.actionRow, { marginTop: 12, paddingHorizontal: 0, backgroundColor: 'transparent' }]}
+                  onPress={() => navigation.navigate('AuctionRegistration', { tournamentId: tournament._id })}
+                >
+                  <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(74,222,128,0.12)' }]}>
+                    <MCIcon name="check-circle" size={20} color="#4ADE80" />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={auctionStyles.actionTitle}>You Are Registered</Text>
+                    <Text style={auctionStyles.actionSub}>Tap to view your registration</Text>
+                  </View>
+                  <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+                </TouchableOpacity>
+              );
+            }
+
+            if (regEndPassed) {
+              if (auctionDateReached && auctionDetails?.status !== 'completed') {
+                return (
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: Colors.warning,
+                      paddingVertical: 14,
+                      borderRadius: 12,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginTop: 12
+                    }}
+                    onPress={() => {
+                      if (auctionDetails?._id) {
+                        navigation.navigate('AuctionLivePublic', { auctionId: auctionDetails._id });
+                      } else {
+                        showCustomAlert('Error', 'Auction details not found.');
+                      }
+                    }}
+                  >
+                    <MCIcon name="eye" size={20} color={Colors.black} />
+                    <Text style={{
+                      color: Colors.black,
+                      fontSize: 16,
+                      fontFamily: Typography.fontFamily.semiBold,
+                      marginLeft: 8
+                    }}>Watch Live Auction</Text>
+                  </TouchableOpacity>
+                );
+              }
+
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, opacity: 0.7 }}>
+                  <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+                    <MCIcon name="lock" size={20} color="#EF4444" />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={auctionStyles.actionTitle}>Registration Closed</Text>
+                    <Text style={auctionStyles.actionSub}>Registration ended. Tap for details.</Text>
+                  </View>
+                </View>
+              );
+            }
+
+            return (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: Colors.primary,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginTop: 12
+                }}
+                onPress={() => navigation.navigate('AuctionRegistration', { tournamentId: tournament._id })}
+              >
+                <MCIcon name="account-plus" size={20} color={Colors.black} />
+                <Text style={{
+                  color: Colors.black,
+                  fontSize: 16,
+                  fontFamily: Typography.fontFamily.semiBold,
+                  marginLeft: 8
+                }}>Register for Auction</Text>
+              </TouchableOpacity>
+            );
+          })()}
+        </View>
+      )}
 
       {/* Stats Strip */}
       <View style={styles.statsStrip}>
@@ -1103,7 +1217,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
     const regEndDate = auctionDetails?.registrationEndDate;
     const auctionDate = auctionDetails?.auctionDate;
-    const regEndPassed = !regEndDate || new Date() >= new Date(regEndDate);
+    const regEndPassed = regEndDate ? moment().isAfter(moment(regEndDate).endOf('day')) : false;
     const auctionDateReached = !auctionDate || new Date() >= new Date(auctionDate);
 
     const formatDate = (d) => d ? moment.utc(d).format('ddd, D MMM YYYY') : 'Not set';
@@ -1466,14 +1580,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <View style={auctionStyles.divider} />
             <TouchableOpacity
               style={auctionStyles.actionRow}
-              onPress={async () => {
-                try {
-                  await Share.share({
-                    message: `Register for the ${tournament?.name || 'Tournament'} Auction!\n\nLink: https://scoreverse.maazibrahimoo0.workers.dev/tournament/${tournament._id}/register`
-                  });
-                } catch (e) {
-                  console.log('Error sharing registration link:', e);
-                }
+              onPress={() => {
+                setShareData({ type: 'registration', data: tournament });
               }}
             >
               <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(56,189,248,0.12)' }]}>
@@ -1494,12 +1602,22 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const hasTournamentStarted = tournament?.startDate ? new Date() >= new Date(tournament.startDate) : true;
 
   const renderLockedModule = (tabName) => (
-    <View style={styles.placeholderContainer}>
-      <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
-        <MCIcon name="lock" size={36} color={Colors.textTertiary} />
-      </View>
-      <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 8 }}>{tabName} Locked</Text>
-      <Text style={styles.emptyText}>This section will unlock once the tournament starts on {tournament?.startDate ? moment.utc(tournament.startDate).format('DD MMM YYYY') : 'the start date'}.</Text>
+    <View style={[styles.placeholderContainer, { paddingHorizontal: 20 }]}>
+      <Animated.View style={{ 
+        width: 80, height: 80, borderRadius: 40, 
+        backgroundColor: Colors.primaryAlpha10, 
+        justifyContent: 'center', alignItems: 'center', 
+        marginBottom: 24,
+        transform: [{ scale: lockAnim }]
+      }}>
+        <MCIcon name="lock" size={36} color={Colors.primary} />
+      </Animated.View>
+      <Text style={{ fontSize: 22, fontFamily: Typography.fontFamily.bold, color: Colors.primary, marginBottom: 12, textAlign: 'center' }}>
+        {tabName} Locked
+      </Text>
+      <Text style={[styles.emptyText, { color: Colors.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22 }]}>
+        This section will unlock once the tournament starts on <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.semiBold }}>{tournament?.startDate ? moment.utc(tournament.startDate).format('DD MMM YYYY') : 'the start date'}</Text>.
+      </Text>
     </View>
   );
 
@@ -1967,10 +2085,12 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       <SharePreviewModal
         visible={!!shareData}
         onClose={() => setShareData(null)}
-        title={shareData?.type === 'tournament' ? tournament?.name : shareData?.type === 'fixture' ? 'Match Fixture' : shareData?.type === 'fullSchedule' ? 'Match Schedule' : shareData?.type === 'pointsTable' ? 'Points Table' : 'Leaderboard'}
-        shareUrl={`https://scoreverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}`}
+        title={shareData?.type === 'tournament' ? tournament?.name : shareData?.type === 'fixture' ? 'Match Fixture' : shareData?.type === 'fullSchedule' ? 'Match Schedule' : shareData?.type === 'pointsTable' ? 'Points Table' : shareData?.type === 'registration' ? 'Register for Auction' : shareData?.type === 'teamInvite' ? 'Invite Teams' : 'Leaderboard'}
+        shareUrl={`https://scoreverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}${shareData?.type === 'registration' ? '/register' : shareData?.type === 'teamInvite' ? '?action=join-team' : ''}`}
       >
         {shareData?.type === 'tournament' && <TournamentSummaryPoster tournament={shareData.data} />}
+        {shareData?.type === 'registration' && <RegistrationPoster tournament={shareData.data} />}
+        {shareData?.type === 'teamInvite' && <TeamInvitePoster tournament={shareData.data} />}
         {shareData?.type === 'fixture' && <FixturePoster match={shareData.data} tournamentName={tournament?.name} tournamentBanner={tournament?.banner} />}
         {shareData?.type === 'fullSchedule' && (() => {
           const chunkSize = 6; // 6 matches per poster fits perfectly

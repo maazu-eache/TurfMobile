@@ -13,6 +13,7 @@ import {
   Image,
   RefreshControl,
 } from 'react-native';
+import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -37,6 +38,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [registrations, setRegistrations] = useState([]);
   const [sets, setSets] = useState([]);
+  const [auctionProfile, setAuctionProfile] = useState(null);
 
   // Manual Add Player Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -52,6 +54,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
     experience: '1-3 Years',
     photo: null,
     foundUser: null,
+    amountPaid: '',
   });
 
   // Create Sets Controls
@@ -71,11 +74,12 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
     setLoading(true);
     try {
       let activeId = targetAuctionId;
-      if (!activeId && tournamentId) {
+      if (tournamentId) {
         const detailsRes = await auctionService.getAuctionDetails(tournamentId);
         if (detailsRes.data && detailsRes.data._id) {
           activeId = detailsRes.data._id;
           setTargetAuctionId(activeId);
+          setAuctionProfile(detailsRes.data);
         }
       }
       if (activeId) {
@@ -110,11 +114,17 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
             const u = res.data.data.user;
             const photoUrl = u.avatar ? getImageUrl(u.avatar) : (u.photo ? getImageUrl(u.photo) : null);
             const userRole = u.playingRole || u.role;
+            const mapBattingStyle = (style) => {
+              if (style === 'Right Hand') return 'Right Handed';
+              if (style === 'Left Hand') return 'Left Handed';
+              return style;
+            };
+            const mappedBatting = mapBattingStyle(u.battingStyle);
             setPlayerForm(f => ({
               ...f,
               fullName: u.name || f.fullName,
               role: userRole && ROLES.includes(userRole) ? userRole : f.role,
-              battingStyle: u.battingStyle && BATTING_STYLES.includes(u.battingStyle) ? u.battingStyle : f.battingStyle,
+              battingStyle: mappedBatting && BATTING_STYLES.includes(mappedBatting) ? mappedBatting : f.battingStyle,
               bowlingStyle: u.bowlingStyle || f.bowlingStyle,
               photo: photoUrl ? { uri: photoUrl } : f.photo,
               foundUser: u,
@@ -202,6 +212,9 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
       data.append('bowlingStyle', playerForm.bowlingStyle);
       data.append('experience', playerForm.experience);
       data.append('mobileNumber', submitMobile);
+      if (playerForm.amountPaid !== '') {
+        data.append('amountPaid', playerForm.amountPaid);
+      }
 
       if (playerForm.photo?.uri) {
         data.append('photo', {
@@ -224,6 +237,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
         experience: '1-3 Years',
         photo: null,
         foundUser: null,
+        amountPaid: '',
       });
       setPhoneInput('');
       loadData();
@@ -366,17 +380,40 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                   <Text style={styles.playerSub}>{item.battingStyle || 'Right Handed'} | {item.bowlingStyle || 'Medium'}</Text>
                 </View>
                 <View style={styles.paidChip}>
-                  <Icon name="check-circle" size={10} color="#4ADE80" style={{ marginRight: 3 }} />
-                  <Text style={styles.paidText}>OK</Text>
+                  <Icon name={item.registrationType === 'offline' ? 'cash' : 'credit-card-outline'} size={12} color="#4ADE80" style={{ marginRight: 4 }} />
+                  <Text style={styles.paidText}>
+                    {item.registrationType === 'offline' ? 'Offline' : 'Online'} • ₹{item.registrationFee || 0}
+                  </Text>
                 </View>
               </View>
             )}
             ListEmptyComponent={
-              <View style={styles.emptyBox}>
-                <Icon name="account-group-outline" size={56} color={Colors.textTertiary} />
-                <Text style={styles.emptyTitle}>No Players Yet</Text>
-                <Text style={styles.emptyText}>Add players manually or ask them to register.</Text>
-              </View>
+              loading ? (
+                <View>
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <View key={i} style={styles.playerCard}>
+                      <SkeletonPlaceholder backgroundColor={Colors.surface} highlightColor="#2A2A2A">
+                        <SkeletonPlaceholder.Item flexDirection="row" alignItems="center">
+                          <SkeletonPlaceholder.Item width={26} height={26} borderRadius={13} marginRight={6} />
+                          <SkeletonPlaceholder.Item width={44} height={44} borderRadius={22} />
+                          <SkeletonPlaceholder.Item flex={1} marginLeft={10}>
+                            <SkeletonPlaceholder.Item width={120} height={16} borderRadius={4} />
+                            <SkeletonPlaceholder.Item width={80} height={12} borderRadius={4} marginTop={6} />
+                            <SkeletonPlaceholder.Item width={100} height={10} borderRadius={4} marginTop={6} />
+                          </SkeletonPlaceholder.Item>
+                          <SkeletonPlaceholder.Item width={40} height={20} borderRadius={10} />
+                        </SkeletonPlaceholder.Item>
+                      </SkeletonPlaceholder>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyBox}>
+                  <Icon name="account-group-outline" size={56} color={Colors.textTertiary} />
+                  <Text style={styles.emptyTitle}>No Players Yet</Text>
+                  <Text style={styles.emptyText}>Add players manually or ask them to register.</Text>
+                </View>
+              )
             }
           />
         </View>
@@ -723,6 +760,16 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                 placeholderTextColor={Colors.textTertiary}
                 value={playerForm.fullName}
                 onChangeText={(t) => setPlayerForm({ ...playerForm, fullName: t })}
+              />
+
+              <Text style={styles.label}>Amount Received (₹)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={`Default: ₹${auctionProfile?.registrationFee || 0}`}
+                placeholderTextColor={Colors.textTertiary}
+                keyboardType="numeric"
+                value={playerForm.amountPaid}
+                onChangeText={(t) => setPlayerForm({ ...playerForm, amountPaid: t })}
               />
 
               <Text style={styles.label}>Playing Role</Text>

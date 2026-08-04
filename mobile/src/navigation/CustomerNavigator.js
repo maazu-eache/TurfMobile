@@ -23,6 +23,7 @@ import BookingDetailScreen from '../features/booking/screens/BookingDetailScreen
 import WalletScreen from '../features/wallet/screens/WalletScreen';
 import NotificationsScreen from '../features/notification/screens/NotificationsScreen';
 import ProfileScreen from '../features/user/screens/ProfileScreen';
+import ChangePasswordScreen from '../features/auth/screens/ChangePasswordScreen';
 import FavouritesScreen from '../features/user/screens/FavouritesScreen';
 import MyCricketScreen from '../features/match/screens/MyCricketScreen';
 import SpectatorScreen from '../features/match/screens/SpectatorScreen';
@@ -239,6 +240,11 @@ const HomeStack = () => (
     <Stack.Screen name="Favourites" component={FavouritesScreen} />
     <Stack.Screen name="GlobalLeaderboard" component={GlobalLeaderboardScreen} />
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
+    <Stack.Screen name="TeamDetail" component={TeamDetailScreen} />
+    <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
+    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
+    <Stack.Screen name="Scorecard" component={ScorecardScreen} />
+    <Stack.Screen name="Spectator" component={SpectatorScreen} />
   </Stack.Navigator>
 );
 
@@ -251,6 +257,7 @@ const SearchStack = () => (
     <Stack.Screen name="BookingConfirm" component={BookingConfirmScreen} />
 
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
+    <Stack.Screen name="TeamDetail" component={TeamDetailScreen} />
     <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
     <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
@@ -307,6 +314,7 @@ const MatchStack = () => (
 const ProfileStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+    <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
     <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} />
     <Stack.Screen name="Favourites" component={FavouritesScreen} />
     <Stack.Screen name="CareerStats" component={CareerStatsScreen} />
@@ -351,7 +359,7 @@ const CustomerNavigator = ({ navigation }) => {
       tabBar={(props) => <CustomTabBar {...props} insets={insets} />}
       screenOptions={({ route }) => {
         const routeName = getFocusedRouteNameFromRoute(route) ?? '';
-        const hiddenRoutes = ['MatchSetup', 'MatchTeamSelection', 'Toss', 'PlayingXI', 'LiveScorer', 'MatchPlayerSelection', 'SuperOver', 'AddPlayer', 'SelectBowler', 'Scorecard', 'MatchSummary', 'TournamentDetail', 'AuctionLiveOrganiser', 'AuctionLivePublic', 'AuctionLiveTeamOwner', 'GlobalLeaderboard', 'QualificationCalculator'];
+        const hiddenRoutes = ['MatchSetup', 'MatchTeamSelection', 'Toss', 'PlayingXI', 'LiveScorer', 'MatchPlayerSelection', 'SuperOver', 'AddPlayer', 'SelectBowler', 'Scorecard', 'MatchSummary', 'TournamentDetail', 'AuctionLiveOrganiser', 'AuctionLivePublic', 'AuctionLiveTeamOwner', 'GlobalLeaderboard', 'QualificationCalculator', 'AuctionRegistration'];
         const isHidden = hiddenRoutes.includes(routeName);
         return {
           headerShown: false,

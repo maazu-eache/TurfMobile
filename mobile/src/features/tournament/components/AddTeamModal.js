@@ -316,7 +316,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                     value={ghostForm.city}
                     onChangeText={t => setGhostForm({...ghostForm, city: t})}
                     onSelectLocation={(loc) => {
-                      setGhostForm(prev => ({ ...prev, city: loc.name, state: loc.state || prev.state }));
+                      setGhostForm(prev => ({ ...prev, city: loc ? loc.name : '', state: loc ? (loc.state || prev.state) : prev.state }));
                     }}
                   />
                   

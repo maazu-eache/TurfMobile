@@ -387,9 +387,9 @@ const styles = StyleSheet.create({
   sectionTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     paddingHorizontal: 16,
-    paddingVertical: 9,
+    paddingVertical: 7,
     borderRadius: 10,
     backgroundColor: Colors.backgroundCard,
     borderWidth: 1,
@@ -399,8 +399,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
-  sectionTabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 },
-  sectionTabTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  sectionTabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 },
+  sectionTabTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
   sectionTabCount: {
     backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: 10,

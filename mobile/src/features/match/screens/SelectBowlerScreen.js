@@ -105,13 +105,14 @@ const SelectBowlerScreen = ({ route, navigation }) => {
         dispatch(setLiveState({
           ...liveState,
           bowler: selectedBowlerObj,
+          bowlerStats: { runs: 0, balls: 0, wickets: 0, maidens: 0, overs: 0 },
           needsBowler: false,
           currentOverBalls: []
         }));
       }
 
       // Instant 0ms navigation to LiveScorerScreen
-      navigation.navigate('LiveScorer', { matchId: match._id, skipFocusFetch: true });
+      navigation.navigate('LiveScorer', { matchId: match._id, skipFocusFetch: true, bowlerSelectedTime: Date.now() });
 
       // Emit via Socket.IO instead of slow HTTP API call
       const socket = socketService.getSocket();

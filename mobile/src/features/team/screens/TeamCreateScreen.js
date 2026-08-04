@@ -318,9 +318,9 @@ const TeamCreateScreen = ({ navigation }) => {
                 value={city}
                 onChangeText={setCity}
                 onSelectLocation={(loc) => {
-                  setCity(loc.name);
-                  setCityObj(loc);
-                  if (loc.state) setStateName(loc.state);
+                  setCity(loc ? loc.name : '');
+                  setCityObj(loc || null);
+                  if (loc && loc.state) setStateName(loc.state);
                 }}
                 placeholder="Search..."
                 variant="outlined"

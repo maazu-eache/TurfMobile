@@ -230,8 +230,16 @@ const TournamentCreateScreen = ({ navigation }) => {
         showCustomAlert('Error', 'Please fill name, city, and start date');
         return;
       }
+      if (!form.locationObj) {
+        showCustomAlert('Error', 'Please select a valid city from the suggestions');
+        return;
+      }
       setStep(1);
     } else {
+      if (!form.format || !form.ballType || !form.groundType || !form.overs || !form.wickets || !form.entryFee) {
+        showCustomAlert('Error', 'Please fill all the required fields (Overs, Wickets, Entry Fee)');
+        return;
+      }
       if (form.tournamentType === 'Auction') {
         if (!form.registrationStartDate || !form.registrationEndDate) {
           showCustomAlert('Error', 'Please select mandatory Registration Start Date and End Date');
@@ -405,7 +413,7 @@ const TournamentCreateScreen = ({ navigation }) => {
                   value={form.city}
                   onChangeText={(t) => setForm({ ...form, city: t })}
                   onSelectLocation={(loc) => {
-                    setForm({ ...form, city: loc.name, locationObj: loc });
+                    setForm({ ...form, city: loc ? loc.name : '', locationObj: loc });
                   }}
                   placeholder="Search city..."
                   variant="outlined"
