@@ -111,6 +111,7 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
   const currentHighestTeam = liveState?.auction?.currentHighestTeam;
   const currentBid = liveState?.auction?.currentHighestBid || 0;
   const teams = liveState?.teams || [];
+  const isAuctionStarted = ['in_progress', 'paused', 'completed'].includes(liveState?.auction?.status);
 
   const currentSetId = liveState?.auction?.currentSet?._id || liveState?.auction?.currentSet;
   const currentSet = liveState?.sets?.find(s => s._id === currentSetId);
@@ -382,8 +383,10 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
                     </View>
                   </View>
                   <View style={styles.teamPurseWrap}>
-                    <Text style={[styles.teamPurseRemaining, isLeading && { color: '#FFD700' }]}>{remaining}</Text>
-                    <Text style={styles.teamPurseLabel}>Pts left</Text>
+                    <Text style={[styles.teamPurseRemaining, isLeading && { color: '#FFD700' }, !isAuctionStarted && { fontSize: 11, color: Colors.textSecondary }]}>
+                      {isAuctionStarted ? remaining : 'Yet to announce'}
+                    </Text>
+                    {isAuctionStarted && <Text style={styles.teamPurseLabel}>Pts left</Text>}
                   </View>
                   <Icon
                     name={isExpanded ? 'chevron-up' : 'chevron-down'}

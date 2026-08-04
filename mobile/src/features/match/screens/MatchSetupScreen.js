@@ -259,6 +259,15 @@ const MatchSetupScreen = ({ navigation, route }) => {
       return showCustomAlert('Error', 'City, Ground Name, Ground Type, and Pitch Type are required.');
     }
 
+    if (teamA._id === teamB._id) {
+      return showCustomAlert('Error', 'Team A and Team B cannot be the same team.');
+    }
+
+    const commonPlayers = playingXIA.filter(id => playingXIB.includes(id));
+    if (commonPlayers.length > 0) {
+      return showCustomAlert('Validation Error', 'A player cannot be in both teams\' playing XI.');
+    }
+
     // Require OTP if creating a new individual match (not tournament, not existing match)
     if (!tournamentId && !existingMatchId) {
       setPendingAction('toss');
@@ -276,6 +285,15 @@ const MatchSetupScreen = ({ navigation, route }) => {
     if (!wickets || parseInt(wickets, 10) <= 0) return showCustomAlert('Error', 'Valid wickets required');
     if (!city?.trim() || !ground?.trim() || !groundType?.trim() || !pitchType?.trim()) {
       return showCustomAlert('Error', 'City, Ground Name, Ground Type, and Pitch Type are required.');
+    }
+
+    if (teamA._id === teamB._id) {
+      return showCustomAlert('Error', 'Team A and Team B cannot be the same team.');
+    }
+
+    const commonPlayers = playingXIA.filter(id => playingXIB.includes(id));
+    if (commonPlayers.length > 0) {
+      return showCustomAlert('Validation Error', 'A player cannot be in both teams\' playing XI.');
     }
 
     // Require OTP if creating a new individual match

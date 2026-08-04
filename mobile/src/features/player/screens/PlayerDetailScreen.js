@@ -577,7 +577,17 @@ const PlayerDetailScreen = ({ navigation, route }) => {
           <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }} onPress={() => setImageModalVisible(false)}>
             <Icon name="close" size={28} color="#fff" />
           </TouchableOpacity>
-          <Image source={{ uri: photoUrl ? getImageUrl(photoUrl) : 'https://via.placeholder.com/400' }} style={{ width: '90%', height: '70%', resizeMode: 'contain' }} />
+          <Image 
+            source={{ uri: photoUrl ? getImageUrl(photoUrl) : 'https://via.placeholder.com/400' }} 
+            style={{ 
+              width: 280, 
+              height: 280, 
+              borderRadius: 140, 
+              borderWidth: 4, 
+              borderColor: Colors.primary, 
+              resizeMode: 'cover' 
+            }} 
+          />
         </View>
       </Modal>
     </View>

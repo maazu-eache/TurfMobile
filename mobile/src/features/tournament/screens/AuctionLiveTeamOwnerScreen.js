@@ -119,6 +119,7 @@ const AuctionLiveTeamOwnerScreen = ({ route, navigation }) => {
   const myTeamLive = allTeams.find(t => t._id?.toString() === team?._id?.toString());
   const squad = myTeamLive?.players || ownerData?.squad || [];
 
+  const isAuctionStarted = ['in_progress', 'paused', 'completed'].includes(liveState?.auction?.status || ownerData?.status);
   const totalPurse = myTeamLive?.auctionPurse || ownerData?.auctionPurse || liveState?.auction?.teamPurse || 0;
   const purseRemaining = myTeamLive?.purseRemaining ?? ownerData?.purseRemaining ?? totalPurse;
   const purseSpentPct = totalPurse > 0 ? Math.min(((totalPurse - purseRemaining) / totalPurse) * 100, 100) : 0;
@@ -198,7 +199,7 @@ const AuctionLiveTeamOwnerScreen = ({ route, navigation }) => {
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.purseLabel}>Purse Left</Text>
-              <Text style={styles.purseValue}>{purseRemaining} Pts</Text>
+              <Text style={styles.purseValue}>{isAuctionStarted ? `${purseRemaining} Pts` : 'Yet to announce'}</Text>
             </View>
           </View>
           <View style={styles.purseBg}>

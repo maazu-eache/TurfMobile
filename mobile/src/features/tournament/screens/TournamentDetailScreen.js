@@ -663,6 +663,37 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         </View>
       </View>
 
+      {/* Champion Banner when tournament is completed */}
+      {tournament.status === 'completed' && (
+        <View style={{ marginHorizontal: Spacing.md, marginBottom: 16, borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: Colors.primary }}>
+          <View style={{ padding: 20, alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.07)' }}>
+            <MCIcon name="trophy" size={40} color={Colors.primary} style={{ marginBottom: 10 }} />
+            <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 18, marginBottom: 6 }}>Tournament Completed!</Text>
+            {tournament.winner?.name && (
+              <View style={{ alignItems: 'center', marginTop: 8 }}>
+                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>CHAMPION</Text>
+                <TouchableOpacity 
+                  onPress={() => navigation.navigate('TeamDetail', { id: tournament.winner._id || tournament.winner })}
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primaryAlpha15, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: Colors.primary }}
+                >
+                  <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>🏆 {tournament.winner.name}</Text>
+                  <Icon name="chevron-right" size={14} color={Colors.primary} style={{ marginLeft: 6 }} />
+                </TouchableOpacity>
+              </View>
+            )}
+            {tournament.runnerUp?.name && (
+              <TouchableOpacity 
+                onPress={() => navigation.navigate('TeamDetail', { id: tournament.runnerUp._id || tournament.runnerUp })} 
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', marginTop: 12 }}
+              >
+                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 }}>🥈 Runner-up: {tournament.runnerUp.name}</Text>
+                <Icon name="chevron-right" size={12} color={Colors.textSecondary} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+
       <View style={styles.card}>
         <View style={styles.cardTitleRow}>
           <MCIcon name="format-list-bulleted" size={18} color={Colors.primary} />
@@ -845,6 +876,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   };
 
   const renderMatches = () => {
+    const isTournamentCompleted = tournament.status === 'completed';
     let filteredMatches = [];
     if (matchSubTab === 'Upcoming') {
       filteredMatches = (tournament.matches?.filter(m => m.status === 'scheduled') || [])
@@ -928,13 +960,43 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           })}
         </View>
 
-        {/* Removed Team Filter */}
-        <FlatList
-          data={filteredMatches}
-          keyExtractor={item => item._id}
-          contentContainerStyle={styles.tabContent}
-          ListEmptyComponent={<Text style={styles.emptyText}>No {matchSubTab.toLowerCase()} matches found.</Text>}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+        {/* Tournament completed banner for non-Past tabs */}
+        {isTournamentCompleted && matchSubTab !== 'Past' ? (
+          <View style={{ marginHorizontal: Spacing.md, marginBottom: 16, padding: 20, backgroundColor: 'rgba(154,188,47,0.08)', borderRadius: 14, borderWidth: 1, borderColor: Colors.primary, alignItems: 'center' }}>
+            <MCIcon name="trophy" size={36} color={Colors.primary} style={{ marginBottom: 10 }} />
+            <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 4 }}>Tournament Completed!</Text>
+            {tournament.winner?.name && (
+              <TouchableOpacity 
+                onPress={() => navigation.navigate('TeamDetail', { id: tournament.winner._id || tournament.winner })}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primaryAlpha15, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.primary, marginBottom: 8 }}
+              >
+                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 }}>🏆 Champion: {tournament.winner.name}</Text>
+                <Icon name="chevron-right" size={12} color={Colors.primary} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
+            )}
+            {tournament.runnerUp?.name && (
+              <TouchableOpacity 
+                onPress={() => navigation.navigate('TeamDetail', { id: tournament.runnerUp._id || tournament.runnerUp })}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}
+              >
+                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 }}>🥈 Runner-up: {tournament.runnerUp.name}</Text>
+                <Icon name="chevron-right" size={11} color={Colors.textSecondary} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={{ marginTop: 14, paddingVertical: 9, paddingHorizontal: 24, backgroundColor: Colors.primary, borderRadius: 10 }}
+              onPress={() => setMatchSubTab('Past')}
+            >
+              <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>View All Results</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredMatches}
+            keyExtractor={item => item._id}
+            contentContainerStyle={styles.tabContent}
+            ListEmptyComponent={<Text style={styles.emptyText}>No {matchSubTab.toLowerCase()} matches found.</Text>}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
           renderItem={({ item }) => {
             const isLive = ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status);
             const isCompleted = item.status === 'completed';
@@ -1012,8 +1074,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   </View>
                 ) : null}
 
-                {/* Start Match button — only for organizer / scorers, on scheduled matches */}
-                {item.status === 'scheduled' && isOrganizer && (
+                {/* Start Match button — only for organizer / scorers, on scheduled matches, and tournament not completed */}
+                {item.status === 'scheduled' && isOrganizer && !isTournamentCompleted && (
                   <TouchableOpacity
                     style={{
                       marginTop: 10,
@@ -1042,6 +1104,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             );
           }}
         />
+        )}
       </View>
     );
   };

@@ -512,7 +512,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             })()}</Text>
           </View>
         ) : null}
-        {inningsNum % 2 === 0 && rrr ? (
+        {inningsNum % 2 === 0 && tw !== null ? (
           <View style={styles.chaseBanner}>
             {tw <= 0 ? (
               <Text style={styles.chaseMainText}>Target Reached</Text>
@@ -1100,6 +1100,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   const handleScore = async (runs, options = {}) => {
     if (!liveState?.match) return;
+    const match = liveState.match;
     // Prevent multiple rapid taps — ignore if a scoring action is already in progress
     if (scoringLockRef.current) return;
     scoringLockRef.current = true;
@@ -1119,9 +1120,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
     
     if (options.isWicket && !options.singleWicketResolved) {
       const currentWickets = liveState.score?.wickets || 0;
-      const matchWickets = match.wickets || 10;
+      const matchWickets = (liveState?.inningsNumber >= 3) ? 2 : (match.wickets || 10);
       
-      if (currentWickets + 1 === matchWickets - 1 && !match.isSingleWicketBatting) {
+      if (liveState?.inningsNumber < 3 && currentWickets + 1 === matchWickets - 1 && !match.isSingleWicketBatting) {
         showCustomAlert(
           'Last Wicket Alert',
           'This is the second-to-last wicket. Do you want to enable Single Wicket Batting for the remaining batsman, or declare All Out?',
@@ -1285,6 +1286,25 @@ const LiveScorerScreen = ({ navigation, route }) => {
           }
         }
 
+        let isOptimisticInningsComplete = false;
+        let maxOvers = match.overs;
+        if (liveState.inningsNumber >= 3) {
+          maxOvers = 1;
+        }
+        const maxWickets = (liveState.inningsNumber >= 3) ? 2 : (match.wickets || 10);
+
+        if (currentWickets >= maxWickets) {
+          isOptimisticInningsComplete = true;
+        } else if (currentOvers >= maxOvers) {
+          isOptimisticInningsComplete = true;
+        } else if (
+          liveState.inningsNumber % 2 === 0 &&
+          liveState.target &&
+          (currentRuns + addedRuns) >= liveState.target
+        ) {
+          isOptimisticInningsComplete = true;
+        }
+
         const optimisticState = {
           ...liveState,
           score: {
@@ -1299,11 +1319,21 @@ const LiveScorerScreen = ({ navigation, route }) => {
           nonStriker: nextNonStriker,
           nonStrikerStats: nextNonStrikerStats,
           bowlerStats: newBowlerStats,
+          needsBowler: isOptimisticInningsComplete ? false : (isOptimisticOverComplete ? true : liveState.needsBowler),
           ...(isOptimisticOverComplete ? {
-            needsBowler: true,
             previousBowler: liveState.bowler,
-          } : {})
+          } : {}),
+          isInningsComplete: liveState.isInningsComplete || isOptimisticInningsComplete,
+          isMatchComplete: liveState.isMatchComplete || (isOptimisticInningsComplete && liveState.inningsNumber % 2 === 0)
         };
+
+        if (optimisticState.toWin !== null && optimisticState.toWin !== undefined) {
+          optimisticState.toWin = Math.max(0, optimisticState.toWin - addedRuns);
+        }
+        if (optimisticState.ballsRemaining !== null && optimisticState.ballsRemaining !== undefined && !options.isWide && !options.isNoBall) {
+          optimisticState.ballsRemaining = Math.max(0, optimisticState.ballsRemaining - 1);
+        }
+
         dispatch(setLiveState(optimisticState));
       }
 
