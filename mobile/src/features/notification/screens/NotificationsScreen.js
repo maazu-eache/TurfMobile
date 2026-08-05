@@ -6,7 +6,11 @@ import api from '../../../api/axios';
 import { formatISTDateTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
+import { useSelector } from 'react-redux';
+
 const NotificationsScreen = ({ navigation }) => {
+  const { user } = useSelector((state) => state.auth);
+  const isOwner = user?.role === 'owner';
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,25 +37,36 @@ const NotificationsScreen = ({ navigation }) => {
       
       if (!data) return; // if no data, don't navigate
 
-      // Turf/Booking related
-      if (['booking_confirmed', 'upcoming_booking', 'new_booking', 'screenshot_uploaded', 'booking_status'].includes(type) || (type === 'general' && data.bookingId)) {
-         navigation.navigate('Bookings', { screen: 'BookingHistory', params: { turfId: data.turfId } });
-      } else if (type === 'turf_favourited' || data.turfId) {
-         navigation.navigate('Home', { screen: 'TurfDetail', params: { turfId: data.turfId } });
-      } 
-      // Cricket/Match related
-      else if (['match_started', 'match_completed', 'match_update'].includes(type) || data.matchId) {
-         navigation.navigate('My Cricket', { screen: 'MatchSummary', params: { matchId: data.matchId } });
-      } else if (['auction_invite', 'auction_started'].includes(type)) {
-         navigation.navigate('My Cricket', { screen: 'TournamentList' });
-      } 
-      // Player related (New Follower)
-      else if (['new_follower'].includes(type) || (type === 'general' && data.type === 'player' && data.id)) {
-         navigation.navigate('Profile', { screen: 'PlayerProfile', params: { playerId: data.id } });
-      }
-      // Finance related
-      else if (['payment_verified', 'payment_received', 'withdrawal_request'].includes(type)) {
-         navigation.navigate('Profile', { screen: 'Wallet' });
+      try {
+        if (isOwner) {
+          // Merchant/Owner Role Navigation
+          if (['booking_confirmed', 'upcoming_booking', 'new_booking', 'screenshot_uploaded', 'booking_status'].includes(type) || data.bookingId) {
+            navigation.navigate('Bookings');
+          } else if (type === 'turf_favourited' || data.turfId) {
+            navigation.navigate('TurfList');
+          } else if (['payment_verified', 'payment_received', 'withdrawal_request'].includes(type)) {
+            navigation.navigate('Wallet');
+          } else if (['match_started', 'match_completed', 'match_update'].includes(type) || data.matchId) {
+            navigation.navigate('OwnerDashboard');
+          }
+        } else {
+          // Customer Role Navigation
+          if (['booking_confirmed', 'upcoming_booking', 'new_booking', 'screenshot_uploaded', 'booking_status'].includes(type) || data.bookingId) {
+            navigation.navigate('Bookings', { screen: 'BookingHistory', params: { turfId: data.turfId } });
+          } else if (type === 'turf_favourited' || data.turfId) {
+            navigation.navigate('Home', { screen: 'TurfDetail', params: { id: data.turfId } });
+          } else if (['match_started', 'match_completed', 'match_update'].includes(type) || data.matchId) {
+            navigation.navigate('My Cricket', { screen: 'MatchSummary', params: { matchId: data.matchId } });
+          } else if (['auction_invite', 'auction_started'].includes(type)) {
+            navigation.navigate('My Cricket', { screen: 'TournamentList' });
+          } else if (['new_follower'].includes(type) || (type === 'general' && data.type === 'player' && data.id)) {
+            navigation.navigate('Profile', { screen: 'PlayerProfile', params: { playerId: data.id } });
+          } else if (['payment_verified', 'payment_received', 'withdrawal_request'].includes(type)) {
+            navigation.navigate('Profile', { screen: 'Wallet' });
+          }
+        }
+      } catch (navErr) {
+        console.log('Navigation payload error handled gracefully:', navErr);
       }
     } catch (err) {
       console.log('Error marking as read', err);

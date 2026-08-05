@@ -27,6 +27,10 @@ import EditProfileScreen from '../features/user/screens/EditProfileScreen';
 import PrivacyPolicyScreen from '../features/user/screens/PrivacyPolicyScreen';
 import HelpSupportScreen from '../features/user/screens/HelpSupportScreen';
 
+// Support Screens
+import TicketListScreen from '../features/support/screens/TicketListScreen';
+import CreateTicketScreen from '../features/support/screens/CreateTicketScreen';
+
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -43,10 +47,20 @@ const DashboardStack = () => (
     <Stack.Screen name="Wallet" component={WalletScreen} />
     <Stack.Screen name="OwnerReviews" component={OwnerReviewsScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
+    
+    {/* Support */}
+    <Stack.Screen name="TicketListScreen" component={TicketListScreen} />
+    <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
   </Stack.Navigator>
 );
 
-// Removed BookingsStack as it only had one screen and we need route params to pass directly
+const OwnerBookingsStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="OwnerBookingsMain" component={OwnerBookingsScreen} />
+    <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
+    <Stack.Screen name="TicketListScreen" component={TicketListScreen} />
+  </Stack.Navigator>
+);
 
 const AnalyticsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -62,6 +76,10 @@ const ProfileStack = () => (
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+    
+    {/* Support */}
+    <Stack.Screen name="TicketListScreen" component={TicketListScreen} />
+    <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
   </Stack.Navigator>
 );
 
@@ -229,7 +247,7 @@ const OwnerNavigator = () => {
       <Tab.Screen name="Dashboard" component={DashboardStack} />
       <Tab.Screen 
         name="Bookings" 
-        component={OwnerBookingsScreen} 
+        component={OwnerBookingsStack} 
         options={{ tabBarBadge: totalPendingActions > 0 ? totalPendingActions : null }}
       />
       <Tab.Screen name="Analytics" component={AnalyticsStack} />

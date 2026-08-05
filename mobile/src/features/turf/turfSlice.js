@@ -112,10 +112,25 @@ const turfSlice = createSlice({
       })
       .addCase(createTurf.fulfilled, (state, action) => {
         state.isLoading = false;
-        // Prepend new turf to the list if it's there
         state.turfs.unshift(action.payload);
       })
       .addCase(createTurf.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      // Update Turf
+      .addCase(updateTurf.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(updateTurf.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const index = state.turfs.findIndex(t => t._id === action.payload?._id);
+        if (index !== -1) {
+          state.turfs[index] = action.payload;
+        }
+      })
+      .addCase(updateTurf.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })

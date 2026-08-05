@@ -74,7 +74,7 @@ const BookingConfirmScreen = ({ route, navigation }) => {
         // 3. Open Razorpay Checkout
         const options = {
           description: `Booking for ${turf.name}`,
-          image: 'https://i.imgur.com/3g7nmJC.png',
+          image: Image.resolveAssetSource(require('../../../../SportVerse.png')).uri,
           currency: order.currency,
           key: key || 'rzp_test_replace_me',
           amount: order.amount,
@@ -103,9 +103,30 @@ const BookingConfirmScreen = ({ route, navigation }) => {
             setIsProcessing(false);
             showCustomAlert('Payment Verification Failed', 'Please contact support.');
           }
-        }).catch((error) => {
+        }).catch(async (error) => {
           setIsProcessing(false);
-          showCustomAlert('Payment Failed', `Code: ${error.code} | ${error.description}`);
+          try {
+            await api.put(`/bookings/${bookingId}/payment-failed`);
+          } catch (e) {
+            console.error('Failed to report payment failure', e);
+          }
+          let errorMsg = 'Payment was cancelled or failed.';
+          try {
+            if (error?.description) {
+              if (typeof error.description === 'string' && error.description.startsWith('{')) {
+                const parsed = JSON.parse(error.description);
+                const desc = parsed.error?.description || parsed.description;
+                if (desc && desc !== 'undefined') {
+                  errorMsg = desc;
+                }
+              } else if (error.description !== 'undefined') {
+                errorMsg = error.description;
+              }
+            } else if (typeof error === 'string' && error !== 'undefined') {
+              errorMsg = error;
+            }
+          } catch (e) {}
+          showCustomAlert('Payment Failed', errorMsg);
         });
 
       } else {

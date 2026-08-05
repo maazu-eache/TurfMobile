@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyBookings } from '../bookingSlice';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -13,7 +13,7 @@ const BookingHistoryScreen = ({ navigation }) => {
   const { bookings, isLoading } = useSelector((state) => state.booking);
   
   const [activeTab, setActiveTab] = useState('Upcoming');
-  const tabs = ['Upcoming', 'Completed'];
+  const tabs = ['Upcoming', 'Completed', 'Cancelled', 'Requested Cancel'];
 
   const onRefresh = useCallback(() => {
     dispatch(fetchMyBookings({ limit: 100 }));
@@ -37,7 +37,9 @@ const BookingHistoryScreen = ({ navigation }) => {
 
   const filteredBookings = bookings.filter(b => {
     if (activeTab === 'Upcoming') return b.status === 'confirmed' || b.status === 'pending';
-    if (activeTab === 'Completed') return b.status === 'completed' || b.status === 'cancelled';
+    if (activeTab === 'Completed') return b.status === 'completed';
+    if (activeTab === 'Cancelled') return b.status === 'cancelled';
+    if (activeTab === 'Requested Cancel') return b.status === 'cancellation_requested' || b.status === 'pending_refund';
     return true;
   });
 
@@ -83,8 +85,20 @@ const BookingHistoryScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.footerRow}>
-            <Text style={styles.amountLabel}>Total Paid</Text>
-            <Text style={styles.amountValue}>₹{item.finalAmount}</Text>
+            <View>
+              <Text style={styles.amountLabel}>Total Paid</Text>
+              <Text style={styles.amountValue}>₹{item.finalAmount}</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.cardReportBtn}
+              onPress={(e) => {
+                e.stopPropagation();
+                navigation.navigate('CreateTicketScreen', { bookingId: item.bookingRef });
+              }}
+            >
+              <Icon name="alert-circle-outline" size={16} color={Colors.primary} />
+              <Text style={styles.cardReportText}>Report Issue</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </TouchableOpacity>
@@ -100,17 +114,19 @@ const BookingHistoryScreen = ({ navigation }) => {
         </View>
 
         {/* Tabs */}
-        <View style={styles.tabsContainer}>
-          {tabs.map(tab => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
-              onPress={() => setActiveTab(tab)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.tabsWrapper}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer}>
+            {tabs.map(tab => (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
+                onPress={() => setActiveTab(tab)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         <FlatList
@@ -148,18 +164,21 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: Typography.fontSize['2xl'], fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
 
-  // Full-width tab bar (not scrollable pills)
-  tabsContainer: {
-    flexDirection: 'row',
+  // Horizontal scrolling tab bar
+  tabsWrapper: {
     backgroundColor: Colors.backgroundElevated,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.sm,
+  },
   tabBtn: {
-    flex: 1,
+    paddingHorizontal: Spacing.xl,
     paddingVertical: 14,
     alignItems: 'center',
-    borderBottomWidth: 3,
+    borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
   tabBtnActive: {
@@ -189,6 +208,8 @@ const styles = StyleSheet.create({
   footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md },
   amountLabel: { fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
   amountValue: { fontSize: 18, color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  cardReportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, gap: 4 },
+  cardReportText: { fontSize: 12, color: Colors.primary, fontFamily: Typography.fontFamily.bold },
   
   emptyTitle: { fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: Spacing.md },
   emptySub: { fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginTop: Spacing.xs, textAlign: 'center' },

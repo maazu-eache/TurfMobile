@@ -1,5 +1,10 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Image, ScrollView } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Image, ScrollView, Animated, Dimensions, Platform } from 'react-native';
+import FinanceView from './FinanceView';
+import SupportAdminView from './SupportAdminView';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SIDEBAR_WIDTH = 110;
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -16,12 +21,51 @@ import NotificationBell from '../../../components/NotificationBell';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 const AdminDashboardScreen = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState('owners'); // 'owners' or 'users'
+  const [activeTab, setActiveTab] = useState('owners');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const overlayAnim = useRef(new Animated.Value(0)).current;
+
+  const [settlementRequests, setSettlementRequests] = useState([]);
+  const [settlementWallets, setSettlementWallets] = useState([]);
+  const [loadingSettlements, setLoadingSettlements] = useState(false);
+
+  const openSidebar = () => {
+    setSidebarOpen(true);
+    Animated.parallel([
+      Animated.spring(sidebarAnim, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }),
+      Animated.timing(overlayAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const closeSidebar = () => {
+    Animated.parallel([
+      Animated.spring(sidebarAnim, { toValue: -SIDEBAR_WIDTH, useNativeDriver: true, tension: 80, friction: 10 }),
+      Animated.timing(overlayAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => setSidebarOpen(false));
+  };
+
+  const handleTabSelect = (tab) => {
+    setActiveTab(tab);
+    setSearchQuery('');
+    closeSidebar();
+    if (tab === 'settlements_requests') {
+      fetchSettlements();
+    } else if (tab === 'settlements_turf' || tab === 'settlements_org') {
+      if (settlementWallets.length === 0) {
+        fetchSettlements();
+      }
+    }
+  };
   const [owners, setOwners] = useState([]);
   const [users, setUsers] = useState([]);
   const [turfs, setTurfs] = useState([]);
   const [waitlist, setWaitlist] = useState([]);
+  const [refunds, setRefunds] = useState([]);
+  const [settlements, setSettlements] = useState([]);
+  const [openTickets, setOpenTickets] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [upiId, setUpiId] = useState('');
   const [bannerImage, setBannerImage] = useState(null);
@@ -140,27 +184,64 @@ const AdminDashboardScreen = ({ navigation }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [ownersRes, usersRes, turfsRes, waitlistRes] = await Promise.allSettled([
+      const [ownersRes, usersRes, turfsRes, waitlistRes, refundsRes, settlementsRes, ticketsRes] = await Promise.allSettled([
         api.get('/admin/owners?limit=100'),
         api.get('/admin/users?limit=100'),
         api.get('/admin/turfs?limit=100'),
-        api.get('/contact/waitlist?limit=100')
+        api.get('/contact/waitlist?limit=100'),
+        api.get('/admin/refunds?limit=100'),
+        api.get('/admin/settlements?limit=100'),
+        api.get('/admin/support?status=open')
       ]);
 
       if (ownersRes.status === 'fulfilled') setOwners(ownersRes.value.data.data || []);
       if (usersRes.status === 'fulfilled') setUsers(usersRes.value.data.data || []);
       if (turfsRes.status === 'fulfilled') setTurfs(turfsRes.value.data.data || []);
       
-      if (waitlistRes.status === 'fulfilled') {
+      if (waitlistRes && waitlistRes.status === 'fulfilled') {
         const wData = waitlistRes.value.data;
         setWaitlist(wData?.data || wData || []);
-      } else {
+      } else if (waitlistRes?.status === 'rejected') {
         console.log('Failed to fetch waitlist', waitlistRes.reason);
+      }
+      if (refundsRes && refundsRes.status === 'fulfilled') {
+        setRefunds(refundsRes.value.data.data || []);
+      } else if (refundsRes?.status === 'rejected') {
+        console.log('Failed to fetch refunds', refundsRes.reason);
+      }
+      if (settlementsRes && settlementsRes.status === 'fulfilled') {
+        const allSettlements = settlementsRes.value.data.data || [];
+        setSettlements(allSettlements);
+        setSettlementRequests(allSettlements);
+      } else if (settlementsRes?.status === 'rejected') {
+        console.log('Failed to fetch settlements', settlementsRes.reason);
+      }
+      
+      if (ticketsRes && ticketsRes.status === 'fulfilled') {
+        setOpenTickets(ticketsRes.value.data?.data?.length || 0);
       }
     } catch (err) {
       console.error('Failed to fetch admin data', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSettlements = async () => {
+    setLoadingSettlements(true);
+    try {
+      const [reqRes, walletRes] = await Promise.all([
+        api.get('/admin/settlements'),
+        api.get('/admin/owner-wallets'),
+      ]);
+      setSettlementRequests(reqRes.data?.data || []);
+      setSettlementWallets(walletRes.data?.data || []);
+      // also update the badge count
+      setSettlements(reqRes.data?.data || []);
+    } catch (err) {
+      console.log('Failed to fetch settlements', err);
+    } finally {
+      setLoadingSettlements(false);
     }
   };
 
@@ -338,6 +419,121 @@ const AdminDashboardScreen = ({ navigation }) => {
     );
   };
 
+  
+  const handleProcessRefund = (item) => {
+    showCustomAlert(
+      'Confirm Refund',
+      `Are you sure you want to process a refund of ₹${item.refundAmount} to ${item.user?.name || 'the user'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Process',
+          onPress: async () => {
+            try {
+              await api.post(`/admin/refunds/${item._id}/process`);
+              showCustomAlert('Success', 'Refund processed successfully');
+              fetchData();
+            } catch (err) {
+              showCustomAlert('Error', err.response?.data?.message || 'Failed to process refund');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const renderRefundCard = ({ item }) => {
+    const isPending = item.status === 'pending';
+    const statusColor = isPending ? '#FF9800' : '#2ED573';
+    const statusBg = isPending ? 'rgba(255,152,0,0.12)' : 'rgba(46,213,115,0.12)';
+    const totalAmount = item.amount || 0;
+    const refundAmt = item.refundAmount || 0;
+    const ownerShare = item.ownerShare || 0;
+    const platformFee = item.platformFee || 0;
+    const userName = item.user?.name || item.user?.email || 'Customer';
+    const turfName = item.booking?.turf?.name || 'N/A';
+    const bookingRef = item.booking?.bookingRef || item._id?.slice(-8).toUpperCase();
+
+    return (
+      <View style={[styles.card, { overflow: 'hidden' }]}>
+        {/* Top accent bar */}
+        <View style={{ height: 3, backgroundColor: statusColor }} />
+
+        {/* Header row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, paddingBottom: 10 }}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+              <Icon name="receipt" size={13} color={Colors.textTertiary} />
+              <Text style={{ fontSize: 11, color: Colors.textTertiary, fontFamily: 'Outfit-Medium', letterSpacing: 0.5 }}>BOOKING ID</Text>
+            </View>
+            <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: 'Outfit-Bold' }}>{bookingRef}</Text>
+          </View>
+          <View style={[{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: statusBg, borderWidth: 1, borderColor: statusColor + '55' }]}>
+            <Text style={{ fontSize: 10, fontFamily: 'Outfit-Bold', color: statusColor, letterSpacing: 0.8 }}>
+              {item.status?.toUpperCase() || 'PENDING'}
+            </Text>
+          </View>
+        </View>
+
+        {/* User & Turf row */}
+        <View style={{ flexDirection: 'row', paddingHorizontal: 14, gap: 16, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center' }}>
+              <Icon name="account" size={13} color={Colors.primary} />
+            </View>
+            <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: 'Outfit-Medium' }}>{userName}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(46,213,115,0.12)', justifyContent: 'center', alignItems: 'center' }}>
+              <Icon name="soccer-field" size={13} color="#2ED573" />
+            </View>
+            <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: 'Outfit-Medium' }}>{turfName}</Text>
+          </View>
+        </View>
+
+        {/* Amount breakdown */}
+        <View style={{ marginHorizontal: 14, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.border }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+            <View style={{ alignItems: 'center', flex: 1 }}>
+              <Text style={{ fontSize: 10, color: Colors.textTertiary, fontFamily: 'Outfit-Medium', marginBottom: 2 }}>TOTAL PAID</Text>
+              <Text style={{ fontSize: 18, color: Colors.textPrimary, fontFamily: 'Outfit-ExtraBold' }}>₹{totalAmount}</Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: Colors.border }} />
+            <View style={{ alignItems: 'center', flex: 1 }}>
+              <Text style={{ fontSize: 10, color: '#2ED573', fontFamily: 'Outfit-Medium', marginBottom: 2 }}>REFUND (70%)</Text>
+              <Text style={{ fontSize: 18, color: '#2ED573', fontFamily: 'Outfit-ExtraBold' }}>₹{refundAmt}</Text>
+            </View>
+          </View>
+          <View style={{ height: 1, backgroundColor: Colors.border, marginBottom: 10 }} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 9, color: Colors.textTertiary, fontFamily: 'Outfit-Medium', marginBottom: 2 }}>OWNER SHARE</Text>
+              <Text style={{ fontSize: 13, color: '#FF9800', fontFamily: 'Outfit-Bold' }}>₹{ownerShare}</Text>
+              <Text style={{ fontSize: 9, color: Colors.textTertiary }}>20%</Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: Colors.border }} />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 9, color: Colors.textTertiary, fontFamily: 'Outfit-Medium', marginBottom: 2 }}>PLATFORM FEE</Text>
+              <Text style={{ fontSize: 13, color: '#5B8DEF', fontFamily: 'Outfit-Bold' }}>₹{platformFee}</Text>
+              <Text style={{ fontSize: 9, color: Colors.textTertiary }}>10%</Text>
+            </View>
+          </View>
+        </View>
+
+        {item.status === 'pending' && (
+          <TouchableOpacity
+            style={{ marginHorizontal: 14, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 12 }}
+            onPress={() => handleProcessRefund(item)}
+            activeOpacity={0.8}
+          >
+            <Icon name="bank-transfer" size={16} color={Colors.background} />
+            <Text style={{ color: Colors.background, fontFamily: 'Outfit-Bold', fontSize: 14 }}>Process Refund ₹{refundAmt}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
   const renderWaitlistCard = ({ item }) => {
     const joinedDate = formatISTDateSpelled(item.createdAt);
     const initials = (item.name || item.email || '?').charAt(0).toUpperCase();
@@ -377,6 +573,129 @@ const AdminDashboardScreen = ({ navigation }) => {
     );
   };
 
+  const getStatusColor = (status) => {
+    if (status === 'pending') return { bg: 'rgba(255,152,0,0.15)', text: '#FF9800', icon: 'clock-outline' };
+    if (status === 'processed') return { bg: 'rgba(46,213,115,0.15)', text: '#2ED573', icon: 'check-circle-outline' };
+    return { bg: 'rgba(255,71,87,0.15)', text: '#FF4757', icon: 'close-circle-outline' };
+  };
+
+  const [selectedSettlement, setSelectedSettlement] = useState(null);
+  const [settlementActionType, setSettlementActionType] = useState(null);
+  const [settlementTxRef, setSettlementTxRef] = useState('');
+  const [settlementRemarks, setSettlementRemarks] = useState('');
+  const [submittingSettlement, setSubmittingSettlement] = useState(false);
+
+  const handleSettlementAction = async () => {
+    if (!settlementActionType || !selectedSettlement) return;
+    if (settlementActionType === 'processed' && !settlementTxRef.trim()) {
+      showCustomAlert('Error', 'Transaction reference is required.'); return;
+    }
+    setSubmittingSettlement(true);
+    try {
+      await api.put(`/admin/settlements/${selectedSettlement._id}/process`, {
+        status: settlementActionType, transactionRef: settlementTxRef, remarks: settlementRemarks,
+      });
+      showCustomAlert('Success', `Withdrawal ${settlementActionType} successfully.`);
+      setSelectedSettlement(null); setSettlementActionType(null);
+      setSettlementTxRef(''); setSettlementRemarks('');
+      fetchSettlements();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Action failed.');
+    } finally { setSubmittingSettlement(false); }
+  };
+
+  const renderSettlementRequest = ({ item }) => {
+    const statusStyle = getStatusColor(item.status);
+    const ownerName = item.owner?.businessName || item.owner?.userId?.name || 'Unknown Owner';
+    const ownerContact = item.owner?.userId?.email || item.owner?.userId?.phone || '';
+    const initials = ownerName.charAt(0).toUpperCase();
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={[styles.avatar, { backgroundColor: Colors.surfaceVariant, borderRadius: 23, width: 46, height: 46, justifyContent: 'center', alignItems: 'center', marginRight: 8 }]}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>{ownerName}</Text>
+            {ownerContact ? <Text style={styles.cardSubtitle} numberOfLines={1}>{ownerContact}</Text> : null}
+          </View>
+          <View style={[styles.roleBadge, { backgroundColor: statusStyle.bg }]}>
+            <Icon name={statusStyle.icon} size={11} color={statusStyle.text} />
+            <Text style={[styles.roleText, { color: statusStyle.text }]}>{item.status.toUpperCase()}</Text>
+          </View>
+        </View>
+        <View style={{ height: 1, backgroundColor: Colors.border, marginHorizontal: 16 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 16 }}>
+          <View>
+            <Text style={{ color: Colors.textTertiary, fontSize: 11, fontFamily: 'Outfit-Medium' }}>Withdrawal Amount</Text>
+            <Text style={{ color: Colors.primary, fontSize: 20, fontFamily: 'Outfit-ExtraBold' }}>₹{item.amount?.toLocaleString()}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ color: Colors.textTertiary, fontSize: 11, fontFamily: 'Outfit-Medium' }}>Requested On</Text>
+            <Text style={{ color: Colors.textPrimary, fontSize: 13, fontFamily: 'Outfit-Bold' }}>{moment(item.createdAt).format('DD MMM YYYY')}</Text>
+            <Text style={{ color: Colors.textTertiary, fontSize: 11 }}>{moment(item.createdAt).format('hh:mm A')}</Text>
+          </View>
+        </View>
+        {item.turf?.name && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingBottom: 10 }}>
+            <Icon name="soccer-field" size={12} color={Colors.textTertiary} />
+            <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>{item.turf.name}</Text>
+          </View>
+        )}
+        {item.status !== 'pending' && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, margin: 12, padding: 10, backgroundColor: statusStyle.bg, borderRadius: 10 }}>
+            <Icon name={item.status === 'processed' ? 'receipt' : 'information-outline'} size={13} color={statusStyle.text} />
+            <Text style={{ color: statusStyle.text, fontSize: 12 }}>
+              {item.status === 'processed' ? `Ref: ${item.transactionRef}` : `Reason: ${item.remarks || 'No reason'}`}
+            </Text>
+          </View>
+        )}
+        {item.status === 'pending' && (
+          <View style={{ flexDirection: 'row', gap: 10, padding: 12, paddingTop: 0 }}>
+            <TouchableOpacity style={[styles.actionBtn, { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(255,71,87,0.1)', borderColor: '#FF4757' }]}
+              onPress={() => { setSelectedSettlement(item); setSettlementActionType('rejected'); }}>
+              <Icon name="close" size={14} color="#FF4757" />
+              <Text style={[styles.actionBtnText, { color: '#FF4757' }]}>Reject</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, { flex: 1, justifyContent: 'center', backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary }]}
+              onPress={() => { setSelectedSettlement(item); setSettlementActionType('processed'); }}>
+              <Icon name="check" size={14} color={Colors.primary} />
+              <Text style={[styles.actionBtnText, { color: Colors.primary }]}>Process</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderWalletCard = ({ item }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={[styles.avatar, { backgroundColor: Colors.surfaceVariant, borderRadius: 23, width: 46, height: 46, justifyContent: 'center', alignItems: 'center', marginRight: 8 }]}>
+          <Text style={styles.avatarText}>{(item.businessName || 'O').charAt(0).toUpperCase()}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle}>{item.businessName || 'Business'}</Text>
+          <Text style={styles.cardSubtitle}>{item.ownerName}{item.email ? ` · ${item.email}` : ''}</Text>
+        </View>
+      </View>
+      <View style={{ height: 1, backgroundColor: Colors.border, marginHorizontal: 16 }} />
+      <View style={{ flexDirection: 'row', padding: 14, gap: 8 }}>
+        {[
+          { label: 'Available', value: item.wallet?.balance || 0, color: Colors.primary, icon: 'wallet' },
+          { label: 'Pending', value: item.wallet?.pendingWithdrawal || 0, color: '#FF9800', icon: 'clock-outline' },
+          { label: 'Total Earned', value: item.wallet?.totalEarned || 0, color: '#2ED573', icon: 'trending-up' },
+        ].map((stat, i) => (
+          <View key={i} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+            <Icon name={stat.icon} size={16} color={stat.color} />
+            <Text style={{ color: Colors.textTertiary, fontSize: 10, fontFamily: 'Outfit-Medium' }}>{stat.label}</Text>
+            <Text style={{ color: stat.color, fontSize: 14, fontFamily: 'Outfit-ExtraBold' }}>₹{stat.value.toLocaleString()}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
   const handleLogout = () => {
     showCustomAlert("Confirm Logout", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
@@ -386,32 +705,119 @@ const AdminDashboardScreen = ({ navigation }) => {
     ]);
   };
 
+  const pendingRefunds = refunds.filter(r => r.status === 'pending').length;
+  const pendingSettlements = settlements.filter(s => s.status === 'pending').length;
+  const totalAlerts = pendingRefunds + pendingSettlements + openTickets;
+
+  // Search filter helpers
+  const q = searchQuery.toLowerCase().trim();
+  const filteredOwners = owners.filter(o => !q ||
+    (o.businessName || '').toLowerCase().includes(q) ||
+    (o.userId?.name || '').toLowerCase().includes(q) ||
+    (o.userId?.email || '').toLowerCase().includes(q)
+  );
+  const filteredUsers = users.filter(u => !q ||
+    (u.name || '').toLowerCase().includes(q) ||
+    (u.email || '').toLowerCase().includes(q)
+  );
+  const filteredTurfs = turfs.filter(t => !q ||
+    (t.name || '').toLowerCase().includes(q) ||
+    (t.city || '').toLowerCase().includes(q) ||
+    (t.owner?.businessName || '').toLowerCase().includes(q)
+  );
+  const filteredRefunds = refunds.filter(r => !q ||
+    (r.user?.name || '').toLowerCase().includes(q) ||
+    (r.user?.email || '').toLowerCase().includes(q) ||
+    (r.booking?.bookingRef || '').toLowerCase().includes(q) ||
+    (r.booking?.turf?.name || '').toLowerCase().includes(q)
+  );
+  const filteredWaitlist = waitlist.filter(w => !q ||
+    (w.name || '').toLowerCase().includes(q) ||
+    (w.email || '').toLowerCase().includes(q)
+  );
+  const filteredSettlementReqs = settlementRequests.filter(s => !q ||
+    (s.owner?.businessName || '').toLowerCase().includes(q) ||
+    (s.owner?.userId?.name || '').toLowerCase().includes(q) ||
+    (s.owner?.userId?.email || '').toLowerCase().includes(q)
+  );
+  const filteredTurfWallets = settlementWallets.filter(w => w.businessName !== 'Tournament Organizer' && (!q ||
+    (w.businessName || '').toLowerCase().includes(q) ||
+    (w.ownerName || '').toLowerCase().includes(q) ||
+    (w.email || '').toLowerCase().includes(q)
+  ));
+  const filteredOrgWallets = settlementWallets.filter(w => w.businessName === 'Tournament Organizer' && (!q ||
+    (w.ownerName || '').toLowerCase().includes(q) ||
+    (w.email || '').toLowerCase().includes(q)
+  ));
+
+  const SearchBar = () => (
+    <View style={styles.searchBar}>
+      <Icon name="magnify" size={18} color={Colors.textTertiary} />
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by name or email..."
+        placeholderTextColor={Colors.textTertiary}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        autoCapitalize="none"
+        autoCorrect={false}
+        clearButtonMode="while-editing"
+      />
+      {searchQuery.length > 0 && (
+        <TouchableOpacity onPress={() => setSearchQuery('')}>
+          <Icon name="close-circle" size={17} color={Colors.textTertiary} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  const SidebarItem = ({ tab, icon, label, badge }) => {
+    const isActive = activeTab === tab;
+    return (
+      <TouchableOpacity
+        style={[styles.sidebarItem, isActive && styles.sidebarItemActive]}
+        onPress={() => handleTabSelect(tab)}
+        activeOpacity={0.75}
+      >
+        <Icon name={icon} size={21} color={isActive ? Colors.primary : Colors.textTertiary} />
+        <Text style={[styles.sidebarText, isActive && styles.sidebarTextActive]} numberOfLines={1}>{label}</Text>
+        {badge > 0 && (
+          <View style={styles.sidebarBadge}><Text style={styles.sidebarBadgeText}>{badge}</Text></View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* ── Premium Header ──────────────────────────────── */}
       <View style={styles.header}>
         {/* Top row: title + actions */}
         <View style={styles.headerTop}>
-          <View style={styles.headerTitleBlock}>
-            <View style={styles.adminBadge}>
-              <Icon name="shield-crown" size={13} color={Colors.primary} />
-              <Text style={styles.adminBadgeText}>ADMIN</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <TouchableOpacity
+              onPress={openSidebar}
+              style={styles.hamburgerBtn}
+              activeOpacity={0.75}
+            >
+              <Icon name="menu" size={22} color={Colors.textPrimary} />
+              {totalAlerts > 0 && (
+                <View style={styles.hamburgerBadge}>
+                  <Text style={styles.hamburgerBadgeText}>{totalAlerts}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <View style={styles.headerTitleBlock}>
+              <View style={styles.adminBadge}>
+                <Icon name="shield-crown" size={13} color={Colors.primary} />
+                <Text style={styles.adminBadgeText}>ADMIN</Text>
+              </View>
+              <Text style={styles.headerTitle}>Dashboard</Text>
             </View>
-            <Text style={styles.headerTitle}>Dashboard</Text>
           </View>
 
           <View style={styles.headerActions}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('AdminSettlements')}
-              style={styles.headerActionBtn}
-              activeOpacity={0.8}
-            >
-              <Icon name="bank-transfer" size={19} color={Colors.primary} />
-              <Text style={styles.headerActionLabel}>Settle</Text>
-            </TouchableOpacity>
-
             <NotificationBell onPress={() => navigation.navigate('Notifications')} />
-
             <TouchableOpacity
               onPress={handleLogout}
               style={[styles.headerActionBtn, { backgroundColor: 'rgba(255,71,87,0.12)', borderColor: 'rgba(255,71,87,0.25)' }]}
@@ -452,6 +858,43 @@ const AdminDashboardScreen = ({ navigation }) => {
         </View>
       </View>
       
+      {/* Settlement Action Modal */}
+      <Modal visible={!!selectedSettlement} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <KeyboardAwareScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg }}>
+              <Text style={styles.modalTitle}>{settlementActionType === 'processed' ? 'Process Withdrawal' : 'Reject Withdrawal'}</Text>
+              <TouchableOpacity onPress={() => setSelectedSettlement(null)}><Icon name="close" size={24} color={Colors.textPrimary}/></TouchableOpacity>
+            </View>
+            {selectedSettlement && (
+              <View style={{ backgroundColor: Colors.surface, borderRadius: 12, padding: 12, marginBottom: 16 }}>
+                <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Owner: <Text style={{ color: Colors.textPrimary, fontFamily: 'Outfit-Bold' }}>{selectedSettlement.owner?.businessName || 'Unknown'}</Text></Text>
+                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 4 }}>Amount: <Text style={{ color: Colors.primary, fontFamily: 'Outfit-Bold' }}>₹{selectedSettlement.amount?.toLocaleString()}</Text></Text>
+              </View>
+            )}
+            {settlementActionType === 'processed' && (
+              <>
+                <Text style={styles.inputLabel}>Transaction Reference *</Text>
+                <TextInput style={[styles.input, { marginBottom: Spacing.md }]} value={settlementTxRef} onChangeText={setSettlementTxRef}
+                  placeholder="e.g. UTR123456" placeholderTextColor={Colors.textTertiary} />
+              </>
+            )}
+            <Text style={styles.inputLabel}>Remarks (optional)</Text>
+            <TextInput style={[styles.input, { marginBottom: Spacing.lg }]} value={settlementRemarks} onChangeText={setSettlementRemarks}
+              placeholder="Any notes..." placeholderTextColor={Colors.textTertiary} />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.surfaceVariant }]} onPress={() => setSelectedSettlement(null)}>
+                <Text style={[styles.modalBtnText, { color: Colors.textPrimary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: settlementActionType === 'processed' ? Colors.primary : '#FF4757' }]}
+                onPress={handleSettlementAction} disabled={submittingSettlement}>
+                <Text style={[styles.modalBtnText, { color: '#fff' }]}>{submittingSettlement ? 'Processing...' : (settlementActionType === 'processed' ? 'Confirm Transfer' : 'Reject')}</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAwareScrollView>
+        </View>
+      </Modal>
+
       {/* Settings Modal */}
       <Modal visible={showSettings} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
@@ -524,79 +967,141 @@ const AdminDashboardScreen = ({ navigation }) => {
           </View>
       </Modal>
 
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'owners' && styles.tabActive]}
-          onPress={() => setActiveTab('owners')}
-        >
-          <Text style={[styles.tabText, activeTab === 'owners' && styles.tabTextActive]}>Owners ({owners.length})</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'turfs' && styles.tabActive]}
-          onPress={() => setActiveTab('turfs')}
-        >
-          <View style={{flexDirection: 'row', alignItems: 'center'}}>
-            <Text style={[styles.tabText, activeTab === 'turfs' && styles.tabTextActive]}>Turfs ({turfs.length})</Text>
-            {turfs.filter(t => t.pendingPlatformFee > 0 && t.pendingPaymentId).length > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{turfs.filter(t => t.pendingPlatformFee > 0 && t.pendingPaymentId).length}</Text>
-              </View>
-            )}
+      {/* Main Content */}
+      <View style={styles.contentArea}>
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={Colors.primary} />
           </View>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'users' && styles.tabActive]}
-          onPress={() => setActiveTab('users')}
-        >
-          <Text style={[styles.tabText, activeTab === 'users' && styles.tabTextActive]}>Users ({users.length})</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'waitlist' && styles.tabActive]}
-          onPress={() => setActiveTab('waitlist')}
-        >
-          <Text style={[styles.tabText, activeTab === 'waitlist' && styles.tabTextActive]}>Waitlist ({waitlist.length})</Text>
-        </TouchableOpacity>
+        ) : activeTab === 'owners' ? (
+          <>
+            <SearchBar />
+            <FlatList data={filteredOwners} keyExtractor={item => item._id} renderItem={renderOwnerCard}
+              contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No owners found.'}</Text>} />
+          </>
+        ) : activeTab === 'turfs' ? (
+          <>
+            <SearchBar />
+            <FlatList data={filteredTurfs} keyExtractor={item => item._id} renderItem={renderTurfCard}
+              contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No turfs found.'}</Text>} />
+          </>
+        ) : activeTab === 'users' ? (
+          <>
+            <SearchBar />
+            <FlatList data={filteredUsers} keyExtractor={item => item._id} renderItem={renderUserCard}
+              contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No users found.'}</Text>} />
+          </>
+        ) : activeTab === 'refunds' ? (
+          <>
+            <SearchBar />
+            <FlatList data={filteredRefunds} keyExtractor={item => item._id} renderItem={renderRefundCard}
+              contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No refunds found.'}</Text>} />
+          </>
+        ) : activeTab === 'waitlist' ? (
+          <>
+            <SearchBar />
+            <FlatList data={filteredWaitlist} keyExtractor={item => item._id} renderItem={renderWaitlistCard}
+              contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No waitlist entries found.'}</Text>} />
+          </>
+        ) : activeTab === 'settlements_requests' ? (
+          loadingSettlements ? (
+            <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
+          ) : (
+            <>
+              <SearchBar />
+              <FlatList
+                data={filteredSettlementReqs}
+                keyExtractor={item => item._id}
+                renderItem={renderSettlementRequest}
+                contentContainerStyle={styles.list}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No withdrawal requests found.'}</Text>}
+              />
+            </>
+          )
+        ) : activeTab === 'settlements_turf' ? (
+          loadingSettlements ? (
+            <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
+          ) : (
+            <>
+              <SearchBar />
+              <FlatList
+                data={filteredTurfWallets}
+                keyExtractor={item => item._id}
+                renderItem={renderWalletCard}
+                contentContainerStyle={styles.list}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No turf owner wallets found.'}</Text>}
+              />
+            </>
+          )
+        ) : activeTab === 'settlements_org' ? (
+          loadingSettlements ? (
+            <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
+          ) : (
+            <>
+              <SearchBar />
+              <FlatList
+                data={filteredOrgWallets}
+                keyExtractor={item => item._id}
+                renderItem={renderWalletCard}
+                contentContainerStyle={styles.list}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No organizer wallets found.'}</Text>}
+              />
+            </>
+          )
+        ) : activeTab === 'finance' ? (
+          <FinanceView navigation={navigation} />
+        ) : activeTab === 'support' ? (
+          <SupportAdminView navigation={navigation} />
+        ) : null}
       </View>
 
-      {/* List */}
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      ) : activeTab === 'owners' ? (
-        <FlatList
-          data={owners}
-          keyExtractor={item => item._id}
-          renderItem={renderOwnerCard}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.emptyText}>No owners found.</Text>}
-        />
-      ) : activeTab === 'turfs' ? (
-        <FlatList
-          data={turfs}
-          keyExtractor={item => item._id}
-          renderItem={renderTurfCard}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.emptyText}>No turfs found.</Text>}
-        />
-      ) : activeTab === 'users' ? (
-        <FlatList
-          data={users}
-          keyExtractor={item => item._id}
-          renderItem={renderUserCard}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.emptyText}>No users found.</Text>}
-        />
-      ) : (
-        <FlatList
-          data={waitlist}
-          keyExtractor={item => item._id}
-          renderItem={renderWaitlistCard}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.emptyText}>No waitlist entries found.</Text>}
-        />
+      {/* Slide-in Sidebar Overlay */}
+      {sidebarOpen && (
+        <Animated.View style={[styles.sidebarOverlay, { opacity: overlayAnim }]} pointerEvents="auto">
+          <TouchableOpacity style={{ flex: 1 }} onPress={closeSidebar} activeOpacity={1} />
+        </Animated.View>
       )}
+
+      {/* Slide-in Sidebar Drawer */}
+      <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
+        <View style={styles.sidebarHeader}>
+          <Icon name="shield-crown" size={18} color={Colors.primary} />
+          <Text style={styles.sidebarHeaderText}>Menu</Text>
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <SidebarItem tab="turfs" icon="soccer-field" label="Turfs"
+            badge={turfs.filter(t => t.pendingPlatformFee > 0 && t.pendingPaymentId).length} />
+          <SidebarItem tab="owners" icon="briefcase-account" label="Owners" badge={0} />
+          <SidebarItem tab="users" icon="account-group" label="Users" badge={0} />
+          <SidebarItem tab="waitlist" icon="clipboard-list-outline" label="Waitlist" badge={0} />
+
+          <View style={styles.sidebarDivider} />
+          <Text style={styles.sidebarSectionLabel}>REFUNDS</Text>
+          <SidebarItem tab="refunds" icon="cash-refund" label="Refunds" badge={pendingRefunds} />
+
+          <View style={styles.sidebarDivider} />
+          <Text style={styles.sidebarSectionLabel}>SUPPORT</Text>
+          <SidebarItem tab="support" icon="ticket-account" label="Support Tickets" badge={openTickets} />
+          
+          <View style={styles.sidebarDivider} />
+          <Text style={styles.sidebarSectionLabel}>FINANCE</Text>
+          <SidebarItem tab="finance" icon="finance" label="Finance Dashboard" badge={0} />
+
+          <View style={styles.sidebarDivider} />
+          <Text style={styles.sidebarSectionLabel}>SETTLEMENTS</Text>
+          <SidebarItem tab="settlements_requests" icon="bank-transfer-out" label="Withdraw Req." badge={pendingSettlements} />
+          <SidebarItem tab="settlements_turf" icon="stadium-variant" label="Turf Wallets" badge={0} />
+          <SidebarItem tab="settlements_org" icon="account-tie-hat" label="Organizers" badge={0} />
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 };
@@ -637,6 +1142,77 @@ const styles = StyleSheet.create({
   statGrad: { alignItems: 'center', paddingVertical: Spacing.md, paddingHorizontal: 4, gap: 4 },
   statValue: { fontSize: 22, fontFamily: Typography.fontFamily.extraBold, color: Colors.primary },
   statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+
+  // ── Layout ──────────────────────────────────────────────────────────────
+  contentArea: { flex: 1, backgroundColor: Colors.background },
+  hamburgerBtn: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1, borderColor: Colors.border,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  hamburgerBadge: {
+    position: 'absolute', top: -4, right: -4,
+    backgroundColor: Colors.error, borderRadius: 9,
+    paddingHorizontal: 4, minWidth: 18, height: 18,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: Colors.background,
+  },
+  hamburgerBadgeText: { color: '#FFF', fontSize: 8, fontFamily: Typography.fontFamily.bold },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: Spacing.md, marginTop: Spacing.md, marginBottom: 4,
+    backgroundColor: Colors.surface, borderRadius: 14,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  searchInput: {
+    flex: 1, fontSize: 13, color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular, padding: 0,
+  },
+  sidebarOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)', zIndex: 99,
+  },
+  sidebar: {
+    position: 'absolute', top: 0, bottom: 0, left: 0,
+    width: SIDEBAR_WIDTH,
+    backgroundColor: Colors.backgroundCard,
+    borderRightWidth: 1, borderRightColor: Colors.border,
+    zIndex: 100,
+    paddingTop: 52,
+    elevation: 16,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 4, height: 0 },
+  },
+  sidebarHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    marginBottom: 6,
+  },
+  sidebarHeaderText: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  sidebarItem: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 13, paddingHorizontal: 6,
+    borderLeftWidth: 3, borderLeftColor: 'transparent',
+    position: 'relative',
+  },
+  sidebarItemActive: { borderLeftColor: Colors.primary, backgroundColor: Colors.primaryAlpha20 },
+  sidebarText: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 4, textAlign: 'center' },
+  sidebarTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  sidebarBadge: {
+    position: 'absolute', top: 6, right: 10,
+    backgroundColor: Colors.error, borderRadius: 10,
+    paddingHorizontal: 4, paddingVertical: 1, minWidth: 18, alignItems: 'center',
+  },
+  sidebarBadgeText: { color: '#FFF', fontSize: 8, fontFamily: Typography.fontFamily.bold },
+  sidebarDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 6, marginHorizontal: 10 },
+  sidebarSectionLabel: {
+    fontSize: 8, fontFamily: Typography.fontFamily.bold,
+    color: Colors.textTertiary, letterSpacing: 0.8,
+    paddingHorizontal: 14, paddingVertical: 4,
+    textTransform: 'uppercase',
+  },
 
   // ── Tabs ──────────────────────────────────────────────────────────────
   tabsContainer: { flexDirection: 'row', paddingHorizontal: Spacing.lg, backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border },

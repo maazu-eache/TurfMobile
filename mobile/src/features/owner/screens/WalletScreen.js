@@ -77,7 +77,9 @@ const DonutTimer = ({ createdAt }) => {
 const WalletScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [wallet, setWallet] = useState({ balance: 0, pendingWithdrawal: 0, totalEarned: 0 });
-  const [withdrawals, setWithdrawals] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [activeTab, setActiveTab] = useState('All');
+  const tabs = ['All', 'Bookings', 'Withdrawals'];
   const [bankDetails, setBankDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   
@@ -96,6 +98,7 @@ const WalletScreen = ({ navigation }) => {
     ifsc: '',
     bankName: ''
   });
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -106,9 +109,9 @@ const WalletScreen = ({ navigation }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [dashRes, withdrawRes] = await Promise.all([
+      const [dashRes, txRes] = await Promise.all([
         api.get('/owners/dashboard'),
-        api.get('/owners/wallet/withdrawals')
+        api.get('/owners/wallet/transactions')
       ]);
       if (dashRes.data?.data?.wallet) {
         setWallet(dashRes.data.data.wallet);
@@ -116,8 +119,8 @@ const WalletScreen = ({ navigation }) => {
       if (dashRes.data?.data?.owner?.bankDetails) {
         setBankDetails(dashRes.data.data.owner.bankDetails);
       }
-      if (withdrawRes.data?.data) {
-        setWithdrawals(withdrawRes.data.data);
+      if (txRes.data?.data) {
+        setTransactions(txRes.data.data);
       }
     } catch (err) {
       console.error('Failed to fetch wallet data', err);
@@ -227,37 +230,67 @@ const WalletScreen = ({ navigation }) => {
     setShowBankModal(true);
   };
 
-  const handleWithdrawalClick = (item) => {
-    if (item.status === 'processed') {
-      const settleTime = item.processedAt ? moment(item.processedAt).format('MMM Do YYYY, h:mm a') : 'N/A';
-      showCustomAlert('Settlement Details', `Reference No (UTR): ${item.transactionRef || 'N/A'}\nSettled At: ${settleTime}`);
-    } else if (item.status === 'rejected') {
-      showCustomAlert('Withdrawal Rejected', `Reason: ${item.remarks || 'No reason provided'}`);
+  const filteredTransactions = transactions.filter(t => {
+    if (activeTab === 'All') return true;
+    if (activeTab === 'Bookings') return t.category === 'booking_payment';
+    if (activeTab === 'Withdrawals') return t.category === 'withdrawal' || t.category === 'booking_refund';
+    return true;
+  });
+
+  const handleTransactionClick = (item) => {
+    if (item.category === 'withdrawal' || item.category === 'booking_refund') {
+      showCustomAlert('Transaction Details', `Type: Debit\nDescription: ${item.description || 'N/A'}`);
+    } else {
+      showCustomAlert('Transaction Details', `Type: Credit\nDescription: ${item.description || 'N/A'}`);
     }
   };
 
-  const renderWithdrawal = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.paymentRow} 
-      activeOpacity={item.status === 'pending' ? 1 : 0.7}
-      onPress={() => handleWithdrawalClick(item)}
-    >
-      <View>
-        <Text style={styles.paymentTurf}>{item.turf?.name || 'Wallet Withdrawal'}</Text>
-        <Text style={styles.paymentDate}>{moment(item.createdAt).format('MMM Do YYYY, h:mm a')}</Text>
-        {item.status === 'pending' && <DonutTimer createdAt={item.createdAt} />}
-      </View>
-      <View style={{ alignItems: 'flex-end' }}>
-        <Text style={styles.paymentAmount}>₹{item.amount}</Text>
-        <Text style={[styles.paymentStatus, { 
-          color: item.status === 'processed' ? Colors.primary : 
-                 item.status === 'rejected' ? Colors.error : '#FF9800' 
-        }]}>
-          {item.status.toUpperCase()}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderTransaction = ({ item }) => {
+    const isCredit = item.type === 'credit';
+    const amountColor = isCredit ? Colors.success : Colors.error;
+    const sign = isCredit ? '+' : '-';
+    let title = 'Transaction';
+    if (item.category === 'booking_payment') title = 'Booking Payment';
+    else if (item.category === 'auction_registration') title = 'Auction Registration';
+    else if (item.category === 'withdrawal') title = 'Wallet Withdrawal';
+    else if (item.category === 'booking_refund') title = 'Booking Refund';
+
+    return (
+      <TouchableOpacity 
+        style={styles.paymentRow} 
+        activeOpacity={0.7}
+        onPress={() => handleTransactionClick(item)}
+      >
+        <View>
+          <Text style={styles.paymentTurf}>{title}</Text>
+          <Text style={styles.paymentDate}>{moment(item.createdAt).format('MMM Do YYYY, h:mm a')}</Text>
+          {item.user?.name && <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>User: {item.user.name}</Text>}
+        </View>
+        <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+          <Text style={[styles.paymentAmount, { color: amountColor }]}>{sign}₹{item.amount}</Text>
+          {item.category === 'withdrawal' ? (
+            item.status === 'pending' ? (
+              <DonutTimer createdAt={item.createdAt} />
+            ) : isCredit ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <Icon name="close-circle-outline" size={14} color={Colors.error} style={{ marginRight: 2 }} />
+                <Text style={[styles.paymentStatus, { color: Colors.error, marginTop: 0 }]}>REJECTED</Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <Icon name="check-circle-outline" size={14} color={Colors.success} style={{ marginRight: 2 }} />
+                <Text style={[styles.paymentStatus, { color: Colors.success, marginTop: 0 }]}>PROCESSED</Text>
+              </View>
+            )
+          ) : (
+            <Text style={[styles.paymentStatus, { color: amountColor }]}>
+              {isCredit ? 'CREDIT' : 'DEBIT'}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -295,45 +328,43 @@ const WalletScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Bank Details Section */}
-          <View style={styles.bankCard}>
-            <View style={styles.bankHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="bank" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
-                <Text style={styles.bankTitle}>Bank Details</Text>
-              </View>
-              {bankDetails && (
-                <TouchableOpacity onPress={openBankModal}>
-                  <Icon name="pencil" size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {bankDetails && bankDetails.accountNumber ? (
-              <View style={styles.bankInfo}>
-                <Text style={styles.bankText}>Bank: <Text style={{ color: Colors.textPrimary }}>{bankDetails.bankName}</Text></Text>
-                <Text style={styles.bankText}>A/C No: <Text style={{ color: Colors.textPrimary }}>XXXXXX{bankDetails.accountNumber.slice(-4)}</Text></Text>
-                <Text style={styles.bankText}>IFSC: <Text style={{ color: Colors.textPrimary }}>{bankDetails.ifsc}</Text></Text>
-              </View>
-            ) : (
-              <View style={styles.addBankContainer}>
-                <Text style={styles.noBankText}>No bank details added.</Text>
-                <TouchableOpacity style={styles.addBankBtn} onPress={openBankModal}>
-                  <Text style={styles.addBankBtnText}>+ Add Bank Details</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+          {/* Bank Details Section (Hidden behind button) */}
+          <View style={{ marginBottom: Spacing.xl }}>
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundCard, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border }}
+              onPress={openBankModal}
+            >
+              <Icon name="bank" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>
+                {bankDetails && bankDetails.accountNumber ? 'Manage Bank Details' : 'Add Bank Details'}
+              </Text>
+              <Icon name="chevron-right" size={20} color={Colors.textSecondary} style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
           </View>
 
-          <Text style={styles.sectionTitle}>Withdrawal History</Text>
+          <View style={styles.tabsWrapper}>
+            <View style={styles.tabsContainer}>
+              {tabs.map(tab => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
+                  onPress={() => setActiveTab(tab)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           <FlatList
-            data={withdrawals}
+            data={filteredTransactions}
             keyExtractor={item => item._id}
-            renderItem={renderWithdrawal}
+            renderItem={renderTransaction}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 100 }}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>No withdrawal requests yet.</Text>
+              <Text style={styles.emptyText}>No transactions found.</Text>
             }
           />
         </View>
@@ -422,15 +453,23 @@ const WalletScreen = ({ navigation }) => {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Account Number</Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  placeholder="Enter Account Number"
-                  placeholderTextColor={Colors.textTertiary}
-                  value={bankForm.accountNumber}
-                  onChangeText={(text) => setBankForm({ ...bankForm, accountNumber: text })}
-                  secureTextEntry={true}
-                />
+                <View style={{ justifyContent: 'center' }}>
+                  <TextInput
+                    style={[styles.input, { paddingRight: 45 }]}
+                    keyboardType="numeric"
+                    placeholder="Enter Account Number"
+                    placeholderTextColor={Colors.textTertiary}
+                    value={bankForm.accountNumber}
+                    onChangeText={(text) => setBankForm({ ...bankForm, accountNumber: text })}
+                    secureTextEntry={!showAccountNumber}
+                  />
+                  <TouchableOpacity 
+                    style={{ position: 'absolute', right: 15 }} 
+                    onPress={() => setShowAccountNumber(!showAccountNumber)}
+                  >
+                    <Icon name={showAccountNumber ? "eye-off" : "eye"} size={20} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={styles.inputContainer}>
@@ -507,6 +546,38 @@ const styles = StyleSheet.create({
   addBankBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
   sectionTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.md },
+  
+  tabsWrapper: {
+    backgroundColor: Colors.backgroundElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabBtnActive: {
+    borderBottomColor: Colors.primary,
+  },
+  tabText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  tabTextActive: {
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+
   emptyText: { textAlign: 'center', marginVertical: 20, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
   
   paymentRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },

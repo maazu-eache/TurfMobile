@@ -12,6 +12,12 @@ const slotSlice = createSlice({
   reducers: {
     selectSlot: (state, a) => { state.selectedSlot = a.payload; },
     clearSlots: (state) => { state.slots = []; state.selectedSlot = null; },
+    updateSlotStatus: (state, a) => {
+      const { slotIds, status } = a.payload;
+      state.slots = state.slots.map(s => 
+        slotIds.includes(s._id) ? { ...s, status } : s
+      );
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -20,5 +26,5 @@ const slotSlice = createSlice({
       .addCase(fetchSlots.rejected, (state, a) => { state.isLoading = false; state.error = a.payload; });
   },
 });
-export const { selectSlot, clearSlots } = slotSlice.actions;
+export const { selectSlot, clearSlots, updateSlotStatus } = slotSlice.actions;
 export default slotSlice.reducer;

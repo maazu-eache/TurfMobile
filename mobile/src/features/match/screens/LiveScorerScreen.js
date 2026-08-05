@@ -1102,7 +1102,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
     if (!liveState?.match) return;
     const match = liveState.match;
     // Prevent multiple rapid taps — ignore if a scoring action is already in progress
-    if (scoringLockRef.current) return;
+    if (scoringLockRef.current) {
+      showCustomAlert('Please Wait', 'Please let the score update before entering the next ball.');
+      return;
+    }
     scoringLockRef.current = true;
 
     // Wagon Wheel Interception Logic: trigger for 1, 2, 3, 4, 6 runs on normal deliveries

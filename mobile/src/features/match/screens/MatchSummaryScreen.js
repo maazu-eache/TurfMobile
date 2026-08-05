@@ -14,6 +14,7 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import SharePreviewModal from '../../tournament/components/SharePreviewModal';
 import { MatchSummaryPoster } from '../../tournament/components/PosterTemplates';
+import PartnershipsView from '../components/PartnershipsView';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -2202,84 +2203,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     );
   };
   const renderPartnerships = () => {
-    let displayScorecards = [...(scorecards || [])];
-    if (partnershipFilter === 'A') {
-      displayScorecards = displayScorecards.filter(sc => (sc.battingTeam?._id || sc.battingTeam) === match.teamA?._id);
-    } else if (partnershipFilter === 'B') {
-      displayScorecards = displayScorecards.filter(sc => (sc.battingTeam?._id || sc.battingTeam) === match.teamB?._id);
-    }
-
     return (
-      <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
-        <View style={styles.lbFilterRow}>
-          {[
-            { id: 'ALL', label: 'All' },
-            { id: 'A', label: teamA },
-            { id: 'B', label: teamB }
-          ].map(tab => (
-            <TouchableOpacity
-              key={tab.id}
-              style={[styles.lbFilterBtn, partnershipFilter === tab.id && styles.lbFilterBtnActive]}
-              onPress={() => setPartnershipFilter(tab.id)}
-            >
-              <Text style={[styles.lbFilterText, partnershipFilter === tab.id && styles.lbFilterTextActive, { textAlign: 'center' }]} numberOfLines={1}>{tab.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {displayScorecards.map((sc, index) => {
-          const inn = match.innings?.find(i => i.inningsNumber === sc.inningsNumber);
-          if (!inn || !inn.partnerships || inn.partnerships.length === 0) return null;
-
-          const teamName = sc.battingTeam?.name || (sc.battingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name) || `Team ${sc.battingTeam}`;
-
-          return (
-            <View key={index} style={[styles.section, { padding: 16, marginBottom: 16 }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>{teamName}</Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>{sc.total?.runs || 0}/{sc.total?.wickets || 0} ({sc.total?.overs || '0.0'} Ov)</Text>
-              </View>
-
-              {inn.partnerships.map((p, idx) => {
-                const p1Name = p.batsman1?.name || sc.batting.find(b => (b.player?._id || b.player)?.toString() === (p.batsman1?._id || p.batsman1)?.toString())?.player?.name || 'Unknown';
-                const p2Name = p.batsman2?.name || sc.batting.find(b => (b.player?._id || b.player)?.toString() === (p.batsman2?._id || p.batsman2)?.toString())?.player?.name || 'Unknown';
-
-                const wicketNum = p.wicket || (idx + 1);
-                const suffix = ['st', 'nd', 'rd'][((wicketNum + 90) % 100 - 10) % 10 - 1] || 'th';
-
-                return (
-                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, paddingBottom: 12 }}>
-                    <View style={{ width: 60 }}>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>{wicketNum}{suffix} Wkt</Text>
-                    </View>
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium }} numberOfLines={1}>{p1Name}</Text>
-                      </View>
-                      <View style={{ paddingHorizontal: 12, alignItems: 'center' }}>
-                        <Text style={{ color: Colors.primary, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>{p.runs}</Text>
-                        <Text style={{ color: Colors.textTertiary, fontSize: 10 }}>({p.balls})</Text>
-                      </View>
-                      <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                        <Text style={{ color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium }} numberOfLines={1}>{p2Name}</Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          );
-        })}
-
-        {displayScorecards.filter(sc => {
-          const inn = match.innings?.find(i => i.inningsNumber === sc.inningsNumber);
-          return inn && inn.partnerships && inn.partnerships.length > 0;
-        }).length === 0 && (
-            <View style={{ padding: 20, alignItems: 'center' }}>
-              <Text style={{ color: Colors.textSecondary }}>No partnerships available.</Text>
-            </View>
-          )}
-      </ScrollView>
+      <PartnershipsView
+        match={match}
+        scorecards={scorecards}
+        commentary={commentary}
+        refreshControl={getRefreshControl()}
+      />
     );
   };
 

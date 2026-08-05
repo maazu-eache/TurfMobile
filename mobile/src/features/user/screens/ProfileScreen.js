@@ -108,7 +108,7 @@ const ProfileScreen = ({ navigation }) => {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Other</Text>
-            {renderOption('headset', 'Help & Support', 'Get help with your bookings', () => navigation.navigate('HelpSupport'))}
+            {renderOption('headset', 'Help & Support', 'Get help with your bookings', () => navigation.navigate('TicketListScreen'))}
             {renderOption('shield-check', 'Privacy Policy', 'Your data and privacy rights', () => navigation.navigate('PrivacyPolicy'))}
             {renderOption('logout', 'Logout', 'Sign out of your account', handleLogout, true)}
           </View>

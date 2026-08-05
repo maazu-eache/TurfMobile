@@ -31,6 +31,10 @@ import EditProfileScreen from '../features/user/screens/EditProfileScreen';
 import HelpSupportScreen from '../features/user/screens/HelpSupportScreen';
 import PrivacyPolicyScreen from '../features/user/screens/PrivacyPolicyScreen';
 
+// Support Screens
+import TicketListScreen from '../features/support/screens/TicketListScreen';
+import CreateTicketScreen from '../features/support/screens/CreateTicketScreen';
+
 // Match Screens (accessible from Customer)
 import MatchSetupScreen from '../features/match/screens/MatchSetupScreen';
 import MatchTeamSelectionScreen from '../features/match/screens/MatchTeamSelectionScreen';
@@ -271,6 +275,10 @@ const BookingStack = () => (
     <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
 
     <Stack.Screen name="SlotPicker" component={SlotPickerScreen} />
+
+    {/* Support */}
+    <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
+    <Stack.Screen name="TicketListScreen" component={TicketListScreen} />
   </Stack.Navigator>
 );
 
@@ -328,6 +336,10 @@ const ProfileStack = () => (
     <Stack.Screen name="TeamCreate" component={TeamCreateScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+    
+    {/* Support */}
+    <Stack.Screen name="TicketListScreen" component={TicketListScreen} />
+    <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
     
     {/* Turf Booking Flow from Favourites */}
     <Stack.Screen name="TurfDetail" component={TurfDetailScreen} />

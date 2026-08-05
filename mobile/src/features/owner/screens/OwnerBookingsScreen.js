@@ -9,13 +9,14 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme'
 import api, { getImageUrl } from '../../../api/axios';
 import { formatISTDate, formatISTTime } from '../../../utils/dateFormatter';
 import moment from 'moment';
-import { confirmBookingPayment, rejectBookingPayment, approveCancellation, fetchOwnerDashboard } from '../ownerSlice';
+import { confirmBookingPayment, rejectBookingPayment, approveCancellation, rejectCancellation, fetchOwnerDashboard } from '../ownerSlice';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const OwnerBookingsScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { dashboard } = useSelector((state) => state.owner);
   const turfs = dashboard?.owner?.turfs || [];
+  const pendingCancellationsCount = dashboard?.stats?.pendingCancellationsCount || 0;
   
   const dispatch = useDispatch();
   const [selectedTurf, setSelectedTurf] = useState('all');
@@ -28,6 +29,11 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
   const [verifyingBooking, setVerifyingBooking] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [verifying, setVerifying] = useState(false);
+
+  const [rejectCancelModalVisible, setRejectCancelModalVisible] = useState(false);
+  const [rejectCancelReason, setRejectCancelReason] = useState('');
+  const [cancelRejecting, setCancelRejecting] = useState(false);
+  const [actionBooking, setActionBooking] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -78,7 +84,7 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
         }
       }
       if (statusFilter !== 'All') {
-        const matchTarget = statusFilter === 'Cancellation Requested' ? 'cancellation_requested' : statusFilter.toLowerCase();
+        const matchTarget = (statusFilter === 'Cancellation Requested' || statusFilter === 'Cancel Req') ? 'cancellation_requested' : statusFilter.toLowerCase();
         url += `&status=${matchTarget}`;
       }
 
@@ -163,9 +169,17 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
   };
 
   const handleApproveCancel = (booking) => {
-    showCustomAlert('Approve Cancellation', 'Have you refunded the money to the user via UPI? Approving this will free up the turf slots.', [
+    const isOnline = booking.payment && ['qr_upi', 'wallet', 'razorpay', 'phonepe'].includes(booking.payment.method);
+    const amount = booking.totalAmount || booking.finalAmount;
+    const deductionAmount = Math.round(amount * 0.80);
+    const message = isOnline
+      ? `Approving this cancellation will deduct ₹${deductionAmount} from your wallet and refund the user automatically. Proceed?`
+      : 'Have you refunded the money to the user via UPI? Approving this will free up the turf slots.';
+    const confirmText = isOnline ? 'Yes, Approve' : 'Yes, Refunded';
+
+    showCustomAlert('Approve Cancellation', message, [
       { text: 'Not Yet', style: 'cancel' },
-      { text: 'Yes, Refunded', onPress: async () => {
+      { text: confirmText, onPress: async () => {
         setVerifying(true);
         const res = await dispatch(approveCancellation(booking._id));
         if (approveCancellation.fulfilled.match(res)) {
@@ -178,6 +192,32 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
         setVerifying(false);
       }}
     ]);
+  };
+
+  const handleRejectCancel = (booking) => {
+    setActionBooking(booking);
+    setRejectCancelReason('');
+    setRejectCancelModalVisible(true);
+  };
+
+  const submitRejectCancel = async () => {
+    if (!rejectCancelReason.trim()) {
+      return showCustomAlert('Error', 'Please provide a rejection reason');
+    }
+    setCancelRejecting(true);
+    try {
+      const res = await dispatch(rejectCancellation({ bookingId: actionBooking._id, reason: rejectCancelReason }));
+      if (rejectCancellation.fulfilled.match(res)) {
+        showCustomAlert('Success', 'Cancellation rejected. The booking is restored to confirmed status.');
+        fetchBookings();
+        dispatch(fetchOwnerDashboard());
+      } else {
+        showCustomAlert('Error', res.payload || 'Failed to reject cancellation');
+      }
+      setRejectCancelModalVisible(false);
+    } finally {
+      setCancelRejecting(false);
+    }
   };
 
   const renderBookingCard = ({ item }) => {
@@ -202,7 +242,7 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
           </View>
           <View style={[styles.statusBadge, { borderColor: getStatusColor(item.status) }]}>
             <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-              {item.status?.toUpperCase() || 'UNKNOWN'}
+              {item.status === 'cancellation_requested' ? 'CANCEL REQ.' : (item.status?.toUpperCase() || 'UNKNOWN')}
             </Text>
           </View>
         </View>
@@ -248,12 +288,24 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             )}
             {item.status === 'cancellation_requested' && (
-              <TouchableOpacity style={[styles.verifyBtn, { backgroundColor: '#FF5722' }]} onPress={() => handleApproveCancel(item)}>
-                <Text style={[styles.verifyBtnText, { color: '#FFF' }]}>Approve Refund</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                <TouchableOpacity style={[styles.verifyBtn, { backgroundColor: Colors.surfaceVariant, borderWidth: 1, borderColor: Colors.error }]} onPress={() => handleRejectCancel(item)}>
+                  <Text style={[styles.verifyBtnText, { color: Colors.error }]}>Reject</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.verifyBtn, { backgroundColor: '#FF5722' }]} onPress={() => handleApproveCancel(item)}>
+                  <Text style={[styles.verifyBtnText, { color: '#FFF' }]}>Approve Refund</Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         </View>
+        
+        <TouchableOpacity 
+          style={styles.reportIssueBtn}
+          onPress={() => navigation.navigate('CreateTicketScreen', { bookingId: item.bookingRef })}
+        >
+          <Text style={styles.reportIssueText}>Report Issue</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -301,16 +353,23 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
           ) : null}
         </View>
       </View>
-      <View style={styles.tabsContainer}>
-        {['All', 'Confirmed', 'Completed'].map(status => (
-          <TouchableOpacity 
-            key={status} 
-            style={[styles.tabButton, statusFilter === status && styles.tabButtonActive]}
-            onPress={() => setStatusFilter(status)}
-          >
-            <Text style={[styles.tabText, statusFilter === status && styles.tabTextActive]}>{status}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.tabsWrapper}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer}>
+          {['All', 'Confirmed', 'Completed', 'Cancel Req', 'Cancelled'].map(status => (
+            <TouchableOpacity 
+              key={status} 
+              style={[styles.tabButton, statusFilter === status && styles.tabButtonActive]}
+              onPress={() => setStatusFilter(status)}
+            >
+              <Text style={[styles.tabText, statusFilter === status && styles.tabTextActive]}>{status}</Text>
+              {status === 'Cancel Req' && pendingCancellationsCount > 0 && (
+                <View style={styles.tabBadge}>
+                  <Text style={styles.tabBadgeText}>{pendingCancellationsCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {/* Bookings List */}
@@ -382,6 +441,44 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
                 disabled={verifying}
               >
                 {verifying ? <ActivityIndicator color="#000" size="small" /> : <Text style={styles.approveBtnText}>Approve</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Reject Cancellation Modal */}
+      <Modal visible={rejectCancelModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Reject Cancellation</Text>
+              <TouchableOpacity onPress={() => setRejectCancelModalVisible(false)}><Icon name="close" size={24} color={Colors.textPrimary}/></TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubTitle}>Provide a reason for rejecting the cancellation request. The booking will revert to "Confirmed".</Text>
+            
+            <TextInput
+              style={styles.rejectInput}
+              placeholder="Reason for rejection..."
+              placeholderTextColor={Colors.textTertiary}
+              value={rejectCancelReason}
+              onChangeText={setRejectCancelReason}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.rejectBtn]} 
+                onPress={() => setRejectCancelModalVisible(false)} 
+                disabled={cancelRejecting}
+              >
+                <Text style={styles.rejectBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalBtn, { backgroundColor: Colors.error }]} 
+                onPress={submitRejectCancel} 
+                disabled={cancelRejecting}
+              >
+                {cancelRejecting ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={[styles.approveBtnText, { color: '#FFF' }]}>Submit Rejection</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -505,19 +602,22 @@ const styles = StyleSheet.create({
   turfOptionText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 16 },
   turfOptionTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
 
-  tabsContainer: {
-    flexDirection: 'row',
+  tabsWrapper: {
     backgroundColor: Colors.backgroundElevated,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
+  tabsContainer: {
+    flexDirection: 'row',
+  },
   tabButton: {
-    flex: 1,
+    paddingHorizontal: Spacing.xl,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderBottomWidth: 3,
     borderBottomColor: 'transparent',
+    flexDirection: 'row',
   },
   tabButtonActive: {
     borderBottomColor: Colors.primary,
@@ -529,6 +629,21 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  tabBadge: {
+    backgroundColor: Colors.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 6,
+    paddingHorizontal: 6,
+  },
+  tabBadgeText: {
+    color: '#FFF',
+    fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
   },
   searchInputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.sm, height: 40, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm },
@@ -576,6 +691,9 @@ const styles = StyleSheet.create({
   
   verifyBtn: { backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, marginTop: 8 },
   verifyBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  
+  reportIssueBtn: { backgroundColor: Colors.surfaceVariant, paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border },
+  reportIssueText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
   
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: Spacing.xl },
   modalContent: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.lg, padding: Spacing.xl, maxHeight: '85%' },

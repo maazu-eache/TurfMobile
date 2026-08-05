@@ -58,6 +58,9 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
   const [coverImage, setCoverImage] = useState(editTurf?.coverImage ? { uri: editTurf.coverImage } : null);
   const [gallery, setGallery] = useState(editTurf?.gallery ? editTurf.gallery.map(uri => ({ uri })) : []);
   const [removedGallery, setRemovedGallery] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const loadingState = isLoading || isSubmitting;
 
   const amenitiesState = watch('amenities');
 
@@ -102,16 +105,15 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
         }
       }
     } catch (error) {
-      showCustomAlert('Error', 'An unexpected error occurred while opening the image picker.');
-      console.log('Gallery picker error:', error);
+      showCustomAlert('Error', 'Failed to pick images');
+      console.log('Gallery image picker error:', error);
     }
   };
 
   const removeGalleryImage = (index) => {
-    const img = gallery[index];
-    if (!img.fileName && img.uri) {
-      // It's an existing image from backend, need to tell backend to remove it
-      setRemovedGallery(prev => [...prev, img.uri]);
+    const imgToRemove = gallery[index];
+    if (imgToRemove?.uri && typeof imgToRemove.uri === 'string' && !imgToRemove.fileName) {
+      setRemovedGallery(prev => [...prev, imgToRemove.uri]);
     }
     setGallery(prev => prev.filter((_, i) => i !== index));
   };
@@ -123,79 +125,87 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
   const onSubmit = async (data) => {
     if (!coverImage) return showCustomAlert('Error', 'Please select a cover image for your turf.');
     
-    const formData = new FormData();
-    formData.append('name', data.name);
-    formData.append('description', data.description);
-    formData.append('address', data.address);
-    formData.append('city', data.city);
-    if (data.latitude) formData.append('latitude', data.latitude);
-    if (data.longitude) formData.append('longitude', data.longitude);
-    formData.append('state', data.state);
-    formData.append('pincode', data.pincode);
-    formData.append('size', data.size);
-    formData.append('type', data.type);
-    formData.append('weekdayDayPrice', data.weekdayDayPrice || 0);
-    formData.append('weekdayNightPrice', data.weekdayNightPrice || 0);
-    formData.append('weekendDayPrice', data.weekendDayPrice || 0);
-    formData.append('weekendNightPrice', data.weekendNightPrice || 0);
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('name', data.name);
+      formData.append('description', data.description);
+      formData.append('address', data.address);
+      formData.append('city', data.city);
+      if (data.latitude) formData.append('latitude', data.latitude);
+      if (data.longitude) formData.append('longitude', data.longitude);
+      formData.append('state', data.state);
+      formData.append('pincode', data.pincode);
+      formData.append('size', data.size);
+      formData.append('type', data.type);
+      formData.append('weekdayDayPrice', data.weekdayDayPrice || 0);
+      formData.append('weekdayNightPrice', data.weekdayNightPrice || 0);
+      formData.append('weekendDayPrice', data.weekendDayPrice || 0);
+      formData.append('weekendNightPrice', data.weekendNightPrice || 0);
 
-    // Backend expects location as [lng, lat]. Defaulting to 0 for now.
-    formData.append('longitude', '0');
-    formData.append('latitude', '0');
+      // Backend expects location as [lng, lat]. Defaulting to 0 for now.
+      formData.append('longitude', '0');
+      formData.append('latitude', '0');
 
-    // Default 24/7 Operating Hours
-    formData.append('openTime', '00:00');
-    formData.append('closeTime', '23:59');
+      // Default 24/7 Operating Hours
+      formData.append('openTime', '00:00');
+      formData.append('closeTime', '23:59');
 
-    // Amenities
-    Object.keys(amenitiesState).forEach(key => {
-      if (amenitiesState[key]) {
-        formData.append(key, 'true');
-      }
-    });
-
-    // Images
-    if (coverImage?.fileName) { // Only append if it's a new file, not an existing URL
-      formData.append('coverImage', {
-        uri: coverImage.uri,
-        type: coverImage.type || 'image/jpeg',
-        name: coverImage.fileName || 'cover.jpg'
+      // Amenities
+      Object.keys(amenitiesState).forEach(key => {
+        if (amenitiesState[key]) {
+          formData.append(key, 'true');
+        }
       });
-    }
 
-    gallery.forEach((img, index) => {
-      if (img.fileName) { // Only append new files
-        formData.append('gallery', {
-          uri: img.uri,
-          type: img.type || 'image/jpeg',
-          name: img.fileName || `gallery_${index}.jpg`
+      // Images
+      if (coverImage?.fileName) { // Only append if it's a new file, not an existing URL
+        formData.append('coverImage', {
+          uri: coverImage.uri,
+          type: coverImage.type || 'image/jpeg',
+          name: coverImage.fileName || 'cover.jpg'
         });
       }
-    });
 
-    if (removedGallery.length > 0) {
-      formData.append('removeGalleryImages', JSON.stringify(removedGallery));
-    }
+      gallery.forEach((img, index) => {
+        if (img.fileName) { // Only append new files
+          formData.append('gallery', {
+            uri: img.uri,
+            type: img.type || 'image/jpeg',
+            name: img.fileName || `gallery_${index}.jpg`
+          });
+        }
+      });
 
-    let result;
-    if (isEditing) {
-      result = await dispatch(updateTurf({ id: editTurf._id, formData }));
-    } else {
-      result = await dispatch(createTurf(formData));
-    }
+      if (removedGallery.length > 0) {
+        formData.append('removeGalleryImages', JSON.stringify(removedGallery));
+      }
 
-    if (isEditing ? updateTurf.fulfilled.match(result) : createTurf.fulfilled.match(result)) {
-      showCustomAlert('Success', `Turf ${isEditing ? 'updated' : 'created'} successfully!`, [
-        { text: 'OK', onPress: () => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.navigate('OwnerDashboard');
-          }
-        }}
-      ]);
-    } else {
-      showCustomAlert('Error', result.payload || `Failed to ${isEditing ? 'update' : 'create'} turf`);
+      let result;
+      if (isEditing) {
+        result = await dispatch(updateTurf({ id: editTurf._id, formData }));
+      } else {
+        result = await dispatch(createTurf(formData));
+      }
+
+      if (isEditing ? updateTurf.fulfilled.match(result) : createTurf.fulfilled.match(result)) {
+        showCustomAlert('Success', `Turf ${isEditing ? 'updated' : 'created'} successfully!`, [
+          { text: 'OK', onPress: () => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('OwnerDashboard');
+            }
+          }}
+        ]);
+      } else {
+        showCustomAlert('Error', result.payload || `Failed to ${isEditing ? 'update' : 'create'} turf`);
+      }
+    } catch (err) {
+      console.log('Error submitting turf form:', err);
+      showCustomAlert('Error', `Failed to ${isEditing ? 'update' : 'create'} turf`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -466,11 +476,15 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
           </View>
 
           <TouchableOpacity 
-            style={[styles.submitButton, isLoading && styles.submitButtonDisabled]} 
+            style={[styles.submitButton, loadingState && styles.submitButtonDisabled]} 
             onPress={handleSubmit(onSubmit, onError)}
-            disabled={isLoading}
+            disabled={loadingState}
           >
-            {isLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.submitButtonText}>{isEditing ? 'Update Turf' : 'Register Turf'}</Text>}
+            {loadingState ? (
+              <ActivityIndicator color="#000" size="small" />
+            ) : (
+              <Text style={styles.submitButtonText}>{isEditing ? 'Update Turf' : 'Register Turf'}</Text>
+            )}
           </TouchableOpacity>
 
         </KeyboardAwareScrollView>
@@ -487,13 +501,41 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border
   },
   backButton: { width: 40, height: 40, justifyContent: 'center' },
-  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  
+  // Header Title & Status Badge
+  headerTitleWrap: { alignItems: 'center' },
+  headerTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  statusBadge: { 
+    flexDirection: 'row', alignItems: 'center', gap: 5, 
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, marginTop: 2 
+  },
+  statusBadgeCreate: { backgroundColor: 'rgba(76, 175, 80, 0.15)', borderWidth: 1, borderColor: Colors.success },
+  statusBadgeEdit: { backgroundColor: 'rgba(255, 204, 0, 0.15)', borderWidth: 1, borderColor: Colors.primary },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusDotCreate: { backgroundColor: Colors.success },
+  statusDotEdit: { backgroundColor: Colors.primary },
+  statusBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
+  statusBadgeTextCreate: { color: Colors.success },
+  statusBadgeTextEdit: { color: Colors.primary },
+
+  // Scroll & Sections
   scroll: { flex: 1 },
   scrollContent: { padding: Spacing.xl, paddingBottom: 100 },
-  sectionTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: Spacing.xl, marginBottom: Spacing.md },
+  sectionTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: Spacing.xl, marginBottom: Spacing.md },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.xl, marginBottom: Spacing.md },
   
-  // Inputs
+  // Mode Banner
+  modeBanner: { 
+    flexDirection: 'row', alignItems: 'center', gap: 8, 
+    padding: Spacing.md, borderRadius: BorderRadius.lg, marginBottom: Spacing.md, borderWidth: 1 
+  },
+  modeBannerCreate: { backgroundColor: 'rgba(76, 175, 80, 0.08)', borderColor: 'rgba(76, 175, 80, 0.3)' },
+  modeBannerEdit: { backgroundColor: 'rgba(255, 204, 0, 0.08)', borderColor: 'rgba(255, 204, 0, 0.3)' },
+  modeBannerText: { fontSize: 13, fontFamily: Typography.fontFamily.medium, flex: 1 },
+  modeBannerTextCreate: { color: Colors.success },
+  modeBannerTextEdit: { color: Colors.primary },
+
+  // Inputs & Groups
   inputGroup: { marginBottom: Spacing.md },
   input: { 
     backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, 
@@ -513,7 +555,8 @@ const styles = StyleSheet.create({
   textArea: { height: 100, textAlignVertical: 'top', paddingTop: Spacing.md },
   inputError: { borderColor: Colors.error },
   errorText: { color: Colors.error, fontSize: 12, marginTop: 4, marginLeft: 4 },
-  rowInputs: { flexDirection: 'row' },
+  row: { marginBottom: Spacing.sm },
+  rowInputs: { flexDirection: 'row', marginBottom: Spacing.sm },
   label: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 6 },
   
   // Chips
@@ -563,7 +606,39 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: Spacing['2xl'] 
   },
   submitButtonDisabled: { opacity: 0.7 },
-  submitButtonText: { color: '#000', fontSize: 16, fontFamily: Typography.fontFamily.bold }
+  submitButtonText: { color: '#000', fontSize: 16, fontFamily: Typography.fontFamily.bold },
+
+  // Loading Overlay
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justify: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  loadingCard: {
+    backgroundColor: Colors.backgroundCard,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    width: '80%',
+  },
+  loadingTitle: {
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 16,
+    marginTop: Spacing.md,
+    textAlign: 'center',
+  },
+  loadingSubtitle: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
+  },
 });
 
 export default TurfRegistrationScreen;

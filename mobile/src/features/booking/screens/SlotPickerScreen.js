@@ -17,13 +17,14 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchSlots, clearSlots } from '../../slot/slotSlice';
+import { fetchSlots, clearSlots, updateSlotStatus } from '../../slot/slotSlice';
 import { rescheduleBooking } from '../bookingSlice';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import moment from 'moment';
 import { formatISTTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import api from '../../../api/axios';
+import socketService from '../../../services/socketService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -64,6 +65,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
   const [calendarMonth, setCalendarMonth] = useState(moment().startOf('month'));
   const [activePicker, setActivePicker] = useState('none');
   const [expandedGroup, setExpandedGroup] = useState(getCurrentTimeGroup());
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
 
   // Bulk Mode State
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -87,7 +89,28 @@ const SlotPickerScreen = ({ route, navigation }) => {
   useEffect(() => {
     dispatch(fetchSlots({ turfId: turf._id, date: selectedDate }));
     Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-    return () => dispatch(clearSlots());
+    
+    // Join Turf Room for real-time slot updates
+    socketService.getSocket()?.emit('join_turf_room', { turfId: turf._id });
+    
+    const unsubs = [
+      socketService.on('slots_locked', (data) => {
+        if (data.turfId === turf._id && data.slots) {
+          dispatch(updateSlotStatus({ slotIds: data.slots, status: 'booked' }));
+        }
+      }),
+      socketService.on('slots_freed', (data) => {
+        if (data.turfId === turf._id && data.slots) {
+          dispatch(updateSlotStatus({ slotIds: data.slots, status: 'available' }));
+        }
+      })
+    ];
+
+    return () => {
+      socketService.getSocket()?.emit('leave_turf_room', { turfId: turf._id });
+      unsubs.forEach(unsub => unsub());
+      dispatch(clearSlots());
+    };
   }, [turf._id, selectedDate, dispatch]);
 
   const toggleSlot = (slot) => {
@@ -129,7 +152,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
         showCustomAlert('Error', res.payload || 'Failed to reschedule booking.');
       }
     } else {
-      navigation.navigate('BookingConfirm', { turf, slots: selectedSlots });
+      setShowPolicyModal(true);
     }
   };
 
@@ -361,6 +384,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
           })}
         </View>
 
+
         <View style={{ height: 160 }} />
       </Animated.ScrollView>
 
@@ -374,7 +398,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
         </View>
         <TouchableOpacity
           style={[styles.continueBtn, selectedSlots.length === 0 && styles.continueBtnDisabled]}
-          onPress={handleContinue}
+          onPress={() => setShowPolicyModal(true)}
           disabled={selectedSlots.length === 0}
           activeOpacity={0.85}
         >
@@ -590,6 +614,43 @@ const SlotPickerScreen = ({ route, navigation }) => {
           </View>
         </View>
       )}
+    {/* ── Cancellation Policy Bottom Sheet ── */}
+    <Modal
+      visible={showPolicyModal}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowPolicyModal(false)}
+    >
+      <View style={styles.policyModalOverlay}>
+        <TouchableOpacity style={styles.policyModalBackdrop} activeOpacity={1} onPress={() => setShowPolicyModal(false)} />
+        <View style={styles.policyModalContent}>
+          <View style={styles.policyModalHeader}>
+            <Icon name="information-outline" size={24} color={Colors.primary} />
+            <Text style={styles.policyModalTitle}>Cancellation Policy</Text>
+          </View>
+          <Text style={styles.policyModalText}>
+            Cancellations are allowed only if requested more than 2 hours before the slot start time.
+          </Text>
+          <Text style={styles.policyModalText}>
+            Refunds are subject to owner approval (70% refund of the slot price). The 5% platform fee is non-refundable. Only online payments are eligible for refunds.
+          </Text>
+          <View style={styles.policyModalActions}>
+            <TouchableOpacity style={styles.policyModalCancelBtn} onPress={() => setShowPolicyModal(false)}>
+              <Text style={styles.policyModalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.policyModalConfirmBtn} 
+              onPress={() => {
+                setShowPolicyModal(false);
+                navigation.navigate('BookingConfirm', { turf, slots: selectedSlots });
+              }}
+            >
+              <Text style={styles.policyModalConfirmText}>Confirm & Pay</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
     </View>
   );
 };
@@ -848,6 +909,42 @@ const styles = StyleSheet.create({
   calDayText: { color: '#FFF', fontFamily: Typography.fontFamily.medium, fontSize: 12 },
   closeModalBtn: { marginTop: 16, padding: 12, backgroundColor: '#171717', borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
   closeModalText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  cancellationPolicyContainer: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 14,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  cancellationPolicyTitle: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 4,
+  },
+  cancellationPolicyText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.5)',
+    lineHeight: 14,
+  },
+
+  /* ── Policy Modal Styles ── */
+  policyModalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  policyModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)' },
+  policyModalContent: { backgroundColor: '#1A1A1A', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  policyModalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  policyModalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginLeft: 12 },
+  policyModalText: { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: Typography.fontFamily.regular, marginBottom: 12, lineHeight: 22 },
+  policyModalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  policyModalCancelBtn: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#2A2A2A', alignItems: 'center' },
+  policyModalCancelText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  policyModalConfirmBtn: { flex: 2, padding: 16, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center' },
+  policyModalConfirmText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
 });
 
 export default SlotPickerScreen;

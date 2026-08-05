@@ -28,6 +28,10 @@ export const approveCancellation = createAsyncThunk('owner/approveCancellation',
   try { return (await api.put(`/bookings/${bookingId}/approve-cancellation`)).data.data; }
   catch (err) { return rejectWithValue(err.response?.data?.message); }
 });
+export const rejectCancellation = createAsyncThunk('owner/rejectCancellation', async ({ bookingId, reason }, { rejectWithValue }) => {
+  try { return (await api.put(`/bookings/${bookingId}/reject-cancellation`, { reason })).data.data; }
+  catch (err) { return rejectWithValue(err.response?.data?.message); }
+});
 const ownerSlice = createSlice({
   name: 'owner',
   initialState: { profile: null, dashboard: null, isLoading: false, error: null },

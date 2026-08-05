@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, SafeAreaView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, SafeAreaView, Modal } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -13,6 +13,7 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 const BookingDetailScreen = ({ navigation, route }) => {
   const { bookingId } = route.params;
   const dispatch = useDispatch();
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
   const booking = useSelector((state) => 
     state.booking.bookings.find(b => b._id === bookingId)
   );
@@ -46,23 +47,19 @@ const BookingDetailScreen = ({ navigation, route }) => {
   };
 
   const handleCancel = () => {
-    const isPaid = booking.status === 'confirmed';
-    const message = isPaid 
-      ? 'You have already paid for this booking. Cancelling will send a refund request to the turf owner. Do you want to proceed?'
-      : 'Are you sure you want to cancel this booking?';
+    setShowPolicyModal(true);
+  };
 
-    showCustomAlert(isPaid ? 'Request Cancellation' : 'Cancel Booking', message, [
-      { text: 'No', style: 'cancel' },
-      { text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
-        const res = await dispatch(cancelBooking({ id: booking._id, reason: 'User requested' }));
-        if (cancelBooking.fulfilled.match(res)) {
-          showCustomAlert(isPaid ? 'Cancellation Requested' : 'Cancelled', 
-            isPaid ? 'The owner has been notified to process your refund.' : 'Your booking has been cancelled.');
-        } else {
-          showCustomAlert('Error', res.payload || 'Could not cancel booking.');
-        }
-      }}
-    ]);
+  const handleConfirmCancel = async () => {
+    setShowPolicyModal(false);
+    const isPaid = booking.status === 'confirmed';
+    const res = await dispatch(cancelBooking({ id: booking._id, reason: 'User requested' }));
+    if (cancelBooking.fulfilled.match(res)) {
+      showCustomAlert(isPaid ? 'Cancellation Requested' : 'Cancelled', 
+        isPaid ? 'The owner has been notified to process your refund.' : 'Your booking has been cancelled.');
+    } else {
+      showCustomAlert('Error', res.payload || 'Could not cancel booking. Ensure it is > 2 hours before start time.');
+    }
   };
 
   return (
@@ -82,7 +79,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
 
           <View style={styles.headerContent}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) }]}>
-              <Text style={styles.statusText}>{booking.status.toUpperCase()}</Text>
+              <Text style={styles.statusText}>{booking.status.replace(/_/g, ' ').toUpperCase()}</Text>
             </View>
             <Text style={styles.turfName}>{turf.name || 'Turf Name'}</Text>
             <Text style={styles.turfAddress}>
@@ -153,35 +150,90 @@ const BookingDetailScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* {['pending', 'confirmed'].includes(booking.status) && (
+          {['pending', 'confirmed'].includes(booking.status) && (
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={[styles.cancelBtn, { flex: 1 }]} onPress={handleCancel}>
-                <Text style={styles.cancelBtnText}>
-                  {booking.status === 'confirmed' ? 'Request Cancellation' : 'Cancel Booking'}
-                </Text>
+              {(() => {
+                let showCancel = true;
+                if (booking.status === 'confirmed') {
+                  const slotsArr = booking.slotsSnapshot?.length > 0 ? booking.slotsSnapshot : booking.slots;
+                  if (slotsArr && slotsArr.length > 0) {
+                    const earliestSlot = slotsArr.reduce((prev, curr) => {
+                      const prevTime = new Date(`${prev.date.split('T')[0]}T${prev.startTime}:00+05:30`);
+                      const currTime = new Date(`${curr.date.split('T')[0]}T${curr.startTime}:00+05:30`);
+                      return prevTime < currTime ? prev : curr;
+                    });
+                    
+                    const slotDateStr = `${earliestSlot.date.split('T')[0]}T${earliestSlot.startTime}:00+05:30`;
+                    const slotDate = new Date(slotDateStr);
+                    
+                    const msDiff = slotDate.getTime() - Date.now();
+                    if (msDiff <= 2 * 60 * 60 * 1000) showCancel = false;
+                  }
+                }
+                return showCancel ? (
+                  <TouchableOpacity style={[styles.cancelBtn, { flex: 1 }]} onPress={handleCancel}>
+                    <Text style={styles.cancelBtnText}>
+                      {booking.status === 'confirmed' ? 'Request Cancellation' : 'Cancel Booking'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null;
+              })()}
+              <TouchableOpacity 
+                style={[styles.cancelBtn, { flex: 1, backgroundColor: Colors.surfaceVariant, borderColor: Colors.border }]} 
+                onPress={() => navigation.navigate('CreateTicketScreen', { bookingId: booking.bookingRef })}
+              >
+                <Text style={[styles.cancelBtnText, { color: Colors.textSecondary }]}>Report Issue</Text>
               </TouchableOpacity>
-              
-              {booking.status === 'confirmed' && (
-                <TouchableOpacity 
-                  style={[styles.cancelBtn, { flex: 1, borderColor: Colors.primary, backgroundColor: 'transparent' }]} 
-                  onPress={() => navigation.navigate('SlotPicker', { turf: booking.turf, isRescheduling: true, reschedulingBookingId: booking._id, oldTotalPrice: booking.totalAmount })}
-                >
-                  <Text style={[styles.cancelBtnText, { color: Colors.primary }]}>Reschedule</Text>
-                </TouchableOpacity>
-              )}
             </View>
           )}
 
           {booking.status === 'cancellation_requested' && (
-            <View style={[styles.cancelBtn, { borderColor: '#FF5722', backgroundColor: 'rgba(255, 87, 34, 0.1)' }]}>
-              <Text style={[styles.cancelBtnText, { color: '#FF5722' }]}>
-                Cancellation Requested. Awaiting Owner Refund.
-              </Text>
+            <View style={styles.infoAlert}>
+              <Icon name="clock-alert-outline" size={28} color="#FF9800" />
+              <View style={styles.infoAlertContent}>
+                <Text style={styles.infoAlertTitle}>Cancellation Requested</Text>
+                <Text style={styles.infoAlertDesc}>Awaiting owner refund processing.</Text>
+              </View>
             </View>
-          )} */}
+          )}
 
         </View>
       </ScrollView>
+
+      {/* ── Cancellation Policy Bottom Sheet ── */}
+      <Modal
+        visible={showPolicyModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPolicyModal(false)}
+      >
+        <View style={styles.policyModalOverlay}>
+          <TouchableOpacity style={styles.policyModalBackdrop} activeOpacity={1} onPress={() => setShowPolicyModal(false)} />
+          <View style={styles.policyModalContent}>
+            <View style={styles.policyModalHeader}>
+              <Icon name="information-outline" size={24} color={Colors.primary} />
+              <Text style={styles.policyModalTitle}>Request Cancellation</Text>
+            </View>
+            <Text style={styles.policyModalText}>
+              {booking.status === 'confirmed'
+                ? 'You have already paid for this booking. Cancellations are only allowed > 2 hours before the start time. A 70% refund of the slot price will be requested. The 5% platform fee is non-refundable. Do you want to proceed?'
+                : 'Are you sure you want to cancel this booking? Cancellations are only allowed > 2 hours before the start time.'}
+            </Text>
+            <View style={styles.policyModalActions}>
+              <TouchableOpacity style={styles.policyModalCancelBtn} onPress={() => setShowPolicyModal(false)}>
+                <Text style={styles.policyModalCancelText}>No</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.policyModalConfirmBtn, { backgroundColor: '#4A1C1C' }]} 
+                onPress={handleConfirmCancel}
+              >
+                <Text style={[styles.policyModalConfirmText, { color: '#FF5722' }]}>Yes, Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 };
@@ -221,7 +273,25 @@ const styles = StyleSheet.create({
   paymentTotalAmount: { fontSize: 22, color: Colors.primary, fontFamily: Typography.fontFamily.bold },
 
   cancelBtn: { padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.error, alignItems: 'center', marginVertical: Spacing.lg },
-  cancelBtnText: { color: Colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 16 }
+  cancelBtnText: { color: Colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+
+  infoAlert: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 152, 0, 0.1)', padding: Spacing.lg, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: 'rgba(255, 152, 0, 0.3)', marginVertical: Spacing.lg },
+  infoAlertContent: { marginLeft: Spacing.md, flex: 1 },
+  infoAlertTitle: { color: '#FF9800', fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 2 },
+  infoAlertDesc: { color: 'rgba(255,255,255,0.7)', fontFamily: Typography.fontFamily.medium, fontSize: 13 },
+
+  /* ── Policy Modal Styles ── */
+  policyModalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  policyModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)' },
+  policyModalContent: { backgroundColor: '#1A1A1A', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  policyModalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  policyModalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginLeft: 12 },
+  policyModalText: { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: Typography.fontFamily.regular, marginBottom: 12, lineHeight: 22 },
+  policyModalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  policyModalCancelBtn: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#2A2A2A', alignItems: 'center' },
+  policyModalCancelText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  policyModalConfirmBtn: { flex: 2, padding: 16, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center' },
+  policyModalConfirmText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
 });
 
 export default BookingDetailScreen;
