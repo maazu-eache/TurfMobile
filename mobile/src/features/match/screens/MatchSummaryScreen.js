@@ -2497,13 +2497,28 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     batters.forEach(p => { allMap[p.id].mvpRuns = p.runs; allMap[p.id].mvpFours = p.fours; allMap[p.id].mvpSixes = p.sixes; });
     bowlers.forEach(p => { allMap[p.id].mvpWickets = p.wickets; });
     fielders.forEach(p => { allMap[p.id].mvpCatches = p.catches; allMap[p.id].mvpStumpings = p.stumpings; allMap[p.id].mvpRunOuts = p.runOuts; });
-    const mvpList = Object.values(allMap).map(p => ({
-      ...p,
-      points: ((
-        (p.mvpRuns * 1) + (p.mvpSixes * 2) + (p.mvpFours * 0.5) +
-        (p.mvpWickets * 20) + (p.mvpCatches * 10) + (p.mvpStumpings * 12) + (p.mvpRunOuts * 8)
-      ) / 10).toFixed(3),
-    })).filter(p => parseFloat(p.points) > 0).sort((a, b) => parseFloat(b.points) - parseFloat(a.points));
+    const mvpList = Object.values(allMap).map(p => {
+      let points = 0;
+      if (match?.mvpBreakdown) {
+        const pid = String(p.id || p._id);
+        if (typeof match.mvpBreakdown.get === 'function') {
+          const breakdown = match.mvpBreakdown.get(pid);
+          if (breakdown) points = breakdown.totalMvp || 0;
+        } else if (match.mvpBreakdown[pid]) {
+          points = match.mvpBreakdown[pid].totalMvp || match.mvpBreakdown[pid].total || 0;
+        }
+      }
+      if (!points) {
+        points = parseFloat(((
+          (p.mvpRuns * 1) + (p.mvpSixes * 2) + (p.mvpFours * 0.5) +
+          (p.mvpWickets * 20) + (p.mvpCatches * 10) + (p.mvpStumpings * 12) + (p.mvpRunOuts * 8)
+        ) / 10).toFixed(3));
+      }
+      return {
+        ...p,
+        points: points.toFixed(3),
+      };
+    }).filter(p => parseFloat(p.points) > 0).sort((a, b) => parseFloat(b.points) - parseFloat(a.points));
 
     // ── Top awards ──────────────────────────────────────────────────────────
     const topBatter = batters[0];
