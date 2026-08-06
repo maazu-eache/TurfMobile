@@ -29,16 +29,22 @@ const TABS = [
 ];
 
 const TournamentDetailScreen = ({ route, navigation }) => {
-  const { tournamentId } = route.params;
+  const { tournamentId, initialTab, openRegisterModal } = route.params || {};
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('Overview');
+  const [activeTab, setActiveTab] = useState(initialTab || 'Overview');
   const [matchSubTab, setMatchSubTab] = useState('Live'); // Live, Upcoming, Past
   const [selectedTeamFilter, setSelectedTeamFilter] = useState('');
   const { user } = useSelector(state => state.auth);
 
   const lockAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (openRegisterModal) {
+      setShowRegisterModal(true);
+    }
+  }, [openRegisterModal]);
 
   useEffect(() => {
     Animated.loop(
@@ -768,12 +774,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <TouchableOpacity
               style={[
                 styles.actionGridBtn,
-                (!hasTournamentStarted || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') && { opacity: 0.5 }
+                (tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') && { opacity: 0.5 }
               ]}
               onPress={() => {
-                if (!hasTournamentStarted) {
-                  showCustomAlert('Tournament Not Started', 'Fixtures can only be generated after the tournament starts.');
-                } else if (tournament.status === 'completed') {
+                if (tournament.status === 'completed') {
                   showCustomAlert('Completed', 'Tournament has already finished.');
                 } else if (tournament.matches?.some(m => m.status !== 'scheduled')) {
                   showCustomAlert('Locked', 'Fixtures cannot be generated after matches have started.');
@@ -781,16 +785,16 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   handleGenerateFixtures();
                 }
               }}
-              disabled={loading || !hasTournamentStarted || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed'}
+              disabled={loading || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed'}
             >
               <View style={[
                 styles.actionGridIcon,
-                (!hasTournamentStarted || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') && { backgroundColor: 'rgba(255,255,255,0.05)' }
+                (tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') && { backgroundColor: 'rgba(255,255,255,0.05)' }
               ]}>
                 <Icon
-                  name={(!hasTournamentStarted || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? "lock" : "calendar"}
+                  name={(tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? "lock" : "calendar"}
                   size={20}
-                  color={(!hasTournamentStarted || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? Colors.textTertiary : Colors.primary}
+                  color={(tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? Colors.textTertiary : Colors.primary}
                 />
               </View>
               <Text style={styles.actionGridText}>Fixtures</Text>
@@ -1667,7 +1671,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     );
   };
 
-  const hasTournamentStarted = tournament?.startDate ? new Date() >= new Date(tournament.startDate) : true;
+  const hasTournamentStarted = isOrganizer || (tournament?.matches && tournament.matches.length > 0) || (tournament?.startDate ? new Date() >= new Date(tournament.startDate) : true);
 
   const renderLockedModule = (tabName) => (
     <View style={[styles.placeholderContainer, { paddingHorizontal: 20 }]}>
@@ -1694,10 +1698,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       case 'Overview': return renderOverview();
       case 'Teams': return renderTeams();
       case 'Auction': return renderAuction();
-      case 'Matches': return hasTournamentStarted ? renderMatches() : renderLockedModule('Matches');
-      case 'Points Table': return hasTournamentStarted ? renderPointsTable() : renderLockedModule('Points Table');
-      case 'Leaderboard': return hasTournamentStarted ? <TournamentLeaderboard tournament={tournament} onShare={setShareData} /> : renderLockedModule('Leaderboard');
-      case 'Statistics': return hasTournamentStarted ? <TournamentStatistics tournament={tournament} /> : renderLockedModule('Statistics');
+      case 'Matches': return renderMatches();
+      case 'Points Table': return renderPointsTable();
+      case 'Leaderboard': return <TournamentLeaderboard tournament={tournament} onShare={setShareData} />;
+      case 'Statistics': return <TournamentStatistics tournament={tournament} />;
       default: return renderPlaceholder(activeTab);
     }
   };
