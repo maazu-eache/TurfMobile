@@ -339,7 +339,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           lastBallRef.current = ballId;
 
           if (data.isMatchComplete || data.match?.status === 'completed') {
-            const winnerName = data.result?.winner === data.match?.teamA?._id ? data.match?.teamA?.name : data.result?.winner === data.match?.teamB?._id ? data.match?.teamB?.name : 'TEAM';
+            const winnerName = getWinnerTeamName(data.match || liveState?.match, data.result || data.match?.result);
             triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
           } else if (latestBall.isWicket || latestBall.wicketType) {
             triggerCelebration('wicket', 'W', Colors.error);
@@ -355,7 +355,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           lastBallRef.current = latestBall._id;
 
           if (data.isMatchComplete || data.match?.status === 'completed') {
-            const winnerName = data.result?.winner === data.match?.teamA?._id ? data.match?.teamA?.name : data.result?.winner === data.match?.teamB?._id ? data.match?.teamB?.name : 'TEAM';
+            const winnerName = getWinnerTeamName(data.match || liveState?.match, data.result || data.match?.result);
             triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
           } else if (latestBall.isWicket) {
             triggerCelebration('wicket', 'W', Colors.error);
@@ -613,6 +613,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       );
     }
 
+    const getPlayerPhotoUrl = (p) => {
+      if (!p) return null;
+      const photo = p.photo || p.user?.photo || p.userId?.photo || p.avatar || p.profileImage || p.image || p.user?.avatar;
+      return photo ? getImageUrl(photo) : null;
+    };
+
     const isTeamABatting = match.battingTeam?.toString() === match.teamA?._id?.toString() || liveState?.battingTeam?.toString() === match.teamA?._id?.toString();
     const currentBattingName = isTeamABatting ? teamA : teamB;
 
@@ -680,20 +686,42 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       }
 
       if (match.playerOfMatch) {
-        const mvpId = typeof match.playerOfMatch === 'object' ? match.playerOfMatch._id : match.playerOfMatch;
-        const allXI = [...(match.playingXI?.teamA || []), ...(match.playingXI?.teamB || [])];
-        mvp = allXI.find(p => String(p._id) === String(mvpId));
+        if (typeof match.playerOfMatch === 'object' && match.playerOfMatch.name) {
+          mvp = match.playerOfMatch;
+        } else {
+          const mvpId = String(typeof match.playerOfMatch === 'object' ? match.playerOfMatch._id : match.playerOfMatch);
+          const allXI = [...(match.playingXI?.teamA || []), ...(match.playingXI?.teamB || [])];
+          mvp = allXI.find(p => String(p._id || p) === mvpId);
 
-        // Fallback: If player was added mid-match and isn't in playingXI, find them in scorecards
-        if (!mvp) {
-          const scorecardPlayers = scorecards.flatMap(sc => [
-            ...sc.batting.map(b => b.player),
-            ...sc.bowling.map(b => b.player)
-          ]).filter(Boolean);
-          mvp = scorecardPlayers.find(p => String(p._id) === String(mvpId));
+          if (!mvp) {
+            const scorecardPlayers = scorecards.flatMap(sc => [
+              ...(sc.batting || []).map(b => b.player),
+              ...(sc.bowling || []).map(b => b.player)
+            ]).filter(Boolean);
+            mvp = scorecardPlayers.find(p => String(p._id || p) === mvpId);
+          }
         }
-      } else {
-        mvp = bestBatter?.player; // fallback
+      }
+
+      if (!mvp) {
+        // Fallback: Pick highest performer from winning team
+        if (match.result?.winner) {
+          const winningTeamId = String(match.result.winner._id || match.result.winner);
+          const winningBatters = scorecards.find(sc => String(sc.battingTeam?._id || sc.battingTeam) === winningTeamId)?.batting?.filter(b => b.player) || [];
+          const winningBowlers = scorecards.find(sc => String(sc.bowlingTeam?._id || sc.bowlingTeam) === winningTeamId)?.bowling?.filter(b => b.player) || [];
+
+          const topWinningBatter = winningBatters.length > 0 ? [...winningBatters].sort((a, b) => b.runs - a.runs)[0] : null;
+          const topWinningBowler = winningBowlers.length > 0 ? [...winningBowlers].sort((a, b) => b.wickets - a.wickets)[0] : null;
+
+          if (topWinningBowler && topWinningBowler.wickets >= 2) {
+            mvp = topWinningBowler.player;
+          } else if (topWinningBatter) {
+            mvp = topWinningBatter.player;
+          }
+        }
+        if (!mvp) {
+          mvp = bestBatter?.player || bestBowler?.player;
+        }
       }
     }
 
@@ -719,11 +747,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           }}
         >
           <View style={{ height: 120, backgroundColor: Colors.backgroundElevated }}>
-            {(player?.photo || player?.userId?.photo) ? (
-              <Image source={{ uri: getImageUrl(player.photo || player.userId?.photo) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            {getPlayerPhotoUrl(player) ? (
+              <Image source={{ uri: getPlayerPhotoUrl(player) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surfaceVariant }}>
-                <Text style={{ color: accentColor, fontFamily: Typography.fontFamily.bold, fontSize: 40 }}>{player?.name?.charAt(0)?.toUpperCase() || '?'}</Text>
+                <Icon name="account" size={48} color={accentColor} />
               </View>
             )}
             <LinearGradient colors={['transparent', Colors.backgroundCard]} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 55 }} />
@@ -813,70 +841,89 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 </View>
 
                 {/* ── PLAYER OF THE MATCH ── Cinematic big card */}
-                {mvp && (
-                  <TouchableOpacity
-                    onPress={() => setSelectedPlayerPreview(mvp)}
-                    activeOpacity={0.92}
-                    style={{
-                      marginHorizontal: Spacing.md,
-                      marginBottom: 12,
-                      borderRadius: 22,
-                      overflow: 'hidden',
-                      elevation: 10,
-                      shadowColor: Colors.warning,
-                      shadowOffset: { width: 0, height: 6 },
-                      shadowOpacity: 0.35,
-                      shadowRadius: 14,
-                    }}
-                  >
-                    <View style={{ height: 310, backgroundColor: Colors.backgroundElevated }}>
-                      {(mvp.photo || mvp.userId?.photo) ? (
-                        <Image source={{ uri: getImageUrl(mvp.photo || mvp.userId?.photo) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                      ) : (
-                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surfaceVariant }}>
-                          <Text style={{ color: Colors.warning, fontFamily: Typography.fontFamily.bold, fontSize: 80 }}>{mvp?.name?.charAt(0)?.toUpperCase() || '?'}</Text>
-                        </View>
-                      )}
-                      {/* Gold badge strip at top */}
-                      <LinearGradient colors={['rgba(0,0,0,0.75)', 'transparent']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 58, justifyContent: 'center', paddingHorizontal: 16 }}>
-                        <LinearGradient colors={[Colors.warning, '#FF9800']} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start' }}>
-                          <Icon name="star" size={11} color="#000" />
-                          <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Player of the Match</Text>
-                        </LinearGradient>
-                      </LinearGradient>
+                {mvp && (() => {
+                  let mvpBattingStats = null;
+                  let mvpBowlingStats = null;
+                  if (scorecards?.length > 0) {
+                    const mvpIdStr = String(mvp._id || mvp.id || mvp);
+                    const allBatting = scorecards.flatMap(sc => sc.batting || []);
+                    const allBowling = scorecards.flatMap(sc => sc.bowling || []);
+                    mvpBattingStats = allBatting.find(b => String(b.player?._id || b.player?.id || b.player) === mvpIdStr);
+                    mvpBowlingStats = allBowling.find(b => String(b.player?._id || b.player?.id || b.player) === mvpIdStr);
+                  }
+                  if (!mvpBattingStats && bestBatter && String(bestBatter.player?._id || bestBatter.player) === String(mvp._id || mvp)) {
+                    mvpBattingStats = bestBatter;
+                  }
+                  if (!mvpBowlingStats && bestBowler && String(bestBowler.player?._id || bestBowler.player) === String(mvp._id || mvp)) {
+                    mvpBowlingStats = bestBowler;
+                  }
 
-                      {/* Bottom info overlay */}
-                      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)', 'rgba(0,0,0,1)']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 220, justifyContent: 'flex-end', padding: 18 }}>
-                        <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 28, lineHeight: 32, letterSpacing: -0.3, textShadowColor: 'rgba(0, 0, 0, 1)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>{mvp.name}</Text>
-                        <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: Typography.fontFamily.medium, fontSize: 12, marginTop: 2, marginBottom: 14, textShadowColor: 'rgba(0, 0, 0, 1)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
-                          {mvp.team?.name || (mvp._id && match.playingXI?.teamA?.some(p => p._id === mvp._id) ? match.teamA?.name : match.teamB?.name) || ''}
-                        </Text>
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                          {bestBatter && bestBatter.player?._id === mvp._id && (
-                            <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', borderWidth: 1, borderColor: `${Colors.primary}88`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
-                              <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
-                                {bestBatter.runs}<Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>({bestBatter.balls})</Text>
-                              </Text>
-                              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 1 }}>
-                                {bestBatter.fours || 0}×4s · {bestBatter.sixes || 0}×6s
-                              </Text>
-                            </View>
-                          )}
-                          {bestBowler && bestBowler.player?._id === mvp._id && (
-                            <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', borderWidth: 1, borderColor: `${Colors.info}88`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
-                              <Text style={{ color: Colors.info, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
-                                {bestBowler.wickets}<Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>/{bestBowler.runs}</Text>
-                              </Text>
-                              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 1 }}>
-                                {bestBowler.overs} ov
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                      </LinearGradient>
-                    </View>
-                  </TouchableOpacity>
-                )}
+                  const mvpPhoto = getPlayerPhotoUrl(mvp);
+                  return (
+                    <TouchableOpacity
+                      onPress={() => setSelectedPlayerPreview(mvp)}
+                      activeOpacity={0.92}
+                      style={{
+                        marginHorizontal: Spacing.md,
+                        marginBottom: 12,
+                        borderRadius: 22,
+                        overflow: 'hidden',
+                        elevation: 10,
+                        shadowColor: Colors.warning,
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: 0.35,
+                        shadowRadius: 14,
+                      }}
+                    >
+                      <View style={{ height: 310, backgroundColor: Colors.backgroundElevated }}>
+                        {mvpPhoto ? (
+                          <Image source={{ uri: mvpPhoto }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        ) : (
+                          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surfaceVariant }}>
+                            <Icon name="account" size={90} color={Colors.warning} />
+                          </View>
+                        )}
+                        {/* Gold badge strip at top */}
+                        <LinearGradient colors={['rgba(0,0,0,0.75)', 'transparent']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 58, justifyContent: 'center', paddingHorizontal: 16 }}>
+                          <LinearGradient colors={[Colors.warning, '#FF9800']} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start' }}>
+                            <Icon name="star" size={11} color="#000" />
+                            <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Player of the Match</Text>
+                          </LinearGradient>
+                        </LinearGradient>
+
+                        {/* Bottom info overlay */}
+                        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)', 'rgba(0,0,0,1)']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 220, justifyContent: 'flex-end', padding: 18 }}>
+                          <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 28, lineHeight: 32, letterSpacing: -0.3, textShadowColor: 'rgba(0, 0, 0, 1)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>{mvp.name}</Text>
+                          <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: Typography.fontFamily.medium, fontSize: 12, marginTop: 2, marginBottom: 14, textShadowColor: 'rgba(0, 0, 0, 1)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
+                            {mvp.team?.name || (mvp._id && match.playingXI?.teamA?.some(p => p._id === mvp._id) ? match.teamA?.name : match.teamB?.name) || ''}
+                          </Text>
+                          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                            {mvpBattingStats && (mvpBattingStats.runs > 0 || mvpBattingStats.balls > 0) && (
+                              <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', borderWidth: 1, borderColor: `${Colors.primary}88`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
+                                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                                  {mvpBattingStats.runs}<Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>({mvpBattingStats.balls})</Text>
+                                </Text>
+                                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 1 }}>
+                                  {mvpBattingStats.fours || 0}×4s · {mvpBattingStats.sixes || 0}×6s
+                                </Text>
+                              </View>
+                            )}
+                            {mvpBowlingStats && (mvpBowlingStats.overs > 0 || mvpBowlingStats.wickets > 0) && (
+                              <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', borderWidth: 1, borderColor: `${Colors.info}88`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
+                                <Text style={{ color: Colors.info, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                                  {mvpBowlingStats.wickets}<Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>/{mvpBowlingStats.runs}</Text>
+                                </Text>
+                                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 1 }}>
+                                  {mvpBowlingStats.overs} ov
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </LinearGradient>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })()}
 
                 {/* ── FIGHTER OF THE MATCH ── Landscape banner */}
                 {fighterOfTheMatch && fighterOfTheMatch._id !== mvp?._id && (
@@ -901,11 +948,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     }}
                   >
                     <View style={{ width: 120, height: '100%', backgroundColor: Colors.backgroundElevated }}>
-                      {(fighterOfTheMatch?.photo || fighterOfTheMatch?.userId?.photo) ? (
-                        <Image source={{ uri: getImageUrl(fighterOfTheMatch.photo || fighterOfTheMatch.userId?.photo) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      {getPlayerPhotoUrl(fighterOfTheMatch) ? (
+                        <Image source={{ uri: getPlayerPhotoUrl(fighterOfTheMatch) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       ) : (
-                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                          <Icon name="account-circle" size={58} color="rgba(255,64,129,0.35)" />
+                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surfaceVariant }}>
+                          <Icon name="account" size={54} color="#FF4081" />
                         </View>
                       )}
                       <LinearGradient colors={['transparent', Colors.backgroundCard]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 44 }} />
@@ -2786,12 +2833,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 <Icon name="check-circle" size={10} color="#fff" style={{ marginRight: 4 }} />
                 <Text style={styles.statusBadgeText}>Completed</Text>
               </View>
-            ) : match.status === 'innings_break' ? (
-              <View style={styles.statusBadgeBreak}>
-                <Icon name="timer-sand" size={10} color="#fff" style={{ marginRight: 4 }} />
-                <Text style={styles.statusBadgeText}>Innings Break</Text>
+            ) : (match.status === 'super_over' || match.isSuperOver || liveState?.isSuperOver) ? (
+              <View style={[styles.statusBadgeLive, { backgroundColor: '#7B1FA2', borderWidth: 1, borderColor: '#FFD54F', paddingHorizontal: 8 }]}>
+                <Icon name="flash" size={11} color="#FFD54F" style={{ marginRight: 3 }} />
+                <Text style={[styles.statusBadgeText, { color: '#FFD54F', fontWeight: 'bold' }]}>SUPER OVER</Text>
               </View>
-            ) : match.status === 'in_progress' || match.status === 'super_over' ? (
+            ) : match.status === 'in_progress' ? (
               <View style={styles.statusBadgeLive}>
                 <View style={styles.liveDot} />
                 <Text style={styles.statusBadgeText}>LIVE</Text>
