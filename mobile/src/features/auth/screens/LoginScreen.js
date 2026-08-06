@@ -11,6 +11,7 @@ import { loginWithPassword, registerWithPassword, clearError } from '../authSlic
 import { Colors, Typography } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
+import NotificationService from '../../../services/NotificationService';
 
 const LoginScreen = ({ navigation }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -84,15 +85,27 @@ const LoginScreen = ({ navigation }) => {
     }).start();
   }, [registerRole]);
 
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        dispatch(clearError());
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, dispatch]);
+
   const handleSubmit = async () => {
     Keyboard.dismiss();
     dispatch(clearError());
     
+    // Fetch FCM token if available
+    const fcmToken = await NotificationService.getFCMToken().catch(() => null);
+
     if (isLogin) {
       if (!identifier.trim()) return showCustomAlert('Error', 'Please enter your email or phone number');
       if (!password) return showCustomAlert('Error', 'Please enter your password');
 
-      const result = await dispatch(loginWithPassword({ identifier: identifier.trim(), password }));
+      const result = await dispatch(loginWithPassword({ identifier: identifier.trim(), password, fcmToken }));
       if (loginWithPassword.rejected.match(result)) {
         showCustomAlert('Error', result.payload || 'Login failed');
       }
@@ -114,7 +127,8 @@ const LoginScreen = ({ navigation }) => {
         role: registerRole,
         city,
         locationObj,
-        state: locationObj?.state || ''
+        state: locationObj?.state || '',
+        fcmToken
       }));
 
       if (registerWithPassword.rejected.match(result)) {

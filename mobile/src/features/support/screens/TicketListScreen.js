@@ -3,6 +3,9 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useDispatch } from 'react-redux';
+import { logout } from '../../auth/authSlice';
+import { showCustomAlert } from '../../../components/CustomAlert';
 import api from '../../../api/axios';
 import { Colors, Typography, Spacing } from '../../../theme/theme';
 
@@ -11,9 +14,41 @@ import { formatISTDateTime } from '../../../utils/dateFormatter';
 export default function TicketListScreen({ navigation }) {
   const supportEmail = 'maazibrahimoo0@gmail.com';
   const supportPhone = '+91 8428676150';
+  const dispatch = useDispatch();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState(null);
+
+  const handleRequestDeletion = () => {
+    showCustomAlert(
+      "Permanent Account Deletion",
+      "⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nOnce submitted, your request will be sent to the administrator. If approved, your entire account, bookings, player profile, career stats, wallet, turfs, and team records will be PERMANENTLY ERASED.\n\nYou will be logged out immediately and cannot log in while your deletion request is pending.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Request Deletion", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.post('/users/request-deletion', { reason: 'User requested from Help & Support screen' });
+              showCustomAlert(
+                "Request Submitted",
+                "Your account deletion request has been submitted to admin. You will now be logged out.",
+                [{
+                  text: "OK",
+                  onPress: async () => {
+                    await dispatch(logout());
+                  }
+                }]
+              );
+            } catch (err) {
+              showCustomAlert("Error", err.response?.data?.message || "Failed to submit deletion request");
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const fetchTickets = async () => {
     try {
@@ -129,6 +164,33 @@ export default function TicketListScreen({ navigation }) {
                 >
                   <Icon name="plus-circle-outline" size={20} color="#000" style={{ marginRight: 8 }} />
                   <Text style={styles.createTicketPromptText}>Create Support Ticket</Text>
+                </TouchableOpacity>
+              </View>
+            }
+            ListFooterComponent={
+              <View style={{ paddingTop: 16, paddingBottom: 80 }}>
+                <Text style={{ fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>ACCOUNT & DATA PRIVACY</Text>
+                <TouchableOpacity 
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: Colors.backgroundCard,
+                    padding: 14,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: 'rgba(244,67,54,0.3)',
+                  }}
+                  onPress={handleRequestDeletion}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(244,67,54,0.12)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Icon name="account-remove-outline" size={22} color={Colors.error} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 14 }}>Request Account Deletion</Text>
+                    <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginTop: 2 }}>Permanently erase your account & data</Text>
+                  </View>
+                  <Icon name="chevron-right" size={20} color={Colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             }

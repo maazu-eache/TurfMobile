@@ -7,7 +7,7 @@ import { Colors, Typography } from '../../../theme/theme';
 import { formatISTDateTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
-export default function SupportAdminView({ navigation }) {
+export default function SupportAdminView({ navigation, onStatusChanged }) {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('open'); // 'open', 'in_progress', 'resolved', 'closed'
@@ -49,7 +49,8 @@ export default function SupportAdminView({ navigation }) {
               if (selectedTicket && selectedTicket._id === ticketId) {
                 setSelectedTicket(prev => prev ? { ...prev, status: newStatus } : null);
               }
-              fetchTickets();
+              await fetchTickets();
+              if (onStatusChanged) onStatusChanged();
               showCustomAlert('Success', `Ticket status updated to ${statusLabel}`);
             } catch (err) {
               console.error('Error updating status:', err);
@@ -96,44 +97,46 @@ export default function SupportAdminView({ navigation }) {
         <Text style={styles.descriptionPreview} numberOfLines={2}>{item.description}</Text>
 
         <View style={styles.cardActions}>
-          {item.status !== 'in_progress' && (
-            <TouchableOpacity 
-              style={[styles.actionBtn, { backgroundColor: '#2196F3' }]} 
-              onPress={() => handleUpdateStatus(item._id, 'in_progress')}
-              disabled={isUpdating}
-            >
-              <Text style={styles.actionBtnText}>In Progress</Text>
-            </TouchableOpacity>
-          )}
+          {isUpdating ? (
+            <ActivityIndicator size="small" color={Colors.primary} style={{ padding: 6 }} />
+          ) : (
+            <>
+              {item.status !== 'in_progress' && (
+                <TouchableOpacity 
+                  style={[styles.actionBtn, { backgroundColor: '#2196F3' }]} 
+                  onPress={() => handleUpdateStatus(item._id, 'in_progress')}
+                >
+                  <Text style={styles.actionBtnText}>In Progress</Text>
+                </TouchableOpacity>
+              )}
 
-          {item.status !== 'resolved' && (
-            <TouchableOpacity 
-              style={[styles.actionBtn, { backgroundColor: Colors.success }]} 
-              onPress={() => handleUpdateStatus(item._id, 'resolved')}
-              disabled={isUpdating}
-            >
-              <Text style={styles.actionBtnText}>Mark Resolved</Text>
-            </TouchableOpacity>
-          )}
+              {item.status !== 'resolved' && (
+                <TouchableOpacity 
+                  style={[styles.actionBtn, { backgroundColor: Colors.success }]} 
+                  onPress={() => handleUpdateStatus(item._id, 'resolved')}
+                >
+                  <Text style={styles.actionBtnText}>Mark Resolved</Text>
+                </TouchableOpacity>
+              )}
 
-          {item.status !== 'closed' && (
-            <TouchableOpacity 
-              style={[styles.actionBtn, { backgroundColor: Colors.error }]} 
-              onPress={() => handleUpdateStatus(item._id, 'closed')}
-              disabled={isUpdating}
-            >
-              <Text style={styles.actionBtnText}>Close Ticket</Text>
-            </TouchableOpacity>
-          )}
+              {item.status !== 'closed' && (
+                <TouchableOpacity 
+                  style={[styles.actionBtn, { backgroundColor: Colors.error }]} 
+                  onPress={() => handleUpdateStatus(item._id, 'closed')}
+                >
+                  <Text style={styles.actionBtnText}>Close Ticket</Text>
+                </TouchableOpacity>
+              )}
 
-          {(item.status === 'resolved' || item.status === 'closed') && (
-            <TouchableOpacity 
-              style={[styles.actionBtn, { backgroundColor: Colors.primary }]} 
-              onPress={() => handleUpdateStatus(item._id, 'open')}
-              disabled={isUpdating}
-            >
-              <Text style={[styles.actionBtnText, { color: '#000' }]}>Re-open</Text>
-            </TouchableOpacity>
+              {(item.status === 'resolved' || item.status === 'closed') && (
+                <TouchableOpacity 
+                  style={[styles.actionBtn, { backgroundColor: Colors.primary }]} 
+                  onPress={() => handleUpdateStatus(item._id, 'open')}
+                >
+                  <Text style={[styles.actionBtnText, { color: '#000' }]}>Re-open</Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
       </TouchableOpacity>

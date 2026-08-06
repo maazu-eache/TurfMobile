@@ -172,8 +172,8 @@ const BookingDetailScreen = ({ navigation, route }) => {
                 }
                 return showCancel ? (
                   <TouchableOpacity style={[styles.cancelBtn, { flex: 1 }]} onPress={handleCancel}>
-                    <Text style={styles.cancelBtnText}>
-                      {booking.status === 'confirmed' ? 'Request Cancellation' : 'Cancel Booking'}
+                    <Text style={styles.cancelBtnText} numberOfLines={1} adjustsFontSizeToFit>
+                      Cancel Booking
                     </Text>
                   </TouchableOpacity>
                 ) : null;
@@ -182,7 +182,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
                 style={[styles.cancelBtn, { flex: 1, backgroundColor: Colors.surfaceVariant, borderColor: Colors.border }]} 
                 onPress={() => navigation.navigate('CreateTicketScreen', { bookingId: booking.bookingRef })}
               >
-                <Text style={[styles.cancelBtnText, { color: Colors.textSecondary }]}>Report Issue</Text>
+                <Text style={[styles.cancelBtnText, { color: Colors.textSecondary }]} numberOfLines={1} adjustsFontSizeToFit>Report Issue</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -272,8 +272,8 @@ const styles = StyleSheet.create({
   paymentTotalText: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
   paymentTotalAmount: { fontSize: 22, color: Colors.primary, fontFamily: Typography.fontFamily.bold },
 
-  cancelBtn: { padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.error, alignItems: 'center', marginVertical: Spacing.lg },
-  cancelBtnText: { color: Colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  cancelBtn: { paddingVertical: 12, paddingHorizontal: 10, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.error, alignItems: 'center', marginVertical: Spacing.sm },
+  cancelBtnText: { color: Colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
   infoAlert: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 152, 0, 0.1)', padding: Spacing.lg, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: 'rgba(255, 152, 0, 0.3)', marginVertical: Spacing.lg },
   infoAlertContent: { marginLeft: Spacing.md, flex: 1 },

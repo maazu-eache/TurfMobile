@@ -86,7 +86,7 @@ const ROLE_COLORS = {
 const ROLES = ['player', 'vice_captain', 'wicket_keeper', 'admin'];
 const ROLE_LABELS = { player: 'Player', vice_captain: 'Vice Captain', wicket_keeper: 'WK', admin: 'Admin' };
 
-const TeamCreateScreen = ({ navigation }) => {
+const TeamCreateScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
 
@@ -251,7 +251,12 @@ const TeamCreateScreen = ({ navigation }) => {
       });
       if (playerPromises.length > 0) await Promise.all(playerPromises);
 
-      navigation.replace('TeamDetail', { id: teamId });
+      const fromTournamentId = route.params?.fromTournamentId;
+      if (fromTournamentId) {
+        navigation.navigate('TournamentDetail', { id: fromTournamentId, action: 'join-team' });
+      } else {
+        navigation.replace('TeamDetail', { id: teamId });
+      }
     } catch (err) {
       const msg = typeof err === 'string' ? err : (err?.message || 'Failed to create team. Please try again.');
       showCustomAlert('Error', msg);

@@ -46,6 +46,11 @@ const AdminDashboardScreen = ({ navigation }) => {
   };
 
   const handleTabSelect = (tab) => {
+    if (tab === 'user_manager') {
+      closeSidebar();
+      navigation.navigate('UserManager');
+      return;
+    }
     setActiveTab(tab);
     setSearchQuery('');
     closeSidebar();
@@ -64,6 +69,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [refunds, setRefunds] = useState([]);
   const [settlements, setSettlements] = useState([]);
   const [openTickets, setOpenTickets] = useState(0);
+  const [deletionRequestsCount, setDeletionRequestsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
@@ -184,14 +190,15 @@ const AdminDashboardScreen = ({ navigation }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [ownersRes, usersRes, turfsRes, waitlistRes, refundsRes, settlementsRes, ticketsRes] = await Promise.allSettled([
+      const [ownersRes, usersRes, turfsRes, waitlistRes, refundsRes, settlementsRes, ticketsRes, deletionReqsRes] = await Promise.allSettled([
         api.get('/admin/owners?limit=100'),
         api.get('/admin/users?limit=100'),
         api.get('/admin/turfs?limit=100'),
         api.get('/contact/waitlist?limit=100'),
         api.get('/admin/refunds?limit=100'),
         api.get('/admin/settlements?limit=100'),
-        api.get('/admin/support?status=open')
+        api.get('/admin/support?status=open'),
+        api.get('/admin/deletion-requests')
       ]);
 
       if (ownersRes.status === 'fulfilled') setOwners(ownersRes.value.data.data || []);
@@ -219,6 +226,10 @@ const AdminDashboardScreen = ({ navigation }) => {
       
       if (ticketsRes && ticketsRes.status === 'fulfilled') {
         setOpenTickets(ticketsRes.value.data?.data?.length || 0);
+      }
+
+      if (deletionReqsRes && deletionReqsRes.status === 'fulfilled') {
+        setDeletionRequestsCount(deletionReqsRes.value.data?.data?.length || 0);
       }
     } catch (err) {
       console.error('Failed to fetch admin data', err);
@@ -323,11 +334,11 @@ const AdminDashboardScreen = ({ navigation }) => {
           </View>
           <TouchableOpacity onPress={() => {
             showCustomAlert(
-              'Delete User',
-              'Are you sure you want to delete this user and ALL their bookings? This cannot be undone.',
+              'PERMANENT USER DELETION',
+              `⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nAre you sure you want to permanently delete user "${item.name || 'User'}"?\n\nThis will purge ALL bookings, wallet balance, stats, player profile, owner turfs, and team captaincy records. ZERO data will remain.`,
               [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => handleDeleteUser(item._id) }
+                { text: 'PERMANENTLY DELETE', style: 'destructive', onPress: () => handleDeleteUser(item._id) }
               ]
             );
           }} style={styles.deleteBtn}>
@@ -606,8 +617,8 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   const renderSettlementRequest = ({ item }) => {
     const statusStyle = getStatusColor(item.status);
-    const ownerName = item.owner?.businessName || item.owner?.userId?.name || 'Unknown Owner';
-    const ownerContact = item.owner?.userId?.email || item.owner?.userId?.phone || '';
+    const ownerName = item.owner?.businessName || item.owner?.userId?.name || item.user?.name || item.userName || 'Organizer / Owner';
+    const ownerContact = item.owner?.userId?.email || item.user?.email || item.user?.mobile || item.owner?.userId?.phone || '';
     const initials = ownerName.charAt(0).toUpperCase();
     return (
       <View style={styles.card}>
@@ -707,7 +718,7 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   const pendingRefunds = refunds.filter(r => r.status === 'pending').length;
   const pendingSettlements = settlements.filter(s => s.status === 'pending').length;
-  const totalAlerts = pendingRefunds + pendingSettlements + openTickets;
+  const totalAlerts = pendingRefunds + pendingSettlements + openTickets + deletionRequestsCount;
 
   // Search filter helpers
   const q = searchQuery.toLowerCase().trim();
@@ -834,13 +845,18 @@ const AdminDashboardScreen = ({ navigation }) => {
 
         {/* Stats Row */}
         <View style={styles.statsContainer}>
-          <View style={styles.statBox}>
+          <TouchableOpacity style={styles.statBox} onPress={() => navigation.navigate('UserManager')} activeOpacity={0.8}>
             <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
-              <Icon name="account-group" size={20} color={Colors.primary} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Icon name="account-group" size={20} color={Colors.primary} />
+                {deletionRequestsCount > 0 && (
+                  <View style={{ backgroundColor: Colors.error, width: 8, height: 8, borderRadius: 4 }} />
+                )}
+              </View>
               <Text style={styles.statValue}>{owners.length + users.length}</Text>
               <Text style={styles.statLabel}>Total Users</Text>
             </View>
-          </View>
+          </TouchableOpacity>
           <View style={styles.statBox}>
             <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
               <Icon name="briefcase-account" size={20} color="#5B8DEF" />
@@ -859,39 +875,73 @@ const AdminDashboardScreen = ({ navigation }) => {
       </View>
       
       {/* Settlement Action Modal */}
-      <Modal visible={!!selectedSettlement} animationType="slide" transparent>
+      <Modal visible={!!selectedSettlement} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
-          <KeyboardAwareScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg }}>
-              <Text style={styles.modalTitle}>{settlementActionType === 'processed' ? 'Process Withdrawal' : 'Reject Withdrawal'}</Text>
-              <TouchableOpacity onPress={() => setSelectedSettlement(null)}><Icon name="close" size={24} color={Colors.textPrimary}/></TouchableOpacity>
-            </View>
-            {selectedSettlement && (
-              <View style={{ backgroundColor: Colors.surface, borderRadius: 12, padding: 12, marginBottom: 16 }}>
-                <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Owner: <Text style={{ color: Colors.textPrimary, fontFamily: 'Outfit-Bold' }}>{selectedSettlement.owner?.businessName || 'Unknown'}</Text></Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 4 }}>Amount: <Text style={{ color: Colors.primary, fontFamily: 'Outfit-Bold' }}>₹{selectedSettlement.amount?.toLocaleString()}</Text></Text>
+          <View style={styles.modalCard}>
+            <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" bounces={false}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+                <Text style={[styles.modalTitle, { marginBottom: 0 }]}>{settlementActionType === 'processed' ? 'Process Withdrawal' : 'Reject Withdrawal'}</Text>
+                <TouchableOpacity onPress={() => setSelectedSettlement(null)} style={{ padding: 4 }}>
+                  <Icon name="close" size={22} color={Colors.textPrimary}/>
+                </TouchableOpacity>
               </View>
-            )}
-            {settlementActionType === 'processed' && (
-              <>
-                <Text style={styles.inputLabel}>Transaction Reference *</Text>
-                <TextInput style={[styles.input, { marginBottom: Spacing.md }]} value={settlementTxRef} onChangeText={setSettlementTxRef}
-                  placeholder="e.g. UTR123456" placeholderTextColor={Colors.textTertiary} />
-              </>
-            )}
-            <Text style={styles.inputLabel}>Remarks (optional)</Text>
-            <TextInput style={[styles.input, { marginBottom: Spacing.lg }]} value={settlementRemarks} onChangeText={setSettlementRemarks}
-              placeholder="Any notes..." placeholderTextColor={Colors.textTertiary} />
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.surfaceVariant }]} onPress={() => setSelectedSettlement(null)}>
-                <Text style={[styles.modalBtnText, { color: Colors.textPrimary }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: settlementActionType === 'processed' ? Colors.primary : '#FF4757' }]}
-                onPress={handleSettlementAction} disabled={submittingSettlement}>
-                <Text style={[styles.modalBtnText, { color: '#fff' }]}>{submittingSettlement ? 'Processing...' : (settlementActionType === 'processed' ? 'Confirm Transfer' : 'Reject')}</Text>
-              </TouchableOpacity>
-            </View>
-          </KeyboardAwareScrollView>
+              {selectedSettlement && (
+                <>
+                  <View style={{ backgroundColor: Colors.surface, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: Colors.border }}>
+                    <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Requester: <Text style={{ color: Colors.textPrimary, fontFamily: 'Outfit-Bold' }}>{selectedSettlement.owner?.businessName || selectedSettlement.owner?.userId?.name || selectedSettlement.user?.name || 'Organizer / Owner'}</Text></Text>
+                    <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 4 }}>Amount: <Text style={{ color: Colors.primary, fontFamily: 'Outfit-Bold' }}>₹{selectedSettlement.amount?.toLocaleString()}</Text></Text>
+                  </View>
+
+                  {(() => {
+                    const bank = selectedSettlement.bankDetailsSnapshot || selectedSettlement.owner?.bankDetails || selectedSettlement.user?.bankDetails;
+                    const upi = selectedSettlement.upiId || bank?.upiId;
+                    const holder = bank?.accountHolder || bank?.accountName || selectedSettlement.owner?.userId?.name || selectedSettlement.user?.name;
+                    const bankName = bank?.bankName;
+                    const accNo = bank?.accountNumber;
+                    const ifsc = bank?.ifsc;
+
+                    if (!bank && !upi) {
+                      return (
+                        <View style={{ backgroundColor: 'rgba(255,152,0,0.1)', padding: 10, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,152,0,0.25)' }}>
+                          <Text style={{ fontSize: 12, color: '#FF9800', fontFamily: Typography.fontFamily.medium }}>⚠️ No bank details found on file</Text>
+                        </View>
+                      );
+                    }
+
+                    return (
+                      <View style={{ backgroundColor: Colors.surface, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, marginBottom: 12 }}>
+                        <Text style={{ fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, marginBottom: 6, letterSpacing: 0.5 }}>TRANSFER FUNDS TO:</Text>
+                        {holder ? <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 2 }}>A/C Name: <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{holder}</Text></Text> : null}
+                        {bankName ? <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 2 }}>Bank: <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{bankName}</Text></Text> : null}
+                        {accNo ? <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 2 }}>A/C No: <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{accNo}</Text></Text> : null}
+                        {ifsc ? <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 2 }}>IFSC: <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{ifsc}</Text></Text> : null}
+                        {upi ? <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 2 }}>UPI ID: <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold }}>{upi}</Text></Text> : null}
+                      </View>
+                    );
+                  })()}
+                </>
+              )}
+              {settlementActionType === 'processed' && (
+                <>
+                  <Text style={styles.inputLabel}>Transaction Reference *</Text>
+                  <TextInput style={[styles.input, { marginBottom: Spacing.md }]} value={settlementTxRef} onChangeText={setSettlementTxRef}
+                    placeholder="e.g. UTR123456" placeholderTextColor={Colors.textTertiary} />
+                </>
+              )}
+              <Text style={styles.inputLabel}>Remarks (optional)</Text>
+              <TextInput style={[styles.input, { marginBottom: Spacing.lg }]} value={settlementRemarks} onChangeText={setSettlementRemarks}
+                placeholder="Any notes..." placeholderTextColor={Colors.textTertiary} />
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.surfaceVariant }]} onPress={() => setSelectedSettlement(null)}>
+                  <Text style={[styles.modalBtnText, { color: Colors.textPrimary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: settlementActionType === 'processed' ? Colors.primary : '#FF4757' }]}
+                  onPress={handleSettlementAction} disabled={submittingSettlement}>
+                  <Text style={[styles.modalBtnText, { color: settlementActionType === 'processed' ? Colors.background : '#fff' }]} numberOfLines={1}>{submittingSettlement ? 'Processing...' : (settlementActionType === 'processed' ? 'Confirm Transfer' : 'Reject')}</Text>
+                </TouchableOpacity>
+              </View>
+            </KeyboardAwareScrollView>
+          </View>
         </View>
       </Modal>
 
@@ -1059,7 +1109,7 @@ const AdminDashboardScreen = ({ navigation }) => {
         ) : activeTab === 'finance' ? (
           <FinanceView navigation={navigation} />
         ) : activeTab === 'support' ? (
-          <SupportAdminView navigation={navigation} />
+          <SupportAdminView navigation={navigation} onStatusChanged={fetchData} />
         ) : null}
       </View>
 
@@ -1081,6 +1131,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             badge={turfs.filter(t => t.pendingPlatformFee > 0 && t.pendingPaymentId).length} />
           <SidebarItem tab="owners" icon="briefcase-account" label="Owners" badge={0} />
           <SidebarItem tab="users" icon="account-group" label="Users" badge={0} />
+          <SidebarItem tab="user_manager" icon="account-remove-outline" label="Deletion Requests" badge={deletionRequestsCount} />
           <SidebarItem tab="waitlist" icon="clipboard-list-outline" label="Waitlist" badge={0} />
 
           <View style={styles.sidebarDivider} />
@@ -1268,7 +1319,8 @@ const styles = StyleSheet.create({
   actionBtnText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
   // ── Modals ──────────────────────────────────────────────────────────────
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center' },
+  modalCard: { width: '90%', maxWidth: 400, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
   modalContent: { width: '90%', backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, padding: Spacing.xl },
   modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.lg },
   inputLabel: { fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },

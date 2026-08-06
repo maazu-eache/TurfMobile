@@ -24,6 +24,15 @@ const CustomAlert = forwardRef((props, ref) => {
     hide: () => setVisible(false),
   }));
 
+  React.useEffect(() => {
+    if (visible && buttons.length <= 1) {
+      const timer = setTimeout(() => {
+        setVisible(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, buttons]);
+
   const handlePress = (onPress) => {
     setVisible(false);
     if (onPress) onPress();

@@ -15,12 +15,12 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme'
 
 const { width } = Dimensions.get('window');
 
-const ACCENT          = Colors.primary;          // single accent — used sparingly
-const BG              = '#0B1120';               // deep navy base
-const CARD            = '#131D2E';               // slightly elevated surface
-const BORDER          = 'rgba(255,255,255,0.08)';
-const TEXT_PRIMARY    = '#FFFFFF';
-const TEXT_SECONDARY  = '#8A95A8';
+const ACCENT          = Colors.primary;
+const BG              = '#000000';
+const CARD            = '#000000';
+const BORDER          = Colors.primary;
+const TEXT_PRIMARY    = Colors.primary;
+const TEXT_SECONDARY  = Colors.primary;
 
 const slides = [
   {

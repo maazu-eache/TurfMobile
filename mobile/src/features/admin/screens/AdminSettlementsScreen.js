@@ -7,6 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../api/axios';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import moment from 'moment';
@@ -80,11 +81,11 @@ const AdminSettlementsScreen = ({ navigation }) => {
   };
 
   const getOwnerDisplayName = (item) => {
-    return item.owner?.businessName || item.owner?.userId?.name || 'Unknown Owner';
+    return item.owner?.businessName || item.owner?.userId?.name || item.user?.name || item.userName || 'Organizer / Owner';
   };
 
   const getOwnerContact = (item) => {
-    return item.owner?.userId?.email || item.owner?.userId?.phone || '';
+    return item.owner?.userId?.email || item.user?.email || item.user?.mobile || item.owner?.userId?.phone || '';
   };
 
   const renderRequest = ({ item, index }) => {
@@ -228,22 +229,23 @@ const AdminSettlementsScreen = ({ navigation }) => {
   const pendingCount = requests.filter(r => r.status === 'pending').length;
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient colors={[Colors.backgroundCard, Colors.background]} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="arrow-left" size={22} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Settlements</Text>
-          <Text style={styles.headerSub}>Manage withdrawals & wallets</Text>
-        </View>
-        {pendingCount > 0 && (
-          <View style={styles.pendingBadge}>
-            <Text style={styles.pendingBadgeText}>{pendingCount} pending</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.backgroundElevated }} edges={['top']}>
+      <View style={styles.container}>
+        {/* Header */}
+        <LinearGradient colors={[Colors.backgroundCard, Colors.background]} style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Icon name="arrow-left" size={22} color={Colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Settlements</Text>
+            <Text style={styles.headerSub}>Manage withdrawals & wallets</Text>
           </View>
-        )}
-      </LinearGradient>
+          {pendingCount > 0 && (
+            <View style={styles.pendingBadge}>
+              <Text style={styles.pendingBadgeText}>{pendingCount} pending</Text>
+            </View>
+          )}
+        </LinearGradient>
 
       {/* Tabs */}
       <View style={styles.tabs}>
@@ -288,77 +290,80 @@ const AdminSettlementsScreen = ({ navigation }) => {
       )}
 
       {/* Action Modal */}
-      <Modal visible={!!selectedReq} animationType="slide" transparent>
+      <Modal visible={!!selectedReq} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
-          <KeyboardAwareScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <View style={[styles.modalIconBg, { backgroundColor: actionType === 'processed' ? Colors.primaryAlpha20 : 'rgba(255,71,87,0.15)' }]}>
-                <Icon
-                  name={actionType === 'processed' ? 'check-circle' : 'close-circle'}
-                  size={24}
-                  color={actionType === 'processed' ? Colors.primary : '#FF4757'}
-                />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.modalTitle}>
-                  {actionType === 'processed' ? 'Process Withdrawal' : 'Reject Withdrawal'}
-                </Text>
-                {selectedReq && (
-                  <Text style={styles.modalSubtitle}>
-                    ₹{selectedReq.amount?.toLocaleString()} · {getOwnerDisplayName(selectedReq)}
+          <View style={styles.modalContent}>
+            <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" bounces={false}>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <View style={[styles.modalIconBg, { backgroundColor: actionType === 'processed' ? Colors.primaryAlpha20 : 'rgba(255,71,87,0.15)' }]}>
+                  <Icon
+                    name={actionType === 'processed' ? 'check-circle' : 'close-circle'}
+                    size={24}
+                    color={actionType === 'processed' ? Colors.primary : '#FF4757'}
+                  />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.modalTitle}>
+                    {actionType === 'processed' ? 'Process Withdrawal' : 'Reject Withdrawal'}
                   </Text>
-                )}
+                  {selectedReq && (
+                    <Text style={styles.modalSubtitle}>
+                      ₹{selectedReq.amount?.toLocaleString()} · {getOwnerDisplayName(selectedReq)}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => setSelectedReq(null)} style={styles.modalCloseBtn}>
+                  <Icon name="close" size={20} color={Colors.textSecondary} />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => setSelectedReq(null)} style={styles.modalCloseBtn}>
-                <Icon name="close" size={20} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
 
-            {selectedReq?.bankDetailsSnapshot && (
-              <View style={styles.bankDetailsBox}>
-                <Text style={styles.bankDetailTitle}>Transfer Funds To:</Text>
-                <Text style={styles.bankDetailText}>Bank: <Text style={styles.bankDetailHighlight}>{selectedReq.bankDetailsSnapshot.bankName}</Text></Text>
-                <Text style={styles.bankDetailText}>A/C Name: <Text style={styles.bankDetailHighlight}>{selectedReq.bankDetailsSnapshot.accountHolder}</Text></Text>
-                <Text style={styles.bankDetailText}>A/C No: <Text style={styles.bankDetailHighlight}>{selectedReq.bankDetailsSnapshot.accountNumber}</Text></Text>
-                <Text style={styles.bankDetailText}>IFSC: <Text style={styles.bankDetailHighlight}>{selectedReq.bankDetailsSnapshot.ifsc}</Text></Text>
+              {selectedReq?.bankDetailsSnapshot && (
+                <View style={styles.bankDetailsBox}>
+                  <Text style={styles.bankDetailTitle}>Transfer Funds To:</Text>
+                  <Text style={styles.bankDetailText}>Bank: <Text style={styles.bankDetailHighlight}>{selectedReq.bankDetailsSnapshot.bankName}</Text></Text>
+                  <Text style={styles.bankDetailText}>A/C Name: <Text style={styles.bankDetailHighlight}>{selectedReq.bankDetailsSnapshot.accountHolder}</Text></Text>
+                  <Text style={styles.bankDetailText}>A/C No: <Text style={styles.bankDetailHighlight}>{selectedReq.bankDetailsSnapshot.accountNumber}</Text></Text>
+                  <Text style={styles.bankDetailText}>IFSC: <Text style={styles.bankDetailHighlight}>{selectedReq.bankDetailsSnapshot.ifsc}</Text></Text>
+                </View>
+              )}
+
+              <Text style={styles.inputLabel}>
+                {actionType === 'processed' ? 'Transaction Reference (UTR) *' : 'Reason for Rejection'}
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder={actionType === 'processed' ? 'Enter UTR / Ref No.' : 'Enter reason (optional)'}
+                placeholderTextColor={Colors.textTertiary}
+                value={actionType === 'processed' ? transactionRef : remarks}
+                onChangeText={actionType === 'processed' ? setTransactionRef : setRemarks}
+              />
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setSelectedReq(null)}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.submitBtn, { backgroundColor: actionType === 'processed' ? Colors.primary : '#FF4757' }]}
+                  onPress={handleProcessAction}
+                  disabled={submitting}
+                  activeOpacity={0.85}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.submitBtnText}>
+                      {actionType === 'processed' ? 'Confirm & Process' : 'Reject'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
               </View>
-            )}
-
-            <Text style={styles.inputLabel}>
-              {actionType === 'processed' ? 'Transaction Reference (UTR) *' : 'Reason for Rejection'}
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder={actionType === 'processed' ? 'Enter UTR / Ref No.' : 'Enter reason (optional)'}
-              placeholderTextColor={Colors.textTertiary}
-              value={actionType === 'processed' ? transactionRef : remarks}
-              onChangeText={actionType === 'processed' ? setTransactionRef : setRemarks}
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setSelectedReq(null)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.submitBtn, { backgroundColor: actionType === 'processed' ? Colors.primary : '#FF4757' }]}
-                onPress={handleProcessAction}
-                disabled={submitting}
-                activeOpacity={0.85}
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.submitBtnText}>
-                    {actionType === 'processed' ? 'Confirm & Process' : 'Reject'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </KeyboardAwareScrollView>
+            </KeyboardAwareScrollView>
           </View>
+        </View>
       </Modal>
     </View>
+    </SafeAreaView>
   );
 };
 
@@ -366,7 +371,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
 
   header: {
-    paddingHorizontal: Spacing.lg, paddingTop: 58, paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md,
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
@@ -458,11 +463,12 @@ const styles = StyleSheet.create({
   walletStatValue: { fontSize: 16, fontFamily: Typography.fontFamily.extraBold },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center' },
   modalContent: {
+    width: '90%', maxWidth: 400,
     backgroundColor: Colors.backgroundCard,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: Spacing.xl, paddingTop: Spacing.md,
+    borderRadius: 20,
+    padding: Spacing.lg,
   },
   modalHandle: { width: 38, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.lg },
   modalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.lg },

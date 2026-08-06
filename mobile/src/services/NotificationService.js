@@ -48,8 +48,9 @@ class NotificationService {
     try {
       // Sync token with backend if user is authenticated
       await api.put('/users/me', { fcmToken: token });
+      console.log('✅ FCM Token synced with backend successfully!');
     } catch (error) {
-      console.log('Could not sync token. User might not be logged in.');
+      console.log('Could not sync token:', error.response?.data?.message || error.message);
     }
   }
 
@@ -62,9 +63,10 @@ class NotificationService {
 
       // Create a channel (required for Android)
       const channelId = await notifee.createChannel({
-        id: 'scoreverse_channel',
-        name: 'ScoreVerse Notifications',
+        id: 'scoreverse_alerts',
+        name: 'ScoreVerse Alerts',
         importance: AndroidImportance.HIGH,
+        sound: 'notifications', // matches notifications.mp3 in res/raw (omit extension)
       });
 
       // Display a notification
@@ -75,9 +77,13 @@ class NotificationService {
         android: {
           channelId,
           smallIcon: 'ic_launcher', // fallback to default icon
+          sound: 'notifications', // matches notifications.mp3 in res/raw (omit extension)
           pressAction: {
             id: 'default',
           },
+        },
+        ios: {
+          sound: 'Notifications.mp3', // include extension on iOS
         },
       });
 

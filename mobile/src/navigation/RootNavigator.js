@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector } from 'react-redux';
 
+import { Linking } from 'react-native';
 import AuthNavigator from './AuthNavigator';
 import CustomerNavigator from './CustomerNavigator';
 import OwnerNavigator from './OwnerNavigator';
@@ -9,6 +10,7 @@ import PlayerNavigator from './PlayerNavigator';
 import AdminNavigator from './AdminNavigator';
 import SplashScreen from '../features/auth/screens/SplashScreen';
 
+import NotificationService from '../services/NotificationService';
 
 const Stack = createNativeStackNavigator();
 
@@ -17,9 +19,22 @@ const RootNavigator = () => {
   const [showSplash, setShowSplash] = React.useState(true);
 
   React.useEffect(() => {
+    // If opened via shared deep link, skip splash video delay for instant navigation
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        setShowSplash(false);
+      }
+    }).catch(() => {});
+
     const timer = setTimeout(() => setShowSplash(false), 7000); // Wait for the 6s video to finish
     return () => clearTimeout(timer);
   }, []);
+
+  React.useEffect(() => {
+    if (isAuthenticated && user?._id) {
+      NotificationService.getFCMToken().catch(err => console.log('FCM Sync error:', err));
+    }
+  }, [isAuthenticated, user?._id]);
 
   const getMainNavigator = () => {
     if (!user) return <Stack.Screen name="Customer" component={CustomerNavigator} />;

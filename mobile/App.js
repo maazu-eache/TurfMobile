@@ -20,9 +20,12 @@ const App = () => {
     if (!url) return;
     
     let cleanPath = url
+      .replace('scoreverse://', '')
       .replace('roughturf://', '')
-      .replace('https://roughturf.com/', '')
+      .replace('https://scoreverse.com/', '')
+      .replace('https://www.scoreverse.com/', '')
       .replace('https://scoreverse.maazibrahimoo0.workers.dev/', '')
+      .replace('https://roughturf.com/', '')
       .replace('https://scoreverse.app/', '');
 
     let queryParams = {};
@@ -37,7 +40,7 @@ const App = () => {
       }
     }
 
-    const parts = cleanPath.split('/');
+    const parts = cleanPath.split('/').filter(Boolean);
     if (parts.length >= 2) {
       const route = parts[0];
       const id = parts[1];
@@ -45,15 +48,30 @@ const App = () => {
       const isReady = navigationRef.isReady();
       const currentRoute = isReady ? navigationRef.getCurrentRoute() : null;
 
-      if (isReady && currentRoute && currentRoute.name !== 'Splash') {
-        if (route === 'tournament') {
+      if (isReady && currentRoute) {
+        if (route === 'turf') {
           navigate('Customer', {
-            screen: 'My Cricket',
+            screen: 'Home',
             params: {
-              screen: 'TournamentDetail',
-              params: { tournamentId: id, ...queryParams }
+              screen: 'TurfDetail',
+              params: { id, ...queryParams }
             }
           });
+        } else if (route === 'tournament' || route === 'auction') {
+          if (parts[2] === 'register' || parts[1] === 'register') {
+            navigate('Customer', {
+              screen: 'AuctionRegistration',
+              params: { tournamentId: id, ...queryParams }
+            });
+          } else {
+            navigate('Customer', {
+              screen: 'My Cricket',
+              params: {
+                screen: 'TournamentDetail',
+                params: { tournamentId: id, ...queryParams }
+              }
+            });
+          }
         } else if (route === 'match') {
           navigate('Customer', {
             screen: 'My Cricket',
@@ -116,9 +134,12 @@ const App = () => {
   }, []);
   const linking = {
     prefixes: [
+      'scoreverse://',
       'roughturf://', 
-      'https://roughturf.com', 
+      'https://scoreverse.com',
+      'https://www.scoreverse.com',
       'https://scoreverse.maazibrahimoo0.workers.dev',
+      'https://roughturf.com', 
       'https://scoreverse.app'
     ],
     config: {

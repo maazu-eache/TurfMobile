@@ -37,6 +37,8 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
+
+
   const renderOption = (icon, title, subtitle, onPress, destructive = false) => (
     <TouchableOpacity style={styles.optionRow} onPress={onPress}>
       <View style={[styles.iconBox, destructive && {backgroundColor: 'rgba(244,67,54,0.1)'}]}>

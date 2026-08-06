@@ -105,8 +105,13 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
-      // Don't intercept refresh-token or logout requests to avoid infinite recursion
-      if (originalRequest.url?.includes('/auth/refresh-token') || originalRequest.url?.includes('/auth/logout')) {
+      // Don't intercept login, register, refresh-token or logout requests to avoid infinite recursion
+      if (
+        originalRequest.url?.includes('/auth/login') ||
+        originalRequest.url?.includes('/auth/register') ||
+        originalRequest.url?.includes('/auth/refresh-token') ||
+        originalRequest.url?.includes('/auth/logout')
+      ) {
         return Promise.reject(error);
       }
 

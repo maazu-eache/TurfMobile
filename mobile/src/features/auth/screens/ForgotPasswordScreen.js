@@ -22,6 +22,15 @@ const ForgotPasswordScreen = ({ navigation }) => {
   const { isLoading, error } = useSelector((state) => state.auth);
   const insets = useSafeAreaInsets();
 
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        dispatch(clearError());
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, dispatch]);
+
   const handleSendOTP = async () => {
     if (!email.trim()) return showCustomAlert('Error', 'Please enter your email address');
     Keyboard.dismiss();

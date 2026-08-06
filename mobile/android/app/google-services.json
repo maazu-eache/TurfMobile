@@ -1,21 +1,40 @@
 {
   "project_info": {
-    "project_number": "1043582916502",
-    "project_id": "rough-turf",
-    "storage_bucket": "rough-turf.firebasestorage.app"
+    "project_number": "569117113912",
+    "project_id": "scoreverse-2e379",
+    "storage_bucket": "scoreverse-2e379.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1043582916502:android:fd9c5b90fde0b86cef2fb7",
+        "mobilesdk_app_id": "1:569117113912:android:5cdf5b30f4ac34963bb0cd",
         "android_client_info": {
-          "package_name": "com.roughturf.app"
+          "package_name": "com.scoreverse.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAD12hJdl3XRGwP46Q7W7z2D0iYdOU0D48"
+          "current_key": "AIzaSyAOdwJtynYWKtRTY0CsREQswMXGg6ZeP8U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:569117113912:android:192a8f38ea7a360c3bb0cd",
+        "android_client_info": {
+          "package_name": "com.scoreverse.sports"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOdwJtynYWKtRTY0CsREQswMXGg6ZeP8U"
         }
       ],
       "services": {

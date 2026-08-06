@@ -110,12 +110,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     matchesRef.current = tournament?.matches || [];
   }, [tournament?.matches]);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchDashboard();
-      fetchAuctionData();
-    }, [fetchAuctionData])
-  );
+  // useFocusEffect merged below
 
   useEffect(() => {
     let unsubscribeScore;
@@ -216,8 +211,18 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     useCallback(() => {
       fetchAuctionData();
       fetchDashboard();
+      fetchMyTeams();
     }, [fetchAuctionData, tournamentId])
   );
+
+  const fetchMyTeams = async () => {
+    try {
+      const res = await api.get('/teams/my/teams');
+      setMyTeams(res.data.data || []);
+    } catch (e) {
+      console.log('Error fetching user teams', e);
+    }
+  };
 
   const fetchDashboard = async () => {
     try {
@@ -1971,7 +1976,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   style={[styles.teamCard, { justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', backgroundColor: 'transparent' }]}
                   onPress={() => {
                     setShowRegisterModal(false);
-                    navigation.navigate('TeamCreate');
+                    navigation.navigate('TeamCreate', { fromTournamentId: tournamentId });
                   }}
                 >
                   <Icon name="plus" size={24} color={Colors.primary} />

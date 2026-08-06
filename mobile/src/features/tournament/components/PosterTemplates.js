@@ -12,7 +12,7 @@ import LinearGradient from "react-native-linear-gradient";
 
 const SPORTVERSE_LOGO = require("../../../../SportVerse.png");
 const STADIUM_BG = {
-  uri: "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=100&auto=format&fit=crop",
+  uri: "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop",
 };
 const getSource = (url) => (url ? { uri: getImageUrl(url) } : SPORTVERSE_LOGO);
 
@@ -335,7 +335,7 @@ export const RegistrationPoster = ({ tournament, theme }) => {
           source={{
             uri: tournament?.banner
               ? getImageUrl(tournament.banner)
-              : "https://i.imgur.com/3g7nmJC.png",
+              : "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop",
           }}
           style={[styles.posterBanner, !tournament?.banner && { resizeMode: 'contain', backgroundColor: '#111' }]}
         />
@@ -376,7 +376,7 @@ export const TeamInvitePoster = ({ tournament, theme }) => {
           source={{
             uri: tournament?.banner
               ? getImageUrl(tournament.banner)
-              : "https://i.imgur.com/3g7nmJC.png",
+              : "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop",
           }}
           style={[styles.posterBanner, !tournament?.banner && { resizeMode: 'contain', backgroundColor: '#111' }]}
         />
@@ -1300,6 +1300,8 @@ const styles = StyleSheet.create({
   posterBanner: {
     width: "100%",
     height: 160,
+    resizeMode: "contain",
+    backgroundColor: "#111111",
   },
   posterContent: {
     padding: Spacing.lg,
