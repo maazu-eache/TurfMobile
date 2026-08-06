@@ -1381,6 +1381,17 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     let currentBowlerId = null;
     let activeBattersList = new Set();
     let isFirstBallOfInnings = true;
+    let cumRuns = 0;
+    let cumWickets = 0;
+
+    const getTeamNameFromBall = (ballItem) => {
+      if (!ballItem) return '';
+      if (ballItem.battingTeam?.name) return ballItem.battingTeam.name;
+      const bTeamId = String(ballItem.battingTeam?._id || ballItem.battingTeam || '');
+      if (bTeamId === String(match?.teamA?._id || match?.teamA)) return match?.teamA?.name || '';
+      if (bTeamId === String(match?.teamB?._id || match?.teamB)) return match?.teamB?.name || '';
+      return '';
+    };
 
     chronologicalComms.forEach((item, index) => {
       const itemInningsId = (item.innings?._id || item.innings).toString();
@@ -1388,9 +1399,16 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       const batsmanId = item.batsman?._id || item.batsman;
       const nonStrikerId = item.nonStriker?._id || item.nonStriker;
 
+      if (currentInningsId !== null && currentInningsId !== itemInningsId) {
+        cumRuns = 0;
+        cumWickets = 0;
+      }
+
       // If we transition to a new over OR a new innings, close the previous over
       if (currentOverNumber !== null && (currentOverNumber !== item.overNumber || currentInningsId !== itemInningsId)) {
         if (showOverSummary) {
+          const lastBall = overBalls[overBalls.length - 1];
+          const tName = getTeamNameFromBall(lastBall);
           timelineData.push({
             type: 'overSummary',
             id: `over-${currentOverNumber}-${currentInningsId}-${index}`,
@@ -1398,8 +1416,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             runs: overRuns,
             wickets: overWickets,
             balls: [...overBalls],
-            bowler: overBalls[overBalls.length - 1]?.bowler,
-            score: overBalls[overBalls.length - 1]?.score // Score at the end of this over
+            bowler: lastBall?.bowler,
+            cumulativeScore: `${cumRuns}/${cumWickets}`,
+            teamName: tName,
+            score: lastBall?.score
           });
         }
         overBalls = [];
@@ -1463,6 +1483,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       currentOverNumber = item.overNumber;
       currentInningsId = itemInningsId;
 
+      cumRuns += item.totalRuns || 0;
+      if (item.isWicket) cumWickets += 1;
+
       timelineData.push({
         type: 'ball',
         id: item._id || `ball-${index}`,
@@ -1476,6 +1499,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
     // Output final over summary
     if (currentOverNumber !== null && showOverSummary && overBalls.length > 0) {
+      const lastBall = overBalls[overBalls.length - 1];
+      const tName = getTeamNameFromBall(lastBall);
       timelineData.push({
         type: 'overSummary',
         id: `over-${currentOverNumber}-${currentInningsId}-final`,
@@ -1483,8 +1508,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         runs: overRuns,
         wickets: overWickets,
         balls: [...overBalls],
-        bowler: overBalls[overBalls.length - 1]?.bowler,
-        score: overBalls[overBalls.length - 1]?.score
+        bowler: lastBall?.bowler,
+        cumulativeScore: `${cumRuns}/${cumWickets}`,
+        teamName: tName,
+        score: lastBall?.score
       });
     }
 
@@ -1799,18 +1826,19 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               </View>
             </View>
 
-            {summary.score && (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 }}>
-                  Score: <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14 }}>{summary.score.runs}-{summary.score.wickets}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTopWidth: 1, borderTopColor: `${Colors.borderLight}55` }}>
+              <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>
+                {summary.teamName ? `${summary.teamName}: ` : 'Score: '}
+                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 15 }}>
+                  {summary.cumulativeScore || (summary.score ? `${summary.score.runs}/${summary.score.wickets}` : '')}
                 </Text>
-                {summary.bowler && (
-                  <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 }}>
-                    {summary.bowler.name}: {summary.score.bowlerOvers} Ov
-                  </Text>
-                )}
-              </View>
-            )}
+              </Text>
+              {summary.bowler && (
+                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 }}>
+                  {summary.bowler.name}
+                </Text>
+              )}
+            </View>
           </View>
         </View>
       );
