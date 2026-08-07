@@ -62,6 +62,9 @@ const SlotPickerScreen = ({ route, navigation }) => {
   const [selectedDate, setSelectedDate] = useState(today.format('YYYY-MM-DD'));
   const [selectedSlots, setSelectedSlots] = useState([]);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [platformFeePercent, setPlatformFeePercent] = useState(5);
+  const [cancellationRefundPercent, setCancellationRefundPercent] = useState(70);
+  const [cancellationPlatformPercent, setCancellationPlatformPercent] = useState(10);
   const [calendarMonth, setCalendarMonth] = useState(moment().startOf('month'));
   const [activePicker, setActivePicker] = useState('none');
   const [expandedGroup, setExpandedGroup] = useState(getCurrentTimeGroup());
@@ -90,6 +93,15 @@ const SlotPickerScreen = ({ route, navigation }) => {
     dispatch(fetchSlots({ turfId: turf._id, date: selectedDate }));
     Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
     
+    // Fetch dynamic platform fee & cancellation percent
+    api.get('/admin/public-settings').then(res => {
+      if (res.data?.data) {
+        if (res.data.data.bookingPlatformFeePercent !== undefined) setPlatformFeePercent(res.data.data.bookingPlatformFeePercent);
+        if (res.data.data.cancellationRefundPercent !== undefined) setCancellationRefundPercent(res.data.data.cancellationRefundPercent);
+        if (res.data.data.cancellationPlatformPercent !== undefined) setCancellationPlatformPercent(res.data.data.cancellationPlatformPercent);
+      }
+    }).catch(console.error);
+
     // Join Turf Room for real-time slot updates
     socketService.getSocket()?.emit('join_turf_room', { turfId: turf._id });
     
@@ -162,8 +174,19 @@ const SlotPickerScreen = ({ route, navigation }) => {
     }
     setIsBulkLoading(true);
     try {
-      const res = await api.post(`/bookings/bulk-search/${turf._id}`, bulkParams);
-      setPreviewResult(res.data.data);
+      const res = await api.post(`/slots/bulk-search`, { ...bulkParams, turfId: turf._id });
+      // The API returns an array of slots. We need to calculate the preview.
+      const fetchedSlots = res.data.data || [];
+      const subtotal = fetchedSlots.reduce((acc, s) => acc + s.price, 0);
+      const calculatedPlatformFee = Math.round(subtotal * (platformFeePercent / 100));
+      const total = subtotal + calculatedPlatformFee;
+      
+      setPreviewResult({
+        slots: fetchedSlots,
+        subtotal,
+        platformFee: calculatedPlatformFee,
+        total
+      });
     } catch (e) {
       showCustomAlert('Search Failed', e.response?.data?.message || 'Failed to find matching slots.');
     } finally {
@@ -436,7 +459,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                   <Text style={styles.previewValue}>₹{previewResult.subtotal}</Text>
                 </View>
                 <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Platform Fee (5%)</Text>
+                  <Text style={styles.previewLabel}>Platform Fee ({platformFeePercent}%)</Text>
                   <Text style={styles.previewValue}>₹{previewResult.platformFee}</Text>
                 </View>
                 <View style={[styles.previewRow, styles.previewRowDivider]}>
@@ -631,9 +654,9 @@ const SlotPickerScreen = ({ route, navigation }) => {
           <Text style={styles.policyModalText}>
             Cancellations are allowed only if requested more than 2 hours before the slot start time.
           </Text>
-          <Text style={styles.policyModalText}>
-            Refunds are subject to owner approval (70% refund of the slot price). The 5% platform fee is non-refundable. Only online payments are eligible for refunds.
-          </Text>
+            <Text style={styles.policyModalText}>
+              Refunds are subject to owner approval ({cancellationRefundPercent}% refund of the slot price). The {platformFeePercent}% platform fee is non-refundable. Only online payments are eligible for refunds.
+            </Text>
           <View style={styles.policyModalActions}>
             <TouchableOpacity style={styles.policyModalCancelBtn} onPress={() => setShowPolicyModal(false)}>
               <Text style={styles.policyModalCancelText}>Cancel</Text>
@@ -642,7 +665,11 @@ const SlotPickerScreen = ({ route, navigation }) => {
               style={styles.policyModalConfirmBtn} 
               onPress={() => {
                 setShowPolicyModal(false);
-                navigation.navigate('BookingConfirm', { turf, slots: selectedSlots });
+                navigation.navigate('BookingConfirm', { 
+                  turf, 
+                  slots: selectedSlots,
+                  platformFeePercent 
+                });
               }}
             >
               <Text style={styles.policyModalConfirmText}>Confirm & Pay</Text>

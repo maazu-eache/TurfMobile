@@ -24,7 +24,7 @@ const App = () => {
       .replace('roughturf://', '')
       .replace('https://scoreverse.com/', '')
       .replace('https://www.scoreverse.com/', '')
-      .replace('https://scoreverse.maazibrahimoo0.workers.dev/', '')
+      .replace('https://scoreverse.in/', '')
       .replace('https://roughturf.com/', '')
       .replace('https://scoreverse.app/', '');
 
@@ -138,7 +138,7 @@ const App = () => {
       'roughturf://', 
       'https://scoreverse.com',
       'https://www.scoreverse.com',
-      'https://scoreverse.maazibrahimoo0.workers.dev',
+      'https://scoreverse.in',
       'https://roughturf.com', 
       'https://scoreverse.app'
     ],

@@ -54,6 +54,14 @@ class NotificationService {
     }
   }
 
+  stripEmojis(str) {
+    if (!str || typeof str !== 'string') return str;
+    return str
+      .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Emoji_Component}]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   listenToForegroundMessages(callback) {
     return messaging().onMessage(async remoteMessage => {
       console.log('A new FCM message arrived in the foreground!', remoteMessage);
@@ -69,10 +77,13 @@ class NotificationService {
         sound: 'notifications', // matches notifications.mp3 in res/raw (omit extension)
       });
 
+      const title = this.stripEmojis(remoteMessage.notification?.title) || 'New Notification';
+      const body = this.stripEmojis(remoteMessage.notification?.body) || '';
+
       // Display a notification
       await notifee.displayNotification({
-        title: remoteMessage.notification?.title || 'New Notification',
-        body: remoteMessage.notification?.body || '',
+        title,
+        body,
         data: remoteMessage.data,
         android: {
           channelId,

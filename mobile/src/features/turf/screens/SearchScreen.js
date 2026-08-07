@@ -13,8 +13,10 @@ import {
   Animated,
   StatusBar,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -52,6 +54,7 @@ const MATCH_QUICK_FILTERS = [
   { id: 'completed', icon: 'check-circle-outline', label: 'Completed', value: 'completed' },
 ];
 const SearchScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const user = useSelector((s) => s.auth?.user);
   const favourites = user?.favourites?.map(f => typeof f === 'string' ? f : f._id || f) || [];
@@ -181,19 +184,13 @@ const SearchScreen = ({ navigation, route }) => {
     setLocQuery('');
     setLocResults([]);
     setLocationModalVisible(true);
-    Animated.parallel([
-      Animated.spring(locationSlideAnim, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 150 }),
-      Animated.timing(locationOverlayAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
-    ]).start(() => {
+    Animated.timing(locationOverlayAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start(() => {
       setTimeout(() => locInputRef.current?.focus(), 100);
     });
   };
 
   const closeLocationModal = () => {
-    Animated.parallel([
-      Animated.timing(locationSlideAnim, { toValue: 700, duration: 300, useNativeDriver: true }),
-      Animated.timing(locationOverlayAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-    ]).start(() => setLocationModalVisible(false));
+    Animated.timing(locationOverlayAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setLocationModalVisible(false));
   };
 
   const fetchLocSuggestions = async (text) => {
@@ -718,12 +715,12 @@ const SearchScreen = ({ navigation, route }) => {
       )}
 
       {/* ── LOCATION MODAL ── */}
-      <Modal visible={locationModalVisible} transparent animationType="none" onRequestClose={closeLocationModal}>
+      <Modal visible={locationModalVisible} transparent animationType="fade" onRequestClose={closeLocationModal}>
         <Animated.View style={[styles.overlay, { opacity: locationOverlayAnim }]}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeLocationModal} />
         </Animated.View>
-        <Animated.View style={[styles.locationSheet, { transform: [{ translateY: locationSlideAnim }] }]}>
-          <View style={styles.sheetHandle} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', padding: 20 }} pointerEvents="box-none">
+          <View style={styles.locationModalBox}>
           {/* Header */}
           <View style={styles.locationSheetHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -806,13 +803,21 @@ const SearchScreen = ({ navigation, route }) => {
             )}
 
             {locQuery.length >= 2 && !locLoading && locResults.length === 0 && (
-              <View style={styles.locEmptyWrap}>
-                <Icon name="map-search-outline" size={32} color={Colors.textTertiary} />
-                <Text style={styles.locEmptyText}>No locations found</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: 'rgba(255, 143, 0, 0.10)', borderWidth: 1, borderColor: 'rgba(255, 143, 0, 0.30)', borderRadius: BorderRadius.md, padding: 12, marginTop: 16 }}>
+                <Icon name="map-marker-question-outline" size={18} color={Colors.warning} style={{ marginRight: 8, flexShrink: 0 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: Colors.warning, fontFamily: Typography.fontFamily.bold, fontSize: 13, marginBottom: 4 }}>
+                    Area not found in our city list
+                  </Text>
+                  <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12, lineHeight: 18 }}>
+                    Localities and neighbourhoods aren't listed directly. Try entering the <Text style={{ color: '#fff' }}>well-known city name</Text> instead of "{locQuery}" — for example, type <Text style={{ color: '#fff' }}>"Chennai"</Text> or <Text style={{ color: '#fff' }}>"Mumbai"</Text>.
+                  </Text>
+                </View>
               </View>
             )}
           </View>
-        </Animated.View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
 
@@ -1029,19 +1034,16 @@ const styles = StyleSheet.create({
   },
 
   /* Location modal sheet */
-  locationSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  locationModalBox: {
+    width: '90%',
     backgroundColor: Colors.backgroundCard,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 32,
+    borderRadius: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
     elevation: 24,
     zIndex: 1000,
   },

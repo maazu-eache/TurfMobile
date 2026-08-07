@@ -268,7 +268,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
           </TouchableOpacity>
 
           {gallery.length > 0 && (
-            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
               {gallery.map((img, index) => (
                 <View key={index} style={styles.galleryImageWrapper}>
                   <Image source={{ uri: getImageUrl(img.uri) }} style={styles.galleryImage} />
@@ -277,7 +277,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
                 </View>
               ))}
-            </KeyboardAwareScrollView>
+            </ScrollView>
           )}
 
           {/* Basic Info */}
@@ -288,7 +288,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Size</Text>
-              <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
                 {SIZES.map(s => (
                   <TouchableOpacity 
                     key={s} 
@@ -298,14 +298,14 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                     <Text style={[styles.chipText, watch('size') === s && styles.chipTextActive]}>{s}</Text>
                   </TouchableOpacity>
                 ))}
-              </KeyboardAwareScrollView>
+              </ScrollView>
             </View>
           </View>
 
           <View style={styles.row}>
             <View style={{ flex: 1, marginTop: Spacing.sm }}>
               <Text style={styles.label}>Type</Text>
-              <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
                 {TYPES.map(t => (
                   <TouchableOpacity 
                     key={t} 
@@ -315,7 +315,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                     <Text style={[styles.chipText, watch('type') === t && styles.chipTextActive]}>{t}</Text>
                   </TouchableOpacity>
                 ))}
-              </KeyboardAwareScrollView>
+              </ScrollView>
             </View>
           </View>
 
@@ -520,9 +520,9 @@ const styles = StyleSheet.create({
 
   // Scroll & Sections
   scroll: { flex: 1 },
-  scrollContent: { padding: Spacing.xl, paddingBottom: 100 },
-  sectionTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: Spacing.xl, marginBottom: Spacing.md },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.xl, marginBottom: Spacing.md },
+  scrollContent: { padding: Spacing.lg, paddingBottom: 100 },
+  sectionTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: Spacing.md, marginBottom: Spacing.sm },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.md, marginBottom: Spacing.sm },
   
   // Mode Banner
   modeBanner: { 

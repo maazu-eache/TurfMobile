@@ -618,7 +618,7 @@ const GlobalLeaderboardScreen = () => {
             </View>
 
             {/* Popular Cities */}
-            <View style={styles.popularSection}>
+            {/* <View style={styles.popularSection}>
               <Text style={styles.popularLabel}>POPULAR CITIES</Text>
               <View style={styles.popularRow}>
                 {['Chennai', 'Ambur', 'Vellore', 'Coimbatore', 'Bangalore'].map(city => (
@@ -638,7 +638,7 @@ const GlobalLeaderboardScreen = () => {
               <View style={styles.divider} />
               <Text style={styles.dividerLabel}>OR SEARCH</Text>
               <View style={styles.divider} />
-            </View>
+            </View> */}
 
             <View style={{ paddingHorizontal: 16 }}>
               <LocationAutocomplete

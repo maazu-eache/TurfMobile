@@ -3,14 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 // Top-level imports removed to prevent circular dependencies with Redux store
 
-export const PROD_URL = 'https://turfbackend-pn8j.onrender.com';
+export const PROD_URL = 'https://api.scoreverse.in';
 
 // export const PROD_URL = __DEV__
 //   ? (Platform.OS === 'ios' ? 'http://127.0.0.1:5001' : 'http://10.0.2.2:5001')
-//   : 'https://turfbackend-pn8j.onrender.com';
+//   : 'https://api.scoreverse.in';
 
-// Default BASE_URL to live backend for testing & production sync
-// export const PROD_URL = 'https://turfbackend-pn8j.onrender.com';
 
 export const BASE_URL = PROD_URL;
 
@@ -23,17 +21,30 @@ export const getImageUrl = (path) => {
   // Normalize backslashes (important for live servers hosted on windows or certain DB paths)
   path = path.replace(/\\/g, '/');
 
-  // Fix mangled Cloudinary URLs returned by backend's path.relative bug (e.g. /../../https:/res.cloudinary.com/...)
+  // If already a valid absolute HTTP(S) URL, return it directly
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    // Replace legacy localhost / 10.0.2.2 URLs with active BASE_URL host
+    if (path.includes('localhost') || path.includes('10.0.2.2') || path.includes('127.0.0.1')) {
+      const idx = path.indexOf('/uploads/');
+      if (idx !== -1) {
+        return `${BASE_URL}${path.substring(idx)}`;
+      }
+    }
+    return path;
+  }
+
+  // Fix mangled Cloudinary / HTTP URLs returned by path.relative bug (e.g. /../../https:/res.cloudinary.com/...)
   const httpIdx = path.indexOf('http:/');
   const httpsIdx = path.indexOf('https:/');
   if (httpIdx !== -1 || httpsIdx !== -1) {
     const idx = httpsIdx !== -1 ? httpsIdx : httpIdx;
     let extractedUrl = path.substring(idx);
-    // Restore the double slash that path.relative collapses
-    extractedUrl = extractedUrl.replace('http:/', 'http://').replace('https:/', 'https://');
-    // If there's another slash missing right after, e.g., 'https://res.cloudinary.com' it might need it, but replace works for the protocol.
-    // Wait, path.relative collapsing 'https://a.com' makes it 'https:/a.com'. 
-    // replace('https:/', 'https://') turns it into 'https://a.com' which is correct.
+    // Restore protocol properly
+    if (extractedUrl.startsWith('https:/') && !extractedUrl.startsWith('https://')) {
+      extractedUrl = extractedUrl.replace('https:/', 'https://');
+    } else if (extractedUrl.startsWith('http:/') && !extractedUrl.startsWith('http://')) {
+      extractedUrl = extractedUrl.replace('http:/', 'http://');
+    }
     return extractedUrl;
   }
 

@@ -74,6 +74,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
   const [submittingRating, setSubmittingRating] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [cardLayouts, setCardLayouts] = useState({});
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -326,7 +327,9 @@ const TurfDetailScreen = ({ route, navigation }) => {
   const renderGallery = () => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
       {allImages.map((img, i) => (
-        <Image key={i} source={{ uri: getImageUrl(img) }} style={styles.galleryImage} />
+        <TouchableOpacity key={i} activeOpacity={0.8} onPress={() => setSelectedImage(img)}>
+          <Image source={{ uri: getImageUrl(img) }} style={styles.galleryImage} />
+        </TouchableOpacity>
       ))}
     </ScrollView>
   );
@@ -656,7 +659,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
               onPress={async () => {
                 try {
                   await Share.share({
-                    message: `Check out ${selectedTurf?.name} on RoughTurf! \n\nhttps://scoreverse.maazibrahimoo0.workers.dev/turf/${selectedTurf?._id}`,
+                    message: `Check out ${selectedTurf?.name} on Scoreverse! \n\nhttps://scoreverse.in/turf/${selectedTurf?._id}`,
                   });
                 } catch (error) {
                   console.error(error.message);
@@ -803,6 +806,22 @@ const TurfDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* ── Full Screen Image Modal ── */}
+      <Modal visible={!!selectedImage} transparent animationType="fade" onRequestClose={() => setSelectedImage(null)}>
+        <View style={styles.fullScreenImageContainer}>
+          <TouchableOpacity style={styles.fullScreenCloseBtn} onPress={() => setSelectedImage(null)}>
+            <Icon name="close" size={28} color="#FFF" />
+          </TouchableOpacity>
+          {selectedImage && (
+            <Image
+              source={{ uri: getImageUrl(selectedImage) }}
+              style={styles.fullScreenImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -812,6 +831,11 @@ const styles = StyleSheet.create({
   center: { justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm },
   scroll: { paddingBottom: 120 },
+
+  /* ── Full Screen Image Modal ── */
+  fullScreenImageContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
+  fullScreenCloseBtn: { position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20 },
+  fullScreenImage: { width: '100%', height: '100%' },
 
   /* ── Image Gallery Carousel ── */
   coverContainer: { height: 340, width: '100%', borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden' },

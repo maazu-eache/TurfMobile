@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, FlatList, Animated, Dimensions, Modal, TouchableWithoutFeedback, RefreshControl
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -14,6 +15,8 @@ import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import api, { getImageUrl } from '../../../api/axios';
 import NotificationBell from '../../../components/NotificationBell';
 import PlayerProfileCard from '../../../components/PlayerProfileCard';
+import { toggleUserFavourite, setUserFavouriteStatus } from '../../auth/authSlice';
+import { PremiumTurfCarousel } from '../components/PremiumTurfCarousel';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const SIDEBAR_WIDTH = SW * 0.80;
@@ -94,26 +97,40 @@ const HomeScreen = ({ navigation }) => {
   const authGuard = (cb) => (!isAuthenticated ? navigation.navigate('AuthModal', { screen: 'Login' }) : cb());
   
   const displayCity = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
+  const favourites = user?.favourites?.map(f => typeof f === 'string' ? f : f._id || f) || [];
+
+  const handleToggleFavorite = async (turfId) => {
+    dispatch(toggleUserFavourite(turfId));
+    try {
+      const res = await api.post(`/users/favourites/${turfId}`);
+      const status = res.data?.data?.isFavourite;
+      if (status !== undefined) dispatch(setUserFavouriteStatus({ id: turfId, isFavourite: status }));
+    } catch {
+      dispatch(toggleUserFavourite(turfId));
+      showCustomAlert('Error', 'Failed to update favourites');
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) dispatch(fetchTurfs({ limit: 8, sort: '-rating' }));
     fetchPlatformSettings();
   }, [dispatch, isAuthenticated]);
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    fetchDashboardStats();
-    if (!myProfile && user) dispatch(fetchMyPlayer());
-    const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
-    const lat = myProfile?.locationObj?.latitude || user?.latitude;
-    const lng = myProfile?.locationObj?.longitude || user?.longitude;
-    fetchNearPlayers(city, lat, lng);
-    const tp = { limit: 8 };
-    if (lat && lng) { tp.lat = lat; tp.lng = lng; }
-    else if (city) { tp.city = city; }
-    else { tp.sort = '-rating'; }
-    dispatch(fetchTurfs(tp));
-  }, [dispatch, isAuthenticated, user?._id, user?.city, user?.latitude, user?.longitude, myProfile]);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!isAuthenticated) return;
+      fetchDashboardStats();
+      if (!myProfile && user) dispatch(fetchMyPlayer());
+      const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
+      const lat = myProfile?.locationObj?.latitude || user?.latitude;
+      const lng = myProfile?.locationObj?.longitude || user?.longitude;
+      fetchNearPlayers(city, lat, lng);
+      const tp = { limit: 8, sort: '-rating' };
+      if (lat && lng) { tp.lat = lat; tp.lng = lng; tp.radius = 50; }
+      else if (city) { tp.city = city; }
+      dispatch(fetchTurfs(tp));
+    }, [dispatch, isAuthenticated, user?._id, user?.city, user?.latitude, user?.longitude, myProfile])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -127,10 +144,9 @@ const HomeScreen = ({ navigation }) => {
         const lat = myProfile?.locationObj?.latitude || user?.latitude;
         const lng = myProfile?.locationObj?.longitude || user?.longitude;
         await fetchNearPlayers(city, lat, lng);
-        const tp = { limit: 8 };
-        if (lat && lng) { tp.lat = lat; tp.lng = lng; }
+        const tp = { limit: 8, sort: '-rating' };
+        if (lat && lng) { tp.lat = lat; tp.lng = lng; tp.radius = 50; }
         else if (city) { tp.city = city; }
-        else { tp.sort = '-rating'; }
         dispatch(fetchTurfs(tp));
       }
       await fetchPlatformSettings();
@@ -193,159 +209,9 @@ const HomeScreen = ({ navigation }) => {
     try { const r = await api.get('/users/dashboard-stats'); if (r.data.data) setDashboardStats(r.data.data); } catch (_) {}
   };
 
-  // Animated derived values
   const headerBg = scrollY.interpolate({ inputRange: [0, 90], outputRange: ['rgba(0,0,0,0)', 'rgba(0,0,0,0.98)'], extrapolate: 'clamp' });
   const headerBorder = scrollY.interpolate({ inputRange: [60, 100], outputRange: ['rgba(255,255,255,0)', 'rgba(255,255,255,0.08)'], extrapolate: 'clamp' });
   const heroParallax = scrollY.interpolate({ inputRange: [0, 200], outputRange: [0, -50], extrapolate: 'clamp' });
-
-  /* ─── Turf Card ─────────────────────────────────────────────────────────── */
-  const getMinPrice = (pricing) => {
-    if (!pricing) return 0;
-    const p = [pricing.weekdayDay, pricing.weekdayNight, pricing.weekendDay, pricing.weekendNight].filter(x => x > 0);
-    return p.length ? Math.min(...p) : 0;
-  };
-
-  const renderTurfCard = ({ item, index }) => {
-    const minPrice = getMinPrice(item.pricing);
-    const trustScore = item.owner?.trustScore || item.ownerInfo?.trustScore;
-
-    const inputRange = [
-      (index - 1) * SPACING,
-      index * SPACING,
-      (index + 1) * SPACING,
-    ];
-
-    const scale = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.9, 1.0, 0.9],
-      extrapolate: 'clamp',
-    });
-
-    const rotateZ = scrollX.interpolate({
-      inputRange,
-      outputRange: ['3deg', '0deg', '-3deg'],
-      extrapolate: 'clamp',
-    });
-
-    const opacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.75, 1.0, 0.75],
-      extrapolate: 'clamp',
-    });
-
-    const translateY = scrollX.interpolate({
-      inputRange,
-      outputRange: [12, 0, 12],
-      extrapolate: 'clamp',
-    });
-
-    const translateX = scrollX.interpolate({
-      inputRange,
-      outputRange: [25, 0, -25],
-      extrapolate: 'clamp',
-    });
-
-    const imageTranslateX = scrollX.interpolate({
-      inputRange,
-      outputRange: [-20, 0, 20],
-      extrapolate: 'clamp',
-    });
-
-    const overlayOpacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0, 1, 0],
-      extrapolate: 'clamp',
-    });
-
-    const distance = (1 + (index % 4) * 0.7).toFixed(1) + ' km';
-
-    return (
-      <Animated.View
-        style={[
-          styles.premiumCardContainer,
-          {
-            opacity,
-            transform: [
-              { scale },
-              { rotate: rotateZ },
-              { translateX },
-              { translateY }
-            ]
-          }
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.premiumCard}
-          onPress={() => navigation.navigate('TurfDetail', { id: item._id })}
-          activeOpacity={0.95}
-        >
-          <TurfCardImage item={item} imageTranslateX={imageTranslateX} />
-
-          {/* Top Badges */}
-          <View style={styles.premiumTopRow}>
-            {/* Open Now indicator */}
-            <View style={styles.statusBadgeCompact}>
-              <View style={styles.statusDotGreen} />
-              <Text style={styles.statusTextCompact}>OPEN NOW</Text>
-            </View>
-
-            {/* Trending/Top Rated Badge */}
-            <View style={styles.topRatedBadgeCompact}>
-              <Icon name="fire" size={10} color="#FFCC00" style={{ marginRight: 2 }} />
-              <Text style={styles.topRatedTextCompact}>TRENDING</Text>
-            </View>
-          </View>
-
-          {/* Bottom Glassmorphic Overlay */}
-          <Animated.View style={[styles.glassOverlay, { opacity: overlayOpacity }]}>
-            <View style={styles.glassHeader}>
-              <Text style={styles.glassTitle} numberOfLines={1}>{item.name}</Text>
-              <View style={styles.ratingBadgeGold}>
-                <Icon name="star" size={10} color="#000" />
-                <Text style={styles.ratingTextGold}>{item.rating > 0 ? item.rating.toFixed(1) : 'New'}</Text>
-              </View>
-            </View>
-
-            <Text style={styles.glassLocation}>
-              <Icon name="map-marker" size={10} color="rgba(255,255,255,0.6)" /> {item.city} • {distance}
-            </Text>
-
-            <View style={styles.glassFooter}>
-              <View style={styles.priceContainer}>
-                <Text style={styles.priceLabel}>Starting</Text>
-                <Text style={styles.priceValue}>₹{minPrice || 800}<Text style={styles.priceUnit}>/hr</Text></Text>
-              </View>
-
-              {/* Sports Icons Row */}
-              <View style={styles.sportsIconRow}>
-                {item.sports && item.sports.includes('cricket') && (
-                  <View style={styles.sportIconCircle}>
-                    <Icon name="cricket" size={11} color="#FFCC00" />
-                  </View>
-                )}
-                {item.sports && item.sports.includes('football') && (
-                  <View style={styles.sportIconCircle}>
-                    <Icon name="soccer" size={11} color="#FFCC00" />
-                  </View>
-                )}
-                {item.sports && item.sports.includes('badminton') && (
-                  <View style={styles.sportIconCircle}>
-                    <Icon name="badminton" size={11} color="#FFCC00" />
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.bookNowBtnCompact}>
-                <Text style={styles.bookNowTextCompact}>Book</Text>
-                <Icon name="chevron-right" size={11} color="#000" />
-              </View>
-            </View>
-          </Animated.View>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-
   const MOCK_PLAYERS = [
     { _id: 'm1', image: 'https://i.pinimg.com/736x/8f/c9/77/8fc977e23fa2c30ec75e7a9b0c2e4cc0.jpg', playerName: 'Virat Kohli', role: 'Right Hand Batsman', team: 'Royal Challengers Bengaluru', country: 'India', isCaptain: false, matches: 252, runs: 7971, backgroundColor: '#FFCC00' },
     { _id: 'm2', image: 'https://i.pinimg.com/736x/d6/00/f8/d600f8981504958ce1ba59df182df586.jpg', playerName: 'Rohit Sharma', role: 'Right Hand Batsman', team: 'Mumbai Indians', country: 'India', isCaptain: true, matches: 257, runs: 6628, backgroundColor: '#FFCC00' },
@@ -485,7 +351,7 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
 
             <View style={{ flex: 1, paddingLeft: 4 }}>
-              <Text style={styles.headerGreeting}>Hey, {user?.name?.split(' ')[0] || 'Cricketer'}</Text>
+              <Text style={styles.headerGreeting} numberOfLines={1} ellipsizeMode="tail">Hey, {user?.name?.split(' ')[0] || 'Cricketer'}</Text>
             </View>
 
             <View style={styles.headerActions}>
@@ -711,7 +577,9 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.sectionHead}>
             <View>
               <Text style={styles.sectionTitle}>Top Rated Grounds</Text>
-              <Text style={styles.sectionSub}>Highest rated near you</Text>
+              <Text style={styles.sectionSub}>
+                {displayCity ? `Highest rated turfs in ${displayCity.trim()}` : 'Highest rated near you'}
+              </Text>
             </View>
             <TouchableOpacity style={styles.seeAll} onPress={() => navigation.navigate('Search')}>
               <Text style={styles.seeAllTxt}>See All</Text>
@@ -726,25 +594,11 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </SkeletonPlaceholder>
           ) : (
-            <Animated.FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={turfs}
-              keyExtractor={it => it._id}
-              renderItem={renderTurfCard}
-              snapToInterval={SPACING}
-              decelerationRate="fast"
-              snapToAlignment="center"
-              contentContainerStyle={{
-                paddingLeft: (SW - PREMIUM_CARD_W) / 2,
-                paddingRight: (SW - PREMIUM_CARD_W) / 2 + OVERLAP_AMOUNT,
-                paddingVertical: 10,
-              }}
-              onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-                { useNativeDriver: true }
-              )}
-              scrollEventThrottle={16}
+            <PremiumTurfCarousel 
+              data={turfs} 
+              onTurfPress={(id) => navigation.navigate('TurfDetail', { id })} 
+              onFavoriteToggle={handleToggleFavorite} 
+              favourites={favourites} 
             />
           )}
         </View>

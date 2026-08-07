@@ -1560,3 +1560,80 @@ export const MatchSummaryPoster = ({ liveState, theme }) => {
     </ImageBackground>
   );
 };
+
+export const AiReportPoster = ({ liveState, aiReport, theme }) => {
+  const t = getThemeStyles(theme);
+  const bgImage = STADIUM_BG;
+  const { match } = liveState || {};
+  const teamA = match?.teamA;
+  const teamB = match?.teamB;
+
+  return (
+    <ImageBackground source={bgImage} style={getContainerStyle(t, 460)}>
+      <View
+        style={{ width: "100%", backgroundColor: t.overlayBg, height: "100%" }}
+      >
+        <View style={{ padding: Spacing.lg, flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+               <Image source={getSource(teamA?.logo)} style={{ width: 32, height: 32, borderRadius: t.type === "cyberpunk" ? 0 : 16 }} />
+               <Text style={{ color: t.accentColor, fontSize: 14, fontFamily: Typography.fontFamily.bold }}>VS</Text>
+               <Image source={getSource(teamB?.logo)} style={{ width: 32, height: 32, borderRadius: t.type === "cyberpunk" ? 0 : 16 }} />
+            </View>
+            <View style={{ backgroundColor: t.accentColor + '30', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ color: t.accentColor, fontSize: 10, fontFamily: Typography.fontFamily.bold, textTransform: "uppercase" }}>
+                AI Analysis
+              </Text>
+            </View>
+          </View>
+          
+          <View style={{ marginBottom: 16 }}>
+             <Text style={{ color: t.secTextColor, fontSize: 11, fontFamily: Typography.fontFamily.bold, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+               Headline
+             </Text>
+             <Text style={{ color: t.textColor, fontSize: 16, fontFamily: Typography.fontFamily.bold, lineHeight: 22 }} numberOfLines={3}>
+               {aiReport?.headline?.[0] || 'Match Summary'}
+             </Text>
+          </View>
+
+          <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
+             <Text style={{ color: t.secTextColor, fontSize: 11, fontFamily: Typography.fontFamily.bold, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+               Summary
+             </Text>
+             <Text style={{ color: t.textColor, fontSize: 13, fontFamily: Typography.fontFamily.regular, lineHeight: 20 }} numberOfLines={7}>
+               {aiReport?.summary || 'No summary available.'}
+             </Text>
+          </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginTop: 16,
+              justifyContent: "center",
+            }}
+          >
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: 12,
+                fontFamily: Typography.fontFamily.bold,
+              }}
+            >
+              Score
+            </Text>
+            <Text
+              style={{
+                color: "#00F2FE",
+                fontSize: 12,
+                fontFamily: Typography.fontFamily.bold,
+              }}
+            >
+              Verse
+            </Text>
+          </View>
+        </View>
+      </View>
+    </ImageBackground>
+  );
+};

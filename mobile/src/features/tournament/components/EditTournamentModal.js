@@ -104,6 +104,7 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
   const [newRule, setNewRule] = useState('');
   
   const [loading, setLoading] = useState(false);
+  const [platformFeePercent, setPlatformFeePercent] = useState(10);
 
   useEffect(() => {
     if (tournament && visible) {
@@ -121,6 +122,13 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
       const existingRules = tournament.rules ? tournament.rules.split('\n').filter(r => r.trim()) : [];
       setRules(existingRules);
       setNewRule('');
+
+      // Fetch dynamic platform fee
+      api.get('/admin/public-settings').then(res => {
+        if (res.data?.data?.auctionPlatformFeePercent !== undefined) {
+          setPlatformFeePercent(res.data.data.auctionPlatformFeePercent);
+        }
+      }).catch(console.error);
     }
   }, [tournament, visible]);
 
@@ -231,7 +239,7 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
               <Text style={styles.label}>Entry Fee (₹)</Text>
               <TextInput style={styles.input} value={form.entryFee} onChangeText={t => handleChange('entryFee', t)} keyboardType="number-pad" placeholderTextColor={Colors.textTertiary} />
               <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
-                Note: A 10% platform fee will be deducted for each registration made through the platform.
+                Note: A {platformFeePercent}% platform fee will be deducted for each registration made through the platform.
               </Text>
             </View>
             

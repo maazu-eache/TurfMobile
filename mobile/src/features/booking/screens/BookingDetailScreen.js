@@ -14,6 +14,20 @@ const BookingDetailScreen = ({ navigation, route }) => {
   const { bookingId } = route.params;
   const dispatch = useDispatch();
   const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [platformFeePercent, setPlatformFeePercent] = useState(5);
+  const [cancellationRefundPercent, setCancellationRefundPercent] = useState(70);
+  const [cancellationPlatformPercent, setCancellationPlatformPercent] = useState(10);
+  const [cancelCountdown, setCancelCountdown] = useState(0);
+
+  React.useEffect(() => {
+    api.get('/admin/public-settings').then(res => {
+      if (res.data?.data) {
+        if (res.data.data.bookingPlatformFeePercent !== undefined) setPlatformFeePercent(res.data.data.bookingPlatformFeePercent);
+        if (res.data.data.cancellationRefundPercent !== undefined) setCancellationRefundPercent(res.data.data.cancellationRefundPercent);
+        if (res.data.data.cancellationPlatformPercent !== undefined) setCancellationPlatformPercent(res.data.data.cancellationPlatformPercent);
+      }
+    }).catch(console.error);
+  }, []);
   const booking = useSelector((state) => 
     state.booking.bookings.find(b => b._id === bookingId)
   );
@@ -48,7 +62,20 @@ const BookingDetailScreen = ({ navigation, route }) => {
 
   const handleCancel = () => {
     setShowPolicyModal(true);
+    if (booking.status === 'confirmed') {
+      setCancelCountdown(5);
+    }
   };
+
+  React.useEffect(() => {
+    let timer;
+    if (showPolicyModal && cancelCountdown > 0) {
+      timer = setInterval(() => {
+        setCancelCountdown(prev => Math.max(prev - 1, 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [showPolicyModal, cancelCountdown]);
 
   const handleConfirmCancel = async () => {
     setShowPolicyModal(false);
@@ -148,6 +175,14 @@ const BookingDetailScreen = ({ navigation, route }) => {
               <Text style={styles.paymentTotalText}>Final Paid</Text>
               <Text style={styles.paymentTotalAmount}>₹{booking.finalAmount}</Text>
             </View>
+            {['cancellation_requested', 'pending_refund', 'cancelled'].includes(booking.status) && (
+              <View style={[styles.paymentRow, { marginTop: -12, marginBottom: 0 }]}>
+                <Text style={[styles.paymentText, { color: Colors.primary }]}>Refund Amount</Text>
+                <Text style={[styles.paymentHighlight, { color: Colors.primary }]}>
+                  ₹{Math.round((booking.totalAmount || booking.finalAmount) * (cancellationRefundPercent / 100))}
+                </Text>
+              </View>
+            )}
           </View>
 
           {['pending', 'confirmed'].includes(booking.status) && (
@@ -197,6 +232,16 @@ const BookingDetailScreen = ({ navigation, route }) => {
             </View>
           )}
 
+          {booking.status === 'pending_refund' && (
+            <View style={[styles.infoAlert, { backgroundColor: Colors.primary, borderColor: Colors.primary }]}>
+              <Icon name="cash-refund" size={28} color="#000" />
+              <View style={styles.infoAlertContent}>
+                <Text style={[styles.infoAlertTitle, { color: '#000' }]}>Refund Processing</Text>
+                <Text style={[styles.infoAlertDesc, { color: '#1A1A1A' }]}>Cancellation approved! Your refund will be credited to your bank account within 24 hours.</Text>
+              </View>
+            </View>
+          )}
+
         </View>
       </ScrollView>
 
@@ -214,20 +259,27 @@ const BookingDetailScreen = ({ navigation, route }) => {
               <Icon name="information-outline" size={24} color={Colors.primary} />
               <Text style={styles.policyModalTitle}>Request Cancellation</Text>
             </View>
-            <Text style={styles.policyModalText}>
-              {booking.status === 'confirmed'
-                ? 'You have already paid for this booking. Cancellations are only allowed > 2 hours before the start time. A 70% refund of the slot price will be requested. The 5% platform fee is non-refundable. Do you want to proceed?'
+              <Text style={styles.policyModalText}>
+                {booking.status === 'confirmed' 
+                ? `You have already paid for this booking. Cancellations are only allowed > 2 hours before the start time. A ${cancellationRefundPercent}% refund of the slot price will be requested. The ${platformFeePercent}% platform fee is non-refundable. Do you want to proceed?`
                 : 'Are you sure you want to cancel this booking? Cancellations are only allowed > 2 hours before the start time.'}
-            </Text>
+              </Text>
             <View style={styles.policyModalActions}>
               <TouchableOpacity style={styles.policyModalCancelBtn} onPress={() => setShowPolicyModal(false)}>
                 <Text style={styles.policyModalCancelText}>No</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={[styles.policyModalConfirmBtn, { backgroundColor: '#4A1C1C' }]} 
+                style={[
+                  styles.policyModalConfirmBtn, 
+                  { backgroundColor: '#4A1C1C' },
+                  cancelCountdown > 0 && { opacity: 0.5 }
+                ]} 
                 onPress={handleConfirmCancel}
+                disabled={cancelCountdown > 0}
               >
-                <Text style={[styles.policyModalConfirmText, { color: '#FF5722' }]}>Yes, Cancel</Text>
+                <Text style={[styles.policyModalConfirmText, { color: '#FF5722' }]}>
+                  {cancelCountdown > 0 ? `Yes, Cancel (${cancelCountdown}s)` : 'Yes, Cancel'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

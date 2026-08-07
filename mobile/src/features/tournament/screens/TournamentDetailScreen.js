@@ -7,6 +7,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import moment from 'moment';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import LinearGradient from 'react-native-linear-gradient';
 import api, { getImageUrl, BASE_URL } from '../../../api/axios';
 import { useSelector } from 'react-redux';
 import socketService from '../../../services/socketService';
@@ -1735,14 +1736,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
         {/* Blurred Info Overlay Trick */}
         <View style={styles.blurredInfoContainer}>
-          <Image
-            source={{ uri: tournament.banner ? getImageUrl(tournament.banner) : 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=600&auto=format&fit=crop' }}
-            style={styles.blurredBannerImage}
-            resizeMode="cover"
-            blurRadius={35}
-          />
-          {/* Very light dark tint so white text is readable over bright images, no solid colors */}
-          <View style={styles.blurredInfoTint} />
+          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.95)']} style={styles.blurredInfoTint} />
 
           <View style={styles.headerInfoContent}>
             <Text style={styles.headerTitle} numberOfLines={2}>{tournament.name}</Text>
@@ -2158,7 +2152,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         visible={!!shareData}
         onClose={() => setShareData(null)}
         title={shareData?.type === 'tournament' ? tournament?.name : shareData?.type === 'fixture' ? 'Match Fixture' : shareData?.type === 'fullSchedule' ? 'Match Schedule' : shareData?.type === 'pointsTable' ? 'Points Table' : shareData?.type === 'registration' ? 'Register for Auction' : shareData?.type === 'teamInvite' ? 'Invite Teams' : 'Leaderboard'}
-        shareUrl={`https://scoreverse.maazibrahimoo0.workers.dev/tournament/${tournamentId}${shareData?.type === 'registration' ? '/register' : shareData?.type === 'teamInvite' ? '?action=join-team' : ''}`}
+        shareUrl={`https://scoreverse.in/tournament/${tournamentId}${shareData?.type === 'registration' ? '/register' : shareData?.type === 'teamInvite' ? '?action=join-team' : ''}`}
       >
         {shareData?.type === 'tournament' && <TournamentSummaryPoster tournament={shareData.data} />}
         {shareData?.type === 'registration' && <RegistrationPoster tournament={shareData.data} />}
@@ -2348,18 +2342,12 @@ const styles = StyleSheet.create({
   /* Blurred Info Container */
   blurredInfoContainer: {
     position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-    overflow: 'hidden', // Crops the blurred image exactly to this container
-  },
-  blurredBannerImage: {
-    width: '100%',
-    height: 180, // Exact height of bannerWrapper
-    position: 'absolute',
-    bottom: 0, // Aligns it to the bottom so it perfectly overlaps the main image underneath
+    top: 0, bottom: 0, left: 0, right: 0,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
   },
   blurredInfoTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.65)', // Darker tint over the blur so white text pops
   },
   headerInfoContent: {
     paddingHorizontal: 16,

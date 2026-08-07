@@ -11,6 +11,7 @@ import { useSelector } from 'react-redux';
 const NotificationsScreen = ({ navigation }) => {
   const { user } = useSelector((state) => state.auth);
   const isOwner = user?.role === 'owner';
+  const isAdmin = user?.role === 'admin';
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,6 +37,8 @@ const NotificationsScreen = ({ navigation }) => {
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
       
       if (!data) return; // if no data, don't navigate
+      
+      if (isAdmin) return; // Admin has a single dashboard, don't attempt nested navigation
 
       try {
         if (isOwner) {

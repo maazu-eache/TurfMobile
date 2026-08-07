@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Image, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Image, BackHandler, Modal, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, BorderRadius, Spacing } from '../../../theme/theme';
@@ -23,6 +23,11 @@ const SelectBowlerScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(false);
   const [scorecards, setScorecards] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+
+  const [showEditSquadModal, setShowEditSquadModal] = useState(false);
+  const [editingSquad, setEditingSquad] = useState([]);
+  const [isSavingSquad, setIsSavingSquad] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadedOnceRef = useRef(false);
 
@@ -89,7 +94,48 @@ const SelectBowlerScreen = ({ route, navigation }) => {
       setFullSquad(bowlPlayers.filter(Boolean));
       setFullOppositionSquad(batPlayers.filter(Boolean));
     } catch (e) {
-      console.log('Error loading roster:', e);
+      console.log('Error loading roster data:', e);
+    }
+  };
+
+  const onRefreshModal = async () => {
+    setRefreshing(true);
+    await loadFullRosterData();
+    setRefreshing(false);
+  };
+
+  const toggleSquadMember = (player) => {
+    const isMember = editingSquad.some(p => String(p._id || p) === String(player._id || player));
+    if (isMember) {
+      setEditingSquad(editingSquad.filter(p => String(p._id || p) !== String(player._id || player)));
+    } else {
+      const isInOtherSquad = oppositionSquad.some(p => String(p._id || p) === String(player._id || player));
+      if (isInOtherSquad) {
+        showCustomAlert('Cannot Select Player', `This player is already in the playing squad for the other team. A player cannot play for both teams.`);
+      } else {
+        setEditingSquad([...editingSquad, player]);
+      }
+    }
+  };
+
+  const saveSquads = async () => {
+    setIsSavingSquad(true);
+    try {
+      const teamA_Squad = isTeamABatting ? oppositionSquad.map(p => p._id || p) : editingSquad.map(p => p._id || p);
+      const teamB_Squad = isTeamABatting ? editingSquad.map(p => p._id || p) : oppositionSquad.map(p => p._id || p);
+      
+      await api.post(`/matches/${matchId}/playing-xi`, {
+        teamA: teamA_Squad,
+        teamB: teamB_Squad
+      });
+      
+      const res = await api.get(`/matches/${matchId}/live`);
+      dispatch(setLiveState(res.data.data));
+      setShowEditSquadModal(false);
+    } catch (e) {
+      showCustomAlert('Error', 'Failed to save squad');
+    } finally {
+      setIsSavingSquad(false);
     }
   };
 
@@ -230,51 +276,113 @@ const SelectBowlerScreen = ({ route, navigation }) => {
         />
       )}
       
+      <Modal visible={showEditSquadModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <SafeAreaView style={styles.modalContentFull} edges={['top', 'bottom']}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Playing XI (Bowlers)</Text>
+              <TouchableOpacity onPress={() => setShowEditSquadModal(false)}>
+                <Icon name="close" size={24} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.instructionText}>Check the players you want in the playing XI. Pull down to refresh.</Text>
+
+            <ScrollView 
+              style={styles.modalList}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshModal} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            >
+              {fullSquad.map((p, idx) => {
+                const isSelected = editingSquad.some(s => String(s._id || s) === String(p._id || p));
+                return (
+                  <TouchableOpacity
+                    key={p._id + '_' + idx}
+                    style={styles.rosterListItem}
+                    onPress={() => toggleSquadMember(p)}
+                  >
+                    <Icon
+                      name={isSelected ? "checkbox-marked" : "checkbox-blank-outline"}
+                      size={24}
+                      color={isSelected ? Colors.primary : Colors.textTertiary}
+                    />
+                    <View style={styles.avatarPlaceholderSm}>
+                      <Text style={styles.avatarTextSm}>{p.name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.modalListText}>{p.name}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </ScrollView>
+
+            <View style={styles.editSquadFooter}>
+              <TouchableOpacity
+                style={styles.addNewBtn}
+                onPress={() => {
+                  setShowEditSquadModal(false);
+                  const _bTeam = String(match?.innings?.[match?.currentInnings - 1]?.battingTeam?._id || match?.innings?.[match?.currentInnings - 1]?.battingTeam || '');
+                  const _aTeam = String(match?.teamA?._id || match?.teamA || '');
+                  const isTeamABattingLocal = _bTeam === _aTeam;
+                  const teamId = isTeamABattingLocal ? match?.teamB?._id : match?.teamA?._id;
+                  
+                  navigation.navigate('AddPlayer', {
+                    teamId,
+                    matchId,
+                    roster: fullSquad,
+                    oppositionRoster: fullOppositionSquad,
+                    squad: editingSquad,
+                    onClose: () => setShowEditSquadModal(true),
+                    onPlayerAdded: async (newPlayer) => {
+                      try {
+                        const teamA_Squad = isTeamABattingLocal ? oppositionSquad.map(p => p._id || p) : [...editingSquad.map(p => p._id || p), newPlayer._id];
+                        const teamB_Squad = isTeamABattingLocal ? [...editingSquad.map(p => p._id || p), newPlayer._id] : oppositionSquad.map(p => p._id || p);
+
+                        await api.post(`/matches/${matchId}/playing-xi`, {
+                          teamA: teamA_Squad,
+                          teamB: teamB_Squad
+                        });
+                        
+                        const res = await api.get(`/matches/${matchId}/live`);
+                        dispatch(setLiveState(res.data.data));
+                        
+                        setFullSquad(prev => {
+                          const exists = prev.some(p => p._id === newPlayer._id);
+                          return exists ? prev : [...prev, newPlayer];
+                        });
+                        setEditingSquad(prev => {
+                          const exists = prev.some(p => p._id === newPlayer._id);
+                          return exists ? prev : [...prev, newPlayer];
+                        });
+                        
+                        loadFullRosterData();
+                        setShowEditSquadModal(true);
+                      } catch (e) {
+                        console.log('Error adding new player:', e);
+                      }
+                    }
+                  });
+                }}
+              >
+                <Icon name="plus" size={20} color={Colors.textSecondary} />
+                <Text style={styles.addNewBtnText}>Add New Player to Team</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.saveBtn} onPress={saveSquads} disabled={isSavingSquad}>
+                {isSavingSquad ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Squad</Text>}
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
       <View style={styles.footer}>
         <TouchableOpacity 
           style={styles.addBtn} 
           onPress={() => {
-            const _bTeam = String(match?.innings?.[match?.currentInnings - 1]?.battingTeam?._id || match?.innings?.[match?.currentInnings - 1]?.battingTeam || '');
-            const _aTeam = String(match?.teamA?._id || match?.teamA || '');
-            const isTeamABatting = _bTeam === _aTeam;
-            const teamId = isTeamABatting ? match?.teamB?._id : match?.teamA?._id;
-            const playingXI = isTeamABatting ? match?.playingXI?.teamB : match?.playingXI?.teamA;
-            navigation.navigate('AddPlayer', { 
-              teamId,
-              matchId,
-              roster: fullSquad,
-              oppositionRoster: fullOppositionSquad,
-              squad: playingXI || [],
-              onPlayerAdded: async (newPlayer) => {
-                try {
-                  const currentTeamA_XI = match?.playingXI?.teamA?.map(p => p._id || p) || [];
-                  const currentTeamB_XI = match?.playingXI?.teamB?.map(p => p._id || p) || [];
-                  
-                  if (isTeamABatting) {
-                    currentTeamB_XI.push(newPlayer._id);
-                  } else {
-                    currentTeamA_XI.push(newPlayer._id);
-                  }
-                  
-                  await api.post(`/matches/${matchId}/playing-xi`, {
-                    teamA: currentTeamA_XI,
-                    teamB: currentTeamB_XI
-                  });
-                  
-                  const res = await api.get(`/matches/${matchId}/live`);
-                  dispatch(setLiveState(res.data.data));
-                  
-                  // Reload list
-                  loadFullRosterData();
-                } catch (e) {
-                  console.log('Error adding player to playing XI', e);
-                }
-              }
-            });
+            setEditingSquad(squad);
+            setShowEditSquadModal(true);
           }}
         >
-          <Icon name="plus" size={20} color={Colors.primary} />
-          <Text style={styles.addBtnText}>Add Player</Text>
+          <Icon name="pencil" size={20} color={Colors.primary} />
+          <Text style={styles.addBtnText}>Edit Squad / Add Player</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -388,6 +496,95 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginLeft: 8,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContentFull: {
+    backgroundColor: Colors.surface,
+    padding: Spacing.base,
+    height: '100%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+  },
+  instructionText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+  },
+  modalList: {
+    flex: 1,
+  },
+  rosterListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.base,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  avatarPlaceholderSm: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.borderLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarTextSm: {
+    color: Colors.textSecondary,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  modalListText: {
+    fontSize: 16,
+    color: Colors.textPrimary,
+  },
+  editSquadFooter: {
+    marginTop: Spacing.base,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+    paddingTop: Spacing.base,
+  },
+  addNewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    marginBottom: 12,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  addNewBtnText: {
+    marginLeft: 8,
+    color: Colors.textSecondary,
+    fontSize: 15,
+  },
+  saveBtn: {
+    backgroundColor: Colors.primary,
+    padding: 14,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+  },
+  saveBtnText: {
+    color: '#000',
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+  }
 });
 
 export default SelectBowlerScreen;

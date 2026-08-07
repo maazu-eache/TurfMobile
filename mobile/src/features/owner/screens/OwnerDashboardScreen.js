@@ -134,7 +134,7 @@ const OwnerDashboardScreen = ({ navigation }) => {
             </TouchableOpacity>
             <View>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.heroName}>{user?.name || 'Owner'}</Text>
+                <Text style={styles.heroName} numberOfLines={1} ellipsizeMode="tail">{user?.name?.split(' ')[0] || 'Owner'}</Text>
                 {dashboard?.owner?.isVerifiedOwner && (
                   <Icon name="check-decagram" size={18} color={Colors.success} style={{ marginLeft: 6 }} />
                 )}

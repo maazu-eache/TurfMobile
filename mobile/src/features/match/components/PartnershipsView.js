@@ -41,6 +41,10 @@ const PartnershipsView = ({ match, scorecards = [], commentary = [], refreshCont
       const innBalls = commentary ? commentary.filter(b => {
         const ballInnId = (b.innings?._id || b.innings)?.toString();
         return ballInnId === inn._id?.toString();
+      }).sort((a, b) => {
+        const overDiff = (a.overNumber || 0) - (b.overNumber || 0);
+        if (overDiff !== 0) return overDiff;
+        return (a.ballNumber || 0) - (b.ballNumber || 0);
       }) : [];
 
       const partnershipBallBuckets = [];
@@ -109,7 +113,7 @@ const PartnershipsView = ({ match, scorecards = [], commentary = [], refreshCont
         // Ensure consistency between sum of individual runs & total partnership runs
         const currentSum = p1Runs + p2Runs + extras;
 
-        if (currentSum > totalRuns && totalRuns > 0) {
+        if (currentSum !== totalRuns && totalRuns > 0 && currentSum > 0) {
           const batterSum = p1Runs + p2Runs;
           if (batterSum > 0) {
             const availableForBatters = Math.max(0, totalRuns - extras);
@@ -126,10 +130,10 @@ const PartnershipsView = ({ match, scorecards = [], commentary = [], refreshCont
             p2Runs = p.batsman2Runs;
             p2Balls = p.batsman2Balls || Math.floor(totalBalls / 2);
           } else {
-            p1Runs = totalRuns;
-            p1Balls = totalBalls;
-            p2Runs = 0;
-            p2Balls = 0;
+            p1Runs = Math.ceil(totalRuns / 2);
+            p1Balls = Math.ceil(totalBalls / 2);
+            p2Runs = Math.floor(totalRuns / 2);
+            p2Balls = Math.floor(totalBalls / 2);
           }
         }
 

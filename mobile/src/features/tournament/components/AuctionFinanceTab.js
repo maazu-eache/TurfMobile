@@ -87,10 +87,16 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
   const [financeData, setFinanceData] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'online' | 'offline'
   const [isUnauthorized, setIsUnauthorized] = useState(false);
+  const [platformFeePercent, setPlatformFeePercent] = useState(10);
   const scaleAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
     loadFinanceData();
+    api.get('/admin/public-settings').then(res => {
+      if (res.data?.data?.auctionPlatformFeePercent !== undefined) {
+        setPlatformFeePercent(res.data.data.auctionPlatformFeePercent);
+      }
+    }).catch(console.error);
   }, [auctionId]);
 
   const animateIn = () => {
@@ -227,7 +233,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
           <View style={styles.heroStatDivider} />
           <View style={styles.heroStat}>
             <Text style={[styles.heroStatValue, { color: '#EF4444' }]}>-{fmt(summary.totalPlatformFee)}</Text>
-            <Text style={styles.heroStatLabel}>Platform Fee (10%)</Text>
+            <Text style={styles.heroStatLabel}>Platform Fee ({platformFeePercent}%)</Text>
           </View>
           <View style={styles.heroStatDivider} />
           <View style={styles.heroStat}>

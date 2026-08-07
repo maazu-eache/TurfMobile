@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -17,6 +17,8 @@ const ProfileScreen = ({ navigation }) => {
   // Determine role based on permissions or selection (here derived from user object if available)
   const isOwner = user?.roles?.includes('owner');
 
+  const [loggingOut, setLoggingOut] = useState(false);
+
   const handleLogout = () => {
     showCustomAlert(
       "Confirm Logout",
@@ -27,10 +29,12 @@ const ProfileScreen = ({ navigation }) => {
           text: "Logout", 
           style: "destructive",
           onPress: async () => {
+            setLoggingOut(true);
             if (!isOwner) {
               navigation.navigate('Home');
             }
             await dispatch(logout());
+            setLoggingOut(false);
           }
         }
       ]
@@ -39,16 +43,20 @@ const ProfileScreen = ({ navigation }) => {
 
 
 
-  const renderOption = (icon, title, subtitle, onPress, destructive = false) => (
-    <TouchableOpacity style={styles.optionRow} onPress={onPress}>
+  const renderOption = (icon, title, subtitle, onPress, destructive = false, isLoading = false) => (
+    <TouchableOpacity style={styles.optionRow} onPress={onPress} disabled={isLoading}>
       <View style={[styles.iconBox, destructive && {backgroundColor: 'rgba(244,67,54,0.1)'}]}>
-        <Icon name={icon} size={22} color={destructive ? Colors.error : Colors.primary} />
+        {isLoading ? (
+          <ActivityIndicator size="small" color={destructive ? Colors.error : Colors.primary} />
+        ) : (
+          <Icon name={icon} size={22} color={destructive ? Colors.error : Colors.primary} />
+        )}
       </View>
       <View style={styles.optionTextContainer}>
         <Text style={[styles.optionTitle, destructive && {color: Colors.error}]}>{title}</Text>
         {subtitle && <Text style={styles.optionSubtitle}>{subtitle}</Text>}
       </View>
-      <Icon name="chevron-right" size={24} color={destructive ? Colors.error : Colors.textSecondary} />
+      {isLoading ? null : <Icon name="chevron-right" size={24} color={destructive ? Colors.error : Colors.textSecondary} />}
     </TouchableOpacity>
   );
 
@@ -70,7 +78,7 @@ const ProfileScreen = ({ navigation }) => {
               )}
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.name}>{user?.name || 'User Name'}</Text>
+              <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{user?.name?.split(' ')[0] || 'User Name'}</Text>
               <Text style={styles.email}>{user?.email || 'user@example.com'}</Text>
               {isOwner && (
                 <View style={styles.roleBadge}>
@@ -112,7 +120,7 @@ const ProfileScreen = ({ navigation }) => {
             <Text style={styles.sectionTitle}>Other</Text>
             {renderOption('headset', 'Help & Support', 'Get help with your bookings', () => navigation.navigate('TicketListScreen'))}
             {renderOption('shield-check', 'Privacy Policy', 'Your data and privacy rights', () => navigation.navigate('PrivacyPolicy'))}
-            {renderOption('logout', 'Logout', 'Sign out of your account', handleLogout, true)}
+            {renderOption('logout', 'Logout', 'Sign out of your account', handleLogout, true, loggingOut)}
           </View>
           
           <Text style={styles.version}>Version 1.0.0</Text>

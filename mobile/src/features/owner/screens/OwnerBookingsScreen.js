@@ -34,12 +34,16 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
   const [rejectCancelReason, setRejectCancelReason] = useState('');
   const [cancelRejecting, setCancelRejecting] = useState(false);
   const [actionBooking, setActionBooking] = useState(null);
+  const [approvingBookingId, setApprovingBookingId] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(moment().startOf('month'));
+
+  const [cancellationRefundPercent, setCancellationRefundPercent] = useState(80);
+  const [cancellationPlatformPercent, setCancellationPlatformPercent] = useState(5);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -51,6 +55,15 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
       setSelectedTurf(route.params.turfId);
     }
   }, [route.params?.turfId]);
+
+  useEffect(() => {
+    api.get('/admin/public-settings').then(res => {
+      if (res.data?.data) {
+        if (res.data.data.cancellationRefundPercent !== undefined) setCancellationRefundPercent(res.data.data.cancellationRefundPercent);
+        if (res.data.data.cancellationPlatformPercent !== undefined) setCancellationPlatformPercent(res.data.data.cancellationPlatformPercent);
+      }
+    }).catch(console.error);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -171,7 +184,10 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
   const handleApproveCancel = (booking) => {
     const isOnline = booking.payment && ['qr_upi', 'wallet', 'razorpay', 'phonepe'].includes(booking.payment.method);
     const amount = booking.totalAmount || booking.finalAmount;
-    const deductionAmount = Math.round(amount * 0.80);
+    const refundAmount = Math.round(amount * (cancellationRefundPercent / 100));
+    const platformFee = Math.round(amount * (cancellationPlatformPercent / 100));
+    const deductionAmount = refundAmount + platformFee;
+    
     const message = isOnline
       ? `Approving this cancellation will deduct ₹${deductionAmount} from your wallet and refund the user automatically. Proceed?`
       : 'Have you refunded the money to the user via UPI? Approving this will free up the turf slots.';
@@ -180,7 +196,7 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
     showCustomAlert('Approve Cancellation', message, [
       { text: 'Not Yet', style: 'cancel' },
       { text: confirmText, onPress: async () => {
-        setVerifying(true);
+        setApprovingBookingId(booking._id);
         const res = await dispatch(approveCancellation(booking._id));
         if (approveCancellation.fulfilled.match(res)) {
           showCustomAlert('Success', 'Cancellation approved successfully.');
@@ -189,7 +205,7 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
         } else {
           showCustomAlert('Error', res.payload || 'Failed to approve cancellation');
         }
-        setVerifying(false);
+        setApprovingBookingId(null);
       }}
     ]);
   };
@@ -292,8 +308,16 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
                 <TouchableOpacity style={[styles.verifyBtn, { backgroundColor: Colors.surfaceVariant, borderWidth: 1, borderColor: Colors.error }]} onPress={() => handleRejectCancel(item)}>
                   <Text style={[styles.verifyBtnText, { color: Colors.error }]}>Reject</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.verifyBtn, { backgroundColor: '#FF5722' }]} onPress={() => handleApproveCancel(item)}>
-                  <Text style={[styles.verifyBtnText, { color: '#FFF' }]}>Approve Refund</Text>
+                <TouchableOpacity 
+                  style={[styles.verifyBtn, { backgroundColor: '#FF5722' }]} 
+                  onPress={() => handleApproveCancel(item)}
+                  disabled={approvingBookingId === item._id}
+                >
+                  {approvingBookingId === item._id ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={[styles.verifyBtnText, { color: '#FFF' }]}>Approve Refund</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             )}

@@ -100,7 +100,7 @@ class SocketService {
   /**
    * Join a match room by ID
    */
-  joinMatch(matchId) {
+  joinMatch(matchId, userId = null) {
     const cleanId = this.cleanId(matchId);
     if (!cleanId) return;
 
@@ -109,7 +109,7 @@ class SocketService {
 
     if (socket && socket.connected) {
       this.remoteLog('SocketService', `Joined Match Room: match_${cleanId}`);
-      socket.emit('join_match', { matchId: cleanId });
+      socket.emit('join_match', { matchId: cleanId, userId });
     } else {
       this.remoteLog('SocketService', `Match room queued for join upon connect: match_${cleanId}`);
     }

@@ -136,6 +136,15 @@ const TournamentCreateScreen = ({ navigation }) => {
   const [multiLookupType, setMultiLookupType] = useState(null); // 'coOrganizers' or 'scorers'
   const [multiLookupMobile, setMultiLookupMobile] = useState('');
   const [datePickerMode, setDatePickerMode] = useState('date'); // 'date' or 'time'
+  const [platformFeePercent, setPlatformFeePercent] = useState(10);
+
+  useEffect(() => {
+    api.get('/admin/public-settings').then(res => {
+      if (res.data?.data?.auctionPlatformFeePercent !== undefined) {
+        setPlatformFeePercent(res.data.data.auctionPlatformFeePercent);
+      }
+    }).catch(console.error);
+  }, []);
 
   const handleBannerSelect = () => {
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (response) => {
@@ -498,7 +507,7 @@ const TournamentCreateScreen = ({ navigation }) => {
                 <TextInput style={styles.input} keyboardType="numeric" placeholderTextColor={offWhite} value={form.entryFee} onChangeText={(t) => setForm({ ...form, entryFee: t })} placeholder="₹ 0" />
                 {form.tournamentType === 'Auction' && (
                   <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
-                    Note: A 10% platform fee will be deducted for each registration made through the platform.
+                    Note: A {platformFeePercent}% platform fee will be deducted for each registration made through the platform.
                   </Text>
                 )}
               </View>

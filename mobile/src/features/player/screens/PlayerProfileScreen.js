@@ -1008,7 +1008,8 @@ const PlayerProfileScreen = ({ navigation }) => {
                   });
                 }}
                 placeholder="City or Area"
-                style={{ backgroundColor: Colors.surfaceVariant, borderRadius: 8, paddingHorizontal: 12, height: 48, justifyContent: 'center' }}
+                variant="none"
+                style={{ backgroundColor: Colors.surfaceVariant, borderRadius: 8, paddingHorizontal: 12, minHeight: 48, paddingVertical: 12 }}
               />
             </View>
             <Dropdown label="Gender" value={form.gender} options={GENDERS} onSelect={val => setForm({ ...form, gender: val })} />

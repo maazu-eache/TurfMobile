@@ -2485,11 +2485,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
                     let angle = Math.atan2(dy, dx) * (180 / Math.PI);
 
-                    let color = '#FFF';
-                    if (pendingRuns === 2) color = '#FFEB3B';
-                    else if (pendingRuns === 3) color = '#2196F3';
-                    else if (pendingRuns === 4) color = '#4CAF50';
-                    else if (pendingRuns === 6) color = '#F44336';
+                    let color = '#FFFFFF'; // 1s & 2s (White)
+                    if (pendingRuns === 3) color = '#FFD700'; // 3s (Yellow)
+                    else if (pendingRuns === 4) color = '#4CAF50'; // 4s (Green)
+                    else if (pendingRuns === 6) color = '#E53935'; // 6s (Red)
 
                     setWagonWheelData({ angle, distance, color });
                   }}
@@ -2678,7 +2677,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
         visible={shareModalVisible}
         onClose={() => setShareModalVisible(false)}
         title={`${match?.teamA?.name || 'Team A'} vs ${match?.teamB?.name || 'Team B'}`}
-        shareUrl={`https://scoreverse.maazibrahimoo0.workers.dev/match/${cleanMatchId}`}
+        shareUrl={`https://scoreverse.in/match/${cleanMatchId}`}
       >
         <MatchSummaryPoster liveState={liveState} />
       </SharePreviewModal>

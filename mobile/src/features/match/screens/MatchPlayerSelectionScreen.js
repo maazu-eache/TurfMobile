@@ -12,6 +12,7 @@ import {
   Image,
   Alert,
   FlatList,
+  RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -49,6 +50,7 @@ const MatchPlayerSelectionScreen = () => {
   const [newScorerMobile, setNewScorerMobile] = useState('');
   const [scorerSearchResult, setScorerSearchResult] = useState(null);
   const [isScorerSearching, setIsScorerSearching] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleSearchScorer = async (mobArg) => {
     const searchMob = typeof mobArg === 'string' && mobArg.length === 10 ? mobArg : newScorerMobile;
@@ -151,6 +153,20 @@ const MatchPlayerSelectionScreen = () => {
     } catch (e) {
       console.log('Error fetching team', e);
     }
+  };
+
+  const onRefreshModal = async () => {
+    setRefreshing(true);
+    const activeTeamId = getActiveTeamId();
+    if (activeTeamId) {
+      const isBatting = activeSelectionMode === 'striker' || activeSelectionMode === 'nonStriker';
+      if (isBatting) {
+        await fetchTeam(activeTeamId, setBattingTeamRoster);
+      } else {
+        await fetchTeam(activeTeamId, setBowlingTeamRoster);
+      }
+    }
+    setRefreshing(false);
   };
 
   const getActiveTeamId = () => {
@@ -681,9 +697,15 @@ const MatchPlayerSelectionScreen = () => {
                   <Icon name="close" size={24} color={Colors.textPrimary} />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.instructionText}>Check the players you want in the playing XI.</Text>
+              <Text style={styles.instructionText}>Check the players you want in the playing XI. Pull down to refresh.</Text>
 
-              <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.modalList}>
+              <KeyboardAwareScrollView 
+                enableOnAndroid={true} 
+                extraScrollHeight={20} 
+                keyboardShouldPersistTaps="handled" 
+                style={styles.modalList}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshModal} colors={[Colors.primary]} tintColor={Colors.primary} />}
+              >
                 {(activeSelectionMode === 'bowler' ? bowlingTeamRoster : battingTeamRoster).map((p, idx) => {
                   const currentSquad = activeSelectionMode === 'bowler' ? bowlingSquad : battingSquad;
                   const isSelected = currentSquad.some(s => String(s._id || s) === String(p._id || p));
@@ -751,11 +773,27 @@ const MatchPlayerSelectionScreen = () => {
                             teamB: currentTeamB_XI
                           });
 
-                          // Reload roster
+                          // Reload roster synchronously for immediate UI update
                           const activeTeamId = getActiveTeamId();
                           if (isBattingLocal) {
+                            setBattingTeamRoster(prev => {
+                              const exists = prev.some(p => p._id === newPlayer._id);
+                              return exists ? prev : [...prev, newPlayer];
+                            });
+                            setBattingSquad(prev => {
+                              const exists = prev.some(p => p._id === newPlayer._id);
+                              return exists ? prev : [...prev, newPlayer];
+                            });
                             fetchTeam(activeTeamId, setBattingTeamRoster);
                           } else {
+                            setBowlingTeamRoster(prev => {
+                              const exists = prev.some(p => p._id === newPlayer._id);
+                              return exists ? prev : [...prev, newPlayer];
+                            });
+                            setBowlingSquad(prev => {
+                              const exists = prev.some(p => p._id === newPlayer._id);
+                              return exists ? prev : [...prev, newPlayer];
+                            });
                             fetchTeam(activeTeamId, setBowlingTeamRoster);
                           }
 
@@ -764,7 +802,7 @@ const MatchPlayerSelectionScreen = () => {
                           dispatch(setLiveState(res.data.data));
 
                           // Instantly reopen modal
-                          setShowSquadModal(true);
+                          setShowEditSquadModal(true);
                         } catch (e) {
                           console.log('Error adding player to playing XI:', e);
                         }

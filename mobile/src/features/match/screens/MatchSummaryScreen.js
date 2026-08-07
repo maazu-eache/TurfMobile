@@ -11,6 +11,7 @@ import { Colors, Typography, BorderRadius, Spacing, Shadows } from '../../../the
 import moment from 'moment';
 import { getPlayerTags } from '../../../utils/playerTags';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import SharePreviewModal from '../../tournament/components/SharePreviewModal';
 import { MatchSummaryPoster } from '../../tournament/components/PosterTemplates';
@@ -154,6 +155,28 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const [selectedAnalysisBatter, setSelectedAnalysisBatter] = useState(null);
   const [expandedBalls, setExpandedBalls] = useState({});
 
+  const [aiReport, setAiReport] = useState(null);
+  const [aiReportLoading, setAiReportLoading] = useState(false);
+  const [aiReportError, setAiReportError] = useState(false);
+  const [progressMsgIdx, setProgressMsgIdx] = useState(0);
+
+  const progressMessages = [
+    "Analyzing batting performances...",
+    "Reviewing bowling statistics...",
+    "Identifying key moments...",
+    "Writing professional report..."
+  ];
+
+  useEffect(() => {
+    let interval;
+    if (activeTab.startsWith('AI Report') && aiReportLoading && !aiReport) {
+      interval = setInterval(() => {
+        setProgressMsgIdx(prev => (prev + 1) % progressMessages.length);
+      }, 1500);
+    }
+    return () => clearInterval(interval);
+  }, [activeTab, aiReportLoading, aiReport]);
+
   const handleBackPress = useCallback(() => {
     const state = navigation.getState();
     if (state && state.routes) {
@@ -205,6 +228,35 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       console.log('Error fetching scorecards', e);
     } finally {
       if (!silent) setLoadingScorecards(false);
+    }
+  }, [cleanMatchId]);
+
+  const fetchAiReport = useCallback(async () => {
+    if (!cleanMatchId) return;
+    setAiReportLoading(true);
+    setAiReportError(false);
+    try {
+      const res = await api.get(`/matches/${cleanMatchId}/ai-report`);
+      if (res.data?.data) {
+        if (res.data.data.generationStatus === 'completed') {
+          setAiReport(res.data.data);
+          setAiReportLoading(false);
+        } else if (res.data.data.generationStatus === 'generating') {
+          setAiReport(null);
+          setAiReportLoading(true);
+        } else {
+          setAiReport(null);
+          setAiReportLoading(false);
+          setAiReportError(true);
+        }
+      } else {
+        setAiReport(null);
+        setAiReportLoading(false);
+      }
+    } catch (e) {
+      console.log('Error fetching AI Report', e);
+      setAiReportLoading(false);
+      setAiReportError(true);
     }
   }, [cleanMatchId]);
 
@@ -264,6 +316,24 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     />
   );
 
+  const getWinnerTeamName = (matchObj, resultObj) => {
+    const currentMatch = matchObj || match;
+    const currentResult = resultObj || currentMatch?.result;
+    if (!currentMatch) return 'TEAM';
+    const winner = currentResult?.winner;
+    if (!winner) return 'TEAM';
+    if (typeof winner === 'object' && winner.name) return winner.name;
+
+    const winnerIdStr = String(winner._id || winner);
+    const teamAIdStr = String(currentMatch.teamA?._id || currentMatch.teamA);
+    const teamBIdStr = String(currentMatch.teamB?._id || currentMatch.teamB);
+
+    if (winnerIdStr === teamAIdStr) return currentMatch.teamA?.name || 'Team A';
+    if (winnerIdStr === teamBIdStr) return currentMatch.teamB?.name || 'Team B';
+
+    return 'TEAM';
+  };
+
   const [celebration, setCelebration] = useState(null);
   const celebrationAnim = React.useRef(new RNAnimated.Value(0)).current;
   const lastBallRef = React.useRef(null);
@@ -292,7 +362,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (!cleanMatchId) return;
 
     socketService.remoteLog('MatchSummaryScreen', `Joined Match Room: match_${cleanMatchId}`);
-    socketService.joinMatch(cleanMatchId);
+    socketService.joinMatch(cleanMatchId, currentUser?._id || currentUser?.id);
 
     const handleScoreUpdate = (data) => {
       const updateMatchId = socketService.cleanId(data?.match?._id || data?.matchId || data);
@@ -394,7 +464,22 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (activeTab === 'Scorecard' || activeTab === 'Analysis' || activeTab === 'Partnerships') {
       fetchScorecards();
     }
-  }, [activeTab, cleanMatchId, fetchCommentary, fetchScorecards]);
+    if (activeTab === 'AI Report') {
+      fetchAiReport();
+    }
+  }, [activeTab, cleanMatchId, fetchCommentary, fetchScorecards, fetchAiReport]);
+
+  useEffect(() => {
+    let interval;
+    if (activeTab === 'AI Report' && aiReportLoading && !aiReport) {
+      interval = setInterval(() => {
+        fetchAiReport();
+      }, 3000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeTab, aiReportLoading, aiReport, fetchAiReport]);
 
   const isMatchComplete = liveState?.match?.status === 'completed';
   const isAwardCalculationPending = isMatchComplete && (!liveState?.match?.playerOfMatch || !liveState?.match?.result);
@@ -542,6 +627,407 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleShareReport = async () => {
+    if (!aiReport) return;
+    try {
+      await Share.share({
+        message: `${aiReport.headline?.[0] || 'AI Match Report'}\n\n${aiReport.summary}\n\nRead full report on ScoreVerse!`,
+        title: 'AI Match Report'
+      });
+    } catch (e) {
+      console.log('Error sharing report', e);
+    }
+  };
+
+  const handleCopyReport = async () => {
+    if (!aiReport) return;
+    try {
+      const Clipboard = require('@react-native-clipboard/clipboard').default;
+      Clipboard.setString(aiReport.summary);
+      showCustomAlert('Success', 'Match report copied to clipboard!');
+    } catch (e) {
+      // Fallback
+      try {
+        await Share.share({ message: aiReport.summary });
+      } catch (err) {}
+    }
+  };
+
+  const renderAIReport = () => {
+    if (aiReportLoading && !aiReport) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background, padding: 32 }}>
+          <View style={{ marginBottom: 24 }}>
+            <Icon name="brain" size={32} color={Colors.textSecondary} />
+          </View>
+          <ActivityIndicator size="small" color={Colors.primary} style={{ marginBottom: 16 }} />
+          <Text style={{
+            color: Colors.textPrimary,
+            fontSize: Typography.fontSize.lg,
+            fontFamily: Typography.fontFamily.semiBold,
+            marginBottom: 8,
+            textAlign: 'center',
+          }}>
+            Analyzing Match Data
+          </Text>
+          <Text style={{
+            color: Colors.textTertiary,
+            fontSize: Typography.fontSize.sm,
+            fontFamily: Typography.fontFamily.regular,
+            textAlign: 'center',
+          }}>
+            {progressMessages[progressMsgIdx]}
+          </Text>
+        </View>
+      );
+    }
+
+    if (aiReportError || (!aiReport && !aiReportLoading)) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background, padding: 32 }}>
+          <Icon name="alert-circle-outline" size={32} color={Colors.textSecondary} style={{ marginBottom: 16 }} />
+          <Text style={{
+            color: Colors.textPrimary,
+            fontSize: Typography.fontSize.base,
+            fontFamily: Typography.fontFamily.medium,
+            textAlign: 'center',
+            marginBottom: 8,
+          }}>
+            Report Unavailable
+          </Text>
+          <Text style={{
+            color: Colors.textSecondary,
+            fontSize: Typography.fontSize.sm,
+            fontFamily: Typography.fontFamily.regular,
+            textAlign: 'center',
+            marginBottom: 24,
+          }}>
+            We couldn't generate the match report at this time.
+          </Text>
+          <TouchableOpacity
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              borderRadius: BorderRadius.md,
+              borderWidth: 1,
+              borderColor: Colors.border,
+            }}
+            onPress={fetchAiReport}
+          >
+            <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
+              Retry
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
+        style={{ backgroundColor: Colors.background }}
+        refreshControl={getRefreshControl()}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Header Area ── */}
+        <View style={{ marginBottom: 24 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+            <Icon name="brain" size={14} color={Colors.textSecondary} />
+            <Text style={{
+              color: Colors.textSecondary,
+              fontSize: Typography.fontSize.xs,
+              fontFamily: Typography.fontFamily.medium,
+              textTransform: 'uppercase',
+              letterSpacing: 1,
+            }}>
+              AI Match Analysis
+            </Text>
+          </View>
+          <Text style={{
+            color: Colors.textPrimary,
+            fontSize: Typography.fontSize['3xl'],
+            fontFamily: Typography.fontFamily.bold,
+            marginBottom: 4,
+          }}>
+            {teamA} vs {teamB}
+          </Text>
+          <Text style={{
+            color: Colors.textTertiary,
+            fontSize: Typography.fontSize.sm,
+            fontFamily: Typography.fontFamily.regular,
+          }}>
+            Generated {aiReport.generatedAt ? moment(aiReport.generatedAt).format('DD MMM YYYY, h:mm A') : 'recently'}
+          </Text>
+        </View>
+
+        {/* ── Action Buttons ── */}
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 32 }}>
+          <TouchableOpacity
+            style={{
+              flex: 1,
+              borderWidth: 1,
+              borderColor: Colors.border,
+              paddingVertical: 12,
+              borderRadius: BorderRadius.md,
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 8,
+              backgroundColor: Colors.surface,
+            }}
+            onPress={handleCopyReport}
+          >
+            <Icon name="content-copy" size={16} color={Colors.textPrimary} />
+            <Text style={{
+              color: Colors.textPrimary,
+              fontFamily: Typography.fontFamily.medium,
+              fontSize: Typography.fontSize.sm,
+            }}>
+              Copy Text
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              flex: 1,
+              backgroundColor: Colors.primary,
+              paddingVertical: 12,
+              borderRadius: BorderRadius.md,
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 8,
+            }}
+            onPress={handleShareReport}
+          >
+            <Icon name="share-variant" size={16} color="#000" />
+            <Text style={{
+              color: '#000',
+              fontFamily: Typography.fontFamily.medium,
+              fontSize: Typography.fontSize.sm,
+            }}>
+              Share Report
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Headlines ── */}
+        {aiReport.headline && aiReport.headline.length > 0 && (
+          <View style={{ marginBottom: 32 }}>
+            <Text style={{
+              color: Colors.textPrimary,
+              fontSize: Typography.fontSize.md,
+              fontFamily: Typography.fontFamily.semiBold,
+              marginBottom: 16,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+            }}>
+              Key Highlights
+            </Text>
+            <View style={{ gap: 12 }}>
+              {aiReport.headline.map((hl, idx) => (
+                <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                  <View style={{ width: 4, height: '100%', backgroundColor: Colors.primary, borderRadius: 2 }} />
+                  <Text style={{
+                    color: Colors.textSecondary,
+                    fontSize: Typography.fontSize.base,
+                    fontFamily: Typography.fontFamily.regular,
+                    flex: 1,
+                    lineHeight: 24,
+                  }}>
+                    {hl}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        <View style={{ height: 1, backgroundColor: Colors.borderLight, marginBottom: 32 }} />
+
+        {/* ── Match Report Summary ── */}
+        <View style={{ marginBottom: 32 }}>
+          <Text style={{
+            color: Colors.textPrimary,
+            fontSize: Typography.fontSize.md,
+            fontFamily: Typography.fontFamily.semiBold,
+            marginBottom: 16,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            Match Summary
+          </Text>
+          <Text style={{
+            color: Colors.textSecondary,
+            fontSize: Typography.fontSize.base,
+            fontFamily: Typography.fontFamily.regular,
+            lineHeight: 26,
+          }}>
+            {aiReport.summary}
+          </Text>
+        </View>
+
+        {/* ── Player Spotlight ── */}
+        {aiReport.playerSpotlight && (
+          <>
+            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginBottom: 32 }} />
+            <View style={{ marginBottom: 32 }}>
+              <Text style={{
+                color: Colors.textPrimary,
+                fontSize: Typography.fontSize.md,
+                fontFamily: Typography.fontFamily.semiBold,
+                marginBottom: 16,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}>
+                Player Spotlight
+              </Text>
+              <Text style={{
+                color: Colors.textSecondary,
+                fontSize: Typography.fontSize.base,
+                fontFamily: Typography.fontFamily.regular,
+                lineHeight: 26,
+              }}>
+                {aiReport.playerSpotlight}
+              </Text>
+            </View>
+          </>
+        )}
+
+        {/* ── Key Moments ── */}
+        {aiReport.keyMoments && aiReport.keyMoments.length > 0 && (
+          <>
+            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginBottom: 32 }} />
+            <View style={{ marginBottom: 32 }}>
+              <Text style={{
+                color: Colors.textPrimary,
+                fontSize: Typography.fontSize.md,
+                fontFamily: Typography.fontFamily.semiBold,
+                marginBottom: 16,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}>
+                Critical Moments
+              </Text>
+              <View style={{ gap: 16 }}>
+                {aiReport.keyMoments.map((moment, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 16 }}>
+                    <Text style={{
+                      color: Colors.textTertiary,
+                      fontSize: Typography.fontSize.sm,
+                      fontFamily: Typography.fontFamily.semiBold,
+                      marginTop: 2,
+                    }}>
+                      {String(idx + 1).padStart(2, '0')}
+                    </Text>
+                    <Text style={{
+                      color: Colors.textSecondary,
+                      fontSize: Typography.fontSize.base,
+                      fontFamily: Typography.fontFamily.regular,
+                      flex: 1,
+                      lineHeight: 24,
+                    }}>
+                      {moment}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* ── Match Awards ── */}
+        {aiReport.awards && aiReport.awards.length > 0 && (
+          <>
+            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginBottom: 32 }} />
+            <View style={{ marginBottom: 32 }}>
+              <Text style={{
+                color: Colors.textPrimary,
+                fontSize: Typography.fontSize.md,
+                fontFamily: Typography.fontFamily.semiBold,
+                marginBottom: 16,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}>
+                Top Performers
+              </Text>
+              <View style={{ gap: 20 }}>
+                {aiReport.awards.map((award, idx) => (
+                  <View key={idx}>
+                    <Text style={{
+                      color: Colors.textPrimary,
+                      fontSize: Typography.fontSize.sm,
+                      fontFamily: Typography.fontFamily.semiBold,
+                      marginBottom: 4,
+                    }}>
+                      {award.title} • {award.winner}
+                    </Text>
+                    <Text style={{
+                      color: Colors.textSecondary,
+                      fontSize: Typography.fontSize.sm,
+                      fontFamily: Typography.fontFamily.regular,
+                      lineHeight: 22,
+                    }}>
+                      {award.description}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* ── Fun Facts & Insights ── */}
+        {aiReport.funFacts && aiReport.funFacts.length > 0 && (
+          <>
+            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginBottom: 32 }} />
+            <View style={{ marginBottom: 32 }}>
+              <Text style={{
+                color: Colors.textPrimary,
+                fontSize: Typography.fontSize.md,
+                fontFamily: Typography.fontFamily.semiBold,
+                marginBottom: 16,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}>
+                Analysis Insights
+              </Text>
+              <View style={{ gap: 12 }}>
+                {aiReport.funFacts.map((fact, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.textTertiary, marginTop: 10 }} />
+                    <Text style={{
+                      color: Colors.textSecondary,
+                      fontSize: Typography.fontSize.base,
+                      fontFamily: Typography.fontFamily.regular,
+                      flex: 1,
+                      lineHeight: 24,
+                    }}>
+                      {fact}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* Bottom disclaimer */}
+        <View style={{ marginTop: 16, flexDirection: 'row', gap: 8, padding: 16, backgroundColor: Colors.surface, borderRadius: BorderRadius.md }}>
+          <Icon name="information-outline" size={16} color={Colors.textTertiary} />
+          <Text style={{
+            color: Colors.textTertiary,
+            fontSize: Typography.fontSize.sm,
+            fontFamily: Typography.fontFamily.regular,
+            flex: 1,
+            lineHeight: 20,
+          }}>
+            This match summary is generated automatically by artificial intelligence using the scorecard data. It may not reflect exact real-world events.
+          </Text>
+        </View>
+      </ScrollView>
+    );
+  };
+
   const handleContinue = async () => {
     if (match.status === 'scheduled') {
       navigation.navigate('My Cricket', { screen: 'MatchSetup', params: { matchId: match._id, matchData: match, tournamentDetails: match.tournament } });
@@ -555,16 +1041,32 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
   };
 
-  const renderTabHeader = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
-      {['Info', 'Summary', 'Scorecard', 'Comms', 'Squads', 'Analysis', 'Partnerships', 'Leaderboard'].map(tab => (
-        <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={styles.tabItem}>
-          {activeTab === tab && <View style={styles.tabActivePill} />}
-          <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
+  const renderTabHeader = () => {
+    const tabs = ['Info', 'Summary'];
+    if (match.status === 'completed') {
+      if (aiReportLoading && !aiReport) {
+        tabs.push('AI Report (Generating...)');
+      } else {
+        tabs.push('AI Report');
+      }
+    }
+    tabs.push('Scorecard', 'Comms', 'Squads', 'Analysis', 'Partnerships', 'Leaderboard');
+
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
+        {tabs.map(tab => (
+          <TouchableOpacity 
+            key={tab} 
+            onPress={() => setActiveTab(tab)} 
+            style={styles.tabItem}
+          >
+            {activeTab === tab && <View style={styles.tabActivePill} />}
+            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    );
+  };
 
   const renderMatchDetails = () => (
     <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
@@ -613,10 +1115,66 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       );
     }
 
+    if (loadingScorecards) {
+      return (
+        <ScrollView contentContainerStyle={styles.content}>
+          <SkeletonPlaceholder backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
+            {/* Header Section (Scores & Result) */}
+            <View style={[styles.section, { paddingBottom: 16, paddingTop: 16 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1 }}>
+                  {/* Team 1 Score */}
+                  <View style={{ marginBottom: 12 }}>
+                    <View style={{ width: 100, height: 16, borderRadius: 4, marginBottom: 8 }} />
+                    <View style={{ width: 140, height: 26, borderRadius: 6 }} />
+                  </View>
+                  {/* Team 2 Score */}
+                  <View style={{ marginBottom: 12 }}>
+                    <View style={{ width: 100, height: 16, borderRadius: 4, marginBottom: 8 }} />
+                    <View style={{ width: 140, height: 26, borderRadius: 6 }} />
+                  </View>
+                </View>
+                {/* Result Label */}
+                <View style={{ width: 50, height: 24, borderRadius: 12, marginLeft: 16 }} />
+              </View>
+
+              {/* Match Summary text */}
+              <View style={{ width: '80%', height: 16, borderRadius: 4, marginTop: 8 }} />
+              
+              {/* Views Row */}
+              <View style={{ flexDirection: 'row', marginTop: 12, borderTopWidth: 0.5, borderTopColor: Colors.border, paddingTop: 12, gap: 12 }}>
+                <View style={{ width: 60, height: 14, borderRadius: 4 }} />
+                <View style={{ width: 80, height: 14, borderRadius: 4 }} />
+              </View>
+
+              {/* Leaderboard Button */}
+              <View style={{ width: '100%', height: 44, borderRadius: 8, marginTop: 16 }} />
+            </View>
+
+            {/* Heroes of the Match Section */}
+            <View style={{ paddingHorizontal: Spacing.md, marginBottom: 14 }}>
+              <View style={{ width: 150, height: 18, borderRadius: 4, marginBottom: 16 }} />
+              
+              {/* MVP Big Card */}
+              <View style={{ width: '100%', height: 200, borderRadius: 16, marginBottom: 16 }} />
+              
+              {/* Other Heroes (2 Col) */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <View style={{ width: '48.5%', height: 120, borderRadius: 16 }} />
+                <View style={{ width: '48.5%', height: 120, borderRadius: 16 }} />
+              </View>
+            </View>
+          </SkeletonPlaceholder>
+        </ScrollView>
+      );
+    }
+
     const getPlayerPhotoUrl = (p) => {
       if (!p) return null;
-      const photo = p.photo || p.user?.photo || p.userId?.photo || p.avatar || p.profileImage || p.image || p.user?.avatar;
-      return photo ? getImageUrl(photo) : null;
+      const photo = p.photo || p.user?.photo || p.userId?.photo || p.avatar || p.profileImage || p.image || p.user?.avatar || p.profilePic;
+      if (photo) return getImageUrl(photo);
+      const name = p.name || p.user?.name || 'Player';
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=FFD700&color=000000&bold=true&size=256`;
     };
 
     const isTeamABatting = match.battingTeam?.toString() === match.teamA?._id?.toString() || liveState?.battingTeam?.toString() === match.teamA?._id?.toString();
@@ -1374,6 +1932,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     let overBalls = [];
     let overRuns = 0;
     let overWickets = 0;
+    let cumulativeInningsRuns = 0;
+    let cumulativeInningsWickets = 0;
 
     // Clone and reverse commentary so we iterate chronologically from first ball to last ball
     const chronologicalComms = [...filteredCommentary].reverse();
@@ -1381,17 +1941,6 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     let currentBowlerId = null;
     let activeBattersList = new Set();
     let isFirstBallOfInnings = true;
-    let cumRuns = 0;
-    let cumWickets = 0;
-
-    const getTeamNameFromBall = (ballItem) => {
-      if (!ballItem) return '';
-      if (ballItem.battingTeam?.name) return ballItem.battingTeam.name;
-      const bTeamId = String(ballItem.battingTeam?._id || ballItem.battingTeam || '');
-      if (bTeamId === String(match?.teamA?._id || match?.teamA)) return match?.teamA?.name || '';
-      if (bTeamId === String(match?.teamB?._id || match?.teamB)) return match?.teamB?.name || '';
-      return '';
-    };
 
     chronologicalComms.forEach((item, index) => {
       const itemInningsId = (item.innings?._id || item.innings).toString();
@@ -1399,16 +1948,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       const batsmanId = item.batsman?._id || item.batsman;
       const nonStrikerId = item.nonStriker?._id || item.nonStriker;
 
-      if (currentInningsId !== null && currentInningsId !== itemInningsId) {
-        cumRuns = 0;
-        cumWickets = 0;
-      }
-
       // If we transition to a new over OR a new innings, close the previous over
       if (currentOverNumber !== null && (currentOverNumber !== item.overNumber || currentInningsId !== itemInningsId)) {
         if (showOverSummary) {
-          const lastBall = overBalls[overBalls.length - 1];
-          const tName = getTeamNameFromBall(lastBall);
           timelineData.push({
             type: 'overSummary',
             id: `over-${currentOverNumber}-${currentInningsId}-${index}`,
@@ -1416,10 +1958,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             runs: overRuns,
             wickets: overWickets,
             balls: [...overBalls],
-            bowler: lastBall?.bowler,
-            cumulativeScore: `${cumRuns}/${cumWickets}`,
-            teamName: tName,
-            score: lastBall?.score
+            bowler: overBalls[overBalls.length - 1]?.bowler,
+            score: overBalls[overBalls.length - 1]?.score || {
+              runs: cumulativeInningsRuns,
+              wickets: cumulativeInningsWickets,
+              bowlerOvers: overBalls[overBalls.length - 1]?.score?.bowlerOvers
+            }
           });
         }
         overBalls = [];
@@ -1429,6 +1973,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
       // Check for Start of Innings Openers
       if (isFirstBallOfInnings || currentInningsId !== itemInningsId) {
+        cumulativeInningsRuns = 0;
+        cumulativeInningsWickets = 0;
         isFirstBallOfInnings = false;
         activeBattersList.clear();
         if (item.batsman) activeBattersList.add(batsmanId.toString());
@@ -1483,9 +2029,6 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       currentOverNumber = item.overNumber;
       currentInningsId = itemInningsId;
 
-      cumRuns += item.totalRuns || 0;
-      if (item.isWicket) cumWickets += 1;
-
       timelineData.push({
         type: 'ball',
         id: item._id || `ball-${index}`,
@@ -1494,13 +2037,15 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
       overBalls.push(item);
       overRuns += item.totalRuns || 0;
-      if (item.isWicket) overWickets += 1;
+      cumulativeInningsRuns += item.totalRuns || 0;
+      if (item.isWicket) {
+        overWickets += 1;
+        cumulativeInningsWickets += 1;
+      }
     });
 
     // Output final over summary
     if (currentOverNumber !== null && showOverSummary && overBalls.length > 0) {
-      const lastBall = overBalls[overBalls.length - 1];
-      const tName = getTeamNameFromBall(lastBall);
       timelineData.push({
         type: 'overSummary',
         id: `over-${currentOverNumber}-${currentInningsId}-final`,
@@ -1508,10 +2053,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         runs: overRuns,
         wickets: overWickets,
         balls: [...overBalls],
-        bowler: lastBall?.bowler,
-        cumulativeScore: `${cumRuns}/${cumWickets}`,
-        teamName: tName,
-        score: lastBall?.score
+        bowler: overBalls[overBalls.length - 1]?.bowler,
+        score: overBalls[overBalls.length - 1]?.score || {
+          runs: cumulativeInningsRuns,
+          wickets: cumulativeInningsWickets,
+          bowlerOvers: overBalls[overBalls.length - 1]?.score?.bowlerOvers
+        }
       });
     }
 
@@ -1826,19 +2373,18 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTopWidth: 1, borderTopColor: `${Colors.borderLight}55` }}>
-              <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>
-                {summary.teamName ? `${summary.teamName}: ` : 'Score: '}
-                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 15 }}>
-                  {summary.cumulativeScore || (summary.score ? `${summary.score.runs}/${summary.score.wickets}` : '')}
+            {summary.score && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 }}>
+                  Score: <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14 }}>{summary.score.runs}-{summary.score.wickets}</Text>
                 </Text>
-              </Text>
-              {summary.bowler && (
-                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 }}>
-                  {summary.bowler.name}
-                </Text>
-              )}
-            </View>
+                {summary.bowler && summary.score.bowlerOvers !== undefined && (
+                  <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 }}>
+                    {summary.bowler.name}: {summary.score.bowlerOvers} Ov
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
         </View>
       );
@@ -2418,26 +2964,69 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                   <Text style={{ position: 'absolute', right: 10, top: CY_ACTUAL - 8, color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 'bold' }}>LEG</Text>
                   <Text style={{ position: 'absolute', left: 10, top: CY_ACTUAL - 8, color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 'bold' }}>OFF</Text>
 
-                  {wagonWheelPoints.map((point, idx) => (
-                    <View key={idx} style={{
-                      position: 'absolute',
-                      left: CX - point.distance,
-                      top: CY_ACTUAL - 2,
-                      width: point.distance * 2,
-                      height: 4,
-                      justifyContent: 'center',
-                      alignItems: 'flex-end',
-                      transform: [
-                        { rotate: `${point.angle}deg` }
-                      ]
-                    }}>
-                      <View style={{ width: point.distance, height: 4, backgroundColor: point.color || '#FFF' }} />
-                    </View>
-                  ))}
+                  {wagonWheelPoints.map((point, idx) => {
+                    let shotColor = point.color;
+                    if (point.runs === 6 || point.batsmanRuns === 6) shotColor = '#E53935';
+                    else if (point.runs === 4 || point.batsmanRuns === 4) shotColor = '#4CAF50';
+                    else if (point.runs === 3 || point.batsmanRuns === 3) shotColor = '#FFD700';
+                    else if (point.runs === 1 || point.runs === 2 || point.batsmanRuns === 1 || point.batsmanRuns === 2) shotColor = '#FFFFFF';
+                    if (!shotColor) shotColor = '#FFFFFF';
+
+                    return (
+                      <View key={idx} style={{
+                        position: 'absolute',
+                        left: CX - point.distance,
+                        top: CY_ACTUAL - 1,
+                        width: point.distance * 2,
+                        height: 1.5,
+                        justifyContent: 'center',
+                        alignItems: 'flex-end',
+                        transform: [
+                          { rotate: `${point.angle}deg` }
+                        ]
+                      }}>
+                        <View style={{ width: point.distance, height: 1.5, backgroundColor: shotColor }} />
+                      </View>
+                    );
+                  })}
                 </ImageBackground>
               </View>
             );
           })()}
+
+          {/* Color Indicator Legend */}
+          <View style={{
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 16,
+            marginTop: 18,
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            backgroundColor: Colors.surface,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: Colors.borderLight
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 14, height: 2.5, backgroundColor: '#E53935', borderRadius: 1 }} />
+              <Text style={{ color: Colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.semiBold }}>6s (Sixes)</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 14, height: 2.5, backgroundColor: '#4CAF50', borderRadius: 1 }} />
+              <Text style={{ color: Colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.semiBold }}>4s (Fours)</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 14, height: 2.5, backgroundColor: '#FFD700', borderRadius: 1 }} />
+              <Text style={{ color: Colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.semiBold }}>3s (Threes)</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 14, height: 2.5, backgroundColor: '#FFFFFF', borderRadius: 1 }} />
+              <Text style={{ color: Colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.semiBold }}>1s & 2s</Text>
+            </View>
+          </View>
+
           {wagonWheelPoints.length === 0 && (
             <Text style={{ color: Colors.textSecondary, marginTop: 16, fontStyle: 'italic' }}>No wagon wheel data recorded.</Text>
           )}
@@ -2911,6 +3500,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       <View style={styles.tabContentContainer}>
         {activeTab === 'Info' && renderMatchDetails()}
         {activeTab === 'Summary' && renderSummary()}
+        {activeTab.startsWith('AI Report') && renderAIReport()}
         {activeTab === 'Scorecard' && renderScorecard()}
         {activeTab === 'Comms' && renderCommentary()}
         {activeTab === 'Squads' && renderSquads()}
@@ -3418,7 +4008,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         visible={shareModalVisible}
         onClose={() => setShareModalVisible(false)}
         title={`${liveState?.match?.teamA?.name || 'Team A'} vs ${liveState?.match?.teamB?.name || 'Team B'}`}
-        shareUrl={`https://scoreverse.maazibrahimoo0.workers.dev/match/${cleanMatchId}`}
+        shareUrl={`https://scoreverse.in/match/${cleanMatchId}`}
       >
         <MatchSummaryPoster liveState={liveState} />
       </SharePreviewModal>

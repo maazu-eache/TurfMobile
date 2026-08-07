@@ -86,7 +86,7 @@ const ProfileStack = () => (
 const tabIcons = { Dashboard: 'view-dashboard', Bookings: 'calendar-clock', Analytics: 'chart-bar', Profile: 'account' };
 
 /* ── Animated single tab item ──────────────────────────────────────────── */
-const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets }) => {
+const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets, badgeCount }) => {
   const scaleAnim = useRef(new Animated.Value(isFocused ? 1.15 : 1)).current;
   const dotAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
   const translateY = useRef(new Animated.Value(isFocused ? -3 : 0)).current;
@@ -125,17 +125,15 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets }) => {
       style={tabStyles.tabItem}
       activeOpacity={0.7}
     >
-      <Animated.View
-        style={[
-          tabStyles.iconWrap,
-          { transform: [{ scale: scaleAnim }, { translateY }] }
-        ]}
-      >
-        <Icon
-          name={iconName}
-          size={22}
-          color={isFocused ? Colors.primary : Colors.textTertiary}
-        />
+      <Animated.View style={[tabStyles.iconWrap, { transform: [{ scale: scaleAnim }, { translateY }] }]}>
+        <View>
+          <Icon name={iconName} size={22} color={isFocused ? Colors.primary : Colors.textTertiary} />
+          {badgeCount > 0 && (
+            <View style={tabStyles.badge}>
+              <Text style={tabStyles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
+            </View>
+          )}
+        </View>
       </Animated.View>
 
       {/* Yellow dot indicator below the icon */}
@@ -189,6 +187,7 @@ const CustomTabBar = ({ state, descriptors, navigation, insets }) => {
             onPress={onPress}
             onLongPress={onLongPress}
             insets={insets}
+            badgeCount={route.name === 'Bookings' ? descriptors[route.key].options.badgeCount : 0}
           />
         );
       })}
@@ -226,14 +225,30 @@ const tabStyles = StyleSheet.create({
     fontFamily: 'Outfit-Medium',
     letterSpacing: 0.2,
   },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: Colors.error,
+    borderRadius: 10,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontFamily: 'Outfit-Bold',
+  }
 });
 
 const OwnerNavigator = () => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const { dashboard } = useSelector((state) => state.owner);
-  const turfs = dashboard?.owner?.turfs || [];
-  const totalPendingActions = turfs.reduce((acc, turf) => acc + (turf.pendingActionsCount || 0), 0);
+  const pendingCancellationsCount = dashboard?.stats?.pendingCancellationsCount || 0;
 
   useEffect(() => {
     dispatch(fetchOwnerDashboard());
@@ -248,7 +263,7 @@ const OwnerNavigator = () => {
       <Tab.Screen 
         name="Bookings" 
         component={OwnerBookingsStack} 
-        options={{ tabBarBadge: totalPendingActions > 0 ? totalPendingActions : null }}
+        options={{ badgeCount: pendingCancellationsCount }}
       />
       <Tab.Screen name="Analytics" component={AnalyticsStack} />
       <Tab.Screen name="Profile" component={ProfileStack} />

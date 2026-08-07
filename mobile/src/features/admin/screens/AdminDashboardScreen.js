@@ -73,8 +73,11 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
-  const [upiId, setUpiId] = useState('');
-  const [bannerImage, setBannerImage] = useState(null);
+  const [bookingPlatformFeePercent, setBookingPlatformFeePercent] = useState('5');
+  const [auctionPlatformFeePercent, setAuctionPlatformFeePercent] = useState('10');
+  const [cancellationRefundPercent, setCancellationRefundPercent] = useState('70');
+  const [cancellationOwnerPercent, setCancellationOwnerPercent] = useState('20');
+  const [cancellationPlatformPercent, setCancellationPlatformPercent] = useState('10');
   
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [selectedVerificationPayment, setSelectedVerificationPayment] = useState(null);
@@ -91,36 +94,29 @@ const AdminDashboardScreen = ({ navigation }) => {
   const fetchSettings = async () => {
     try {
       const res = await api.get('/admin/settings');
-      if (res.data.data?.upiId) setUpiId(res.data.data.upiId);
-      if (res.data.data?.bannerUrl) setBannerImage({ uri: getImageUrl(res.data.data.bannerUrl), isExisting: true });
+      if (res.data.data?.cancellationRefundPercent !== undefined) setCancellationRefundPercent(res.data.data.cancellationRefundPercent.toString());
+      if (res.data.data?.cancellationOwnerPercent !== undefined) setCancellationOwnerPercent(res.data.data.cancellationOwnerPercent.toString());
+      if (res.data.data?.cancellationPlatformPercent !== undefined) setCancellationPlatformPercent(res.data.data.cancellationPlatformPercent.toString());
     } catch (err) {
       console.log('Failed to fetch admin settings', err);
     }
   };
 
-  const handleSelectBanner = () => {
-    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (response) => {
-      if (!response.didCancel && response.assets && response.assets.length > 0) {
-        const selected = response.assets[0];
-        if (selected.fileSize && selected.fileSize > 3 * 1024 * 1024) {
-          showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
-          return;
-        }
-        setBannerImage(selected);
-      }
-    });
-  };
-
   const saveSettings = async () => {
     try {
       const formData = new FormData();
-      if (upiId) formData.append('upiId', upiId);
-      if (bannerImage && !bannerImage.isExisting) {
-        formData.append('banner', {
-          uri: bannerImage.uri,
-          type: bannerImage.type || 'image/jpeg',
-          name: bannerImage.fileName || 'banner.jpg',
-        });
+      formData.append('bookingPlatformFeePercent', bookingPlatformFeePercent);
+      formData.append('auctionPlatformFeePercent', auctionPlatformFeePercent);
+      formData.append('cancellationRefundPercent', cancellationRefundPercent);
+      formData.append('cancellationOwnerPercent', cancellationOwnerPercent);
+      formData.append('cancellationPlatformPercent', cancellationPlatformPercent);
+      
+      const ref = Number(cancellationRefundPercent);
+      const own = Number(cancellationOwnerPercent);
+      const plat = Number(cancellationPlatformPercent);
+      if (ref + own + plat !== 100) {
+        showCustomAlert('Error', 'Cancellation percentages must equal 100%');
+        return;
       }
 
       await api.put('/admin/settings', formData, {
@@ -830,6 +826,13 @@ const AdminDashboardScreen = ({ navigation }) => {
           <View style={styles.headerActions}>
             <NotificationBell onPress={() => navigation.navigate('Notifications')} />
             <TouchableOpacity
+              onPress={() => setShowSettings(true)}
+              style={[styles.headerActionBtn, { backgroundColor: 'rgba(255,212,0,0.12)', borderColor: 'rgba(255,212,0,0.25)', marginRight: 6 }]}
+              activeOpacity={0.8}
+            >
+              <Icon name="cog" size={19} color="#FFD400" />
+            </TouchableOpacity>
+            <TouchableOpacity
               onPress={handleLogout}
               style={[styles.headerActionBtn, { backgroundColor: 'rgba(255,71,87,0.12)', borderColor: 'rgba(255,71,87,0.25)' }]}
               activeOpacity={0.8}
@@ -948,32 +951,69 @@ const AdminDashboardScreen = ({ navigation }) => {
       {/* Settings Modal */}
       <Modal visible={showSettings} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
-          <KeyboardAwareScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+          <View style={styles.modalContent}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg }}>
               <Text style={styles.modalTitle}>Platform Settings</Text>
               <TouchableOpacity onPress={() => setShowSettings(false)}><Icon name="close" size={24} color={Colors.textPrimary}/></TouchableOpacity>
             </View>
-            <Text style={styles.inputLabel}>Admin UPI ID (For receiving platform fees)</Text>
+
+            <Text style={[styles.inputLabel, { marginTop: Spacing.md }]}>Booking Platform Fee %</Text>
             <TextInput
               style={styles.input}
-              value={upiId}
-              onChangeText={setUpiId}
-              placeholder="e.g. admin@upi"
+              value={bookingPlatformFeePercent}
+              onChangeText={setBookingPlatformFeePercent}
+              placeholder="e.g. 5"
+              keyboardType="numeric"
               placeholderTextColor={Colors.textTertiary}
             />
 
-            <Text style={[styles.inputLabel, { marginTop: Spacing.lg }]}>Platform Banner Image</Text>
-            <TouchableOpacity style={styles.bannerUploadBtn} onPress={handleSelectBanner}>
-              {bannerImage ? (
-                <Image source={{ uri: bannerImage.uri }} style={styles.bannerPreview} resizeMode="cover" />
-              ) : (
-                <View style={{ alignItems: 'center' }}>
-                  <Icon name="image-plus" size={32} color={Colors.primary} />
-                  <Text style={styles.bannerUploadText}>Select Banner Image</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <Text style={{ color: Colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 8 }}>Max 3 MB</Text>
+            <Text style={[styles.inputLabel, { marginTop: Spacing.md }]}>Auction Platform Fee %</Text>
+            <TextInput
+              style={styles.input}
+              value={auctionPlatformFeePercent}
+              onChangeText={setAuctionPlatformFeePercent}
+              placeholder="e.g. 10"
+              keyboardType="numeric"
+              placeholderTextColor={Colors.textTertiary}
+            />
+
+            <Text style={[styles.inputLabel, { marginTop: Spacing.lg, color: Colors.primary, fontSize: 16 }]}>Cancellation Breakdown (must equal 100%)</Text>
+            
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: Spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Refund %</Text>
+                <TextInput
+                  style={styles.input}
+                  value={cancellationRefundPercent}
+                  onChangeText={setCancellationRefundPercent}
+                  placeholder="70"
+                  keyboardType="numeric"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Owner %</Text>
+                <TextInput
+                  style={styles.input}
+                  value={cancellationOwnerPercent}
+                  onChangeText={setCancellationOwnerPercent}
+                  placeholder="20"
+                  keyboardType="numeric"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Platform %</Text>
+                <TextInput
+                  style={styles.input}
+                  value={cancellationPlatformPercent}
+                  onChangeText={setCancellationPlatformPercent}
+                  placeholder="10"
+                  keyboardType="numeric"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+              </View>
+            </View>
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.surfaceVariant }]} onPress={() => setShowSettings(false)}>
@@ -983,7 +1023,7 @@ const AdminDashboardScreen = ({ navigation }) => {
                 <Text style={[styles.modalBtnText, { color: Colors.background }]}>Save</Text>
               </TouchableOpacity>
             </View>
-          </KeyboardAwareScrollView>
+          </View>
           </View>
       </Modal>
 

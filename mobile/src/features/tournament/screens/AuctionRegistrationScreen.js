@@ -46,6 +46,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(false);
   const [auction, setAuction] = useState(null);
   const [myRegistration, setMyRegistration] = useState(null);
+  const [platformFeePercent, setPlatformFeePercent] = useState(10);
   const { user } = useSelector(state => state.auth);
   const { myProfile } = useSelector(state => state.player);
 
@@ -78,6 +79,11 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     fetchAuctionData();
+    api.get('/admin/public-settings').then(res => {
+      if (res.data?.data?.auctionPlatformFeePercent !== undefined) {
+        setPlatformFeePercent(res.data.data.auctionPlatformFeePercent);
+      }
+    }).catch(console.error);
   }, [tournamentId]);
 
   const fetchAuctionData = async () => {
@@ -213,7 +219,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
   }
 
   const entryFee = auction?.registrationFee || 0;
-  const platformFee = Math.round(entryFee * 0.10);
+  const platformFee = Math.round(entryFee * (platformFeePercent / 100));
   const baseFee = entryFee - platformFee;
 
   return (
@@ -306,7 +312,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                   </View>
                   <View style={styles.feeCardSep} />
                   <View style={styles.feeCardItem}>
-                    <Text style={styles.feeCardLabel}>Platform Fee (10%)</Text>
+                    <Text style={styles.feeCardLabel}>Platform Fee ({platformFeePercent}%)</Text>
                     <Text style={styles.feeCardAmount}>₹{platformFee}</Text>
                   </View>
                   <View style={styles.feeCardSep} />

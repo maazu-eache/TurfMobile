@@ -29,14 +29,14 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const BookingConfirmScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { turf, slots } = route.params;
+  const { turf, slots, platformFeePercent = 5 } = route.params;
   const dispatch = useDispatch();
   const { isLoading } = useSelector((state) => state.booking);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   
   const subtotal = slots.reduce((acc, s) => acc + s.price, 0);
-  const platformFee = Math.round(subtotal * 0.05); // 5% platform fee
+  const platformFee = Math.round(subtotal * (platformFeePercent / 100)); // Dynamic platform fee
   const total = subtotal + platformFee;
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -287,8 +287,8 @@ const BookingConfirmScreen = ({ route, navigation }) => {
 
             <View style={styles.billRow}>
               <View style={styles.billLabelBlock}>
-                <Text style={styles.billLabel}>Platform Fee</Text>
-                <TouchableOpacity onPress={() => showCustomAlert('Platform Fee', '5% platform service charge to facilitate secure digital bookings.')}>
+                <Text style={styles.billLabel}>Platform Fee ({platformFeePercent}%)</Text>
+                <TouchableOpacity onPress={() => showCustomAlert('Platform Fee', `${platformFeePercent}% platform service charge to facilitate secure digital bookings.`)}>
                   <Icon name="information-outline" size={12} color="rgba(255,255,255,0.4)" style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
               </View>
