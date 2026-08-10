@@ -26,7 +26,7 @@ const RootNavigator = () => {
       }
     }).catch(() => {});
 
-    const timer = setTimeout(() => setShowSplash(false), 7000); // Wait for the 6s video to finish
+    const timer = setTimeout(() => setShowSplash(false), 7000); // Wait for the 7s video to finish
     return () => clearTimeout(timer);
   }, []);
 
@@ -59,7 +59,9 @@ const RootNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {showSplash ? (
-        <Stack.Screen name="Splash" component={SplashScreen} />
+        <Stack.Screen name="Splash">
+          {(props) => <SplashScreen {...props} onFinished={() => setShowSplash(false)} />}
+        </Stack.Screen>
       ) : isAuthenticated ? (
         getMainNavigator()
       ) : isGuest ? (

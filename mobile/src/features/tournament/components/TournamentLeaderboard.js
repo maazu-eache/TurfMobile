@@ -1,16 +1,46 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, Image, TouchableOpacity,
+  Modal, Pressable, Dimensions, ActivityIndicator,
+} from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { getImageUrl } from '../../../api/axios';
+import api from '../../../api/axios';
 import Icon from 'react-native-vector-icons/Feather';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const TABS = ['Batters', 'Bowlers', 'Fielders', 'MVP'];
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+const TABS = ['Batters', 'Bowlers', 'Fielders', 'MVP'];
 const RANK_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'];
 
 const TournamentLeaderboard = ({ tournament, onShare }) => {
   const [activeTab, setActiveTab] = useState('Batters');
+  const [previewPlayer, setPreviewPlayer] = useState(null);
+  const [careerStats, setCareerStats] = useState(null);
+  const [careerLoading, setCareerLoading] = useState(false);
+  const navigation = useNavigation();
+
+  // Fetch career stats when a player is previewed
+  useEffect(() => {
+    const playerId = previewPlayer?.player?._id;
+    if (!playerId) { setCareerStats(null); return; }
+    let cancelled = false;
+    setCareerStats(null);
+    setCareerLoading(true);
+    api.get(`/players/${playerId}`)
+      .then(res => {
+        if (!cancelled) {
+          const p = res.data?.data || res.data;
+          setCareerStats(p || null);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setCareerLoading(false); });
+    return () => { cancelled = true; };
+  }, [previewPlayer?.player?._id]);
 
   if (!tournament?.leaderboard) {
     return (
@@ -63,12 +93,10 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
       case 'Batters':
         return [
           { label: 'Avg', value: item.average || '0' },
-          { label: 'M', value: item.matches || '0' },
           { label: 'HS', value: item.highestScore || '0' },
         ];
       case 'Bowlers':
         return [
-          { label: 'Ov', value: item.overs || '0' },
           { label: 'Eco', value: item.economy || '0' },
           { label: 'Best', value: item.bestBowling || '-' },
         ];
@@ -76,13 +104,9 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
         return [
           { label: 'Ct', value: item.catches || '0' },
           { label: 'RO', value: item.runOuts || '0' },
-          { label: 'St', value: item.stumpings || '0' },
         ];
       case 'MVP':
         return [
-          { label: 'Bat', value: item.battingMvp?.toFixed(2) || '0.00' },
-          { label: 'Bowl', value: item.bowlingMvp?.toFixed(2) || '0.00' },
-          { label: 'Field', value: item.fieldingMvp?.toFixed(2) || '0.00' },
           { label: 'M', value: item.matches || '0' },
           { label: 'POM', value: item.pomCount || '0' },
         ];
@@ -91,10 +115,35 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
     }
   };
 
+  const getPlayerTeam = (player, item) => {
+    if (item.team?.name) return item.team;
+    if (!tournament) return {};
+    const playerId = String(player._id || player.id || '');
+    if (!playerId) return {};
+    const lists = [
+      tournament.leaderboard?.mostRuns || [],
+      tournament.leaderboard?.mostWickets || [],
+      tournament.leaderboard?.bestFielders || [],
+      tournament.leaderboard?.mostSixes || [],
+      tournament.leaderboard?.mostFours || [],
+      tournament.leaderboard?.mvp || []
+    ];
+    for (const list of lists) {
+      const found = list.find(x => String(x.player?._id || x.player?.id || x.player) === playerId);
+      if (found?.team?.name) return found.team;
+    }
+    return {};
+  };
+
+  const openPreview = (player, item) => {
+    const team = getPlayerTeam(player, item);
+    const photoUrl = player.photo || player.userId?.photo;
+    setPreviewPlayer({ player, team, photoUrl, stat: getPrimaryValue(item) });
+  };
+
   const renderTopThree = (players) => {
     if (!players || players.length === 0) return null;
     const top = players.slice(0, Math.min(3, players.length));
-    // Podium order: 2nd, 1st, 3rd
     const podiumOrder = top.length >= 3 ? [top[1], top[0], top[2]] : top.length === 2 ? [top[1], top[0]] : [top[0]];
 
     return (
@@ -103,16 +152,23 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
           if (!item) return null;
           const realIdx = players.indexOf(item);
           const player = item.player || {};
-          const team = item.team || {};
+          const team = getPlayerTeam(player, item);
           const stat = getPrimaryValue(item);
+          const pills = getStatPills(item);
           const isFirst = realIdx === 0;
           const rankColor = RANK_COLORS[realIdx] || Colors.primary;
+          const photoUrl = player.photo || player.userId?.photo;
 
           return (
-            <View key={player._id || podIdx} style={[styles.podiumItem, isFirst && styles.podiumFirst]}>
+            <TouchableOpacity
+              key={player._id || podIdx}
+              style={[styles.podiumItem, isFirst && styles.podiumFirst]}
+              onPress={() => openPreview(player, item)}
+              activeOpacity={0.85}
+            >
               <View style={[styles.podiumAvatarWrap, { borderColor: rankColor }]}>
-                {player.photo && getPhotoUrl(player.photo) ? (
-                  <Image source={{ uri: getPhotoUrl(player.photo) }} style={styles.podiumAvatar} />
+                {photoUrl && getPhotoUrl(photoUrl) ? (
+                  <Image source={{ uri: getPhotoUrl(photoUrl) }} style={styles.podiumAvatar} />
                 ) : (
                   <View style={[styles.podiumAvatar, { backgroundColor: Colors.backgroundElevated, justifyContent: 'center', alignItems: 'center' }]}>
                     <Text style={[styles.podiumAvatarLetter, { color: rankColor }]}>
@@ -131,7 +187,17 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
                 <Text style={[styles.podiumStatValue, { color: rankColor }]}>{stat.value}</Text>
                 <Text style={styles.podiumStatUnit}>{stat.unit}</Text>
               </View>
-            </View>
+              {pills.length > 0 && (
+                <View style={[styles.pillRow, { justifyContent: 'center', marginTop: 6, gap: 4 }]}>
+                  {pills.map((pill, pi) => (
+                    <View key={pi} style={[styles.pill, { paddingHorizontal: 4, paddingVertical: 1 }]}>
+                      <Text style={[styles.pillLabel, { fontSize: 8 }]}>{pill.label}</Text>
+                      <Text style={[styles.pillValue, { fontSize: 8 }]}>{pill.value}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </TouchableOpacity>
           );
         })}
       </View>
@@ -143,15 +209,21 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
     return players.slice(3).map((item, index) => {
       const realIdx = index + 3;
       const player = item.player || {};
-      const team = item.team || {};
+      const team = getPlayerTeam(player, item);
       const stat = getPrimaryValue(item);
       const pills = getStatPills(item);
+      const photoUrl = player.photo || player.userId?.photo;
 
       return (
-        <View key={player._id || realIdx} style={styles.listCard}>
+        <TouchableOpacity
+          key={player._id || realIdx}
+          style={styles.listCard}
+          onPress={() => openPreview(player, item)}
+          activeOpacity={0.85}
+        >
           <Text style={styles.listRank}>#{realIdx + 1}</Text>
-          {player.photo && getPhotoUrl(player.photo) ? (
-            <Image source={{ uri: getPhotoUrl(player.photo) }} style={styles.listAvatar} />
+          {photoUrl && getPhotoUrl(photoUrl) ? (
+            <Image source={{ uri: getPhotoUrl(photoUrl) }} style={styles.listAvatar} />
           ) : (
             <View style={[styles.listAvatar, styles.listAvatarFallback]}>
               <Text style={styles.listAvatarLetter}>{(player.name || 'U').charAt(0).toUpperCase()}</Text>
@@ -175,7 +247,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
             <Text style={styles.listStatValue}>{stat.value}</Text>
             <Text style={styles.listStatUnit}>{stat.unit}</Text>
           </View>
-        </View>
+        </TouchableOpacity>
       );
     });
   };
@@ -184,7 +256,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
 
   return (
     <View style={styles.container}>
-      {/* Sub-tabs — underline style */}
+      {/* Sub-tabs */}
       <View style={styles.tabBar}>
         {TABS.map(tab => (
           <TouchableOpacity
@@ -205,15 +277,19 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
 
       {onShare && (
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.md, paddingTop: 12, paddingBottom: 16 }}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}
             onPress={() => {
               let shareType = 'runs';
               if (activeTab === 'Bowlers') shareType = 'wickets';
-              if (activeTab === 'Fielders') shareType = 'catches'; // Or whatever type we mapped
+              if (activeTab === 'Fielders') shareType = 'catches';
               if (activeTab === 'MVP') shareType = 'mvp';
-              
-              onShare({ type: 'leaderboard', data: { type: shareType, data: getActiveData() } });
+              const resolvedData = getActiveData().map(item => {
+                const player = item.player || {};
+                const team = getPlayerTeam(player, item);
+                return { ...item, team };
+              });
+              onShare({ type: 'leaderboard', data: { type: shareType, data: resolvedData } });
             }}
           >
             <Icon name="share-2" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
@@ -239,6 +315,86 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
         )}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Player Preview Modal */}
+      <Modal
+        visible={!!previewPlayer}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPreviewPlayer(null)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setPreviewPlayer(null)}>
+          <Pressable style={styles.previewCard} onPress={() => {}}>
+            {/* Full-width cover image */}
+            <View style={styles.coverImageContainer}>
+              {previewPlayer?.photoUrl && getPhotoUrl(previewPlayer.photoUrl) ? (
+                <Image
+                  source={{ uri: getPhotoUrl(previewPlayer.photoUrl) }}
+                  style={styles.coverImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.coverImage, styles.coverImageFallback]}>
+                  <MCIcon name="account-circle" size={100} color="rgba(255,255,255,0.2)" />
+                </View>
+              )}
+              {/* Black gradient over image bottom for name */}
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.75)', 'rgba(0,0,0,0.98)']}
+                style={styles.coverGradient}
+              >
+                <View style={styles.coverNameRow}>
+                  <Text style={styles.coverName}>{previewPlayer?.player?.name || 'Unknown'}</Text>
+                  {previewPlayer?.team?.name ? (
+                    <Text style={styles.coverTeam}>{previewPlayer.team.name}</Text>
+                  ) : null}
+                </View>
+              </LinearGradient>
+
+              {/* Close button */}
+              <TouchableOpacity style={styles.closeBtn} onPress={() => setPreviewPlayer(null)}>
+                <MCIcon name="close" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Overall Career Stats */}
+            <View style={styles.lbCareerRow}>
+              {careerLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                [{
+                  label: 'Matches', value: careerStats?.career?.matches ?? '-'
+                }, {
+                  label: 'Runs', value: careerStats?.batting?.runs ?? '-'
+                }, {
+                  label: 'Wickets', value: careerStats?.bowling?.wickets ?? '-'
+                }].map((s, i) => (
+                  <View key={i} style={[styles.lbCareerPill, i < 2 && { borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.08)' }]}>
+                    <Text style={styles.lbCareerValue}>{s.value}</Text>
+                    <Text style={styles.lbCareerLabel}>{s.label}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+
+            {/* View Profile Button */}
+            {previewPlayer?.player?._id && (
+              <TouchableOpacity
+                style={styles.viewProfileBtn}
+                activeOpacity={0.85}
+                onPress={() => {
+                  setPreviewPlayer(null);
+                  navigation.navigate('PlayerDetail', { id: previewPlayer.player._id });
+                }}
+              >
+                <MCIcon name="account-arrow-right" size={18} color="#000" style={{ marginRight: 6 }} />
+                <Text style={styles.viewProfileBtnText}>View Full Profile</Text>
+              </TouchableOpacity>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -365,6 +521,148 @@ const styles = StyleSheet.create({
   emptyContainer: { padding: 40, alignItems: 'center', gap: 10 },
   emptyTitle: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: 4 },
   emptyText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 13, textAlign: 'center' },
+
+  /* Player Preview Modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  previewCard: {
+    width: '100%',
+    backgroundColor: '#111',
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+  },
+  coverImageContainer: {
+    width: '100%',
+    height: SCREEN_HEIGHT * 0.38,
+    position: 'relative',
+    backgroundColor: '#1a1a1a',
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  coverImageFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coverGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '60%',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
+  coverNameRow: {
+    gap: 2,
+  },
+  coverName: {
+    fontSize: 26,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#fff',
+    letterSpacing: 0.4,
+  },
+  coverTeam: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.65)',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: '#111',
+  },
+  statPill: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    backgroundColor: 'rgba(154,188,47,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(154,188,47,0.35)',
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  statPillValue: {
+    fontSize: 28,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  statPillUnit: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  viewProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    marginTop: 4,
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
+  viewProfileBtnText: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#000',
+    letterSpacing: 0.3,
+  },
+  lbCareerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#0d0d0d',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  lbCareerPill: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  lbCareerValue: {
+    fontSize: 22,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  lbCareerLabel: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.45)',
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
 });
 
 export default TournamentLeaderboard;

@@ -109,6 +109,14 @@ const teamSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase('auth/logoutLocal', (state) => {
+        state.myTeams = [];
+        state.opponentTeams = [];
+        state.followingTeams = [];
+        state.globalSearchTeams = [];
+        state.selectedTeam = null;
+        state.teamStats = null;
+      })
       // My Teams
       .addCase(fetchMyTeams.pending, (state) => { state.isLoading = true; })
       .addCase(fetchMyTeams.fulfilled, (state, a) => { state.isLoading = false; state.myTeams = a.payload; })

@@ -278,7 +278,10 @@ const HomeScreen = ({ navigation }) => {
                     <LinearGradient colors={Colors.gradients?.primary || ['#FFCC00', '#E6B800']} style={styles.sidebarAvatar}>
                       {(myProfile?.photo || user?.photo)
                         ? <Image source={{ uri: getImageUrl(myProfile?.photo || user?.photo) || 'https://via.placeholder.com/150' }} style={StyleSheet.absoluteFill} borderRadius={28} />
-                        : <Text style={styles.sidebarAvatarTxt}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</Text>}
+                        : user?.name
+                          ? <Text style={styles.sidebarAvatarTxt}>{user.name.charAt(0).toUpperCase()}</Text>
+                          : <Icon name="account" size={28} color="#000" />
+                      }
                     </LinearGradient>
                     <View style={styles.sidebarOnline} />
                   </View>
@@ -360,7 +363,10 @@ const HomeScreen = ({ navigation }) => {
                 <LinearGradient colors={Colors.gradients?.primary || ['#FFCC00', '#E6B800']} style={styles.headerAvatar}>
                   {(myProfile?.photo || user?.photo)
                     ? <Image source={{ uri: getImageUrl(myProfile?.photo || user?.photo) || 'https://via.placeholder.com/150' }} style={StyleSheet.absoluteFill} borderRadius={19} />
-                    : <Text style={styles.headerAvatarTxt}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</Text>}
+                    : user?.name
+                      ? <Text style={styles.headerAvatarTxt}>{user.name.charAt(0).toUpperCase()}</Text>
+                      : <Icon name="account" size={20} color="#000" />
+                  }
                 </LinearGradient>
               </TouchableOpacity>
             </View>

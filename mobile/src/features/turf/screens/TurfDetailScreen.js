@@ -13,6 +13,7 @@ import {
   Animated,
   StatusBar,
   Share,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
@@ -25,6 +26,33 @@ import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const openGoogleMaps = async (url) => {
+  if (!url) return;
+  try {
+    if (Platform.OS === 'ios') {
+      const googleMapsAppUrl = `comgooglemaps://?q=${encodeURIComponent(url)}`;
+      const canOpen = await Linking.canOpenURL('comgooglemaps://');
+      if (canOpen) {
+        await Linking.openURL(googleMapsAppUrl);
+        return;
+      }
+    } else if (Platform.OS === 'android') {
+      const googleMapsAppUrl = `geo:0,0?q=${encodeURIComponent(url)}`;
+      const canOpen = await Linking.canOpenURL(googleMapsAppUrl).catch(() => false);
+      if (canOpen) {
+        await Linking.openURL(googleMapsAppUrl);
+        return;
+      }
+    }
+  } catch (err) {
+    console.log('Error opening maps deep link:', err);
+  }
+  // Fallback to browser
+  Linking.openURL(url).catch(() => {
+    showCustomAlert('Error', 'Failed to open location link');
+  });
+};
 
 const AMENITY_ICONS = {
   parking: { icon: 'parking', label: 'Parking' },
@@ -74,7 +102,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
   const [submittingRating, setSubmittingRating] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [cardLayouts, setCardLayouts] = useState({});
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -327,7 +355,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
   const renderGallery = () => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
       {allImages.map((img, i) => (
-        <TouchableOpacity key={i} activeOpacity={0.8} onPress={() => setSelectedImage(img)}>
+        <TouchableOpacity key={i} activeOpacity={0.8} onPress={() => setSelectedImageIndex(i)}>
           <Image source={{ uri: getImageUrl(img) }} style={styles.galleryImage} />
         </TouchableOpacity>
       ))}
@@ -558,15 +586,6 @@ const TurfDetailScreen = ({ route, navigation }) => {
             <Text style={styles.heroFloatingBadgeText}>TOP RATED</Text>
           </View>
 
-          {/* Pagination dots */}
-          {allImages.length > 1 && (
-            <View style={styles.paginationContainer}>
-              <View style={styles.paginationBadge}>
-                <Icon name="image-multiple" size={11} color="#FFF" style={{ marginRight: 4 }} />
-                <Text style={styles.paginationText}>{currentImageIndex + 1} / {allImages.length}</Text>
-              </View>
-            </View>
-          )}
         </Animated.View>
 
         {/* ── 1: Floating Information Card (Overlaps Carousel by 40px) ── */}
@@ -705,27 +724,40 @@ const TurfDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
         
-        <TouchableOpacity
-          style={styles.bookingPillBtn}
-          onPress={() => {
-            if (!isAuthenticated) {
-              navigation.navigate('AuthModal', { screen: 'Login' });
-            } else {
-              navigation.navigate('SlotPicker', { turf: selectedTurf });
-            }
-          }}
-          activeOpacity={0.85}
-        >
-          <LinearGradient
-            colors={['#FFD400', '#FFB700']}
-            style={styles.bookingPillBtnGrad}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {selectedTurf.googleMapsUrl ? (
+            <TouchableOpacity
+              style={styles.detailLocationBtn}
+              onPress={() => openGoogleMaps(selectedTurf.googleMapsUrl)}
+              activeOpacity={0.85}
+            >
+              <Icon name="google-maps" size={18} color={Colors.primary} style={{ marginRight: 4 }} />
+              {/* <Text style={styles.detailLocationBtnText}>Location</Text> */}
+            </TouchableOpacity>
+          ) : null}
+
+          <TouchableOpacity
+            style={styles.bookingPillBtn}
+            onPress={() => {
+              if (!isAuthenticated) {
+                navigation.navigate('AuthModal', { screen: 'Login' });
+              } else {
+                navigation.navigate('SlotPicker', { turf: selectedTurf });
+              }
+            }}
+            activeOpacity={0.85}
           >
-            <Icon name="calendar-check" size={16} color="#000" style={{ marginRight: 6 }} />
-            <Text style={styles.bookingBtnText}>Book Slots</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={['#FFD400', '#FFB700']}
+              style={styles.bookingPillBtnGrad}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Icon name="calendar-check" size={16} color="#000" style={{ marginRight: 6 }} />
+              <Text style={styles.bookingBtnText}>Book Slots</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Rating Modal ── */}
@@ -808,18 +840,37 @@ const TurfDetailScreen = ({ route, navigation }) => {
       </Modal>
 
       {/* ── Full Screen Image Modal ── */}
-      <Modal visible={!!selectedImage} transparent animationType="fade" onRequestClose={() => setSelectedImage(null)}>
+      <Modal visible={selectedImageIndex !== null} transparent animationType="fade" onRequestClose={() => setSelectedImageIndex(null)}>
         <View style={styles.fullScreenImageContainer}>
-          <TouchableOpacity style={styles.fullScreenCloseBtn} onPress={() => setSelectedImage(null)}>
-            <Icon name="close" size={28} color="#FFF" />
-          </TouchableOpacity>
-          {selectedImage && (
-            <Image
-              source={{ uri: getImageUrl(selectedImage) }}
-              style={styles.fullScreenImage}
-              resizeMode="contain"
-            />
-          )}
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={() => setSelectedImageIndex(null)} />
+          
+          <View style={styles.galleryModalCard}>
+            <TouchableOpacity style={styles.galleryModalCloseBtn} onPress={() => setSelectedImageIndex(null)}>
+              <Icon name="close" size={20} color="#FFF" />
+            </TouchableOpacity>
+            
+            {selectedImageIndex !== null && (
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                contentOffset={{ x: (SCREEN_WIDTH - 32) * selectedImageIndex, y: 0 }}
+                style={{ width: SCREEN_WIDTH - 32, height: 320 }}
+              >
+                {allImages.map((img, i) => (
+                  <View key={i} style={{ width: SCREEN_WIDTH - 32, height: 320, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
+                    <Image
+                      source={{ uri: getImageUrl(img) }}
+                      style={{ width: '100%', height: '100%', borderRadius: 16 }}
+                      resizeMode="cover"
+                    />
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            
+            <Text style={styles.galleryModalFooterText}>Swipe to view gallery</Text>
+          </View>
         </View>
       </Modal>
     </View>
@@ -833,9 +884,38 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: 120 },
 
   /* ── Full Screen Image Modal ── */
-  fullScreenImageContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
-  fullScreenCloseBtn: { position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20 },
-  fullScreenImage: { width: '100%', height: '100%' },
+  fullScreenImageContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.78)', justifyContent: 'center', alignItems: 'center' },
+  galleryModalCard: {
+    width: SCREEN_WIDTH - 32,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  galleryModalCloseBtn: {
+    alignSelf: 'flex-end',
+    marginRight: 16,
+    marginBottom: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  galleryModalFooterText: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: 10,
+  },
 
   /* ── Image Gallery Carousel ── */
   coverContainer: { height: 340, width: '100%', borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden' },
@@ -1094,6 +1174,21 @@ const styles = StyleSheet.create({
   bookingPillBtn: { borderRadius: 20, overflow: 'hidden', shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 },
   bookingPillBtnGrad: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 20 },
   bookingBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  detailLocationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(255, 212, 0, 0.1)',
+  },
+  detailLocationBtnText: {
+    color: '#FFF',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+  },
 
   /* ── Rating modal ── */
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },

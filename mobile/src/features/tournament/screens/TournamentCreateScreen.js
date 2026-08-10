@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Modal } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -186,12 +186,13 @@ const TournamentCreateScreen = ({ navigation }) => {
       if (res.data?.data?.exists && res.data?.data?.user) {
         const u = res.data.data.user;
         if (multiLookupType === 'coOrganizers') {
-          if (!form.coOrganizers.some(o => o._id === u._id)) {
-             setForm(f => ({ ...f, coOrganizers: [...f.coOrganizers, u] }));
+          if (form.coOrganizers.length >= 1) {
+            showCustomAlert('Limit Reached', 'Only one co-organizer is allowed for this tournament.');
+            setLoading(false);
+            return;
           }
-        } else if (multiLookupType === 'scorers') {
-          if (!form.scorers.some(s => s._id === u._id)) {
-             setForm(f => ({ ...f, scorers: [...f.scorers, u] }));
+          if (!form.coOrganizers.some(o => o._id === u._id)) {
+             setForm(f => ({ ...f, coOrganizers: [u] }));
           }
         }
         setMultiLookupMobile('');
@@ -456,20 +457,22 @@ const TournamentCreateScreen = ({ navigation }) => {
                 ))}
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Scorers (Optional)</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                  <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} keyboardType="phone-pad" placeholderTextColor={offWhite} value={multiLookupType === 'scorers' ? multiLookupMobile : ''} onFocus={() => setMultiLookupType('scorers')} onChangeText={setMultiLookupMobile} placeholder="Enter mobile number" />
-                  <TouchableOpacity style={styles.lookupBtn} onPress={handleMultiLookup}><Text style={styles.lookupBtnText}>Add</Text></TouchableOpacity>
-                </View>
-                {form.scorers.map((s, idx) => (
-                  <View key={idx} style={styles.organizerProfile}>
-                    <Image source={{ uri: s.photo ? getImageUrl(s.photo) : 'https://via.placeholder.com/40' }} style={styles.organizerAvatar} />
-                    <Text style={styles.organizerNameText}>{s.name}</Text>
-                    <TouchableOpacity onPress={() => removeMultiUser('scorers', idx)} style={{ marginLeft: 'auto' }}><Icon name="x" size={16} color={Colors.error} /></TouchableOpacity>
+              {form.tournamentType !== 'Auction' && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Scorers (Optional)</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                    <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} keyboardType="phone-pad" placeholderTextColor={offWhite} value={multiLookupType === 'scorers' ? multiLookupMobile : ''} onFocus={() => setMultiLookupType('scorers')} onChangeText={setMultiLookupMobile} placeholder="Enter mobile number" />
+                    <TouchableOpacity style={styles.lookupBtn} onPress={handleMultiLookup}><Text style={styles.lookupBtnText}>Add</Text></TouchableOpacity>
                   </View>
-                ))}
-              </View>
+                  {form.scorers.map((s, idx) => (
+                    <View key={idx} style={styles.organizerProfile}>
+                      <Image source={{ uri: s.photo ? getImageUrl(s.photo) : 'https://via.placeholder.com/40' }} style={styles.organizerAvatar} />
+                      <Text style={styles.organizerNameText}>{s.name}</Text>
+                      <TouchableOpacity onPress={() => removeMultiUser('scorers', idx)} style={{ marginLeft: 'auto' }}><Icon name="x" size={16} color={Colors.error} /></TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
             </>
           ) : (
             <>
@@ -504,7 +507,7 @@ const TournamentCreateScreen = ({ navigation }) => {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>{form.tournamentType === 'Auction' ? 'Player Registration Fee (₹)' : 'Team Registration Fee (₹)'}</Text>
-                <TextInput style={styles.input} keyboardType="numeric" placeholderTextColor={offWhite} value={form.entryFee} onChangeText={(t) => setForm({ ...form, entryFee: t })} placeholder="₹ 0" />
+                <TextInput style={styles.input} keyboardType="numeric" placeholderTextColor={offWhite} value={form.entryFee} onChangeText={(t) => setForm({ ...form, entryFee: t.replace(/[^0-9]/g, '') })} placeholder="₹ 0" />
                 {form.tournamentType === 'Auction' && (
                   <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
                     Note: A {platformFeePercent}% platform fee will be deducted for each registration made through the platform.
@@ -617,7 +620,14 @@ const TournamentCreateScreen = ({ navigation }) => {
           mode={datePickerMode}
           display="default"
           onChange={onDateChange}
-          minimumDate={datePickerMode === 'date' ? new Date() : undefined}
+          minimumDate={
+            datePickerMode === 'date' 
+              ? (form.tournamentType === 'Auction' && (datePickerTarget === 'registrationStartDate' || datePickerTarget === 'registrationEndDate')
+                  ? undefined 
+                  : new Date()
+                )
+              : undefined
+          }
         />
       )}
     </SafeAreaView>

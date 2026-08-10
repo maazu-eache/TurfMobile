@@ -51,7 +51,8 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       weekdayNightPrice: editTurf?.pricing?.weekdayNight?.toString() || '', 
       weekendDayPrice: editTurf?.pricing?.weekendDay?.toString() || '', 
       weekendNightPrice: editTurf?.pricing?.weekendNight?.toString() || '',
-      amenities: editTurf?.amenities || {}
+      amenities: editTurf?.amenities || {},
+      googleMapsUrl: editTurf?.googleMapsUrl || ''
     }
   });
 
@@ -142,6 +143,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       formData.append('weekdayNightPrice', data.weekdayNightPrice || 0);
       formData.append('weekendDayPrice', data.weekendDayPrice || 0);
       formData.append('weekendNightPrice', data.weekendNightPrice || 0);
+      formData.append('googleMapsUrl', data.googleMapsUrl || '');
 
       // Backend expects location as [lng, lat]. Defaulting to 0 for now.
       formData.append('longitude', '0');
@@ -434,6 +436,45 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
             </View>
           </View>
 
+          {/* Google Maps Location */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Google Maps Location</Text>
+            <Controller
+              control={control}
+              name="googleMapsUrl"
+              rules={{
+                validate: (value) => {
+                  if (!value) return true; // Optional field
+                  const isGMap = value.includes('google.com') || value.includes('goo.gl');
+                  const isUnsafe = value.startsWith('javascript:') || value.startsWith('data:') || value.startsWith('file:');
+                  if (!isGMap || isUnsafe) {
+                    return 'Please enter a valid Google Maps location link.';
+                  }
+                  return true;
+                }
+              }}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <View style={styles.inputWrapper}>
+                  <Icon name="google-maps" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.inputField}
+                    placeholder="Paste Google Maps link (e.g. https://maps.google.com/...)"
+                    placeholderTextColor={Colors.textTertiary}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    value={value}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+              )}
+            />
+            {errors.googleMapsUrl && <Text style={styles.errorText}>{errors.googleMapsUrl.message}</Text>}
+            <Text style={styles.helperText}>
+              Open Google Maps → find your turf → Share → Copy link → paste it here.
+            </Text>
+          </View>
+
           {/* Detailed Pricing */}
           <Text style={styles.sectionTitle}>Detailed Pricing (₹/hr)</Text>
           <View style={styles.rowInputs}>
@@ -638,6 +679,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     textAlign: 'center',
+  },
+  helperText: {
+    color: Colors.textTertiary,
+    fontSize: 11,
+    marginTop: 6,
+    marginLeft: 4,
+    fontFamily: Typography.fontFamily.medium,
   },
 });
 

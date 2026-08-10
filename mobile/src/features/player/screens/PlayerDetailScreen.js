@@ -13,6 +13,7 @@ import {
 import { Colors, Typography, BorderRadius, Shadows } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import Icon from 'react-native-vector-icons/Ionicons';
+import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { getImageUrl } from '../../../api/axios';
 import api from '../../../api/axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -424,70 +425,161 @@ const PlayerDetailScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView edges={['top']} style={styles.headerSafe}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+      {/* Transparent back nav overlaid on banner */}
+      <SafeAreaView edges={['top']} style={styles.navBarAbsolute} pointerEvents="box-none">
+        <View style={styles.navBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Icon name="arrow-back" size={22} color={Colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>{viewedPlayer.name}</Text>
+          {isOwnProfile && (
+            <TouchableOpacity style={styles.navEditBtn} onPress={() => navigation.navigate('PlayerProfile')}>
+              <MCIcon name="pencil-outline" size={18} color={Colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Hero Card */}
-        <View style={styles.heroCard}>
-          <TouchableOpacity style={styles.avatarRing} activeOpacity={0.85} onPress={() => photoUrl && setImageModalVisible(true)}>
-            {photoUrl ? (<Image source={{ uri: getImageUrl(photoUrl) }} style={styles.avatar} />) : (
-              <View style={styles.avatarFallback}><Text style={styles.avatarFallbackLetter}>{viewedPlayer.name ? viewedPlayer.name.charAt(0).toUpperCase() : '?'}</Text></View>
+        {/* ── HERO BANNER ── */}
+        <View style={styles.heroBanner}>
+          {/* Background pattern using app color */}
+          <View style={styles.heroBannerBg}>
+            <View style={styles.heroBannerCircle1} />
+            <View style={styles.heroBannerCircle2} />
+            <View style={styles.heroBannerLine} />
+          </View>
+
+          {/* Avatar  — centered with glow ring */}
+          <TouchableOpacity
+            style={styles.avatarGlowWrap}
+            activeOpacity={0.9}
+            onPress={() => photoUrl && setImageModalVisible(true)}
+          >
+            <View style={styles.avatarOuterRing}>
+              <View style={styles.avatarInnerRing}>
+                {photoUrl ? (
+                  <Image source={{ uri: getImageUrl(photoUrl) }} style={styles.heroBannerAvatar} />
+                ) : (
+                  <View style={styles.heroBannerAvatarFallback}>
+                    <Text style={styles.heroBannerAvatarLetter}>
+                      {viewedPlayer.name ? viewedPlayer.name.charAt(0).toUpperCase() : '?'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+            {/* Camera hint if own profile */}
+            {isOwnProfile && (
+              <View style={styles.avatarCameraHint}>
+                <MCIcon name="camera" size={11} color="#000" />
+              </View>
             )}
           </TouchableOpacity>
+
+          {/* Name */}
           <Text style={styles.heroName}>{viewedPlayer.name}</Text>
+
+          {/* Role pill */}
           <View style={styles.rolePill}>
-            <Icon name="baseball-outline" size={12} color={Colors.primary} />
+            <MCIcon name="cricket" size={12} color="#000" />
             <Text style={styles.roleText}>{viewedPlayer.playingRole || 'Cricket Player'}</Text>
           </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, justifyContent: 'center' }}>
-            {getPlayerTags(viewedPlayer).map((tag, tIdx) => (
-              <TouchableOpacity key={tIdx} onPress={() => setSelectedTagDefinition(tag)}
-                style={{ backgroundColor: tag.type === 'batting' ? 'rgba(243,156,18,0.1)' : 'rgba(142,68,173,0.1)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: tag.type === 'batting' ? 'rgba(243,156,18,0.3)' : 'rgba(142,68,173,0.3)' }}>
-                <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: tag.type === 'batting' ? '#F39C12' : '#8E44AD', fontSize: 11 }}>{tag.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+
+          {/* Tags row */}
+          {getPlayerTags(viewedPlayer).length > 0 && (
+            <View style={styles.tagsRow}>
+              {getPlayerTags(viewedPlayer).map((tag, tIdx) => (
+                <TouchableOpacity
+                  key={tIdx}
+                  onPress={() => setSelectedTagDefinition(tag)}
+                  style={[
+                    styles.tagPill,
+                    tag.type === 'batting'
+                      ? styles.tagPillBatting
+                      : styles.tagPillBowling,
+                  ]}
+                >
+                  <MCIcon
+                    name={tag.type === 'batting' ? 'cricket' : 'bowling'}
+                    size={10}
+                    color={tag.type === 'batting' ? Colors.primary : Colors.textPrimary}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text
+                    style={[
+                      styles.tagPillText,
+                      tag.type === 'batting' ? styles.tagPillTextBatting : styles.tagPillTextBowling,
+                    ]}
+                  >
+                    {tag.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Location */}
           {(() => {
             const city = viewedPlayer.city || viewedPlayer.userId?.city || viewedPlayer.location;
             const state = viewedPlayer.state || viewedPlayer.userId?.state;
             const locStr = [city, state].filter(Boolean).join(', ');
             return (
-              <View style={styles.locationRow}>
-                <Icon name="location-outline" size={13} color={Colors.textSecondary} />
+              <View style={styles.locationPill}>
+                <MCIcon name="map-marker" size={13} color={Colors.primary} />
                 <Text style={styles.locationText}>{locStr || 'Location not set'}</Text>
               </View>
             );
           })()}
-          <View style={styles.socialRow}>
-            <TouchableOpacity style={styles.socialItem} onPress={() => loadSocialList('followers')}>
-              <Text style={styles.socialCount}>{viewedPlayer.followers?.length || 0}</Text>
-              <Text style={styles.socialLabel}>Followers</Text>
-            </TouchableOpacity>
-            <View style={styles.socialSep} />
-            <TouchableOpacity style={styles.socialItem} onPress={() => loadSocialList('following')}>
-              <Text style={styles.socialCount}>{viewedPlayer.following?.length || 0}</Text>
-              <Text style={styles.socialLabel}>Following</Text>
-            </TouchableOpacity>
-            <View style={styles.socialSep} />
-            <View style={styles.socialItem}>
-              <Text style={styles.socialCount}>{viewedPlayer.profileViews || 0}</Text>
-              <Text style={styles.socialLabel}>Views</Text>
-            </View>
-          </View>
-          {!isOwnProfile && (
-            <TouchableOpacity style={[styles.followBtn, isFollowing && styles.followingBtn]} onPress={handleFollowToggle} activeOpacity={0.8}>
-              <Icon name={isFollowing ? 'checkmark-circle' : 'person-add-outline'} size={15} color={isFollowing ? Colors.textSecondary : '#fff'} style={{ marginRight: 6 }} />
-              <Text style={[styles.followBtnText, isFollowing && styles.followingBtnText]}>{isFollowing ? 'Following' : 'Follow'}</Text>
-            </TouchableOpacity>
-          )}
         </View>
+
+        {/* ── CAREER STATS STRIP ── */}
+        <View style={styles.statsStrip}>
+          <TouchableOpacity style={styles.statsStripItem} onPress={() => loadSocialList('followers')}>
+            <Text style={styles.statsStripValue}>{viewedPlayer.followers?.length || 0}</Text>
+            <Text style={styles.statsStripLabel}>Followers</Text>
+          </TouchableOpacity>
+          <View style={styles.statsStripDivider} />
+          <View style={styles.statsStripItem}>
+            <Text style={styles.statsStripValue}>{career.matches || 0}</Text>
+            <Text style={styles.statsStripLabel}>Matches</Text>
+          </View>
+          <View style={styles.statsStripDivider} />
+          <View style={styles.statsStripItem}>
+            <Text style={styles.statsStripValue}>{career.batting?.runs || batting.runs || 0}</Text>
+            <Text style={styles.statsStripLabel}>Runs</Text>
+          </View>
+          <View style={styles.statsStripDivider} />
+          <View style={styles.statsStripItem}>
+            <Text style={styles.statsStripValue}>{career.bowling?.wickets || bowling.wickets || 0}</Text>
+            <Text style={styles.statsStripLabel}>Wickets</Text>
+          </View>
+          <View style={styles.statsStripDivider} />
+          <TouchableOpacity style={styles.statsStripItem} onPress={() => loadSocialList('following')}>
+            <Text style={styles.statsStripValue}>{viewedPlayer.following?.length || 0}</Text>
+            <Text style={styles.statsStripLabel}>Following</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Follow Button */}
+        {!isOwnProfile && (
+          <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
+            <TouchableOpacity
+              style={[styles.followBtn, isFollowing && styles.followingBtn]}
+              onPress={handleFollowToggle}
+              activeOpacity={0.8}
+            >
+              <Icon
+                name={isFollowing ? 'checkmark-circle' : 'person-add-outline'}
+                size={16}
+                color={isFollowing ? Colors.primary : '#000'}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.followBtnText, isFollowing && styles.followingBtnText]}>
+                {isFollowing ? 'Following' : 'Follow'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Tab Bar */}
         <View style={styles.tabBar}>
@@ -600,36 +692,204 @@ const styles = StyleSheet.create({
   loadingText: { marginTop: 14, fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
   errorText: { marginTop: 14, fontSize: 16, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 24, textAlign: 'center' },
   goBackBtn: { backgroundColor: Colors.primary, borderRadius: BorderRadius.xl, paddingHorizontal: 28, paddingVertical: 13 },
-  goBackBtnText: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
-  headerSafe: { backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  header: { flexDirection: 'row', alignItems: 'center', height: 52, paddingHorizontal: 12 },
-  headerBtn: { position: 'absolute', left: 12, zIndex: 10, width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
-  headerTitle: { flex: 1, fontSize: 17, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, textAlign: 'center', includeFontPadding: false, lineHeight: 52 },
+  goBackBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
+
+  // ── Floating nav bar over banner ──────────────────────────────────────────
+  navBarAbsolute: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20 },
+  navBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, height: 52 },
+  navBackBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  navEditBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,204,0,0.15)', borderWidth: 1, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+
   scrollContent: { paddingBottom: 20 },
-  heroCard: { backgroundColor: Colors.backgroundCard, alignItems: 'center', paddingTop: 32, paddingBottom: 24, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  avatarRing: { width: 96, height: 96, borderRadius: 48, borderWidth: 3, borderColor: Colors.primary, backgroundColor: Colors.backgroundElevated, overflow: 'hidden', marginBottom: 16 },
-  avatar: { width: '100%', height: '100%' },
-  avatarFallback: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.backgroundElevated },
-  avatarFallbackLetter: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 36 },
-  heroName: { fontSize: 22, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, letterSpacing: 0.3 },
-  rolePill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.primaryAlpha10, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, marginTop: 8, borderWidth: 1, borderColor: Colors.primaryAlpha20 },
-  roleText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.primary },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
-  locationText: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary },
-  socialRow: { flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 4, width: '100%', backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.xl, paddingVertical: 14, borderWidth: 1, borderColor: Colors.border },
-  socialItem: { flex: 1, alignItems: 'center' },
-  socialCount: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  socialLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 2 },
-  socialSep: { width: 1, height: 28, backgroundColor: Colors.border },
-  followBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary, borderRadius: BorderRadius.xl, paddingHorizontal: 28, paddingVertical: 11, marginTop: 16 },
-  followingBtn: { backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha20 },
-  followBtnText: { color: '#000', fontSize: 14, fontFamily: Typography.fontFamily.bold },
+
+  // ── Hero Banner ──────────────────────────────────────────────────────────
+  heroBanner: {
+    alignItems: 'center',
+    paddingTop: 80, // space for floating nav
+    paddingBottom: 28,
+    paddingHorizontal: 20,
+    backgroundColor: Colors.backgroundCard,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  heroBannerBg: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+  },
+  heroBannerCircle1: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(255,204,0,0.06)',
+    top: -60,
+    right: -60,
+  },
+  heroBannerCircle2: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255,204,0,0.04)',
+    top: 20,
+    left: -40,
+  },
+  heroBannerLine: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: 'rgba(255,204,0,0.15)',
+  },
+
+  // ── Avatar ────────────────────────────────────────────────────────────────
+  avatarGlowWrap: {
+    marginBottom: 16,
+    position: 'relative',
+    // glow shadow
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  avatarOuterRing: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    backgroundColor: 'rgba(255,204,0,0.18)',
+    padding: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInnerRing: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: Colors.backgroundElevated,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    overflow: 'hidden',
+  },
+  heroBannerAvatar: { width: '100%', height: '100%' },
+  heroBannerAvatarFallback: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundElevated,
+  },
+  heroBannerAvatarLetter: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 42,
+  },
+  avatarCameraHint: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.backgroundCard,
+  },
+
+  // ── Name / Role ───────────────────────────────────────────────────────────
+  heroName: {
+    fontSize: 24,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
+    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
+  rolePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    marginTop: 8,
+  },
+  roleText: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: '#000' },
+
+  // ── Tags ──────────────────────────────────────────────────────────────────
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+    justifyContent: 'center',
+  },
+  tagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  tagPillBatting: {
+    backgroundColor: 'rgba(255,204,0,0.12)',
+    borderColor: 'rgba(255,204,0,0.35)',
+  },
+  tagPillBowling: {
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  tagPillText: { fontSize: 11, fontFamily: Typography.fontFamily.semiBold },
+  tagPillTextBatting: { color: Colors.primary },
+  tagPillTextBowling: { color: Colors.textPrimary },
+
+  // ── Location ─────────────────────────────────────────────────────────────
+  locationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,204,0,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,204,0,0.2)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginTop: 10,
+  },
+  locationText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary },
+
+  // ── Stats strip ──────────────────────────────────────────────────────────
+  statsStrip: {
+    flexDirection: 'row',
+    backgroundColor: Colors.backgroundElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingVertical: 14,
+  },
+  statsStripItem: { flex: 1, alignItems: 'center' },
+  statsStripValue: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  statsStripLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  statsStripDivider: { width: 1, height: 32, backgroundColor: Colors.border, alignSelf: 'center' },
+
+  // ── Follow button ─────────────────────────────────────────────────────────
+  followBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary, borderRadius: BorderRadius.xl, paddingVertical: 13, width: '100%' },
+  followingBtn: { backgroundColor: 'rgba(255,204,0,0.08)', borderWidth: 1.5, borderColor: Colors.primary },
+  followBtnText: { color: '#000', fontSize: 15, fontFamily: Typography.fontFamily.bold },
   followingBtnText: { color: Colors.primary },
+
+  // ── Tab bar ───────────────────────────────────────────────────────────────
   tabBar: { flexDirection: 'row', backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border },
   tabItem: { flex: 1, alignItems: 'center', paddingVertical: 12, gap: 3, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
   tabItemActive: { borderBottomColor: Colors.primary },
   tabLabel: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold, color: Colors.textTertiary },
   tabLabelActive: { color: Colors.primary },
+
+  // ── Ball type filter ──────────────────────────────────────────────────────
   filterSection: { marginHorizontal: 16, marginTop: 16, marginBottom: 8, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', paddingTop: 12, paddingBottom: 4 },
   filterHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, marginBottom: 10 },
   filterIconWrap: { width: 20, height: 20, borderRadius: 6, backgroundColor: Colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.primaryAlpha20 },
@@ -639,10 +899,14 @@ const styles = StyleSheet.create({
   filterPillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   filterPillDot: { width: 7, height: 7, borderRadius: 4, marginRight: 6 },
   filterPillText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary },
-  filterPillTextActive: { color: '#fff' },
+  filterPillTextActive: { color: '#000' },
+
+  // ── Section headers ───────────────────────────────────────────────────────
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginBottom: 10, marginTop: 16 },
   sectionIconWrap: { width: 26, height: 26, borderRadius: 8, backgroundColor: Colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.primaryAlpha20 },
   sectionTitle: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, textTransform: 'uppercase', letterSpacing: 1 },
+
+  // ── Cards ─────────────────────────────────────────────────────────────────
   card: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, padding: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadows.sm },
   cardDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 14 },
   statsGrid: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -655,8 +919,10 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 13, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary },
   infoValuePill: { backgroundColor: Colors.backgroundElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: Colors.border },
   infoValue: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary },
+
+  // ── Match cards ───────────────────────────────────────────────────────────
   matchCard: { marginHorizontal: 16, marginBottom: 10, padding: 14, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'center', ...Shadows.sm },
-  matchCardLive: { borderColor: Colors.primaryAlpha40, shadowColor: Colors.primary, shadowOpacity: 0.15, shadowRadius: 8 },
+  matchCardLive: { borderColor: Colors.primaryAlpha30, shadowColor: Colors.primary, shadowOpacity: 0.15, shadowRadius: 8 },
   matchCardLeft: { marginRight: 12, alignItems: 'flex-start', minWidth: 80 },
   matchBallTypeBadge: { backgroundColor: Colors.primaryAlpha10, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: Colors.primaryAlpha20, marginBottom: 5 },
   matchBallTypeBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
@@ -673,22 +939,30 @@ const styles = StyleSheet.create({
   matchRunsValue: { fontSize: 22, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   matchRunsLabel: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },
   matchDNB: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, fontStyle: 'italic' },
+
+  // ── Team cards ────────────────────────────────────────────────────────────
   teamCard: { marginHorizontal: 16, marginBottom: 10, padding: 16, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'center', ...Shadows.sm },
   teamLogo: { width: 46, height: 46, borderRadius: 23 },
   teamLogoFallback: { width: 46, height: 46, borderRadius: 23, backgroundColor: Colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.primaryAlpha20 },
   teamName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   teamCategory: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },
+
+  // ── Achievement cards ─────────────────────────────────────────────────────
   achievementCard: { marginHorizontal: 16, marginBottom: 10, padding: 16, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'flex-start', ...Shadows.sm },
-  achievementIconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, flexShrink: 0 },
+  achievementIconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, flexShrink: 0, backgroundColor: 'rgba(255,204,0,0.1)', borderColor: 'rgba(255,204,0,0.25)' },
   achievementTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 3 },
   achievementSub: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },
   achievementDate: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 5 },
-  achievementBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginLeft: 8, flexShrink: 0, marginTop: 2 },
-  achievementBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold },
+  achievementBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginLeft: 8, flexShrink: 0, marginTop: 2, backgroundColor: 'rgba(255,204,0,0.1)', borderWidth: 1, borderColor: 'rgba(255,204,0,0.2)' },
+  achievementBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold, color: Colors.primary },
+
+  // ── Empty / loading states ────────────────────────────────────────────────
   tabCenteredEmpty: { alignItems: 'center', paddingVertical: 64 },
   emptyText: { marginTop: 14, fontSize: 14, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium },
   emptySubText: { marginTop: 6, fontSize: 12, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular },
   emptyWrap: { alignItems: 'center', paddingVertical: 48 },
+
+  // ── Social modal ──────────────────────────────────────────────────────────
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: Colors.backgroundCard, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: 36, maxHeight: '85%', borderTopWidth: 1, borderColor: Colors.border },
   modalHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },

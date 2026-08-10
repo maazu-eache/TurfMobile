@@ -105,7 +105,11 @@ const LoginScreen = ({ navigation }) => {
       if (!identifier.trim()) return showCustomAlert('Error', 'Please enter your email or phone number');
       if (!password) return showCustomAlert('Error', 'Please enter your password');
 
-      const result = await dispatch(loginWithPassword({ identifier: identifier.trim(), password, fcmToken }));
+      const result = await dispatch(loginWithPassword({
+        identifier: identifier.trim().toLowerCase(),
+        password: password.trim(),
+        fcmToken
+      }));
       if (loginWithPassword.rejected.match(result)) {
         showCustomAlert('Error', result.payload || 'Login failed');
       }
@@ -116,14 +120,14 @@ const LoginScreen = ({ navigation }) => {
         return showCustomAlert('Error', 'Please enter a valid 10-digit phone number');
       }
       if (!locationObj || !city) return showCustomAlert('Error', 'Please select your location');
-      if (!password) return showCustomAlert('Error', 'Please enter a password');
-      if (password !== confirmPassword) return showCustomAlert('Error', 'Passwords do not match');
+      if (!password.trim()) return showCustomAlert('Error', 'Please enter a password');
+      if (password.trim() !== confirmPassword.trim()) return showCustomAlert('Error', 'Passwords do not match');
 
       const result = await dispatch(registerWithPassword({
         email: email.trim().toLowerCase(),
         name: name.trim(),
         mobile: mobile.trim(),
-        password,
+        password: password.trim(),
         role: registerRole,
         city,
         locationObj,

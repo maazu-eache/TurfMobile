@@ -488,17 +488,17 @@ const SlotManagerScreen = ({ navigation }) => {
           </View>
           <View style={styles.fabBtnGroup}>
             <TouchableOpacity style={[styles.fabBtn, { backgroundColor: 'rgba(255, 212, 0, 0.1)', borderColor: '#FFD400' }]} onPress={() => handleQuickAction('available')}>
-              <Icon name="check" size={14} color="#FFD400" />
+              <Icon name="check" size={12} color="#FFD400" />
               <Text style={[styles.fabBtnText, { color: '#FFD400' }]}>Avail</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={[styles.fabBtn, { backgroundColor: 'rgba(156, 39, 176, 0.1)', borderColor: '#9C27B0' }]} onPress={() => handleQuickAction('offline_booking')}>
-              <Icon name="account-cash" size={14} color="#9C27B0" />
+              <Icon name="account-cash" size={12} color="#9C27B0" />
               <Text style={[styles.fabBtnText, { color: '#9C27B0' }]}>Walk-in</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={[styles.fabBtn, { backgroundColor: 'rgba(255, 71, 87, 0.1)', borderColor: '#FF4757' }]} onPress={() => handleQuickAction('maintenance')}>
-              <Icon name="tools" size={14} color="#FF4757" />
+              <Icon name="tools" size={12} color="#FF4757" />
               <Text style={[styles.fabBtnText, { color: '#FF4757' }]}>Maint</Text>
             </TouchableOpacity>
           </View>
@@ -963,9 +963,19 @@ const styles = StyleSheet.create({
   bookingLeft: { flexDirection: 'column' },
   selectedCountLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
   selectedCountText: { color: '#FFF', fontSize: 13, fontFamily: Typography.fontFamily.bold, marginTop: 1 },
-  fabBtnGroup: { flexDirection: 'row', gap: 8 },
-  fabBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
-  fabBtnText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
+  fabBtnGroup: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  fabBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1,
+    minWidth: 64,
+  },
+  fabBtnText: { fontSize: 11, fontFamily: Typography.fontFamily.bold, lineHeight: 13 },
 
   /* ── Modals General ── */
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 16 },

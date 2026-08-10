@@ -22,6 +22,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 
 const AdminDashboardScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('owners');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
@@ -706,8 +707,10 @@ const AdminDashboardScreen = ({ navigation }) => {
   const handleLogout = () => {
     showCustomAlert("Confirm Logout", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: () => {
-        dispatch(logout());
+      { text: "Logout", style: "destructive", onPress: async () => {
+        setIsLoggingOut(true);
+        await dispatch(logout());
+        setIsLoggingOut(false);
       }}
     ]);
   };
@@ -836,9 +839,16 @@ const AdminDashboardScreen = ({ navigation }) => {
               onPress={handleLogout}
               style={[styles.headerActionBtn, { backgroundColor: 'rgba(255,71,87,0.12)', borderColor: 'rgba(255,71,87,0.25)' }]}
               activeOpacity={0.8}
+              disabled={isLoggingOut}
             >
-              <Icon name="logout" size={19} color="#FF4757" />
-              <Text style={[styles.headerActionLabel, { color: '#FF4757' }]}>Logout</Text>
+              {isLoggingOut ? (
+                <ActivityIndicator size="small" color="#FF4757" style={{ marginRight: 4 }} />
+              ) : (
+                <Icon name="logout" size={19} color="#FF4757" />
+              )}
+              <Text style={[styles.headerActionLabel, { color: '#FF4757' }]}>
+                {isLoggingOut ? 'Logging out...' : 'Logout'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

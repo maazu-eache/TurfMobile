@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl, Share, TextInput, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl, Share, TextInput, BackHandler, Pressable } from 'react-native';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -134,12 +134,44 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const currentUser = useSelector((state) => state.auth.user);
   const [activeTab, setActiveTab] = useState(route.params?.initialTab || 'Summary');
   const [selectedPlayerPreview, setSelectedPlayerPreview] = useState(null);
+  const [playerPreviewStats, setPlayerPreviewStats] = useState(null);
+  const [playerPreviewLoading, setPlayerPreviewLoading] = useState(false);
   const [selectedTagDefinition, setSelectedTagDefinition] = useState(null);
   const [expandedInnings, setExpandedInnings] = useState({});
 
   const toggleInnings = (index) => {
     setExpandedInnings(prev => ({ ...prev, [index]: prev[index] === false ? true : false }));
   };
+
+  // Fetch overall career stats when a player preview opens
+  useEffect(() => {
+    if (!selectedPlayerPreview?._id) {
+      setPlayerPreviewStats(null);
+      return;
+    }
+    let cancelled = false;
+    setPlayerPreviewStats(null);
+    setPlayerPreviewLoading(true);
+    api.get(`/players/${selectedPlayerPreview._id}`)
+      .then(res => {
+        if (!cancelled) {
+          const p = res.data?.data || res.data;
+          setPlayerPreviewStats(p || null);
+          // Merge full details so we get the photo and user fields populated for the preview pro pic
+          setSelectedPlayerPreview(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              photo: p?.photo || prev.photo,
+              userId: p?.userId || prev.userId,
+            };
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPlayerPreviewLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedPlayerPreview?._id]);
 
   const [commentary, setCommentary] = useState([]);
   const [loadingCommentary, setLoadingCommentary] = useState(false);
@@ -408,10 +440,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         if (ballId !== lastBallRef.current) {
           lastBallRef.current = ballId;
 
-          if (data.isMatchComplete || data.match?.status === 'completed') {
-            const winnerName = getWinnerTeamName(data.match || liveState?.match, data.result || data.match?.result);
-            triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
-          } else if (latestBall.isWicket || latestBall.wicketType) {
+          if (latestBall.isWicket || latestBall.wicketType) {
             triggerCelebration('wicket', 'W', Colors.error);
           } else if (latestBall.batsmanRuns === 6) {
             triggerCelebration('six', '6', Colors.primary);
@@ -424,10 +453,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         if (latestBall._id && latestBall._id !== lastBallRef.current) {
           lastBallRef.current = latestBall._id;
 
-          if (data.isMatchComplete || data.match?.status === 'completed') {
-            const winnerName = getWinnerTeamName(data.match || liveState?.match, data.result || data.match?.result);
-            triggerCelebration('won', `${winnerName}\nWON!`, Colors.warning);
-          } else if (latestBall.isWicket) {
+          if (latestBall.isWicket) {
             triggerCelebration('wicket', 'W', Colors.error);
           } else if (latestBall.batsmanRuns === 6) {
             triggerCelebration('six', '6', Colors.primary);
@@ -537,15 +563,24 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const creatorId = typeof match.creator === 'object' ? match.creator?._id : match.creator;
   const isCreator = String(creatorId) === String(currentUser?._id);
+  // match.organizerId is the permanent match manager — always retains gear/change-scorer access
+  const matchOrganizerId = typeof match.organizerId === 'object' ? match.organizerId?._id : match.organizerId;
+  const isMatchOrganizer = String(matchOrganizerId) === String(currentUser?._id);
   const tournamentOrganizerId = match.tournament?.organizer?._id || match.tournament?.organizer;
   const isTournamentOrganizer = String(tournamentOrganizerId) === String(currentUser?._id);
   const isTournamentCoOrganizer = match.tournament?.coOrganizers?.some(s => String(s?._id || s) === String(currentUser?._id));
   const isTournamentScorer = match.tournament?.scorers?.some(s => String(s?._id || s) === String(currentUser?._id));
 
-  const isScorer = isCreator || isTournamentOrganizer || isTournamentCoOrganizer || isTournamentScorer || match.scorers?.some(s => {
-    const sId = typeof s === 'object' ? s?._id : s;
+  const isScorer = isCreator || isMatchOrganizer || isTournamentOrganizer || isTournamentCoOrganizer || isTournamentScorer || match.scorers?.some(s => {
+    const sId = s && typeof s === 'object' ? (s.userId ? (s.userId._id || s.userId) : s._id) : s;
     return String(sId) === String(currentUser?._id);
   });
+
+  const activeScorerId =
+    (typeof match.activeScorerId === 'object' ? match.activeScorerId?._id : match.activeScorerId) ||
+    (typeof match.organizerId === 'object' ? match.organizerId?._id : match.organizerId) ||
+    creatorId;
+  const isActiveScorer = String(activeScorerId) === String(currentUser?._id);
 
   const runs = score?.runs || 0;
   const wickets = score?.wickets || 0;
@@ -1068,35 +1103,165 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     );
   };
 
-  const renderMatchDetails = () => (
-    <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Info</Text>
-        <View style={styles.infoRow}><Text style={styles.infoLabel}>Match</Text><Text style={styles.infoValue}>{teamA} vs {teamB}</Text></View>
-        {match.tournament && match.tournament.name && (
+  const renderMatchDetails = () => {
+    const formatTimeOnly = (dateVal) => {
+      if (!dateVal) return '--:--';
+      const d = new Date(dateVal);
+      return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    };
+
+    const m = liveState?.match || match;
+    const innList = m.innings || [];
+
+    // Innings times
+    const inn1Start = innList[0]?.createdAt ? formatTimeOnly(innList[0].createdAt) : '--:--';
+    const inn1End = innList[0]?.status === 'completed' && innList[0]?.updatedAt ? formatTimeOnly(innList[0].updatedAt) : (innList[0] ? 'In Progress' : '--:--');
+
+    const inn2Start = innList[1]?.createdAt ? formatTimeOnly(innList[1].createdAt) : '--:--';
+    const inn2End = innList[1]?.status === 'completed' && innList[1]?.updatedAt ? formatTimeOnly(innList[1].updatedAt) : (innList[1] ? 'In Progress' : '--:--');
+
+    // Super Over Innings (Innings 3 and 4)
+    const superOverInn1 = innList.find(i => i.inningsNumber === 3);
+    const superOverInn2 = innList.find(i => i.inningsNumber === 4);
+
+    const superInn1Start = superOverInn1?.createdAt ? formatTimeOnly(superOverInn1.createdAt) : '--:--';
+    const superInn1End = superOverInn1?.status === 'completed' && superOverInn1?.updatedAt ? formatTimeOnly(superOverInn1.updatedAt) : (superOverInn1 ? 'In Progress' : '--:--');
+
+    const superInn2Start = superOverInn2?.createdAt ? formatTimeOnly(superOverInn2.createdAt) : '--:--';
+    const superInn2End = superOverInn2?.status === 'completed' && superOverInn2?.updatedAt ? formatTimeOnly(superOverInn2.updatedAt) : (superOverInn2 ? 'In Progress' : '--:--');
+
+    // Scorer transfer history
+    const history = m.scorerHistory || [];
+
+    // ── INNINGS TIMINGS ──
+    const hasAnyInnings = innList.length > 0;
+
+    return (
+      <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Match Info</Text>
+          <View style={styles.infoRow}><Text style={styles.infoLabel}>Match</Text><Text style={styles.infoValue}>{teamA} vs {teamB}</Text></View>
+          {m.tournament && m.tournament.name && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Tournament</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('TournamentDetail', { tournamentId: m.tournament._id })}>
+                <Text style={[styles.infoValue, { color: Colors.primary }]}>
+                  {m.tournament.name}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <View style={styles.infoRow}><Text style={styles.infoLabel}>Date</Text><Text style={styles.infoValue}>{dateStr}</Text></View>
+          <View style={styles.infoRow}><Text style={styles.infoLabel}>Format</Text><Text style={styles.infoValue}>{formatStr}</Text></View>
+          <View style={styles.infoRow}><Text style={styles.infoLabel}>Ball Type</Text><Text style={styles.infoValue}>{m.ballType}</Text></View>
+          <View style={styles.infoRow}><Text style={styles.infoLabel}>Pitch Type</Text><Text style={styles.infoValue}>{m.pitchType}</Text></View>
+        </View>
+
+        {/* ── TOSS DETAILS ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Toss Details</Text>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Tournament</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('TournamentDetail', { tournamentId: match.tournament._id })}>
-              <Text style={[styles.infoValue, { color: Colors.primary }]}>
-                {match.tournament.name}
-              </Text>
-            </TouchableOpacity>
+            <Text style={styles.infoLabel}>Toss Winner</Text>
+            <Text style={styles.infoValue}>
+              {m.toss?.winner ? (m.toss.winner.name || getTossWinnerName()) : 'Not Done'}
+            </Text>
+          </View>
+          {m.toss?.winner && (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Decision</Text>
+                <Text style={[styles.infoValue, { textTransform: 'capitalize' }]}>{m.toss.choice === 'bat' ? 'Batting First' : 'Bowling First'}</Text>
+              </View>
+              {m.tossDoneAt && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Toss Time</Text>
+                  <Text style={styles.infoValue}>{formatTimeOnly(m.tossDoneAt)}</Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+
+        {/* ── SCORER DETAILS ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Match Scorer</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Active Scorer</Text>
+            <Text style={[styles.infoValue, { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+              {m.activeScorerId?.name || 'Creator'}
+            </Text>
+          </View>
+          {history.length > 1 && (
+            <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.borderLight, paddingTop: 10 }}>
+              <Text style={[styles.infoLabel, { marginBottom: 6, fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.primary }]}>Scoring Transfer History</Text>
+              {history.map((h, i) => (
+                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium }}>
+                    {i === 0 ? '🏆 Initial Scorer' : `➡️ Transferred to ${h.name}`}
+                  </Text>
+                  <Text style={{ color: Colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.regular }}>
+                    {formatTimeOnly(h.changedAt)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* ── INNINGS TIMINGS (Only display if at least one innings has started) ── */}
+        {hasAnyInnings && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Innings Timings</Text>
+            {innList[0] && (
+              <View style={styles.timelineRow}>
+                <View style={styles.timelinePoint}>
+                  <Text style={styles.timelineLabel}>1st Innings</Text>
+                  <Text style={styles.timelineTime}>Start: {inn1Start}  |  End: {inn1End}</Text>
+                </View>
+              </View>
+            )}
+            {innList[1] && (
+              <View style={styles.timelineRow}>
+                <View style={styles.timelinePoint}>
+                  <Text style={styles.timelineLabel}>2nd Innings</Text>
+                  <Text style={styles.timelineTime}>Start: {inn2Start}  |  End: {inn2End}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Super Over Timings (Only if Super Over was played) */}
+            {(superOverInn1 || superOverInn2) && (
+              <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: Colors.borderLight, paddingTop: 12 }}>
+                <Text style={[styles.sectionTitle, { color: Colors.primary, fontSize: 12 }]}>Super Over Timings</Text>
+                {superOverInn1 && (
+                  <View style={styles.timelineRow}>
+                    <View style={styles.timelinePoint}>
+                      <Text style={[styles.timelineLabel, { color: Colors.primary }]}>Super Over - 1st Innings</Text>
+                      <Text style={styles.timelineTime}>Start: {superInn1Start}  |  End: {superInn1End}</Text>
+                    </View>
+                  </View>
+                )}
+                {superOverInn2 && (
+                  <View style={styles.timelineRow}>
+                    <View style={styles.timelinePoint}>
+                      <Text style={[styles.timelineLabel, { color: Colors.primary }]}>Super Over - 2nd Innings</Text>
+                      <Text style={styles.timelineTime}>Start: {superInn2Start}  |  End: {superInn2End}</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
         )}
-        <View style={styles.infoRow}><Text style={styles.infoLabel}>Date</Text><Text style={styles.infoValue}>{dateStr}</Text></View>
-        <View style={styles.infoRow}><Text style={styles.infoLabel}>Toss</Text><Text style={styles.infoValue}>{match.toss?.winner ? `${getTossWinnerName()} opt to ${match.toss.choice}` : 'Not done yet'}</Text></View>
-        <View style={styles.infoRow}><Text style={styles.infoLabel}>Format</Text><Text style={styles.infoValue}>{formatStr}</Text></View>
-        <View style={styles.infoRow}><Text style={styles.infoLabel}>Ball Type</Text><Text style={styles.infoValue}>{match.ballType}</Text></View>
-        <View style={styles.infoRow}><Text style={styles.infoLabel}>Pitch Type</Text><Text style={styles.infoValue}>{match.pitchType}</Text></View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Venue</Text>
-        <View style={styles.infoRow}><Text style={styles.infoLabel}>Ground</Text><Text style={styles.infoValue}>{match.venue?.name || match.ground || 'N/A'}</Text></View>
-        <View style={styles.infoRow}><Text style={styles.infoLabel}>City</Text><Text style={styles.infoValue}>{match.venue?.city || match.city || 'N/A'}</Text></View>
-      </View>
-    </ScrollView>
-  );
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Venue</Text>
+          <View style={styles.infoRow}><Text style={styles.infoLabel}>Ground</Text><Text style={styles.infoValue}>{m.venue?.name || m.ground || 'N/A'}</Text></View>
+          <View style={styles.infoRow}><Text style={styles.infoLabel}>City</Text><Text style={styles.infoValue}>{m.venue?.city || m.city || 'N/A'}</Text></View>
+        </View>
+      </ScrollView>
+    );
+  };
 
   const renderSummary = () => {
     if (match.status === 'abandoned') {
@@ -1343,7 +1508,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     return (
                       <View key={idx} style={{ marginBottom: 12 }}>
                         <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14, marginBottom: 4 }}>
-                          {teamName}
+                          {teamName}{sc.inningsNumber >= 3 ? ' (Super Over)' : ''}
                         </Text>
                         <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 22 }}>
                           {sc.total?.runs || 0}/{sc.total?.wickets || 0} <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: 'normal' }}>({sc.total?.overs || '0.0'} Ov)</Text>
@@ -1354,7 +1519,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 </View>
 
                 <View style={{ alignItems: 'flex-end', marginLeft: 16 }}>
-                  <View style={{ backgroundColor: Colors.surfaceDark, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16 }}>
+                  <View style={{ backgroundColor: Colors.surfaceDark, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {(match?.isSuperOver || match?.status === 'super_over' || liveState?.isSuperOver) && (
+                      <View style={{ backgroundColor: '#7B1FA2', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3 }}>
+                        <Text style={{ color: '#FFD54F', fontSize: 8, fontWeight: 'bold' }}>SUPER OVER</Text>
+                      </View>
+                    )}
                     <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Result</Text>
                   </View>
                 </View>
@@ -1635,6 +1805,38 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               {match.toss?.winner && (
                 <Text style={[styles.tossTextPrimary, { marginTop: 12 }]}>Toss: {getTossWinnerName()} opt to {match.toss.choice}</Text>
               )}
+
+              {liveState?.currentOverBalls?.length > 0 && (
+                <View style={styles.msOverTimeline}>
+                  <Text style={styles.msOverTimelineLabel}>This Over:</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingRight: 16 }}>
+                    {liveState.currentOverBalls.map((ball, i) => {
+                      const isWicket = ball.type === 'wicket' || ball.display === 'W';
+                      const isFour = ball.runs === 4;
+                      const isSix = ball.runs === 6;
+                      const isZero = ball.runs === 0 && !isWicket;
+                      const isExtra = ball.display && (ball.display.includes('Wd') || ball.display.includes('Nb') || ball.display.includes('Lb') || ball.display.includes('B'));
+                      return (
+                        <View key={i} style={[
+                          styles.msBallCircle,
+                          isWicket && { backgroundColor: Colors.primary, borderColor: Colors.primary },
+                          isFour && { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
+                          isSix && { backgroundColor: Colors.primary, borderColor: Colors.primary },
+                          isZero && { backgroundColor: Colors.backgroundElevated, borderColor: Colors.border },
+                          isExtra && { backgroundColor: Colors.backgroundElevated, borderColor: Colors.primary },
+                        ]}>
+                          <Text style={[styles.msBallText, (isWicket || isSix) && { color: '#000' }, isFour && { color: Colors.primary }, isZero && { color: Colors.textSecondary }, isExtra && { color: Colors.primary }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{ball.display}</Text>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+              {/* {match.activeScorerId && (
+                <Text style={{ color: Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.bold, marginTop: 8 }}>
+                  🏏 Scoring handled by: <Text style={{ color: Colors.primary }}>{typeof match.activeScorerId === 'object' ? match.activeScorerId.name : 'Active Scorer'}</Text>
+                </Text>
+              )} */}
               {match.status === 'scheduled' && (
                 <Text style={styles.yetToStartText}>Match Yet To Start</Text>
               )}
@@ -2197,7 +2399,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         const bowlerName = getFirstName(ball.bowler?.name);
         const fielderName = ball.wicket?.fielder ? getFirstName(ball.wicket.fielder.name) : '';
         const wType = ball.wicket?.type;
-        if (wType === 'caught' || wType === 'caught_and_bowled') {
+        if (wType === 'caught' || wType === 'caught_behind' || wType === 'caught_and_bowled') {
           const cBy = wType === 'caught_and_bowled' ? bowlerName : (fielderName || 'Sub');
           text = `c ${cBy} b ${bowlerName}`;
         } else if (wType === 'bowled') text = `b ${bowlerName}`;
@@ -2227,12 +2429,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           <View style={{ width: 60, alignItems: 'center' }}>
             <View style={{ width: 2, flex: 1, backgroundColor: Colors.borderLight }} />
             <View style={{
-              position: 'absolute', top: 20, width: 32, height: 32, borderRadius: 16,
+              position: 'absolute', top: 20,
+              minWidth: 36, height: 36, borderRadius: 18,
+              paddingHorizontal: 5,
               backgroundColor: bgColor, borderWidth: 2, borderColor: borderColor,
               justifyContent: 'center', alignItems: 'center',
               ...(glow ? { elevation: 8, shadowColor: glow, shadowOpacity: 0.8, shadowRadius: 6 } : {})
             }}>
-              <Text style={{ color: textColor, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{outcome}</Text>
+              <Text style={{ color: textColor, fontFamily: Typography.fontFamily.bold, fontSize: 11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{outcome}</Text>
             </View>
           </View>
 
@@ -2576,6 +2780,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       case 'bowled':
         return `b ${bowlerName}`;
       case 'caught':
+      case 'caught_behind':
         return `c ${fielderName} b ${bowlerName}`;
       case 'stumped':
         return `st ${fielderName} b ${bowlerName}`;
@@ -3075,7 +3280,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             teamName: bowlingTeamName, catches: 0, stumpings: 0, runOuts: 0,
           };
           const dtype = b.dismissal.type;
-          if (dtype === 'caught' || dtype === 'caught_and_bowled') fieldersMap[fid].catches += 1;
+          if (dtype === 'caught' || dtype === 'caught_behind' || dtype === 'caught_and_bowled') fieldersMap[fid].catches += 1;
           else if (dtype === 'stumped') fieldersMap[fid].stumpings += 1;
           else if (dtype === 'run_out') fieldersMap[fid].runOuts += 1;
         }
@@ -3461,9 +3666,16 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 {new Date(match.scheduledAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} • {match.tournament?.name || 'Match'}
               </Text>
             ) : match.status === 'completed' ? (
-              <View style={styles.statusBadgeCompleted}>
-                <Icon name="check-circle" size={10} color="#fff" style={{ marginRight: 4 }} />
-                <Text style={styles.statusBadgeText}>Completed</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={styles.statusBadgeCompleted}>
+                  <Icon name="check-circle" size={10} color="#fff" style={{ marginRight: 4 }} />
+                  <Text style={styles.statusBadgeText}>Completed</Text>
+                </View>
+                {(match?.isSuperOver || match?.status === 'super_over' || liveState?.isSuperOver) && (
+                  <View style={[styles.statusBadgeLive, { backgroundColor: '#7B1FA2', borderWidth: 0.8, borderColor: '#FFD54F', paddingHorizontal: 6, paddingVertical: 1.5, height: 'auto' }]}>
+                    <Text style={[styles.statusBadgeText, { color: '#FFD54F', fontSize: 9, fontWeight: 'bold' }]}>SUPER OVER</Text>
+                  </View>
+                )}
               </View>
             ) : (match.status === 'super_over' || match.isSuperOver || liveState?.isSuperOver) ? (
               <View style={[styles.statusBadgeLive, { backgroundColor: '#7B1FA2', borderWidth: 1, borderColor: '#FFD54F', paddingHorizontal: 8 }]}>
@@ -3479,7 +3691,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {isScorer && (
+            {isScorer && match.status !== 'completed' && match.status !== 'abandoned' && match.status !== 'no_result' && (
               <TouchableOpacity style={{ padding: 8 }} onPress={() => setShowSettingsModal(true)}>
                 <Icon name="cog" size={20} color="#fff" />
               </TouchableOpacity>
@@ -3511,7 +3723,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       </View>
 
       {/* Floating Action Bar */}
-      {isScorer && match.status !== 'completed' && match.status !== 'abandoned' && match.status !== 'no_result' && (
+      {isActiveScorer && match.status !== 'completed' && match.status !== 'abandoned' && match.status !== 'no_result' && (
         <View style={{
           position: 'absolute',
           bottom: insets.bottom + 16,
@@ -3666,6 +3878,29 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
                 {/* Options */}
                 <View style={{ paddingHorizontal: 16, gap: 10 }}>
+                  {/* {isActiveScorer && (
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row', alignItems: 'center',
+                        backgroundColor: Colors.surface, borderRadius: 14,
+                        padding: 16, borderWidth: 1, borderColor: Colors.border,
+                      }}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setShowSettingsModal(false);
+                        navigation.navigate('MatchSetup', { matchId: cleanMatchId, matchData: match });
+                      }}
+                    >
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${Colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                        <Icon name="pencil" size={20} color={Colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Edit Match Details</Text>
+                        <Text style={{ color: Colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Edit overs, wickets, ground, location, etc</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={Colors.textTertiary} />
+                    </TouchableOpacity>
+                  )} */}
                   <TouchableOpacity
                     style={{
                       flexDirection: 'row', alignItems: 'center',
@@ -3676,10 +3911,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     onPress={() => { setShowSettingsModal(false); setShowAddScorerModal(true); }}
                   >
                     <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${Colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                      <Icon name="account-plus" size={20} color={Colors.primary} />
+                      <Icon name="account-switch" size={20} color={Colors.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Add Scorer</Text>
+                      <Text style={{ color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Change Scorer</Text>
                       <Text style={{ color: Colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Assign someone to score this match</Text>
                     </View>
                     <Icon name="chevron-right" size={18} color={Colors.textTertiary} />
@@ -3740,9 +3975,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
               <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${Colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                <Icon name="account-plus" size={18} color={Colors.primary} />
+                <Icon name="account-switch" size={18} color={Colors.primary} />
               </View>
-              <Text style={{ flex: 1, fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Add Scorer</Text>
+              <Text style={{ flex: 1, fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Change Scorer</Text>
               <TouchableOpacity
                 style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' }}
                 onPress={() => setShowAddScorerModal(false)}
@@ -3751,25 +3986,30 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
 
-            {/* Current scorers */}
-            {match.scorers?.length > 0 && (
-              <View style={{ marginBottom: 18 }}>
-                <Text style={{ color: Colors.textSecondary, marginBottom: 10, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Current Scorers</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {match.scorers.map((s, idx) => (
-                    <View key={idx} style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 6,
-                      backgroundColor: `${Colors.primary}14`,
-                      paddingHorizontal: 12, paddingVertical: 7,
-                      borderRadius: 20, borderWidth: 1, borderColor: `${Colors.primary}30`,
-                    }}>
-                      <Icon name="account-check" size={13} color={Colors.primary} />
-                      <Text style={{ color: Colors.primary, fontSize: 13, fontFamily: Typography.fontFamily.medium }}>{s.name || s.mobile || 'Unknown'}</Text>
-                    </View>
-                  ))}
+            {/* Current active scorer */}
+            {(() => {
+              const aScorer = match.activeScorerId;
+              const aName = typeof aScorer === 'object'
+                ? (aScorer?.name || aScorer?.mobile)
+                : (match.scorers?.find(s => String(s.userId?._id || s.userId) === String(aScorer))?.userId?.name ||
+                   match.scorers?.find(s => String(s.userId?._id || s.userId) === String(aScorer))?.userId?.mobile);
+              const displayName = aName || (typeof match.organizerId === 'object' ? match.organizerId?.name : null) || 'Not Assigned';
+              return (
+                <View style={{ marginBottom: 18 }}>
+                  <Text style={{ color: Colors.textSecondary, marginBottom: 10, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Current Scorer</Text>
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    backgroundColor: `${Colors.primary}14`,
+                    paddingHorizontal: 12, paddingVertical: 7,
+                    borderRadius: 20, borderWidth: 1, borderColor: `${Colors.primary}30`,
+                    alignSelf: 'flex-start',
+                  }}>
+                    <Icon name="account-check" size={13} color={Colors.primary} />
+                    <Text style={{ color: Colors.primary, fontSize: 13, fontFamily: Typography.fontFamily.medium }}>{displayName}</Text>
+                  </View>
                 </View>
-              </View>
-            )}
+              );
+            })()}
 
             {/* Divider */}
             <View style={{ height: 1, backgroundColor: Colors.border, marginBottom: 16 }} />
@@ -3802,8 +4042,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               onPress={executeAddScorer}
               activeOpacity={0.8}
             >
-              <Icon name="account-plus" size={18} color={Colors.background} />
-              <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 15 }}>Add Scorer</Text>
+              <Icon name="account-switch" size={18} color={Colors.background} />
+              <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 15 }}>Change Scorer</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -3972,34 +4212,87 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         </View>
       </Modal>
 
-      {/* Player Preview Modal */}
+      {/* Player Preview Modal — Premium Style */}
       {selectedPlayerPreview && (
-        <Modal visible transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={[styles.modalAvatar, { overflow: 'hidden' }]}>
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setSelectedPlayerPreview(null)}
+        >
+          <Pressable style={styles.ppModalOverlay} onPress={() => setSelectedPlayerPreview(null)}>
+            <Pressable style={styles.ppCard} onPress={() => {}}>
+              {/* Full-width cover image */}
+              <View style={styles.ppCoverContainer}>
                 {(selectedPlayerPreview.photo || selectedPlayerPreview.userId?.photo) ? (
-                  <Image source={{ uri: getImageUrl(selectedPlayerPreview.photo || selectedPlayerPreview.userId?.photo) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  <Image
+                    source={{ uri: getImageUrl(selectedPlayerPreview.photo || selectedPlayerPreview.userId?.photo) }}
+                    style={styles.ppCoverImage}
+                    resizeMode="cover"
+                  />
                 ) : (
-                  <Text style={styles.modalAvatarText}>{selectedPlayerPreview.name?.charAt(0).toUpperCase()}</Text>
+                  <View style={[styles.ppCoverImage, styles.ppCoverFallback]}>
+                    <Text style={styles.ppCoverFallbackLetter}>{selectedPlayerPreview.name?.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
+                {/* Black gradient with name */}
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.72)', 'rgba(0,0,0,0.97)']}
+                  style={styles.ppGradient}
+                >
+                  <Text style={styles.ppName}>{selectedPlayerPreview.name}</Text>
+                  {selectedPlayerPreview.team?.name ? (
+                    <Text style={styles.ppTeam}>{selectedPlayerPreview.team.name}</Text>
+                  ) : null}
+                </LinearGradient>
+                {/* Close X */}
+                <TouchableOpacity style={styles.ppClose} onPress={() => setSelectedPlayerPreview(null)}>
+                  <Icon name="close" size={18} color="#fff" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Overall Career Stats Row */}
+              <View style={styles.ppStatsRow}>
+                {playerPreviewLoading ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  [{
+                    label: 'Matches',
+                    value: playerPreviewStats?.career?.matches ?? '-',
+                    icon: 'cricket'
+                  }, {
+                    label: 'Runs',
+                    value: playerPreviewStats?.batting?.runs ?? '-',
+                    icon: 'run'
+                  }, {
+                    label: 'Wickets',
+                    value: playerPreviewStats?.bowling?.wickets ?? '-',
+                    icon: 'bowling'
+                  }].map((s, i) => (
+                    <View key={i} style={styles.ppStatPill}>
+                      <Text style={styles.ppStatValue}>{s.value}</Text>
+                      <Text style={styles.ppStatLabel}>{s.label}</Text>
+                    </View>
+                  ))
                 )}
               </View>
-              <Text style={styles.modalPlayerName}>{selectedPlayerPreview.name}</Text>
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setSelectedPlayerPreview(null)}>
-                  <Text style={styles.modalBtnTextCancel}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.modalBtnView} onPress={() => {
+              {/* View Profile Button */}
+              <TouchableOpacity
+                style={styles.ppViewBtn}
+                activeOpacity={0.85}
+                onPress={() => {
                   const pId = selectedPlayerPreview._id;
                   setSelectedPlayerPreview(null);
                   if (pId) navigation.navigate('PlayerDetail', { id: pId });
-                }}>
-                  <Text style={styles.modalBtnTextView}>View Profile</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
+                }}
+              >
+                <Icon name="account-arrow-right" size={18} color="#000" style={{ marginRight: 6 }} />
+                <Text style={styles.ppViewBtnText}>View Full Profile</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
         </Modal>
       )}
 
@@ -4232,6 +4525,34 @@ const styles = StyleSheet.create({
   tossTextPrimary: { color: Colors.primary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
   yetToStartText: { color: Colors.warning, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginTop: 8 },
 
+  // Over Timeline (matches Live Scorer style)
+  msOverTimeline: {
+    marginTop: 14,
+  },
+  msOverTimelineLabel: {
+    color: Colors.textTertiary,
+    marginBottom: 8,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  msBallCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.backgroundElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  msBallText: {
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+  },
+
   tableHeaderRow: { flexDirection: 'row', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, marginBottom: 4 },
   tableHeaderText: { flex: 1, color: Colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.bold, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.5 },
   tableRow: { flexDirection: 'row', paddingVertical: 12, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
@@ -4353,6 +4674,148 @@ const styles = StyleSheet.create({
   modalBtnTextCancel: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 },
   modalBtnView: { flex: 1, paddingVertical: 13, borderRadius: BorderRadius.md, backgroundColor: Colors.primary, alignItems: 'center' },
   modalBtnTextView: { color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+
+  // ── Premium Player Preview Modal ─────────────────────────────────────────────
+  ppModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  ppCard: {
+    width: '100%',
+    backgroundColor: '#111',
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+  },
+  ppCoverContainer: {
+    width: '100%',
+    height: 280,
+    backgroundColor: '#1a1a1a',
+    position: 'relative',
+  },
+  ppCoverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  ppCoverFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+  },
+  ppCoverFallbackLetter: {
+    fontSize: 80,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+    opacity: 0.4,
+  },
+  ppGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '65%',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    gap: 3,
+  },
+  ppName: {
+    fontSize: 26,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#fff',
+    letterSpacing: 0.4,
+  },
+  ppTeam: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  ppClose: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ppViewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    marginHorizontal: 16,
+    marginVertical: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
+  ppViewBtnText: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#000',
+    letterSpacing: 0.3,
+  },
+  ppStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#0d0d0d',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  ppStatPill: {
+    flex: 1,
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.08)',
+    paddingVertical: 4,
+  },
+  ppStatValue: {
+    fontSize: 22,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  ppStatLabel: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.45)',
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  // ── Innings Timings Timeline Styles ──
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  timelinePoint: {
+    flex: 1,
+  },
+  timelineLabel: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  timelineTime: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+  },
 });
 
 export default MatchSummaryScreen;

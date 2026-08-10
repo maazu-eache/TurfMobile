@@ -1,36 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ActivityIndicator, Image } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/Feather';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
-const RoleManagementModal = ({ visible, onClose, tournament, onRefresh, roleType }) => {
+const RoleManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
   const [loading, setLoading] = useState(false);
   const [mobileToSearch, setMobileToSearch] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState(null);
-  const [currentUsers, setCurrentUsers] = useState([]);
-  
+  const [coOrganizer, setCoOrganizer] = useState(null);
+
   useEffect(() => {
     if (visible && tournament) {
-      if (roleType === 'coOrganizers') {
-        setCurrentUsers(tournament.coOrganizers || []);
-      } else if (roleType === 'scorers') {
-        setCurrentUsers(tournament.scorers || []);
-      }
+      const coOrgs = tournament.coOrganizers || [];
+      setCoOrganizer(coOrgs.length > 0 ? coOrgs[0] : null);
       setSearchResults(null);
       setMobileToSearch('');
     }
-  }, [visible, roleType]);
+  }, [visible, tournament]);
 
   const handleSearch = async () => {
     if (!mobileToSearch || mobileToSearch.length < 10) {
       showCustomAlert('Error', 'Please enter a valid 10-digit mobile number');
       return;
     }
-    
     try {
       setSearching(true);
       const res = await api.get(`/users/lookup/${mobileToSearch}`);
@@ -42,49 +38,36 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh, roleType
         setSearchResults(null);
       }
     } catch (e) {
-      console.log('Lookup error', e);
       showCustomAlert('Error', 'Failed to search for user');
     } finally {
       setSearching(false);
     }
   };
 
-  const handleAddUser = () => {
+  const handleSelectCoOrganizer = () => {
     if (!searchResults) return;
-    
-    // Check if already in list
-    const searchId = searchResults._id || searchResults.id;
-    const exists = currentUsers.some(u => (u._id || u.id || u) === searchId);
-    if (exists) {
-      showCustomAlert('Error', 'User is already added to this role');
-      return;
-    }
-    
-    setCurrentUsers(prev => [...prev, searchResults]);
+    setCoOrganizer(searchResults);
     setSearchResults(null);
     setMobileToSearch('');
   };
 
-  const handleRemoveUser = (userId) => {
-    setCurrentUsers(prev => prev.filter(u => (u._id || u.id || u) !== userId));
+  const handleRemoveCoOrganizer = () => {
+    setCoOrganizer(null);
   };
 
   const handleSave = async () => {
     try {
       setLoading(true);
-      
-      const payloadIds = currentUsers.map(u => u._id || u.id || u);
-      const payload = {};
-      if (roleType === 'coOrganizers') payload.coOrganizers = payloadIds;
-      if (roleType === 'scorers') payload.scorers = payloadIds;
+      const payload = {
+        coOrganizers: coOrganizer ? [coOrganizer._id || coOrganizer.id || coOrganizer] : []
+      };
       
       await api.put(`/tournaments/${tournament._id}/roles`, payload);
-      showCustomAlert('Success', `${roleType === 'coOrganizers' ? 'Organizers' : 'Scorers'} updated successfully`);
+      showCustomAlert('Success', 'Co-Organizer updated successfully');
       if (onRefresh) await onRefresh();
       onClose();
     } catch (e) {
-      console.log('Error saving roles', e);
-      showCustomAlert('Error', e.response?.data?.message || 'Failed to save roles');
+      showCustomAlert('Error', e.response?.data?.message || 'Failed to save co-organizer');
     } finally {
       setLoading(false);
     }
@@ -97,13 +80,13 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh, roleType
       <View style={styles.modalBg}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Manage {roleType === 'coOrganizers' ? 'Organizers' : 'Scorers'}</Text>
+            <Text style={styles.modalTitle}>Manage Co-Organizer</Text>
             <TouchableOpacity onPress={onClose}>
               <Icon name="x" size={24} color={Colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          
-          <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ flex: 1, marginTop: Spacing.sm }}>
+
+          <KeyboardAwareScrollView enableOnAndroid extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ flex: 1, marginTop: Spacing.sm }}>
             <View style={styles.searchContainer}>
               <TextInput
                 style={styles.input}
@@ -131,38 +114,31 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh, roleType
                 <View style={{ flex: 1 }}>
                   <Text style={styles.userName}>{searchResults.name}</Text>
                 </View>
-                <TouchableOpacity style={styles.addBtn} onPress={handleAddUser}>
-                  <Text style={styles.addBtnText}>Add</Text>
+                <TouchableOpacity style={styles.addBtn} onPress={handleSelectCoOrganizer}>
+                  <Text style={styles.addBtnText}>Select</Text>
                 </TouchableOpacity>
               </View>
             )}
 
-            <Text style={styles.subTitle}>Current {roleType === 'coOrganizers' ? 'Organizers' : 'Scorers'}</Text>
+            <Text style={styles.subTitle}>Current Co-Organizer (Max 1)</Text>
             
-            {currentUsers.length === 0 && (
-              <Text style={styles.emptyText}>No users added yet.</Text>
+            {coOrganizer ? (
+              <View style={styles.userCard}>
+                {coOrganizer.photo ? (
+                  <Image source={{ uri: getImageUrl(coOrganizer.photo) }} style={styles.userPhoto} />
+                ) : (
+                  <View style={styles.userPhotoPlaceholder}>
+                    <Icon name="user" size={20} color={Colors.primary} />
+                  </View>
+                )}
+                <Text style={[styles.userName, { flex: 1 }]}>{coOrganizer.name || coOrganizer.mobile || 'User'}</Text>
+                <TouchableOpacity onPress={handleRemoveCoOrganizer} style={{ padding: Spacing.xs }}>
+                  <Icon name="trash-2" size={20} color={Colors.error} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>No co-organizer added yet.</Text>
             )}
-
-            {currentUsers.map((user, idx) => {
-              const uId = user._id || user.id || user;
-              const uName = user.name || user.mobile || 'User';
-              const hasPhoto = !!user.photo;
-              return (
-                <View key={uId || idx} style={styles.userCard}>
-                  {hasPhoto ? (
-                    <Image source={{ uri: getImageUrl(user.photo) }} style={styles.userPhoto} />
-                  ) : (
-                    <View style={styles.userPhotoPlaceholder}>
-                      <Icon name="user" size={20} color={Colors.primary} />
-                    </View>
-                  )}
-                  <Text style={[styles.userName, { flex: 1 }]}>{uName}</Text>
-                  <TouchableOpacity onPress={() => handleRemoveUser(uId)} style={{ padding: Spacing.xs }}>
-                    <Icon name="trash-2" size={20} color={Colors.error} />
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
           </KeyboardAwareScrollView>
 
           <View style={styles.footer}>

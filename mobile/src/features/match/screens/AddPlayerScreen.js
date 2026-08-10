@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -17,6 +17,9 @@ const AddPlayerScreen = ({ route, navigation }) => {
   const [searchResult, setSearchResult] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
 
+  const scrollRef = useRef(null);
+  const nameInputRef = useRef(null);
+
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (onClose) {
@@ -25,6 +28,16 @@ const AddPlayerScreen = ({ route, navigation }) => {
     });
     return unsubscribe;
   }, [navigation, onClose]);
+
+  useEffect(() => {
+    if (searchResult && !searchResult.exists) {
+      const timer = setTimeout(() => {
+        scrollRef.current?.scrollToEnd?.({ animated: true });
+        nameInputRef.current?.focus();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [searchResult]);
 
   const nonSquadPlayers = roster.filter(p => !squad.some(s => s._id === p._id));
 
@@ -112,7 +125,16 @@ const AddPlayerScreen = ({ route, navigation }) => {
         <View style={{ width: 28 }} />
       </View>
 
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView 
+        ref={scrollRef}
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        enableOnAndroid={true} 
+        extraScrollHeight={Platform.OS === 'ios' ? 100 : 140} 
+        keyboardShouldPersistTaps="handled"
+        enableResetScrollToCoords={false}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.label}>Mobile Number</Text>
         <View style={styles.inputContainer}>
           <Icon name="phone-outline" size={20} color={Colors.textTertiary} style={{ marginRight: Spacing.sm }} />
@@ -160,15 +182,18 @@ const AddPlayerScreen = ({ route, navigation }) => {
         {searchResult && !searchResult.exists && (
           <View style={{ marginTop: Spacing.lg }}>
             <Text style={styles.label}>Player Name</Text>
-            <View style={styles.singleInputContainer}>
-              <Icon name="account-outline" size={20} color={Colors.textTertiary} style={{ marginRight: Spacing.sm }} />
+            <View style={[styles.singleInputContainer, styles.singleInputContainerFocused]}>
+              <Icon name="account-outline" size={20} color={Colors.primary} style={{ marginRight: Spacing.sm }} />
               <TextInput
+                ref={nameInputRef}
                 style={styles.textInputStyle}
                 placeholder="Full Name"
                 placeholderTextColor={Colors.textTertiary}
                 value={name}
                 onChangeText={setName}
-                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleAddPlayer}
+                blurOnSubmit={false}
               />
             </View>
             <Text style={styles.helperText}>
@@ -204,11 +229,12 @@ const AddPlayerScreen = ({ route, navigation }) => {
             )}
           </View>
         )}
+        <View style={{ height: 24 }} />
       </KeyboardAwareScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity 
-          style={[styles.addBtn, (!searchResult && !mobile) && { opacity: 0.5 }]} 
+          style={[styles.addBtn, (!searchResult && !mobile) && styles.addBtnDisabled]} 
           onPress={handleAddPlayer} 
           disabled={loading || (!searchResult && !mobile)}
         >
@@ -225,6 +251,7 @@ const AddPlayerScreen = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  scrollView: { flex: 1 },
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -267,6 +294,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     height: 52,
   },
+  singleInputContainerFocused: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(255,204,0,0.05)',
+  },
   textInputStyle: {
     flex: 1,
     color: Colors.textPrimary,
@@ -291,7 +322,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   addBtn: { backgroundColor: Colors.primary, padding: 16, borderRadius: BorderRadius.md, alignItems: 'center' },
-  addBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 16, color: '#FFF' },
+  addBtnDisabled: { opacity: 0.5 },
+  addBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 16, color: '#000' },
   foundPlayerCard: { 
     backgroundColor: Colors.primaryAlpha10, 
     padding: Spacing.base, 

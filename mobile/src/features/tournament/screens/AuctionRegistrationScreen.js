@@ -21,6 +21,8 @@ import { useSelector } from 'react-redux';
 import RazorpayCheckout from 'react-native-razorpay';
 import { RAZORPAY_KEY } from '@env';
 import { showCustomAlert } from '../../../components/CustomAlert';
+import api from '../../../api/axios';
+import ImageCropperModal from '../../../components/ImageCropperModal';
 
 const ROLES = [
   { label: 'All Rounder', icon: 'cricket' },
@@ -63,6 +65,8 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
   const [photo, setPhoto] = useState(null);
   const [agreed, setAgreed] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [cropModalVisible, setCropModalVisible] = useState(false);
+  const [tempImageUri, setTempImageUri] = useState('');
 
   const isRegistrationClosed = auction?.registrationEndDate
     ? new Date() > new Date(auction.registrationEndDate)
@@ -124,7 +128,8 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
           showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
           return;
         }
-        setPhoto(selected);
+        setTempImageUri(selected.uri);
+        setCropModalVisible(true);
       }
     });
   };
@@ -736,6 +741,20 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
+
+      <ImageCropperModal
+        visible={cropModalVisible}
+        imageUri={tempImageUri}
+        onClose={() => setCropModalVisible(false)}
+        onCrop={(croppedUri) => {
+          setPhoto({
+            uri: croppedUri,
+            fileName: 'auction_profile.jpg',
+            type: 'image/jpeg'
+          });
+          setCropModalVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 };

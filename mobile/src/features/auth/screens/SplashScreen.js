@@ -7,7 +7,7 @@ import Video from 'react-native-video';
 
 const { width, height } = Dimensions.get('window');
 
-const SplashScreen = ({ navigation }) => {
+const SplashScreen = ({ navigation, onFinished }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -30,9 +30,9 @@ const SplashScreen = ({ navigation }) => {
         source={require('../../../../Launch_screen.mp4')} 
         style={StyleSheet.absoluteFill}
         resizeMode="cover"
-        repeat={true}
+        repeat={false}
         muted={false}
-        onLoad={() => videoRef.current?.seek(0.5)}
+        onEnd={onFinished}
       />
     </View>
   );

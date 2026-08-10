@@ -194,9 +194,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
   // Reset nav lock every time this screen comes into focus (e.g. after returning from player selection)
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      if (route.params?.skipAutoBowler) {
+      if (route.params?.skipAutoBowler || route.params?.skipFocusFetch) {
         navLockRef.current = true;
-        navigation.setParams({ skipAutoBowler: false });
+        navigation.setParams({ skipAutoBowler: false, skipFocusFetch: false });
       } else {
         navLockRef.current = false;
       }
@@ -206,14 +206,20 @@ const LiveScorerScreen = ({ navigation, route }) => {
       }
     });
     return unsubscribe;
-  }, [navigation, route.params?.skipAutoBowler]);
+  }, [navigation, route.params?.skipAutoBowler, route.params?.skipFocusFetch]);
 
   // Self-correcting reset: release nav lock when active bowler/batters are successfully set
   useEffect(() => {
-    if (liveState && !liveState.needsBowler && liveState.bowler && liveState.striker && liveState.nonStriker) {
+    if (!liveState) return;
+    const needsBatter = (!liveState.striker || !liveState.nonStriker);
+    const hasOneBatter = liveState.striker || liveState.nonStriker;
+    const isSingleWicketValid = liveState.match?.isSingleWicketBatting && hasOneBatter;
+    const batterOk = !needsBatter || isSingleWicketValid;
+    const bowlerOk = !liveState.needsBowler || liveState.bowler;
+    if (batterOk && bowlerOk) {
       navLockRef.current = false;
     }
-  }, [liveState?.needsBowler, liveState?.bowler, liveState?.striker, liveState?.nonStriker]);
+  }, [liveState?.needsBowler, liveState?.bowler, liveState?.striker, liveState?.nonStriker, liveState?.match?.isSingleWicketBatting]);
 
   useEffect(() => {
     if (route.params?.isAmbiguousStrike) {
@@ -246,6 +252,24 @@ const LiveScorerScreen = ({ navigation, route }) => {
     return () => backHandler.remove();
   }, [navigation]);
 
+  useEffect(() => {
+    if (liveState?.match && currentUser) {
+      const rawActiveScorerId = liveState.match.activeScorerId;
+      // activeScorerId may be a populated object {_id, name} or a raw ID string
+      const activeScorerId =
+        (typeof rawActiveScorerId === 'object' ? rawActiveScorerId?._id : rawActiveScorerId) ||
+        (typeof liveState.match.organizerId === 'object' ? liveState.match.organizerId?._id : liveState.match.organizerId) ||
+        (typeof liveState.match.creator === 'object' ? liveState.match.creator?._id : liveState.match.creator);
+      if (activeScorerId && String(activeScorerId) !== String(currentUser._id)) {
+        showCustomAlert(
+          'Scoring Transferred',
+          'Scoring has been transferred to another scorer.',
+          [{ text: 'OK', onPress: () => navigation.navigate('MatchSummary', { matchId }) }]
+        );
+      }
+    }
+  }, [liveState?.match?.activeScorerId, liveState?.match?.organizerId, liveState?.match?.creator, currentUser?._id]);
+
   const creatorId = typeof liveState?.match?.creator === 'object' ? liveState?.match?.creator?._id : liveState?.match?.creator;
   const isCreator = String(creatorId) === String(currentUser?._id);
 
@@ -259,11 +283,21 @@ const LiveScorerScreen = ({ navigation, route }) => {
       ? liveState?.match?.creator?._id
       : liveState?.match?.creator;
     const creatorMatch = String(creator) === String(currentUser?._id);
+
+    // match.organizerId = permanent match manager; always retains access even after delegating scoring
+    const organizerId = typeof liveState?.match?.organizerId === 'object'
+      ? liveState?.match?.organizerId?._id
+      : liveState?.match?.organizerId;
+    const isMatchOrganizer = String(organizerId) === String(currentUser?._id);
+
     const scorerMatch = liveState?.match?.scorers?.some(s => {
-      const sId = typeof s === 'object' ? s?._id : s;
+      // scorers array items are { userId: ObjectId|PopulatedUser, addedBy, addedAt }
+      const sId = s?.userId
+        ? (typeof s.userId === 'object' ? s.userId?._id : s.userId)
+        : (typeof s === 'object' ? s?._id : s);
       return String(sId) === String(currentUser?._id);
     });
-    
+
     // Check tournament organizers/scorers
     const t = liveState?.match?.tournament;
     let tournamentScorer = false;
@@ -274,8 +308,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
       tournamentScorer = isOrganizer || isCoOrganizer || isTScorer;
     }
 
-    return (creatorMatch || scorerMatch || tournamentScorer);
-  }, [liveState?.match?.creator, liveState?.match?.scorers, liveState?.match?.tournament, currentUser?._id]);
+    return (creatorMatch || isMatchOrganizer || scorerMatch || tournamentScorer);
+  }, [liveState?.match?.creator, liveState?.match?.organizerId, liveState?.match?.scorers, liveState?.match?.tournament, currentUser?._id]);
 
   const getLocalMatchSummary = (completedReason) => {
     if (match?.result?.summary) return match.result.summary;
@@ -606,8 +640,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
       setAdvWicketType(type);
       setDismissedBatter(liveState.striker?._id);
 
-      // Prefill wicket keeper for stumped
-      if (type === 'stumped') {
+      // Prefill wicket keeper for stumped or caught_behind
+      if (type === 'stumped' || type === 'caught_behind') {
         const match = liveState.match;
         const isTeamABatting = String(liveState.battingTeam?._id || liveState.battingTeam) === String(match.teamA?._id || match.teamA);
         const wk = isTeamABatting ? match.wicketKeeper?.teamB : match.wicketKeeper?.teamA;
@@ -626,7 +660,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     if (advWicketType === 'run_out' && (!dismissedBatter || !primaryFielder)) {
       return showCustomAlert('Error', 'Please select dismissed batter and primary fielder');
     }
-    if (['caught', 'stumped'].includes(advWicketType) && !primaryFielder) {
+    if (['caught', 'caught_behind', 'stumped'].includes(advWicketType) && !primaryFielder) {
       return showCustomAlert('Error', 'Please select the fielder');
     }
     if (['obstructing_field', 'cheating', 'retired_hurt', 'retired_out'].includes(advWicketType) && !dismissedBatter) {
@@ -1101,9 +1135,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
   const handleScore = async (runs, options = {}) => {
     if (!liveState?.match) return;
     const match = liveState.match;
-    // Prevent multiple rapid taps — ignore if a scoring action is already in progress
+    // Prevent multiple rapid taps silently to avoid annoying alerts
     if (scoringLockRef.current) {
-      showCustomAlert('Please Wait', 'Please let the score update before entering the next ball.');
       return;
     }
     scoringLockRef.current = true;
@@ -1345,11 +1378,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
       const socket = socketService.getSocket();
       socket.emit('ball_event', { matchId: cleanMatchId, ballData: payload });
 
-      // Release scoring lock quickly to keep UI responsive
+      // Release scoring lock after a brief delay to prevent spamming
       setTimeout(() => {
         scoringLockRef.current = false;
         setIsScoring(false);
-      }, 50);
+      }, 750);
     } catch (e) {
       showCustomAlert('Error', e.message);
       scoringLockRef.current = false;
@@ -1682,7 +1715,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             </View>
           ) : (
             <View style={styles.keypad}>
-              {/* Row 1: 0 1 2 3 UNDO */}
+              {/* Row 1: RUNS [ 0 ] [ 1 ] [ 2 ] [ 3 ] [ UNDO ] */}
               <View style={styles.keypadRow}>
                 {[0, 1, 2, 3].map(n => (
                   <TouchableOpacity key={n} style={styles.scoreBtn} onPress={() => handleScore(n)} activeOpacity={0.7}>
@@ -1694,26 +1727,23 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* Row 2: 4 6 5/7 OUT */}
+              {/* Row 2: [ 4 ] [ 6 ] [ WICKET ] [ MORE ] */}
               <View style={styles.keypadRow}>
                 <TouchableOpacity style={[styles.scoreBtn, styles.scoreBtnFour]} onPress={() => handleScore(4)} activeOpacity={0.7}>
                   <Text style={[styles.scoreBtnText, styles.scoreBtnBoundaryText]}>4</Text>
-                  <Text style={[styles.scoreBtnSubText, { color: '#fff' }]}>FOUR</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.scoreBtn, styles.scoreBtnSix]} onPress={() => handleScore(6)} activeOpacity={0.7}>
                   <Text style={[styles.scoreBtnText, styles.scoreBtnBoundaryText]}>6</Text>
-                  <Text style={[styles.scoreBtnSubText, { color: '#fff' }]}>SIX</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.scoreBtn, styles.scoreBtnMore]} onPress={() => setShowFiveSevenModal(true)} activeOpacity={0.7}>
-                  <Text style={[styles.scoreBtnText, { color: Colors.textPrimary }]}>5/7</Text>
-                  <Text style={[styles.scoreBtnSubText]}>MORE</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.scoreBtn, styles.scoreBtnWicket]} onPress={() => setShowWicketPanel(true)} activeOpacity={0.7}>
-                  <Text style={[styles.scoreBtnText, { color: '#fff', fontSize: 22 }]}>OUT</Text>
+                  <Text style={[styles.scoreBtnText, { color: '#fff', fontSize: 15 }]}>WICKET</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.scoreBtnExtra, styles.scoreBtnMore]} onPress={() => setShowFiveSevenModal(true)} activeOpacity={0.7}>
+                  <Text style={[styles.scoreBtnExtraText, { color: Colors.primary }]}>MORE</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Row 3: extras */}
+              {/* Row 3: EXTRAS [ WD ] [ NB ] [ BYE ] [ LB ] */}
               <View style={styles.keypadRow}>
                 {[
                   { label: 'WD', action: () => { setExtraWicketToggle(false); setShowExtrasPanel({ type: 'wide' }); } },
@@ -1995,7 +2025,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             </View>
             <View style={styles.bsGrid}>
               {(() => {
-                let availableWickets = ['bowled', 'caught', 'caught_and_bowled', 'lbw', 'run_out', 'stumped', 'hit_wicket', 'obstructing_field', 'cheating'];
+                let availableWickets = ['bowled', 'caught', 'caught_behind', 'caught_and_bowled', 'lbw', 'run_out', 'stumped', 'hit_wicket', 'obstructing_field', 'cheating'];
                 if (pendingExtraOpts?.isWide) availableWickets = ['stumped', 'run_out', 'hit_wicket', 'obstructing_field', 'cheating'];
                 if (pendingExtraOpts?.isNoBall) availableWickets = ['run_out', 'obstructing_field', 'cheating'];
                 
@@ -2088,18 +2118,25 @@ const LiveScorerScreen = ({ navigation, route }) => {
                           {[liveState.striker, liveState.nonStriker].filter(Boolean).map(b => (
                             <TouchableOpacity
                               key={b._id}
-                              style={[styles.bsBtn, dismissedBatter === b._id ? { backgroundColor: Colors.primary } : { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, flex: 1 }]}
+                              style={[{ flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 8, flex: 1 }, dismissedBatter === b._id ? { backgroundColor: Colors.primary } : { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }]}
                               onPress={() => setDismissedBatter(b._id)}
                             >
-                              <Text style={[styles.bsBtnText, dismissedBatter === b._id ? { color: '#000' } : { color: Colors.textPrimary }]}>{b.name}</Text>
+                              {(b.photo || b.userId?.photo || b.avatar) ? (
+                                <Image source={{ uri: getImageUrl(b.photo || b.userId?.photo || b.avatar) }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 8 }} resizeMode="cover" />
+                              ) : (
+                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: dismissedBatter === b._id ? '#000' : Colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                                  <Text style={{ color: dismissedBatter === b._id ? Colors.primary : '#000', fontWeight: 'bold' }}>{b.name.charAt(0).toUpperCase()}</Text>
+                                </View>
+                              )}
+                              <Text style={[{ flex: 1, fontSize: 14, fontWeight: '600' }, dismissedBatter === b._id ? { color: '#000' } : { color: Colors.textPrimary }]} numberOfLines={1}>{b.name}</Text>
                             </TouchableOpacity>
                           ))}
                         </View>
                       </View>
                     )}
 
-                    {/* Fielder Selection (For Caught, Stumped, Run Out) */}
-                    {['caught', 'stumped', 'run_out'].includes(advWicketType) && (
+                    {/* Fielder Selection (For Caught, Caught Behind, Stumped, Run Out) */}
+                    {['caught', 'caught_behind', 'stumped', 'run_out'].includes(advWicketType) && (
                       <View style={{ marginBottom: 20 }}>
                         <Text style={{ color: Colors.textSecondary, marginBottom: 10 }}>
                           {advWicketType === 'run_out' ? 'Primary Fielder (Assisted by)' : advWicketType === 'stumped' ? 'Stumped by' : 'Catcher'}
@@ -2576,45 +2613,24 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
       {/* 5 / 7 Runs Modal */}
       {showFiveSevenModal ? (
-        <Modal visible={true} transparent animationType="fade">
+        <Modal visible={true} transparent animationType="fade" onRequestClose={() => setShowFiveSevenModal(false)}>
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Extra Runs</Text>
+            <View style={[styles.modalContent, { paddingBottom: 24 }]}>
+              <Text style={styles.modalTitle}>SELECT RUNS</Text>
 
-              <View style={{ marginBottom: 20 }}>
-                <Text style={{ color: Colors.textSecondary, marginBottom: 10 }}>Select Runs</Text>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginVertical: 24, gap: 10 }}>
+                {[5, 7, 8].map((runs) => (
                   <TouchableOpacity
-                    style={[styles.bsBtn, fiveSevenRuns === 5 ? { backgroundColor: Colors.primary } : { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }]}
-                    onPress={() => setFiveSevenRuns(5)}
+                    key={runs}
+                    style={[styles.bsBtn, { flex: 1, paddingVertical: 14, backgroundColor: Colors.primary }]}
+                    onPress={() => {
+                      setShowFiveSevenModal(false);
+                      handleScore(runs);
+                    }}
                   >
-                    <Text style={[styles.bsBtnText, fiveSevenRuns === 5 ? { color: '#000' } : { color: Colors.textPrimary }]}>5 Runs</Text>
+                    <Text style={[styles.bsBtnText, { color: '#000', fontWeight: 'bold', fontSize: 18 }]}>{runs}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.bsBtn, fiveSevenRuns === 7 ? { backgroundColor: Colors.primary } : { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }]}
-                    onPress={() => setFiveSevenRuns(7)}
-                  >
-                    <Text style={[styles.bsBtnText, fiveSevenRuns === 7 ? { color: '#000' } : { color: Colors.textPrimary }]}>7 Runs</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={{ marginBottom: 20 }}>
-                <Text style={{ color: Colors.textSecondary, marginBottom: 10 }}>Reason</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                  {['Overthrow', 'Running', 'Penalty'].map((reason) => (
-                    <TouchableOpacity
-                      key={reason}
-                      style={[styles.bsBtn, { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 16 }]}
-                      onPress={() => {
-                        setShowFiveSevenModal(false);
-                        handleScore(fiveSevenRuns, { runReason: reason });
-                      }}
-                    >
-                      <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>{reason}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                ))}
               </View>
 
               <View style={styles.modalActions}>
@@ -3061,8 +3077,9 @@ const styles = StyleSheet.create({
   playerName: {
     color: Colors.textPrimary,
     fontFamily: Typography.fontFamily.medium,
-    fontSize: 13,
-    maxWidth: 100,
+    fontSize: 16,
+    flexShrink: 1,
+    paddingHorizontal: 2,
   },
   strikerName: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
   playerScore: {
@@ -3152,8 +3169,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(33, 150, 243, 0.4)',
   },
   scoreBtnMore: {
-    backgroundColor: Colors.card,
-    borderColor: Colors.border,
+    backgroundColor: Colors.primaryAlpha10,
+    borderColor: Colors.primaryAlpha30,
+    height: 62,
   },
   scoreBtnWicket: {
     backgroundColor: Colors.error,

@@ -34,5 +34,7 @@ DerivedData
 *.pem
 *.key
 *-fbsvc-*.json
+logs/
+*.log
 
 

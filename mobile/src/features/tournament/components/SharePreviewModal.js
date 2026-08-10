@@ -43,7 +43,7 @@ const SharePreviewModal = ({ visible, onClose, title, shareUrl, children }) => {
       
       const shareOptions = {
         title: 'Share Poster',
-        message: `Check out ${title} on ScoreVerse! ${shareUrl || ''}`.trim(),
+        message: `Check out ${title} on ScoreVerse!\nApp Link: ${shareUrl || ''}\nDirect App Link: ${shareUrl?.replace('https://scoreverse.in', 'scoreverse://')}`.trim(),
       };
       
       if (uris.length === 1) {
@@ -69,7 +69,7 @@ const SharePreviewModal = ({ visible, onClose, title, shareUrl, children }) => {
         <View style={styles.modalContainer}>
           {/* Header */}
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Share {title}</Text>
+            <Text style={styles.modalTitle} numberOfLines={1}>Share {title}</Text>
             <TouchableOpacity onPress={onClose}>
               <Icon name="x" size={24} color={Colors.textSecondary} />
             </TouchableOpacity>
@@ -175,6 +175,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
+    flex: 1,
+    marginRight: 12,
   },
 
   // Theme Selector

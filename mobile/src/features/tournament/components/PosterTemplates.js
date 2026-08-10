@@ -849,11 +849,11 @@ export const LeaderboardPoster = ({
   tournamentName,
   theme,
   tournamentBanner,
+  startIndex = 0,
+  pageInfo = null,
 }) => {
   const t = getThemeStyles(theme);
-  const bgImage = tournamentBanner
-    ? { uri: getImageUrl(tournamentBanner) }
-    : STADIUM_BG;
+  const bgImage = STADIUM_BG;
 
   const getTitle = () => {
     switch (type) {
@@ -895,14 +895,14 @@ export const LeaderboardPoster = ({
       case "catches":
         return "dismissals";
       case "mvp":
-        return "points";
+        return "totalMvp";
       default:
         return "value";
     }
   };
 
   return (
-    <ImageBackground source={bgImage} style={getContainerStyle(t, 340)}>
+    <ImageBackground source={bgImage} style={getContainerStyle(t, 340)} resizeMode="cover">
       <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
         <View
           style={{
@@ -935,96 +935,144 @@ export const LeaderboardPoster = ({
         </View>
 
         <View
-          style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg }}
+          style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}
         >
-          {(data || []).slice(0, 5).map((player, index) => (
-            <View
-              key={player.player?._id || index}
-              style={getBadgeStyle(t, index === 0)}
-            >
-              <Text
-                style={{
-                  color: index === 0 ? t.accentColor : t.secTextColor,
-                  fontSize: 16,
-                  fontFamily: Typography.fontFamily.bold,
-                  width: 24,
-                }}
+          {(data || []).map((player, index) => {
+            const photoUrl = player.player?.photo || player.player?.userId?.photo || player.player?.avatar;
+            const rank = startIndex + index + 1;
+            const teamLogoUrl = player.team?.logo ? getImageUrl(player.team.logo) : null;
+
+            return (
+              <View
+                key={player.player?._id || index}
+                style={[
+                  getBadgeStyle(t, rank === 1),
+                  {
+                    overflow: "hidden",
+                    backgroundColor: "rgba(255,255,255,0.08)",
+                    borderWidth: 1,
+                    borderColor: rank === 1 ? t.accentColor : "rgba(255,255,255,0.12)",
+                    borderRadius: 12,
+                    marginBottom: 8,
+                  }
+                ]}
               >
-                #{index + 1}
-              </Text>
-              <Image
-                source={{
-                  uri: player.player?.avatar
-                    ? getImageUrl(player.player.avatar)
-                    : "https://via.placeholder.com/40",
-                }}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: t.type === "cyberpunk" ? 0 : 20,
-                  marginRight: 12,
-                  borderWidth: t.type === "cyberpunk" ? 1 : 0,
-                  borderColor: t.secTextColor,
-                }}
-              />
-              <View style={{ flex: 1 }}>
                 <Text
                   style={{
-                    color: t.textColor,
+                    color: rank === 1 ? t.accentColor : t.secTextColor,
+                    fontSize: 16,
                     fontFamily: Typography.fontFamily.bold,
-                    fontSize: 14,
+                    width: 34,
                   }}
                 >
-                  {player.player?.name || "Player"}
+                  #{rank}
                 </Text>
-                <Text
-                  style={{
-                    color: t.secTextColor,
-                    fontFamily: Typography.fontFamily.medium,
-                    fontSize: 11,
-                    marginTop: 2,
-                  }}
-                >
-                  {player.teamName || "Unknown Team"} • {player.matches} Mat
-                </Text>
+                {teamLogoUrl ? (
+                  <Image
+                    source={{ uri: teamLogoUrl }}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      marginRight: 8,
+                    }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      marginRight: 8,
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: t.secTextColor, fontSize: 8, fontFamily: Typography.fontFamily.bold }}>T</Text>
+                  </View>
+                )}
+                {photoUrl ? (
+                  <Image
+                    source={{ uri: getImageUrl(photoUrl) }}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: t.type === "cyberpunk" ? 0 : 18,
+                      marginRight: 10,
+                      borderWidth: t.type === "cyberpunk" ? 1 : 0,
+                      borderColor: t.secTextColor,
+                    }}
+                  />
+                ) : null}
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: t.textColor,
+                      fontFamily: Typography.fontFamily.bold,
+                      fontSize: 14,
+                    }}
+                  >
+                    {player.player?.name || "Player"}
+                  </Text>
+                  <Text
+                    style={{
+                      color: t.secTextColor,
+                      fontFamily: Typography.fontFamily.medium,
+                      fontSize: 11,
+                      marginTop: 2,
+                    }}
+                  >
+                    {player.team?.name || player.teamName || "Unknown Team"}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text
+                    style={{
+                      color: t.textColor,
+                      fontFamily: Typography.fontFamily.bold,
+                      fontSize: 18,
+                    }}
+                  >
+                    {type === "economy" || type === "strikeRate"
+                      ? parseFloat(player[getValueKey()]).toFixed(2)
+                      : player[getValueKey()]}
+                  </Text>
+                  <Text
+                    style={{
+                      color: t.secTextColor,
+                      fontFamily: Typography.fontFamily.regular,
+                      fontSize: 10,
+                    }}
+                  >
+                    {type === "runs"
+                      ? "Runs"
+                      : type === "wickets"
+                        ? "Wickets"
+                        : type === "economy"
+                          ? "Econ"
+                          : type === "strikeRate"
+                            ? "SR"
+                            : type === "catches"
+                              ? "Dismissals"
+                              : type === "mvp"
+                                ? "Pts"
+                                : type}
+                  </Text>
+                </View>
               </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text
-                  style={{
-                    color: t.textColor,
-                    fontFamily: Typography.fontFamily.bold,
-                    fontSize: 18,
-                  }}
-                >
-                  {type === "economy" || type === "strikeRate"
-                    ? parseFloat(player[getValueKey()]).toFixed(2)
-                    : player[getValueKey()]}
-                </Text>
-                <Text
-                  style={{
-                    color: t.secTextColor,
-                    fontFamily: Typography.fontFamily.regular,
-                    fontSize: 10,
-                  }}
-                >
-                  {type === "runs"
-                    ? "Runs"
-                    : type === "wickets"
-                      ? "Wickets"
-                      : type === "economy"
-                        ? "Econ"
-                        : type === "strikeRate"
-                          ? "SR"
-                          : type === "catches"
-                            ? "Dismissals"
-                            : type === "mvp"
-                              ? "Pts"
-                              : type}
-                </Text>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
+
+        {pageInfo && (
+          <View style={{ alignItems: "center", paddingBottom: 8 }}>
+            <Text style={{ color: t.secTextColor, fontSize: 10, fontFamily: Typography.fontFamily.medium }}>
+              Page {pageInfo.current} of {pageInfo.total}
+            </Text>
+          </View>
+        )}
 
         <View
           style={[

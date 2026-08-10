@@ -8,7 +8,7 @@ import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import moment from 'moment';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import LinearGradient from 'react-native-linear-gradient';
-import api, { getImageUrl, BASE_URL } from '../../../api/axios';
+import  api, { getImageUrl, BASE_URL } from '../../../api/axios';
 import { useSelector } from 'react-redux';
 import socketService from '../../../services/socketService';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -388,8 +388,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
   const isMainOrganizer = (tournament?.organizer?._id || tournament?.organizer) === user?._id;
   const isOrganizer = isMainOrganizer || tournament?.coOrganizers?.some(o => (o._id || o) === user?._id);
-  const isScorer = tournament?.scorers?.some(s => (s._id || s) === user?._id);
-  const canStartMatch = isOrganizer || isScorer;
+  const canStartMatch = isOrganizer;
 
   const handleShareTournament = async () => {
     setShareData({ type: 'tournament', data: tournament });
@@ -1291,6 +1290,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     const regEndDate = auctionDetails?.registrationEndDate;
     const auctionDate = auctionDetails?.auctionDate;
     const regEndPassed = regEndDate ? moment().isAfter(moment(regEndDate).endOf('day')) : false;
+    const isSameRegAndAuctionDate = regEndDate && auctionDate && moment(regEndDate).isSame(moment(auctionDate), 'day');
+    const isTodayOrAfterAuctionDate = auctionDate && (moment().isSame(moment(auctionDate), 'day') || moment().isAfter(moment(auctionDate), 'day'));
+    const canCreateSets = regEndPassed || (isSameRegAndAuctionDate && isTodayOrAfterAuctionDate);
     const auctionDateReached = !auctionDate || new Date() >= new Date(auctionDate);
 
     const formatDate = (d) => d ? moment.utc(d).format('ddd, D MMM YYYY') : 'Not set';
@@ -1402,26 +1404,26 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <TouchableOpacity
               style={[
                 auctionStyles.actionRow,
-                !regEndPassed && { opacity: 0.55 }
+                !canCreateSets && { opacity: 0.55 }
               ]}
               onPress={() => {
-                if (!regEndPassed) {
+                if (!canCreateSets) {
                   showCustomAlert('Not Available', 'Registration is still open. Create Sets will be available once the registration date has passed.');
                 } else {
                   navigation.navigate('AuctionCreateSets', { tournamentId: tournament._id, mode: 'sets' });
                 }
               }}
             >
-              <View style={[auctionStyles.actionIcon, { backgroundColor: regEndPassed ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.05)' }]}>
-                <MCIcon name="cards-outline" size={20} color={regEndPassed ? '#4ADE80' : Colors.textTertiary} />
+              <View style={[auctionStyles.actionIcon, { backgroundColor: canCreateSets ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.05)' }]}>
+                <MCIcon name="cards-outline" size={20} color={canCreateSets ? '#4ADE80' : Colors.textTertiary} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={auctionStyles.actionTitle}>Create & Manage Sets</Text>
                 <Text style={auctionStyles.actionSub}>
-                  {regEndPassed ? 'Split players into auction sets' : 'Available after registration closes'}
+                  {canCreateSets ? 'Split players into auction sets' : 'Available after registration closes'}
                 </Text>
               </View>
-              {regEndPassed
+              {canCreateSets
                 ? <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
                 : <MCIcon name="lock-outline" size={18} color={Colors.textTertiary} />}
             </TouchableOpacity>
@@ -2005,17 +2007,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             )}
 
             {isMainOrganizer && (
-              <>
-                <TouchableOpacity style={styles.sidebarOption} onPress={() => { setShowSettingsSidebar(false); setRoleType('coOrganizers'); setShowRoleModal(true); }}>
-                  <Icon name="users" size={20} color={Colors.textPrimary} style={styles.sidebarIcon} />
-                  <Text style={styles.sidebarOptionText}>Manage Organizers</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.sidebarOption} onPress={() => { setShowSettingsSidebar(false); setRoleType('scorers'); setShowRoleModal(true); }}>
-                  <Icon name="edit-3" size={20} color={Colors.textPrimary} style={styles.sidebarIcon} />
-                  <Text style={styles.sidebarOptionText}>Manage Scorers</Text>
-                </TouchableOpacity>
-              </>
+              <TouchableOpacity style={styles.sidebarOption} onPress={() => { setShowSettingsSidebar(false); setRoleType('coOrganizers'); setShowRoleModal(true); }}>
+                <Icon name="users" size={20} color={Colors.textPrimary} style={styles.sidebarIcon} />
+                <Text style={styles.sidebarOptionText}>Manage Organizers</Text>
+              </TouchableOpacity>
             )}
 
           </TouchableOpacity>
@@ -2176,7 +2171,25 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           ));
         })()}
         {shareData?.type === 'pointsTable' && <PointsTablePoster pointsTable={shareData.data.table} groupName={shareData.data.groupName} tournamentName={tournament?.name} tournamentBanner={tournament?.banner} />}
-        {shareData?.type === 'leaderboard' && <LeaderboardPoster type={shareData.data.type} data={shareData.data.data} tournamentName={tournament?.name} tournamentBanner={tournament?.banner} />}
+        {shareData?.type === 'leaderboard' && (() => {
+          const chunkSize = 10;
+          const chunks = [];
+          const players = shareData.data.data || [];
+          for (let i = 0; i < players.length; i += chunkSize) {
+            chunks.push(players.slice(i, i + chunkSize));
+          }
+          return chunks.map((chunk, index) => (
+            <LeaderboardPoster
+              key={index}
+              type={shareData.data.type}
+              data={chunk}
+              startIndex={index * chunkSize}
+              tournamentName={tournament?.name}
+              tournamentBanner={tournament?.banner}
+              pageInfo={chunks.length > 1 ? { current: index + 1, total: chunks.length, totalPlayers: players.length } : null}
+            />
+          ));
+        })()}
       </SharePreviewModal>
 
       <GroupManagementModal

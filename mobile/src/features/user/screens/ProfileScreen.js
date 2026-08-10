@@ -30,11 +30,9 @@ const ProfileScreen = ({ navigation }) => {
           style: "destructive",
           onPress: async () => {
             setLoggingOut(true);
-            if (!isOwner) {
-              navigation.navigate('Home');
-            }
             await dispatch(logout());
             setLoggingOut(false);
+            reset('Customer');
           }
         }
       ]

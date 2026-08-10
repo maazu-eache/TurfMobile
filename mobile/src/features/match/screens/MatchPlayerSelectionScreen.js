@@ -1,5 +1,5 @@
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -78,8 +78,6 @@ const MatchPlayerSelectionScreen = () => {
   const [abandonReason, setAbandonReason] = useState('');
 
   // Data states
-  const [battingSquad, setBattingSquad] = useState([]);
-  const [bowlingSquad, setBowlingSquad] = useState([]);
   const [battingTeamRoster, setBattingTeamRoster] = useState([]);
   const [bowlingTeamRoster, setBowlingTeamRoster] = useState([]);
 
@@ -88,6 +86,24 @@ const MatchPlayerSelectionScreen = () => {
   // Scorecard for validations
   const [scorecards, setScorecards] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const initializedRef = useRef(false);
+
+  const batTeamId = String(liveState?.battingTeam?._id || liveState?.battingTeam || '');
+  const teamAId = String(liveState?.match?.teamA?._id || liveState?.match?.teamA || '');
+  const isTeamABatting = batTeamId === teamAId;
+
+  const battingSquad = useMemo(() => {
+    if (!liveState?.match) return [];
+    const XI = isTeamABatting ? liveState.match.playingXI?.teamA : liveState.match.playingXI?.teamB;
+    return (XI || []).filter(Boolean);
+  }, [liveState?.match?.playingXI, isTeamABatting]);
+
+  const bowlingSquad = useMemo(() => {
+    if (!liveState?.match) return [];
+    const XI = isTeamABatting ? liveState.match.playingXI?.teamB : liveState.match.playingXI?.teamA;
+    return (XI || []).filter(Boolean);
+  }, [liveState?.match?.playingXI, isTeamABatting]);
 
   useEffect(() => {
     // Fetch live state if missing or for a different match (e.g. after clearing old state)
@@ -103,20 +119,8 @@ const MatchPlayerSelectionScreen = () => {
     if (String(liveState.match._id) !== String(matchId)) return;
 
     const match = liveState.match;
-    const batTeamId = String(liveState.battingTeam?._id || liveState.battingTeam || '');
-    const teamAId = String(match.teamA?._id || match.teamA || '');
-
-    const isTeamABatting = batTeamId === teamAId;
     const batTeam = isTeamABatting ? match.teamA : match.teamB;
     const bowlTeam = isTeamABatting ? match.teamB : match.teamA;
-
-    // Squad assignment: batting squad = playing XI of batting team, bowling squad = fielding team's XI
-    const batXI = isTeamABatting ? match.playingXI?.teamA : match.playingXI?.teamB;
-    const bowlXI = isTeamABatting ? match.playingXI?.teamB : match.playingXI?.teamA;
-
-    // Unconditionally sync squads reactively
-    setBattingSquad(batXI || []);
-    setBowlingSquad(bowlXI || []);
 
     // Fetch full rosters only once
     if (battingTeamRoster.length === 0 && batTeam?._id) {
@@ -126,16 +130,19 @@ const MatchPlayerSelectionScreen = () => {
       fetchTeam(bowlTeam._id, setBowlingTeamRoster);
     }
 
-    // Reactively sync selected players with liveState
-    setSelectedStriker(liveState.striker || null);
-    setSelectedNonStriker(liveState.nonStriker || null);
-    setSelectedBowler(liveState.bowler || null);
+    // Reactively sync selected players with liveState ONLY ONCE on initial load
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      setSelectedStriker(liveState.striker || null);
+      setSelectedNonStriker(liveState.nonStriker || null);
+      setSelectedBowler(liveState.bowler || null);
+    }
 
     // Fetch scorecards for validations if not loaded
     if (scorecards.length === 0) {
       fetchScorecards();
     }
-  }, [liveState?.striker?._id, liveState?.nonStriker?._id, liveState?.bowler?._id, liveState?.match?.currentInnings]);
+  }, [liveState?.striker?._id, liveState?.nonStriker?._id, liveState?.bowler?._id, liveState?.match?.currentInnings, isTeamABatting]);
 
   const fetchScorecards = async () => {
     try {
@@ -455,39 +462,63 @@ const MatchPlayerSelectionScreen = () => {
   }
 
   const match = liveState.match;
-  const batTeamId = String(liveState.battingTeam?._id || liveState.battingTeam || '');
-  const teamAId = String(match.teamA?._id || match.teamA || '');
-  const isTeamABatting = batTeamId === teamAId;
   const batTeam = isTeamABatting ? match.teamA : match.teamB;
   const bowlTeam = isTeamABatting ? match.teamB : match.teamA;
 
-  const renderPlayerSelectionCard = (title, selectedPlayer, mode, disabled = false) => (
-    <View style={[styles.selectionWrapper, disabled && { opacity: 0.5 }]}>
-      <Text style={styles.selectionCardTitle}>{title}</Text>
-      <TouchableOpacity
-        style={styles.selectionCard}
-        onPress={() => openSelection(mode)}
-        disabled={disabled}
-      >
-        {selectedPlayer ? (
-          selectedPlayer.photo ? (
-            <Image key="photo" source={{ uri: getImageUrl(selectedPlayer.photo) }} style={styles.selectionCardImage} />
+  const renderPlayerSelectionCard = (title, selectedPlayer, mode, disabled = false) => {
+    const isBowler = mode === 'bowler';
+    const accentColor = isBowler ? '#F59E0B' : Colors.primary;
+    const ringColor = selectedPlayer ? accentColor : Colors.border;
+    // Resolve photo from multiple possible paths
+    const photoUrl = selectedPlayer
+      ? (selectedPlayer.photo || selectedPlayer.userId?.photo || selectedPlayer.avatar || null)
+      : null;
+
+    return (
+      <View style={[styles.selectionWrapper, disabled && { opacity: 0.55 }]}>
+        <TouchableOpacity
+          style={[styles.selectionCard, { borderColor: ringColor }]}
+          onPress={() => openSelection(mode)}
+          disabled={disabled}
+          activeOpacity={0.75}
+        >
+          {/* Outer glow ring when selected */}
+          {selectedPlayer && (
+            <View style={[styles.selectionRing, { borderColor: accentColor + '40' }]} />
+          )}
+          {selectedPlayer ? (
+            photoUrl ? (
+              <Image
+                key="photo"
+                source={{ uri: getImageUrl(photoUrl) }}
+                style={styles.selectionCardImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View key="avatar" style={[styles.selectionAvatarPlaceholder, { backgroundColor: accentColor + '25' }]}>
+                <Text style={[styles.selectionAvatarText, { color: accentColor }]}>{selectedPlayer.name.charAt(0).toUpperCase()}</Text>
+              </View>
+            )
           ) : (
-            <View key="avatar" style={styles.selectionAvatarPlaceholder}>
-              <Text style={styles.selectionAvatarText}>{selectedPlayer.name.charAt(0).toUpperCase()}</Text>
+            <View key="empty" style={styles.selectionAvatarPlaceholderEmpty}>
+              <Icon name="plus-circle-outline" size={32} color={Colors.textTertiary} />
             </View>
-          )
-        ) : (
-          <View key="empty" style={styles.selectionAvatarPlaceholderEmpty}>
-            <Icon name="plus" size={24} color={Colors.textSecondary} />
+          )}
+          {/* Role badge */}
+        </TouchableOpacity>
+        <Text style={[styles.selectionCardTitle, { color: accentColor }]}>{title}</Text>
+        <Text style={styles.selectionPlayerName} numberOfLines={1}>
+          {selectedPlayer ? selectedPlayer.name : 'Tap to pick'}
+        </Text>
+        {selectedPlayer && (
+          <View style={[styles.changeHint, { borderColor: accentColor + '40' }]}>
+            <Text style={[styles.changeHintText, { color: accentColor }]}>Change</Text>
           </View>
         )}
-      </TouchableOpacity>
-      <Text style={styles.selectionPlayerName} numberOfLines={2}>
-        {selectedPlayer ? selectedPlayer.name : 'Tap to Select'}
-      </Text>
-    </View>
-  );
+      </View>
+    );
+  };
+
 
 
   const creatorId = typeof liveState?.match?.creator === 'object' ? liveState?.match?.creator?._id : liveState?.match?.creator;
@@ -501,44 +532,62 @@ const MatchPlayerSelectionScreen = () => {
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
       )}
+
+      {/* Premium Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="chevron-left" size={28} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Select Initial Players</Text>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={styles.headerTitle}>
+            {liveState?.match?.status === 'in_progress' ? 'New Batter' : 'Player Selection'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            Innings {liveState?.inningsNumber || 1}
+          </Text>
+        </View>
         <TouchableOpacity onPress={() => setShowSettingsModal(true)} style={styles.headerActionBtn}>
           <Icon name="cog" size={24} color={Colors.primary} />
         </TouchableOpacity>
       </View>
 
       <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+
+        {/* Target Banner for 2nd Innings */}
         {liveState?.inningsNumber === 2 && liveState?.target ? (
           <View style={styles.targetBanner}>
             <View style={styles.targetCol}>
-              <Text style={styles.targetLabel}>Target</Text>
+              <Text style={styles.targetLabel}>🎯 Target</Text>
               <Text style={styles.targetValue}>{liveState.target}</Text>
             </View>
             <View style={styles.targetDivider} />
             <View style={styles.targetCol}>
-              <Text style={styles.targetLabel}>RRR</Text>
+              <Text style={styles.targetLabel}>⚡ RRR</Text>
               <Text style={styles.targetValue}>{liveState.requiredRunRate || '0.00'}</Text>
             </View>
+            <View style={styles.targetDivider} />
+            <View style={styles.targetCol}>
+              <Text style={styles.targetLabel}>🏏 Need</Text>
+              <Text style={[styles.targetValue, { fontSize: 16 }]}>{liveState.toWin} off {liveState.ballsRemaining}b</Text>
+            </View>
           </View>
-        ) : null}
-
-        {liveState?.inningsNumber === 2 && liveState?.target ? (
-          <Text style={[styles.subtitle, { color: Colors.primary, fontWeight: 'bold' }]}>
-            {batTeam?.name} need {liveState.toWin} runs from {liveState.ballsRemaining} balls to win.
-          </Text>
         ) : (
-          <Text style={styles.subtitle}>
-            {liveState?.match?.status === 'in_progress' 
-              ? 'Select the new batter(s) to continue.' 
-              : 'Choose your initial batters and bowler to begin scoring.'}
-          </Text>
+          <View style={styles.contextBanner}>
+            <Icon name={liveState?.match?.status === 'in_progress' ? 'account-switch' : 'flag-checkered'} size={18} color={Colors.primary} />
+            <Text style={styles.contextBannerText}>
+              {liveState?.match?.status === 'in_progress'
+                ? 'Select the new batter(s) to continue scoring.'
+                : 'Choose your opening batters and opening bowler.'}
+            </Text>
+          </View>
         )}
 
-        <Text style={styles.sectionHeader}>{batTeam?.name} Batters</Text>
+        {/* BATTERS SECTION */}
+        <View style={styles.sectionLabelRow}>
+          <View style={[styles.sectionDot, { backgroundColor: Colors.primary }]} />
+          <Text style={styles.sectionHeader}>BATTERS</Text>
+          <Text style={styles.sectionTeamName}>{batTeam?.name}</Text>
+        </View>
         <View style={styles.selectionContainerCard}>
           <View style={styles.selectionRow}>
             {renderPlayerSelectionCard('Striker', selectedStriker, 'striker', !!liveState?.striker)}
@@ -547,23 +596,40 @@ const MatchPlayerSelectionScreen = () => {
           </View>
         </View>
 
+        {/* BOWLER SECTION */}
         {liveState?.match?.status !== 'in_progress' && (
           <>
-            <Text style={styles.sectionHeader}>{bowlTeam?.name} Bowler</Text>
+            <View style={styles.sectionLabelRow}>
+              <View style={[styles.sectionDot, { backgroundColor: '#F59E0B' }]} />
+              <Text style={[styles.sectionHeader, { color: '#F59E0B' }]}>BOWLER</Text>
+              <Text style={styles.sectionTeamName}>{bowlTeam?.name}</Text>
+            </View>
             <View style={styles.selectionContainerCard}>
               <View style={[styles.selectionRow, { justifyContent: 'center' }]}>
-                {renderPlayerSelectionCard('Bowler', selectedBowler, 'bowler', !!liveState?.bowler)}
+                {renderPlayerSelectionCard('Opening Bowler', selectedBowler, 'bowler', !!liveState?.bowler)}
               </View>
             </View>
           </>
         )}
 
-        {/* Scorer section removed per UX feedback */}
-
       </KeyboardAwareScrollView>
 
+      {/* Premium Footer with Score */}
       <View style={styles.footer}>
+        {liveState?.score ? (
+          <View style={styles.scoreFooterBanner}>
+            <View style={styles.scoreFooterLeft}>
+              <Icon name="cricket" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.scoreFooterTeam} numberOfLines={1}>{batTeam?.name || 'Batting Team'}</Text>
+            </View>
+            <Text style={styles.scoreFooterScore}>
+              {liveState.score.runs}/{liveState.score.wickets}
+              <Text style={styles.scoreFooterOvers}> ({liveState.score.overs} ov)</Text>
+            </Text>
+          </View>
+        ) : null}
         <TouchableOpacity style={styles.startBtn} onPress={handleStartScoring}>
+          <Icon name={liveState?.match?.status === 'in_progress' ? 'check-circle' : 'play-circle'} size={20} color="#000" style={{ marginRight: 8 }} />
           <Text style={styles.startBtnText}>
             {liveState?.match?.status === 'in_progress' ? 'Save & Continue' : 'Start Scoring'}
           </Text>
@@ -641,31 +707,55 @@ const MatchPlayerSelectionScreen = () => {
                       }
                     }
 
-                    return (
-                      <TouchableOpacity
-                        key={p._id + '_' + idx}
-                        style={[styles.modalListItem, isDisabled && { opacity: 0.5 }]}
-                        onPress={() => {
-                          if (isDisabled) return showCustomAlert('Info', `Cannot select player: ${disabledReason}`);
-                          handleSelectSquadPlayer(p);
-                        }}
-                      >
-                        <View style={styles.avatarPlaceholderSm}>
-                          {p.photo ? (
-                            <Image source={{ uri: getImageUrl(p.photo) }} style={{ width: '100%', height: '100%', borderRadius: 18 }} />
-                          ) : (
-                            <Text style={styles.avatarTextSm}>{p.name.charAt(0).toUpperCase()}</Text>
-                          )}
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.modalListText}>{p.name}</Text>
-                          {isDisabled ? <Text style={{ fontSize: 12, color: Colors.error }}>{disabledReason}</Text> : null}
-                        </View>
-                        {!isDisabled ? (
-                          <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
-                        ) : null}
-                      </TouchableOpacity>
-                    );
+                     let playerStatsStr = '';
+                      if (currentScorecard) {
+                        if (activeSelectionMode === 'striker' || activeSelectionMode === 'nonStriker') {
+                          const batterStat = currentScorecard.batting.find(b => b.player?._id === p._id || b.player === p._id);
+                          if (batterStat) {
+                            playerStatsStr = `${batterStat.runs} (${batterStat.balls})`;
+                          }
+                        } else if (activeSelectionMode === 'bowler') {
+                          const bowlerStat = currentScorecard.bowling.find(b => b.player?._id === p._id || b.player === p._id);
+                          if (bowlerStat) {
+                            playerStatsStr = `${bowlerStat.wickets}-${bowlerStat.runs} in ${bowlerStat.overs} ${bowlerStat.overs === 1 ? 'over' : 'overs'}`;
+                          }
+                        }
+                      }
+
+                      return (
+                        <TouchableOpacity
+                          key={p._id + '_' + idx}
+                          style={[styles.modalListItem, isDisabled && { opacity: 0.5 }]}
+                          onPress={() => {
+                            if (isDisabled) return showCustomAlert('Info', `Cannot select player: ${disabledReason}`);
+                            handleSelectSquadPlayer(p);
+                          }}
+                        >
+                          <View style={styles.avatarPlaceholderSm}>
+                            {(p.photo || p.userId?.photo || p.avatar) ? (
+                              <Image
+                                source={{ uri: getImageUrl(p.photo || p.userId?.photo || p.avatar) }}
+                                style={{ width: '100%', height: '100%', borderRadius: 21 }}
+                                resizeMode="cover"
+                              />
+                            ) : (
+                              <Text style={styles.avatarTextSm}>{p.name.charAt(0).toUpperCase()}</Text>
+                            )}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.modalListText}>{p.name}</Text>
+                            {!!playerStatsStr && (
+                              <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}>
+                                {playerStatsStr}
+                              </Text>
+                            )}
+                            {isDisabled ? <Text style={{ fontSize: 12, color: Colors.error, marginTop: 2 }}>{disabledReason}</Text> : null}
+                          </View>
+                          {!isDisabled ? (
+                            <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
+                          ) : null}
+                        </TouchableOpacity>
+                      );
                   })}
                 {(activeSelectionMode === 'bowler' ? bowlingSquad : battingSquad).length === 0 ? (
                   <Text style={styles.emptyText}>Squad is empty.</Text>
@@ -1153,22 +1243,63 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
   },
   backBtn: { padding: 4 },
   headerTitle: {
-    fontSize: 18,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 17,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
   },
-  content: { padding: Spacing.base },
+  headerSubtitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  content: { padding: Spacing.base, paddingBottom: Spacing.xl },
   subtitle: {
     fontSize: 14,
     color: Colors.textSecondary,
     marginBottom: Spacing.xl,
     textAlign: 'center',
+  },
+  contextBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryAlpha10,
+    borderRadius: BorderRadius.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: Spacing.lg,
+    gap: 10,
+  },
+  contextBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+    gap: 8,
+  },
+  sectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  sectionTeamName: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textTertiary,
+    marginLeft: 'auto',
   },
   cardsRow: {
     flexDirection: 'row',
@@ -1229,12 +1360,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sectionHeader: {
-    fontSize: 14,
+    fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
   },
   sectionHeaderTeam: {
     color: Colors.textTertiary,
@@ -1296,27 +1426,63 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontFamily: Typography.fontFamily.medium,
   },
+  scoreFooterBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.primaryAlpha10,
+    borderRadius: BorderRadius.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.primaryAlpha20,
+  },
+  scoreFooterLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  scoreFooterTeam: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textSecondary,
+    flex: 1,
+  },
+  scoreFooterScore: {
+    fontSize: 18,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  scoreFooterOvers: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
   footer: {
     padding: Spacing.base,
+    paddingBottom: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
     backgroundColor: Colors.surface,
   },
   startBtn: {
     backgroundColor: Colors.primary,
-    padding: 16,
+    paddingVertical: 16,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   startBtnText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
   },
   // Modals
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -1337,7 +1503,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
   },
   instructionText: {
@@ -1351,39 +1517,48 @@ const styles = StyleSheet.create({
   modalListItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.base,
-    backgroundColor: Colors.surfaceVariant,
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.base,
+    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderLight,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   rosterListItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.base,
-    backgroundColor: Colors.surfaceVariant,
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.base,
+    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderLight,
   },
   avatarPlaceholderSm: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.borderLight,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.primaryAlpha10,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.primaryAlpha20,
   },
   avatarTextSm: {
-    color: Colors.textSecondary,
-    fontSize: 14,
+    color: Colors.primary,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   modalListText: {
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
   },
   emptyText: {
@@ -1511,40 +1686,70 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
   },
   selectionContainerCard: {
-    backgroundColor: Colors.surfaceVariant,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.base,
-    marginBottom: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.base,
+    marginBottom: Spacing.xl,
     borderWidth: 1,
     borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   selectionRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     alignItems: 'flex-start',
   },
   selectionWrapper: {
     alignItems: 'center',
     flex: 1,
+    paddingHorizontal: 4,
   },
   selectionCardTitle: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textSecondary,
-    marginBottom: 8,
+    marginTop: 10,
     textTransform: 'uppercase',
     textAlign: 'center',
+    letterSpacing: 0.8,
   },
   selectionCard: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.surfaceVariant,
+    borderWidth: 2.5,
     borderColor: Colors.border,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
+    position: 'relative',
+  },
+  selectionRing: {
+    position: 'absolute',
+    top: -6,
+    left: -6,
+    right: -6,
+    bottom: -6,
+    borderRadius: 50,
+    borderWidth: 3,
+    zIndex: -1,
+  },
+  roleBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#121212', // Matches match background
   },
   selectionCardImage: {
     width: '100%',
@@ -1553,13 +1758,11 @@ const styles = StyleSheet.create({
   selectionAvatarPlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: Colors.primaryAlpha20,
     justifyContent: 'center',
     alignItems: 'center',
   },
   selectionAvatarText: {
-    color: Colors.primary,
-    fontSize: 20,
+    fontSize: 28,
     fontFamily: Typography.fontFamily.bold,
   },
   selectionAvatarPlaceholderEmpty: {
@@ -1569,19 +1772,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   selectionPlayerName: {
-    fontSize: 12,
-    fontFamily: Typography.fontFamily.medium,
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
-    marginTop: 8,
+    marginTop: 4,
     textAlign: 'center',
     width: '100%',
   },
+  changeHint: {
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  changeHintText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+  },
   selectionVerticalDivider: {
     width: 1,
-    height: 70,
     backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginHorizontal: Spacing.xs,
+    alignSelf: 'stretch',
+    marginHorizontal: 4,
+    marginVertical: 16,
   },
   settingsModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   settingsModalContent: { backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, padding: 24, width: '100%' },

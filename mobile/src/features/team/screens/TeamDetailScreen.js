@@ -4,6 +4,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
   Image, ScrollView, ActivityIndicator, Animated,
   Dimensions, Modal, TextInput, ToastAndroid, Platform, RefreshControl,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
@@ -296,8 +297,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
   const renderPlayersTab = () => (
     <View style={{ flex: 1, position: 'relative' }}>
-      <KeyboardAwareScrollView 
-        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, canManageRoster && { paddingTop: 8 }]} showsVerticalScrollIndicator={false}
+      <ScrollView 
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, canManageRoster && { paddingTop: 8 }]} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
       >
 
@@ -419,7 +421,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
           );
         })}
         {canManageRoster && <View style={{ height: 100 }} />}
-      </KeyboardAwareScrollView>
+      </ScrollView>
 
       {/* Floating Add Player Button */}
       {canManageRoster && (
@@ -436,8 +438,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
     if (!recentMatches.length) return <EmptyState icon="cricket" label="No match history yet" />;
 
     return (
-      <KeyboardAwareScrollView 
-        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
+      <ScrollView 
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
       >
         {recentMatches.map((m, i) => (
@@ -474,7 +477,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
             </Text>
           </TouchableOpacity>
         ))}
-      </KeyboardAwareScrollView>
+      </ScrollView>
     );
   };
 
@@ -486,8 +489,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
     const formats = teamStats?.formatBreakdown || {};
 
     return (
-      <KeyboardAwareScrollView 
-        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
+      <ScrollView 
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
       >
         {/* Win/Loss overview */}
@@ -532,7 +536,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
             ))}
           </View>
         )}
-      </KeyboardAwareScrollView>
+      </ScrollView>
     );
   };
 
@@ -543,8 +547,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
     const topField = teamStats?.topFielders || [];
 
     return (
-      <KeyboardAwareScrollView 
-        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
+      <ScrollView 
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
       >
         <View style={styles.lbTabRow}>
@@ -644,15 +649,16 @@ const TeamDetailScreen = ({ navigation, route }) => {
             ))}
           </View>
         )}
-      </KeyboardAwareScrollView>
+      </ScrollView>
     );
   };
 
   const renderAchievementsTab = () => {
     const s = selectedTeam?.stats || {};
     return (
-      <KeyboardAwareScrollView 
-        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }]} showsVerticalScrollIndicator={false}
+      <ScrollView 
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }]} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
       >
         {ACHIEVEMENTS.map(ach => {
@@ -684,7 +690,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
             </View>
           );
         })}
-      </KeyboardAwareScrollView>
+      </ScrollView>
     );
   };
 
@@ -697,8 +703,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
     const nrPct = Math.max(0, 100 - winPct - lossPct);
 
     return (
-      <KeyboardAwareScrollView 
-        enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
+      <ScrollView 
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
       >
         {/* Donut-style result breakdown */}
@@ -750,7 +757,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
         )}
 
 
-      </KeyboardAwareScrollView>
+      </ScrollView>
     );
   };
 
@@ -800,9 +807,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 <TouchableOpacity style={styles.navBtn} onPress={openEditModal}>
                   <Icon name="pencil" size={20} color={Colors.textSecondary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.navBtn} onPress={handleDeleteTeam}>
+                {/* <TouchableOpacity style={styles.navBtn} onPress={handleDeleteTeam}>
                   <Icon name="delete-outline" size={20} color={Colors.error} />
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </>
             )}
           </View>
@@ -884,7 +891,10 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
       {/* ── ADD PLAYER MODAL ── */}
       <Modal visible={addModalVisible} transparent animationType="slide" onRequestClose={() => setAddModalVisible(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
           <TouchableOpacity style={{ flex: 1 }} onPress={() => setAddModalVisible(false)} />
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
@@ -957,7 +967,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
             </TouchableOpacity>
             <View style={{ height: 20 }} />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── ROLE MODAL ── */}
@@ -989,7 +999,10 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
       {/* ── EDIT TEAM MODAL ── */}
       <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
           <TouchableOpacity style={{ flex: 1 }} onPress={() => setEditModalVisible(false)} />
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
@@ -1035,7 +1048,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
             </TouchableOpacity>
             <View style={{ height: 24 }} />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </SafeAreaView>
@@ -1164,7 +1177,7 @@ const styles = StyleSheet.create({
   detailTabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
   contentArea: { flex: 1, backgroundColor: Colors.background },
-  tabContent: { padding: 14, paddingBottom: 30, gap: 10 },
+  tabContent: { padding: 14, paddingBottom: 50, gap: 10 },
 
   // Players tab
   playerRow: {

@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
@@ -31,6 +32,33 @@ import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
+
+const openGoogleMaps = async (url) => {
+  if (!url) return;
+  try {
+    if (Platform.OS === 'ios') {
+      const googleMapsAppUrl = `comgooglemaps://?q=${encodeURIComponent(url)}`;
+      const canOpen = await Linking.canOpenURL('comgooglemaps://');
+      if (canOpen) {
+        await Linking.openURL(googleMapsAppUrl);
+        return;
+      }
+    } else if (Platform.OS === 'android') {
+      const googleMapsAppUrl = `geo:0,0?q=${encodeURIComponent(url)}`;
+      const canOpen = await Linking.canOpenURL(googleMapsAppUrl).catch(() => false);
+      if (canOpen) {
+        await Linking.openURL(googleMapsAppUrl);
+        return;
+      }
+    }
+  } catch (err) {
+    console.log('Error opening maps deep link:', err);
+  }
+  // Fallback to browser
+  Linking.openURL(url).catch(() => {
+    showCustomAlert('Error', 'Failed to open location link');
+  });
+};
 
 // Ground (Turfs) is LAST
 const TABS = [
@@ -69,6 +97,7 @@ const SearchScreen = ({ navigation, route }) => {
 
   // Location State
   const [selectedLocation, setSelectedLocation] = useState(null);
+  const [localLoading, setLocalLoading] = useState(false);
 
   const [minTrustScore, setMinTrustScore] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
@@ -138,6 +167,7 @@ const SearchScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     if (!selectedLocation) return;
+    setLocalLoading(true);
     const t = setTimeout(() => {
       const city = selectedLocation.city || selectedLocation.name || '';
       const lat = selectedLocation.latitude;
@@ -151,16 +181,24 @@ const SearchScreen = ({ navigation, route }) => {
         setHasMore(items.length >= 10);
       };
 
+      let fetchPromise;
       if (activeTab === 'turfs') {
         const queryParams = { ...commonQuery, minTrustScore, maxPrice, sort: sortOrder };
-        dispatch(fetchTurfs(queryParams)).then(handleFetchResult).finally(() => setIsPaginating(false));
+        fetchPromise = dispatch(fetchTurfs(queryParams));
       } else if (activeTab === 'players') {
-        dispatch(fetchRankings({ ...commonQuery, role: playerRoleFilter || undefined })).then(handleFetchResult).finally(() => setIsPaginating(false));
+        fetchPromise = dispatch(fetchRankings({ ...commonQuery, role: playerRoleFilter || undefined }));
       } else if (activeTab === 'matches') {
-        dispatch(fetchMatches({ ...commonQuery, status: matchStatusFilter || undefined })).then(handleFetchResult).finally(() => setIsPaginating(false));
+        fetchPromise = dispatch(fetchMatches({ ...commonQuery, status: matchStatusFilter || undefined }));
       } else {
-        dispatch(fetchTournaments(commonQuery)).then(handleFetchResult).finally(() => setIsPaginating(false));
+        fetchPromise = dispatch(fetchTournaments(commonQuery));
       }
+
+      fetchPromise
+        .then(handleFetchResult)
+        .finally(() => {
+          setIsPaginating(false);
+          setLocalLoading(false);
+        });
     }, 400);
     return () => clearTimeout(t);
   }, [searchQuery, selectedLocation, activeTab, minTrustScore, maxPrice, sortOrder, playerRoleFilter, matchStatusFilter, page, dispatch]);
@@ -244,7 +282,7 @@ const SearchScreen = ({ navigation, route }) => {
 
   const hasActiveFilters = minTrustScore || maxPrice || sortOrder || playerRoleFilter || matchStatusFilter;
 
-  const activeLoading = activeTab === 'turfs' ? turfLoading : activeTab === 'players' ? playerLoading : activeTab === 'matches' ? matchLoading : tournamentLoading;
+  const activeLoading = (activeTab === 'turfs' ? turfLoading : activeTab === 'players' ? playerLoading : activeTab === 'matches' ? matchLoading : tournamentLoading) || localLoading;
   const activeDataList = activeTab === 'turfs' ? turfs : activeTab === 'players' ? players : activeTab === 'matches' ? matches : tournaments;
 
   const getMinPrice = (pricing) => {
@@ -324,12 +362,23 @@ const SearchScreen = ({ navigation, route }) => {
               <Text style={styles.priceAmountCompact}>₹{minPrice}</Text>
               <Text style={styles.priceUnitCompact}>/hr</Text>
             </View>
-            {trustScore !== undefined && (
-              <View style={[styles.badgeTrustCompact, { backgroundColor: trustScore >= 80 ? '#2ED573' : '#FF9800' }]}>
-                <Icon name="shield-star" size={10} color="#000" />
-                <Text style={styles.badgeTextCompact}>{trustScore}%</Text>
-              </View>
-            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {item.googleMapsUrl ? (
+                <TouchableOpacity
+                  style={styles.cardLocationBtn}
+                  onPress={() => openGoogleMaps(item.googleMapsUrl)}
+                >
+                  <Icon name="google-maps" size={12} color="#000" />
+                  <Text style={styles.cardLocationBtnText}>Location</Text>
+                </TouchableOpacity>
+              ) : null}
+              {trustScore !== undefined && (
+                <View style={[styles.badgeTrustCompact, { backgroundColor: trustScore >= 80 ? '#2ED573' : '#FF9800' }]}>
+                  <Icon name="shield-star" size={10} color="#000" />
+                  <Text style={styles.badgeTextCompact}>{trustScore}%</Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -353,7 +402,6 @@ const SearchScreen = ({ navigation, route }) => {
           <Text style={styles.playerRole} numberOfLines={1}>{item.playingRole || 'Cricket Player'} · {item.city || item.location || item.locationObj?.name || '—'}</Text>
           <View style={styles.playerStats}>
             <StatChip icon="account-group" label={`${item.followers?.length || 0} Followers`} />
-            {item.ranking && <StatChip icon="trophy-outline" label={`Rank #${item.ranking}`} primary />}
           </View>
         </View>
         <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
@@ -1343,6 +1391,8 @@ const styles = StyleSheet.create({
   priceUnitCompact: { color: Colors.textSecondary, fontSize: 10, marginLeft: 2 },
   badgeTrustCompact: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   badgeTextCompact: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 9 },
+  cardLocationBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: Colors.primary },
+  cardLocationBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 9 },
 
   /* ── Player Card ── */
   playerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundCard, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 14, gap: 12 },

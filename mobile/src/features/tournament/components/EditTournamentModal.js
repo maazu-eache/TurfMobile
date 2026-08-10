@@ -237,7 +237,7 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Entry Fee (₹)</Text>
-              <TextInput style={styles.input} value={form.entryFee} onChangeText={t => handleChange('entryFee', t)} keyboardType="number-pad" placeholderTextColor={Colors.textTertiary} />
+              <TextInput style={styles.input} value={form.entryFee} onChangeText={t => handleChange('entryFee', t.replace(/[^0-9]/g, ''))} keyboardType="number-pad" placeholderTextColor={Colors.textTertiary} />
               <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
                 Note: A {platformFeePercent}% platform fee will be deducted for each registration made through the platform.
               </Text>

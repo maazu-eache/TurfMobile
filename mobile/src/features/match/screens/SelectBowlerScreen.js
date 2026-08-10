@@ -180,22 +180,17 @@ const SelectBowlerScreen = ({ route, navigation }) => {
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
       )}
-      {/* Header */}
+
+      {/* Premium Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('LiveScorer', { matchId, skipAutoBowler: true })}>
           <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Select Bowler</Text>
-        <View style={{ width: 28 }} />
-      </View>
-
-      <View style={styles.scoreContainer}>
-        <Text style={styles.scoreText}>{score?.runs}/{score?.wickets} <Text style={styles.oversText}>({score?.overs} Ov)</Text></Text>
-        {match?.currentInnings === 2 && liveState?.toWin && liveState?.ballsRemaining ? (
-          <Text style={{ marginTop: 4, color: Colors.primary, fontFamily: Typography.fontFamily.semiBold }}>
-            Need {liveState.toWin} runs from {liveState.ballsRemaining} balls
-          </Text>
-        ) : null}
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={styles.headerTitle}>Select Bowler</Text>
+          <Text style={styles.headerSubtitle}>{isTeamABatting ? match?.teamB?.name : match?.teamA?.name}</Text>
+        </View>
+        <View style={{ width: 36 }} />
       </View>
 
       {loading ? (
@@ -210,10 +205,14 @@ const SelectBowlerScreen = ({ route, navigation }) => {
             const currentScorecard = scorecards.find(sc => sc.inningsNumber === match?.currentInnings);
             let isQuotaCompleted = false;
             let bowledOvers = 0;
+            let bowledWickets = 0;
+            let bowledRuns = 0;
             if (currentScorecard) {
               const bowlerStat = currentScorecard.bowling.find(b => String(b.player?._id || b.player) === String(item._id || item));
               if (bowlerStat) {
                 bowledOvers = bowlerStat.overs;
+                bowledWickets = bowlerStat.wickets || 0;
+                bowledRuns = bowlerStat.runs || 0;
                 if (bowlerStat.overs >= match.bowlerQuota) {
                   isQuotaCompleted = true;
                 }
@@ -224,7 +223,6 @@ const SelectBowlerScreen = ({ route, navigation }) => {
             const itemId = String(item._id || item);
             const isPreviousBowler = prevBowlerId !== '' && prevBowlerId === itemId;
 
-            // Check if there are ANY other bowlers in the squad who are eligible (not quota completed)
             const otherEligibleBowlers = squad.filter(p => {
               const pId = String(p._id || p);
               if (pId === itemId) return false;
@@ -235,38 +233,63 @@ const SelectBowlerScreen = ({ route, navigation }) => {
               return true;
             });
 
-            // Only block previous bowler if there is at least one other eligible bowler available
             const isPreviousBowlerBlocked = isPreviousBowler && otherEligibleBowlers.length > 0;
             const isDisabled = isQuotaCompleted || isPreviousBowlerBlocked;
 
-            const photoUrl = item.photo || item.userId?.photo;
+            const photoUrl = item.photo || item.userId?.photo || item.avatar || null;
+            const quotaMax = match.bowlerQuota || 4;
+            const quotaFraction = Math.min(bowledOvers / quotaMax, 1);
 
             return (
-              <TouchableOpacity 
-                style={[styles.playerItem, isDisabled && { opacity: 0.5 }]} 
+              <TouchableOpacity
+                style={[styles.playerItem, isDisabled && styles.playerItemDisabled]}
                 onPress={() => !isDisabled && handleSelect(item._id)}
                 disabled={isDisabled}
+                activeOpacity={0.75}
               >
-                {photoUrl ? (
-                  <Image source={{ uri: getImageUrl(photoUrl) }} style={styles.avatar} />
-                ) : (
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
-                  </View>
-                )}
-                
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.playerName}>{item.name}</Text>
-                  {isQuotaCompleted ? (
-                    <Text style={{ color: Colors.error, fontSize: 12 }}>Quota Completed ({bowledOvers} Ov)</Text>
-                  ) : isPreviousBowlerBlocked ? (
-                    <Text style={{ color: Colors.error, fontSize: 12 }}>Bowled previous over</Text>
+                {/* Avatar */}
+                <View style={styles.avatarWrapper}>
+                  {photoUrl ? (
+                    <Image source={{ uri: getImageUrl(photoUrl) }} style={styles.avatar} resizeMode="cover" />
                   ) : (
-                    <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Bowled: {bowledOvers} Ov • Remaining: {match.bowlerQuota - bowledOvers} Ov</Text>
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                  )}
+                  {isPreviousBowler && !isPreviousBowlerBlocked && (
+                    <View style={styles.prevBadge}>
+                      <Icon name="history" size={8} color="#fff" />
+                    </View>
                   )}
                 </View>
+
+                {/* Info */}
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={styles.playerName} numberOfLines={1}>{item.name}</Text>
+                    {bowledOvers > 0 && (
+                      <View style={styles.statsBadge}>
+                        <Text style={styles.statsBadgeText}>{bowledWickets}W  {bowledRuns}R</Text>
+                      </View>
+                    )}
+                  </View>
+                  {isQuotaCompleted ? (
+                    <Text style={styles.statusTextError}>Quota full ({bowledOvers}/{quotaMax} ov)</Text>
+                  ) : isPreviousBowlerBlocked ? (
+                    <Text style={styles.statusTextError}>Bowled previous over</Text>
+                  ) : (
+                    <View style={styles.quotaBarRow}>
+                      <View style={styles.quotaBarBg}>
+                        <View style={[styles.quotaBarFill, { flex: quotaFraction }]} />
+                        <View style={{ flex: 1 - quotaFraction }} />
+                      </View>
+                      <Text style={styles.quotaText}>{bowledOvers}/{quotaMax} ov</Text>
+                    </View>
+                  )}
+                </View>
+
                 {!isDisabled && (
-                  <Icon name="chevron-right" size={24} color={Colors.primary} />
+                  <Icon name="chevron-right" size={22} color={Colors.primary} />
                 )}
               </TouchableOpacity>
             );
@@ -374,15 +397,34 @@ const SelectBowlerScreen = ({ route, navigation }) => {
       </Modal>
 
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.addBtn} 
+        {score ? (
+          <View style={styles.scoreFooterBanner}>
+            <View style={styles.scoreFooterLeft}>
+              <Icon name="cricket" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.scoreFooterTeam} numberOfLines={1}>
+                {isTeamABatting ? match?.teamA?.name : match?.teamB?.name}
+              </Text>
+            </View>
+            <Text style={styles.scoreFooterScore}>
+              {score.runs}/{score.wickets}
+              <Text style={styles.scoreFooterOvers}> ({score.overs} ov)</Text>
+            </Text>
+            {match?.currentInnings === 2 && liveState?.toWin && liveState?.ballsRemaining ? (
+              <Text style={styles.scoreFooterNeed}>
+                {'  '}Need {liveState.toWin} off {liveState.ballsRemaining}b
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+        <TouchableOpacity
+          style={styles.editBtn}
           onPress={() => {
             setEditingSquad(squad);
             setShowEditSquadModal(true);
           }}
         >
-          <Icon name="pencil" size={20} color={Colors.primary} />
-          <Text style={styles.addBtnText}>Edit Squad / Add Player</Text>
+          <Icon name="account-edit" size={20} color={Colors.primary} />
+          <Text style={styles.editBtnText}>Edit Squad / Add Player</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -399,34 +441,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
   },
-  backBtn: {
-    padding: 4,
-  },
+  backBtn: { padding: 4 },
   headerTitle: {
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 18,
+    fontSize: 17,
     color: Colors.textPrimary,
   },
-  scoreContainer: {
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  scoreText: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: 24,
-    color: Colors.primary,
-  },
-  oversText: {
+  headerSubtitle: {
+    fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
-    fontSize: 14,
     color: Colors.textSecondary,
+    marginTop: 1,
   },
   loadingContainer: {
     padding: Spacing.xl,
@@ -434,38 +465,107 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: Spacing.md,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: 100,
   },
   playerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: 14,
     paddingHorizontal: Spacing.md,
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: Colors.borderLight,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    gap: 12,
+  },
+  playerItemDisabled: {
+    opacity: 0.45,
+  },
+  avatarWrapper: {
+    position: 'relative',
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.surfaceVariant,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.primaryAlpha10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.md,
+    borderWidth: 2,
+    borderColor: Colors.primaryAlpha20,
   },
   avatarText: {
     fontFamily: Typography.fontFamily.bold,
     color: Colors.primary,
-    fontSize: 18,
+    fontSize: 20,
+  },
+  prevBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.textSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.surface,
   },
   playerName: {
-    flex: 1,
-    fontFamily: Typography.fontFamily.semiBold,
-    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 15,
     color: Colors.textPrimary,
+    flex: 1,
+  },
+  statsBadge: {
+    backgroundColor: Colors.primaryAlpha10,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: Colors.primaryAlpha20,
+  },
+  statsBadgeText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  statusTextError: {
+    fontSize: 12,
+    color: Colors.error,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: 2,
+  },
+  quotaBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  quotaBarBg: {
+    flex: 1,
+    height: 4,
+    backgroundColor: Colors.borderLight,
+    borderRadius: 2,
+    flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  quotaBarFill: {
+    backgroundColor: Colors.primary,
+    borderRadius: 2,
+  },
+  quotaText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
   },
   emptyText: {
     textAlign: 'center',
@@ -475,30 +575,70 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: Spacing.md,
+    paddingBottom: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     backgroundColor: Colors.surface,
   },
-  addBtn: {
+  scoreFooterBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryAlpha10,
+    borderRadius: BorderRadius.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.primaryAlpha20,
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  scoreFooterLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  scoreFooterTeam: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textSecondary,
+    flex: 1,
+  },
+  scoreFooterScore: {
+    fontSize: 18,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  scoreFooterOvers: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  scoreFooterNeed: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.primary,
+    width: '100%',
+  },
+  editBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.md,
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: Colors.primaryAlpha10,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
+    borderColor: Colors.primaryAlpha20,
+    gap: 8,
   },
-  addBtnText: {
+  editBtnText: {
     fontFamily: Typography.fontFamily.semiBold,
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.primary,
-    marginLeft: 8,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   modalContentFull: {
@@ -514,7 +654,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
   },
   instructionText: {
@@ -528,29 +668,33 @@ const styles = StyleSheet.create({
   rosterListItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.base,
-    backgroundColor: Colors.surfaceVariant,
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.base,
+    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderLight,
   },
   avatarPlaceholderSm: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.borderLight,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryAlpha10,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.primaryAlpha20,
   },
   avatarTextSm: {
-    color: Colors.textSecondary,
-    fontSize: 14,
+    color: Colors.primary,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   modalListText: {
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
   },
   editSquadFooter: {
@@ -568,6 +712,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
     borderColor: Colors.borderLight,
+    gap: 6,
   },
   addNewBtnText: {
     marginLeft: 8,

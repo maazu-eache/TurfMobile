@@ -9,6 +9,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme'
 import api, { getImageUrl } from '../../../api/axios';
 import { updateUser } from '../../auth/authSlice';
 import { showCustomAlert } from '../../../components/CustomAlert';
+import ImageCropperModal from '../../../components/ImageCropperModal';
 
 const EditProfileScreen = ({ navigation }) => {
   const { user } = useSelector((state) => state.auth);
@@ -17,6 +18,8 @@ const EditProfileScreen = ({ navigation }) => {
   const [name, setName] = useState(user?.name || '');
   const [photo, setPhoto] = useState(user?.photo ? { uri: getImageUrl(user.photo) } : null);
   const [isLoading, setIsLoading] = useState(false);
+  const [cropModalVisible, setCropModalVisible] = useState(false);
+  const [tempImageUri, setTempImageUri] = useState('');
 
   const handlePickImage = async () => {
     const result = await launchImageLibrary({
@@ -30,7 +33,8 @@ const EditProfileScreen = ({ navigation }) => {
         showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
         return;
       }
-      setPhoto(selected);
+      setTempImageUri(selected.uri);
+      setCropModalVisible(true);
     }
   };
 
@@ -149,7 +153,21 @@ const EditProfileScreen = ({ navigation }) => {
           )}
         </TouchableOpacity>
       </KeyboardAwareScrollView>
-</SafeAreaView>
+
+      <ImageCropperModal
+        visible={cropModalVisible}
+        imageUri={tempImageUri}
+        onClose={() => setCropModalVisible(false)}
+        onCrop={(croppedUri) => {
+          setPhoto({
+            uri: croppedUri,
+            fileName: 'profile.jpg',
+            type: 'image/jpeg'
+          });
+          setCropModalVisible(false);
+        }}
+      />
+    </SafeAreaView>
   );
 };
 

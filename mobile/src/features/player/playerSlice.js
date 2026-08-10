@@ -75,6 +75,14 @@ const playerSlice = createSlice({
   reducers: { clearViewedPlayer: (state) => { state.viewedPlayer = null; } },
   extraReducers: (builder) => {
     builder
+      .addCase('auth/logoutLocal', (state) => {
+        state.myProfile = null;
+        state.matchHistory = [];
+        state.achievements = [];
+        state.rankings = [];
+        state.viewedPlayer = null;
+        state.availableBallTypes = [];
+      })
       .addCase(fetchMyPlayer.fulfilled, (state, a) => { state.myProfile = a.payload; })
       .addCase(updatePlayerProfile.fulfilled, (state, a) => { state.myProfile = a.payload; })
       .addCase(fetchPlayerById.fulfilled, (state, a) => { state.viewedPlayer = a.payload; })

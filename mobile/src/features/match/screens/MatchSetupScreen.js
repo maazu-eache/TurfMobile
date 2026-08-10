@@ -50,6 +50,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
   const matchStage = route.params?.stage || null;
   const matchData = route.params?.matchData || null;
   const existingMatchId = route.params?.matchId || matchData?._id || null;
+  const isEditing = route.params?.isEditing || false;
 
   const [teamA, setTeamA] = useState(null);
   const [teamB, setTeamB] = useState(null);
@@ -62,10 +63,10 @@ const MatchSetupScreen = ({ navigation, route }) => {
   const [wkB, setWkB] = useState(null);
 
   // Match setup details matching CricHeroes fields
-  const [format, setFormat] = useState('LIMITED OVERS');
+  const [format, setFormat] = useState(tournamentDetails?.format || 'LIMITED OVERS');
   const [overs, setOvers] = useState(tournamentDetails?.overs ? tournamentDetails.overs.toString() : '5');
   const [wickets, setWickets] = useState(tournamentDetails?.playersPerTeam ? (tournamentDetails.playersPerTeam - 1).toString() : '10');
-  const [bowlerQuota, setBowlerQuota] = useState('1');
+  const [bowlerQuota, setBowlerQuota] = useState(tournamentDetails?.bowlerQuota ? tournamentDetails.bowlerQuota.toString() : '1');
   const [city, setCity] = useState(tournamentDetails?.city || '');
   const [cityObj, setCityObj] = useState(tournamentDetails?.locationObj || null);
   const [ground, setGround] = useState(tournamentDetails?.groundName || '');
@@ -76,7 +77,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
   
   const [ballType, setBallType] = useState(tournamentDetails?.ballType || 'Tennis');
   const [wagonWheel, setWagonWheel] = useState(true);
-  const [pitchType, setPitchType] = useState('TURF');
+  const [pitchType, setPitchType] = useState(tournamentDetails?.pitchType || 'TURF');
   const [groundType, setGroundType] = useState(tournamentDetails?.groundType || 'Open Ground');
 
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -201,8 +202,13 @@ const MatchSetupScreen = ({ navigation, route }) => {
           scheduledAt: tempDate.toISOString()
         });
         dispatch(clearLiveState()); 
-        if (actionType === 'toss') navigation.replace('Toss', { matchId: existingMatchId });
-        else navigation.navigate('MyCricketMain');
+        if (isEditing) {
+          navigation.goBack();
+        } else if (actionType === 'toss') {
+          navigation.replace('Toss', { matchId: existingMatchId });
+        } else {
+          navigation.navigate('MyCricketMain');
+        }
       } catch (err) {
         showCustomAlert('Error', err.response?.data?.message || 'Failed to update match details');
       }
@@ -413,14 +419,15 @@ const MatchSetupScreen = ({ navigation, route }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="chevron-left" size={28} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Start A Match</Text>
+        <Text style={styles.headerTitle}>{existingMatchId ? 'Edit Match Details' : 'Start A Match'}</Text>
         <TouchableOpacity style={styles.settingsBtn}>
           {/* <Icon name="cog-outline" size={24} color={Colors.textPrimary} /> */}
         </TouchableOpacity>
       </View>
 
       <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.matchupContainer}>
+        {!existingMatchId && (
+          <View style={styles.matchupContainer}>
           <View style={styles.teamsRow}>
             <View style={styles.teamCol}>
               <TouchableOpacity
@@ -557,6 +564,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
             </View>
           </View>
         </View>
+        )}
 
         <View style={styles.formContainer}>
           <View style={styles.inputGroup}>
@@ -685,7 +693,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
           {isMatchLoading ? (
             <ActivityIndicator color={Colors.background} size="small" />
           ) : (
-            <Text style={styles.nextBtnText}>{existingMatchId ? 'Start Match' : 'Next (Toss)'}</Text>
+            <Text style={styles.nextBtnText}>{existingMatchId ? 'Update Match Details' : 'Next (Toss)'}</Text>
           )}
         </TouchableOpacity>
       </View>

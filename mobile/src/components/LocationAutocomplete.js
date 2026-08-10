@@ -196,17 +196,16 @@ const LocationAutocomplete = ({
     : styles.containerStandard;
 
   return (
-    <View style={style}>
+    <View style={[{ width: '100%' }, isNone && { flex: 1 }, style]}>
       {/* Input row */}
       <Animated.View
         ref={wrapperRef}
         collapsable={false}
-        style={{ transform: [{ translateX: shakeAnim }] }}
+        style={[{ width: '100%' }, isNone && { flex: 1, height: '100%', flexDirection: 'row', alignItems: 'center' }, { transform: [{ translateX: shakeAnim }] }]}
       >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={containerStyle}
-          onPress={() => inputRef.current?.focus?.()}
+        <View
+          style={[containerStyle, isNone && { flex: 1, height: '100%' }, { flexDirection: 'row', alignItems: 'center' }]}
+          onTouchStart={() => inputRef.current?.focus?.()}
         >
           <Icon
             name={icon}
@@ -251,87 +250,102 @@ const LocationAutocomplete = ({
             )
             : null
           }
-        </TouchableOpacity>
+        </View>
       </Animated.View>
 
-      {/* ── No-results guidance banner ── */}
-      {showGuidance && !isLocSelected && (
-        <View style={styles.guidanceBanner}>
-          <MCIcon name="map-marker-question-outline" size={18} color={Colors.warning} style={{ marginRight: 8, flexShrink: 0 }} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.guidanceTitle}>
-              Area not found in our city list
-            </Text>
-            <Text style={styles.guidanceBody}>
-              Localities and neighbourhoods aren't listed directly. Try entering the{' '}
-              <Text style={styles.guidanceHighlight}>well-known city name</Text> instead of "{rejectedQuery}" — for example, type{' '}
-              <Text style={styles.guidanceHighlight}>"Chennai"</Text> or <Text style={styles.guidanceHighlight}>"Mumbai"</Text>.
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* ── Floating dropdown ── */}
+      {/* ── Floating dropdown & guidance portal ── */}
       <Modal
-        visible={dropdownVisible && results.length > 0}
+        visible={(dropdownVisible && results.length > 0) || (showGuidance && !isLocSelected)}
         transparent
         animationType="none"
-        onRequestClose={() => setDropdownVisible(false)}
+        onRequestClose={() => {
+          setDropdownVisible(false);
+          setShowGuidance(false);
+        }}
       >
         <TouchableOpacity
           style={StyleSheet.absoluteFill}
           activeOpacity={1}
-          onPress={() => setDropdownVisible(false)}
+          onPress={() => {
+            setDropdownVisible(false);
+            setShowGuidance(false);
+          }}
         >
-          <TouchableOpacity
-            activeOpacity={1}
-            style={[
-              styles.dropdown,
-              {
-                top: dropdownLayout.y + dropdownLayout.height + 4,
-                left: dropdownLayout.x,
-                width: dropdownLayout.width,
-              },
-            ]}
-          >
-            <FlatList
-              data={results}
-              keyExtractor={(item) => String(item._id)}
-              keyboardShouldPersistTaps="handled"
-              style={{ maxHeight: 240 }}
-              renderItem={({ item, index }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownItem,
-                    index === results.length - 1 && { borderBottomWidth: 0 },
-                  ]}
-                  onPress={() => handleSelect(item)}
-                  activeOpacity={0.7}
-                >
-                  <Icon
-                    name="location-outline"
-                    size={15}
-                    color={Colors.primary}
-                    style={{ marginTop: 2, marginRight: 10, flexShrink: 0 }}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemTitle} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.itemSub} numberOfLines={1}>
-                      {item.name}, {item.state}
-                    </Text>
+          {results.length > 0 ? (
+            <TouchableOpacity
+              activeOpacity={1}
+              style={[
+                styles.dropdown,
+                {
+                  top: dropdownLayout.y + dropdownLayout.height + 4,
+                  left: dropdownLayout.x,
+                  width: dropdownLayout.width,
+                },
+              ]}
+            >
+              <FlatList
+                data={results}
+                keyExtractor={(item) => String(item._id)}
+                keyboardShouldPersistTaps="handled"
+                style={{ maxHeight: 240 }}
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.dropdownItem,
+                      index === results.length - 1 && { borderBottomWidth: 0 },
+                    ]}
+                    onPress={() => handleSelect(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon
+                      name="location-outline"
+                      size={15}
+                      color={Colors.primary}
+                      style={{ marginTop: 2, marginRight: 10, flexShrink: 0 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.itemTitle} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.itemSub} numberOfLines={1}>
+                        {item.name}, {item.state}
+                      </Text>
+                    </View>
+                    <Icon name="chevron-forward-outline" size={14} color={Colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+                ListHeaderComponent={
+                  <View style={styles.dropdownHeader}>
+                    <Text style={styles.dropdownHeaderText}>Select a city</Text>
                   </View>
-                  <Icon name="chevron-forward-outline" size={14} color={Colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-              ListHeaderComponent={
-                <View style={styles.dropdownHeader}>
-                  <Text style={styles.dropdownHeaderText}>Select a city</Text>
-                </View>
-              }
-            />
-          </TouchableOpacity>
+                }
+              />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={1}
+              style={[
+                styles.guidanceBanner,
+                {
+                  top: dropdownLayout.y + dropdownLayout.height + 4,
+                  left: dropdownLayout.x,
+                  width: dropdownLayout.width,
+                },
+              ]}
+            >
+              <MCIcon name="map-marker-question-outline" size={18} color={Colors.warning} style={{ marginRight: 8, flexShrink: 0 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.guidanceTitle}>
+                  Area not found in our city list
+                </Text>
+                <Text style={styles.guidanceBody}>
+                  Localities and neighbourhoods aren't listed directly. Try entering the{' '}
+                  <Text style={styles.guidanceHighlight}>well-known city name</Text> instead of "{rejectedQuery}" — for example, type{' '}
+                  <Text style={styles.guidanceHighlight}>"Chennai"</Text> or <Text style={styles.guidanceHighlight}>"Mumbai"</Text>.
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
         </TouchableOpacity>
       </Modal>
     </View>
@@ -443,14 +457,24 @@ const styles = StyleSheet.create({
 
   /* ── No-results guidance banner ────────────────────────────── */
   guidanceBanner: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    zIndex: 9999,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: 'rgba(255, 143, 0, 0.10)',
+    backgroundColor: '#1C130C', // Dark premium amber surface to prevent overlapping text transparency
     borderWidth: 1,
-    borderColor: 'rgba(255, 143, 0, 0.30)',
+    borderColor: Colors.warning,
     borderRadius: BorderRadius.md,
     padding: 12,
-    marginTop: 8,
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
   guidanceTitle: {
     color: Colors.warning,
