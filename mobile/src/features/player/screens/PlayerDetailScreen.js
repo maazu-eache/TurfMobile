@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Image, Modal, FlatList, Platform, ToastAndroid
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -144,14 +144,50 @@ const PlayerDetailScreen = ({ navigation, route }) => {
     } catch (err) { showCustomAlert('Error', err || 'Failed to update follow status'); }
   };
 
-  const handleRemoveFollower = async (followerId) => {
-    try { await api.delete(`/players/${id}/followers/${followerId}`); setSocialList(prev => prev.filter(p => p._id !== followerId)); dispatch(fetchPlayerById({ id, trackView: false })); }
-    catch (err) { showCustomAlert('Error', err.response?.data?.message || 'Failed to remove follower'); }
+  const handleRemoveFollower = (followerId, followerName) => {
+    showCustomAlert(
+      'Remove Follower',
+      `Remove ${followerName || 'this player'} from your followers?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/players/${id}/followers/${followerId}`);
+              setSocialList(prev => prev.filter(p => p._id !== followerId));
+              dispatch(fetchPlayerById({ id, trackView: false }));
+            } catch (err) {
+              showCustomAlert('Error', err.response?.data?.message || 'Failed to remove follower');
+            }
+          },
+        },
+      ]
+    );
   };
 
-  const handleUnfollowFromList = async (followingId) => {
-    try { await api.delete(`/players/${id}/following/${followingId}`); setSocialList(prev => prev.filter(p => p._id !== followingId)); dispatch(fetchPlayerById({ id, trackView: false })); }
-    catch (err) { showCustomAlert('Error', err.response?.data?.message || 'Failed to unfollow'); }
+  const handleUnfollowFromList = (followingId, followingName) => {
+    showCustomAlert(
+      'Unfollow',
+      `Unfollow ${followingName || 'this player'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unfollow',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/players/${id}/following/${followingId}`);
+              setSocialList(prev => prev.filter(p => p._id !== followingId));
+              dispatch(fetchPlayerById({ id, trackView: false }));
+            } catch (err) {
+              showCustomAlert('Error', err.response?.data?.message || 'Failed to unfollow');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (localLoading) {
@@ -560,9 +596,9 @@ const PlayerDetailScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Follow Button */}
+        {/* Follow Button — compact pill, not full width */}
         {!isOwnProfile && (
-          <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, alignItems: 'center' }}>
             <TouchableOpacity
               style={[styles.followBtn, isFollowing && styles.followingBtn]}
               onPress={handleFollowToggle}
@@ -570,7 +606,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
             >
               <Icon
                 name={isFollowing ? 'checkmark-circle' : 'person-add-outline'}
-                size={16}
+                size={15}
                 color={isFollowing ? Colors.primary : '#000'}
                 style={{ marginRight: 6 }}
               />
@@ -615,26 +651,42 @@ const PlayerDetailScreen = ({ navigation, route }) => {
             ) : socialList.length === 0 ? (
               <View style={styles.emptyWrap}><Icon name="people-outline" size={52} color={Colors.textTertiary} /><Text style={styles.emptyText}>No users yet</Text></View>
             ) : (
-              <FlatList data={socialList} keyExtractor={item => item._id} contentContainerStyle={{ paddingBottom: 40 }}
+              <FlatList data={socialList} keyExtractor={item => item._id}
+                contentContainerStyle={{ paddingBottom: 24 }}
                 renderItem={({ item }) => {
-                  const itemPhoto = item.photo || item.userId?.photo;
+                  // Try all possible image sources
+                  const itemPhoto = item.photo || item.userId?.profilePicture || item.userId?.photo;
                   const hasError = imgErrors[item._id];
+                  const imageUrl = getImageUrl(itemPhoto);
                   return (
                     <View style={styles.socialListItem}>
                       <TouchableOpacity style={styles.socialListLeft} onPress={() => { setSocialModalVisible(false); navigation.push('PlayerDetail', { id: item._id }); }}>
-                        {itemPhoto && !hasError ? (
+                        {imageUrl && !hasError ? (
                           <Image 
-                            source={{ uri: getImageUrl(itemPhoto) }} 
+                            source={{ uri: imageUrl }} 
                             style={styles.listAvatar} 
                             onError={() => setImgErrors(prev => ({ ...prev, [item._id]: true }))} 
                           />
                         ) : (
-                          <View style={styles.listAvatarFallback}><Icon name="person" size={18} color={Colors.primary} /></View>
+                          <View style={styles.listAvatarFallback}>
+                            <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.primary }}>
+                              {(item.name || '?').charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
                         )}
-                        <View style={{ flex: 1 }}><Text style={styles.listName}>{item.name}</Text><Text style={styles.listRole}>{item.playingRole || 'Cricket Player'}</Text></View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.listName}>{item.name}</Text>
+                          <Text style={styles.listRole}>{item.playingRole || 'Cricket Player'}</Text>
+                        </View>
                       </TouchableOpacity>
                       {isOwnProfile && (
-                        <TouchableOpacity style={styles.listActionBtn} onPress={() => { socialType === 'followers' ? handleRemoveFollower(item._id) : handleUnfollowFromList(item._id); }}>
+                        <TouchableOpacity
+                          style={styles.listActionBtn}
+                          onPress={() => socialType === 'followers'
+                            ? handleRemoveFollower(item._id, item.name)
+                            : handleUnfollowFromList(item._id, item.name)
+                          }
+                        >
                           <Text style={styles.listActionText}>{socialType === 'followers' ? 'Remove' : 'Unfollow'}</Text>
                         </TouchableOpacity>
                       )}
@@ -643,6 +695,8 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                 }}
               />
             )}
+            {/* SafeAreaView bottom — ensures nav bar doesn't cut off the list */}
+            <SafeAreaView edges={['bottom']} />
           </View>
         </View>
       </Modal>
@@ -877,9 +931,14 @@ const styles = StyleSheet.create({
   statsStripDivider: { width: 1, height: 32, backgroundColor: Colors.border, alignSelf: 'center' },
 
   // ── Follow button ─────────────────────────────────────────────────────────
-  followBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary, borderRadius: BorderRadius.xl, paddingVertical: 13, width: '100%' },
+  followBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.primary, borderRadius: 20,
+    paddingVertical: 9, paddingHorizontal: 24,
+    alignSelf: 'center', minWidth: 130,
+  },
   followingBtn: { backgroundColor: 'rgba(255,204,0,0.08)', borderWidth: 1.5, borderColor: Colors.primary },
-  followBtnText: { color: '#000', fontSize: 15, fontFamily: Typography.fontFamily.bold },
+  followBtnText: { color: '#000', fontSize: 14, fontFamily: Typography.fontFamily.bold },
   followingBtnText: { color: Colors.primary },
 
   // ── Tab bar ───────────────────────────────────────────────────────────────

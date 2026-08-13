@@ -14,6 +14,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import Svg, { Circle } from 'react-native-svg';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -299,9 +300,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
           <Icon name="arrow-left" size={20} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isRescheduling ? 'Reschedule Slots' : 'Select Slots'}</Text>
-        <TouchableOpacity onPress={() => setShowBulkModal(true)} style={styles.headerBtn}>
-          <Icon name="calendar-multiselect" size={20} color="#FFD400" />
-        </TouchableOpacity>
+        <View style={{ width: 36 }} />
       </View>
 
       <Animated.ScrollView
@@ -316,17 +315,31 @@ const SlotPickerScreen = ({ route, navigation }) => {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.dateScroll}
           >
-            <TouchableOpacity
-              style={styles.calendarBtn}
-              onPress={() => {
-                setActivePicker('none');
-                setShowCalendar(true);
-              }}
-              activeOpacity={0.8}
-            >
-              <Icon name="calendar-month" size={20} color="#FFD400" />
-              <Text style={styles.calendarBtnText}>More</Text>
-            </TouchableOpacity>
+            {/* Calendar button — shows picked date if it's outside the 7-day strip */}
+            {(() => {
+              const isCustomDate = !dates.some(d => d.format('YYYY-MM-DD') === selectedDate);
+              const calMoment = moment(selectedDate, 'YYYY-MM-DD');
+              return (
+                <TouchableOpacity
+                  style={[styles.calendarBtn, isCustomDate && styles.dateBoxSelected]}
+                  onPress={() => {
+                    setActivePicker('none');
+                    setShowCalendar(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="calendar-month" size={20} color={isCustomDate ? '#FFD400' : '#FFD400'} />
+                  {isCustomDate ? (
+                    <>
+                      <Text style={[styles.dateNum, { color: '#FFD400', fontSize: 13 }]}>{calMoment.format('DD')}</Text>
+                      <Text style={[styles.dateMonth, { color: '#FFD400' }]}>{calMoment.format('MMM')}</Text>
+                    </>
+                  ) : (
+                    <Text style={[styles.calendarBtnText]}>More</Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })()}
             {dates.map(renderDateItem)}
           </ScrollView>
         </View>
@@ -334,7 +347,11 @@ const SlotPickerScreen = ({ route, navigation }) => {
         {/* ── Availability Summary Card ── */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryLeft}>
-            <Text style={styles.summaryTitle}>Available Today</Text>
+            <Text style={styles.summaryTitle}>
+              {moment(selectedDate, 'YYYY-MM-DD').isSame(moment(), 'day')
+                ? 'Available Today'
+                : moment(selectedDate, 'YYYY-MM-DD').format('ddd, DD MMM YYYY')}
+            </Text>
             <View style={styles.statsRow}>
               <View style={styles.statBlock}>
                 <Text style={styles.statLabel}>Available</Text>
@@ -351,7 +368,15 @@ const SlotPickerScreen = ({ route, navigation }) => {
             </View>
           </View>
           <View style={styles.statsCircularProgress}>
-            <View style={styles.yellowProgressRing} />
+            <Svg width={60} height={60} style={{ position: 'absolute' }}>
+              <Circle
+                cx={30} cy={30} r={26}
+                stroke="#FFD400" strokeWidth={4} fill="none"
+                strokeDasharray={2 * Math.PI * 26}
+                strokeDashoffset={(2 * Math.PI * 26) * (1 - (slots.length ? (availableCount / slots.length) : 0))}
+                rotation="-90" origin="30, 30" strokeLinecap="round"
+              />
+            </Svg>
             <Text style={styles.progressText}>{availableCount}</Text>
             <Text style={styles.progressSubText}>Slots</Text>
           </View>
@@ -776,12 +801,6 @@ const styles = StyleSheet.create({
     width: 60, height: 60, borderRadius: 30,
     borderWidth: 4, borderColor: '#2A2A2A',
     alignItems: 'center', justifyContent: 'center',
-  },
-  yellowProgressRing: {
-    position: 'absolute',
-    top: -4, left: -4, right: -4, bottom: -4,
-    borderRadius: 30, borderWidth: 4, borderColor: '#FFD400',
-    borderBottomColor: 'transparent', borderRightColor: 'transparent',
   },
   progressText: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: '#FFF' },
   progressSubText: { fontSize: 7, fontFamily: Typography.fontFamily.bold, color: '#FFD400', textTransform: 'uppercase', marginTop: -2 },

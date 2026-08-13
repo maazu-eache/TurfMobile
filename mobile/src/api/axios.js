@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
 export const PROD_URL = 'https://api.scoreverse.in';
 
 // export const PROD_URL = __DEV__
-//   ? (Platform.OS === 'ios' ? 'http://127.0.0.1:5001' : 'http://10.0.2.2:5001')
+//   ? (Platform.OS === 'ios' ? 'http://127.0.0.1:5002' : 'http://10.0.2.2:5002')
 //   : 'https://api.scoreverse.in';
 
 
@@ -18,22 +18,10 @@ export const BASE_URL = PROD_URL;
 export const getImageUrl = (path) => {
   if (!path || typeof path !== 'string') return null;
   
-  // Normalize backslashes (important for live servers hosted on windows or certain DB paths)
+  // Normalize backslashes
   path = path.replace(/\\/g, '/');
 
-  // If already a valid absolute HTTP(S) URL, return it directly
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    // Replace legacy localhost / 10.0.2.2 URLs with active BASE_URL host
-    if (path.includes('localhost') || path.includes('10.0.2.2') || path.includes('127.0.0.1')) {
-      const idx = path.indexOf('/uploads/');
-      if (idx !== -1) {
-        return `${BASE_URL}${path.substring(idx)}`;
-      }
-    }
-    return path;
-  }
-
-  // Fix mangled Cloudinary / HTTP URLs returned by path.relative bug (e.g. /../../https:/res.cloudinary.com/...)
+  // Fix mangled HTTP URLs (e.g. /../../https:/res.cloudinary.com/...)
   const httpIdx = path.indexOf('http:/');
   const httpsIdx = path.indexOf('https:/');
   if (httpIdx !== -1 || httpsIdx !== -1) {
@@ -45,30 +33,32 @@ export const getImageUrl = (path) => {
     } else if (extractedUrl.startsWith('http:/') && !extractedUrl.startsWith('http://')) {
       extractedUrl = extractedUrl.replace('http:/', 'http://');
     }
-    return extractedUrl;
+    path = extractedUrl;
   }
 
-  // If local device path (from image picker) or data URI
+  // If local device path
   if (path.startsWith('file://') || path.startsWith('content://') || path.startsWith('data:')) {
     return path;
   }
 
-  // If already absolute HTTP(S) URL
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    // Replace legacy localhost / 10.0.2.2 URLs with active BASE_URL host
-    if (path.includes('localhost') || path.includes('10.0.2.2') || path.includes('127.0.0.1')) {
-      const idx = path.indexOf('/uploads/');
-      if (idx !== -1) {
-        return `${BASE_URL}${path.substring(idx)}`;
-      }
+  // If Cloudinary URL, ensure it's HTTPS (Android blocks cleartext HTTP) and return directly
+  if (path.includes('cloudinary.com')) {
+    if (path.startsWith('http://')) {
+      return path.replace('http://', 'https://');
     }
     return path;
   }
-  
-  // Fix previously uploaded absolute local paths (e.g. /Users/.../uploads/...)
+
+  // Force all /uploads/ paths to use the current BASE_URL (for local/self-hosted images)
   const uploadsIndex = path.indexOf('/uploads/');
   if (uploadsIndex !== -1) {
-    path = path.substring(uploadsIndex);
+    const cleanPath = path.substring(uploadsIndex);
+    return `${BASE_URL}${cleanPath}`;
+  }
+
+  // If already absolute HTTP(S) URL
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
   }
 
   const cleanPath = path.startsWith('/') ? path : `/${path}`;

@@ -87,15 +87,21 @@ const MatchSetupScreen = ({ navigation, route }) => {
   // Auto-fill match details if editing existing match
   useEffect(() => {
     if (matchData) {
-      if (matchData.format) setFormat(matchData.format);
+      if (matchData.format) {
+        setFormat(MATCH_FORMATS.includes(matchData.format.toUpperCase()) ? matchData.format.toUpperCase() : 'LIMITED OVERS');
+      }
       if (matchData.overs) setOvers(matchData.overs.toString());
       if (matchData.wickets) setWickets(matchData.wickets.toString());
       if (matchData.bowlerQuota) setBowlerQuota(matchData.bowlerQuota.toString());
       if (matchData.city) setCity(matchData.city);
       if (matchData.ground) setGround(matchData.ground);
       if (matchData.ballType) setBallType(matchData.ballType);
-      if (matchData.pitchType) setPitchType(matchData.pitchType);
-      if (matchData.groundType) setGroundType(matchData.groundType);
+      if (matchData.pitchType) {
+        setPitchType(PITCH_TYPES.includes(matchData.pitchType.toUpperCase()) ? matchData.pitchType.toUpperCase() : 'TURF');
+      }
+      if (matchData.groundType) {
+        setGroundType(GROUND_TYPES.includes(matchData.groundType) ? matchData.groundType : 'Open Ground');
+      }
       if (matchData.wagonWheelEnabled !== undefined) setWagonWheel(matchData.wagonWheelEnabled);
 
       if (matchData.teamA) setTeamA(typeof matchData.teamA === 'object' ? matchData.teamA : { _id: matchData.teamA });
@@ -419,20 +425,21 @@ const MatchSetupScreen = ({ navigation, route }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="chevron-left" size={28} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{existingMatchId ? 'Edit Match Details' : 'Start A Match'}</Text>
+        <Text style={styles.headerTitle}>{(existingMatchId && isEditing) ? 'Edit Match Details' : 'Start A Match'}</Text>
         <TouchableOpacity style={styles.settingsBtn}>
           {/* <Icon name="cog-outline" size={24} color={Colors.textPrimary} /> */}
         </TouchableOpacity>
       </View>
 
       <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {!existingMatchId && (
+        {(!existingMatchId || (matchData?.status === 'scheduled' && !isEditing)) && (
           <View style={styles.matchupContainer}>
           <View style={styles.teamsRow}>
             <View style={styles.teamCol}>
               <TouchableOpacity
                 style={[styles.teamCircleSlot, teamA && styles.teamCircleSlotSelected]}
                 onPress={() => {
+                  if (existingMatchId) return showCustomAlert('Info', 'Teams cannot be changed for scheduled matches');
                   navigation.navigate('MatchTeamSelection', {
                     selectingFor: 'A',
                     teamA,
@@ -503,6 +510,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
               <TouchableOpacity
                 style={[styles.teamCircleSlot, teamB && styles.teamCircleSlotSelected]}
                 onPress={() => {
+                  if (existingMatchId) return showCustomAlert('Info', 'Teams cannot be changed for scheduled matches');
                   navigation.navigate('MatchTeamSelection', {
                     selectingFor: 'B',
                     teamA,
@@ -693,7 +701,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
           {isMatchLoading ? (
             <ActivityIndicator color={Colors.background} size="small" />
           ) : (
-            <Text style={styles.nextBtnText}>{existingMatchId ? 'Update Match Details' : 'Next (Toss)'}</Text>
+            <Text style={styles.nextBtnText}>{(existingMatchId && isEditing) ? 'Update Match Details' : 'Next (Toss)'}</Text>
           )}
         </TouchableOpacity>
       </View>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -17,6 +18,7 @@ const formatDateIndian = (date) => {
 };
 
 const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [groupMode, setGroupMode] = useState(false);
   
@@ -72,14 +74,12 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
           updated[activeGroupIndex].startTime = selectedDate;
           setGroupSchedule(updated);
         } else {
-          // Time mode
           const currentDate = new Date(updated[activeGroupIndex].startTime);
           currentDate.setHours(selectedDate.getHours(), selectedDate.getMinutes());
           updated[activeGroupIndex].startTime = currentDate;
           setGroupSchedule(updated);
         }
       } else {
-        // No group mode
         if (pickerMode === 'date') {
           const currentDate = new Date(firstMatchDate);
           selectedDate.setHours(currentDate.getHours(), currentDate.getMinutes());
@@ -180,77 +180,69 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
                 
                 <View style={styles.infoBox}>
                   <Icon name="info" size={16} color={Colors.primary} style={{ marginRight: 8, marginTop: 2 }} />
-                  <Text style={styles.infoText}>
-                    Based on your {tournament?.overs || 5} overs ({tournament?.groundType || 'Open Ground'}) format, matches will be automatically spaced out.
-                  </Text>
-                </View>
-                
-                <View style={[styles.infoBox, { borderColor: Colors.warning, backgroundColor: 'rgba(243, 156, 18, 0.1)', marginTop: Spacing.sm }]}>
-                  <Icon name="alert-triangle" size={16} color={Colors.warning} style={{ marginRight: 8, marginTop: 2 }} />
-                  <Text style={[styles.infoText, { color: Colors.warning }]}>
-                    This wizard ONLY schedules League Matches. Knockout matches (Quarter-Finals, etc.) must be handled manually using "Start a Match".
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.infoText}>
+                      Based on your {tournament?.overs || 5} overs ({tournament?.groundType || 'Open Ground'}) format, matches will be automatically spaced out.
+                    </Text>
+                    <Text style={[styles.infoText, { marginTop: 6, color: Colors.textSecondary }]}>
+                      This wizard ONLY schedules League Matches. Knockout fixtures must be handled manually.
+                    </Text>
+                  </View>
                 </View>
 
                 {groupMode ? (
-              <View style={{ marginTop: Spacing.lg }}>
-                <Text style={styles.sectionTitle}>Group Order & Start Times</Text>
-                {groupSchedule.map((gs, index) => (
-                  <View key={index} style={styles.groupCard}>
-                    <Text style={styles.groupName}>{gs.groupName}</Text>
-                    
+                  <View style={{ marginTop: Spacing.md }}>
+                    <Text style={styles.sectionTitle}>Group Order & Start Times</Text>
+                    {groupSchedule.map((gs, index) => (
+                      <View key={index} style={styles.groupRow}>
+                        <Text style={styles.groupName}>{gs.groupName}</Text>
+                        
+                        <View style={styles.groupRowPickers}>
+                          <TouchableOpacity style={styles.compactPickerBtn} onPress={() => openPicker('date', index)}>
+                            <Text style={styles.compactPickerText}>{formatDateIndian(gs.startTime)}</Text>
+                            <Icon name="calendar" size={14} color={Colors.primary} />
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity style={styles.compactPickerBtn} onPress={() => openPicker('time', index)}>
+                            <Text style={styles.compactPickerText}>
+                              {gs.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </Text>
+                            <Icon name="clock" size={14} color={Colors.primary} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={{ marginTop: Spacing.lg }}>
+                    <Text style={styles.label}>Matches Per Day</Text>
+                    <TextInput 
+                      style={styles.input} 
+                      keyboardType="numeric" 
+                      value={matchesPerDay} 
+                      onChangeText={setMatchesPerDay} 
+                    />
+
+                    <Text style={[styles.label, { marginTop: Spacing.md }]}>Start Time for First Match</Text>
                     <View style={styles.pickerRow}>
                       <View style={{ flex: 1, marginRight: Spacing.sm }}>
-                        <Text style={styles.label}>Start Date</Text>
-                        <TouchableOpacity style={styles.pickerBtn} onPress={() => openPicker('date', index)}>
-                          <Text style={styles.pickerText}>{formatDateIndian(gs.startTime)}</Text>
+                        <TouchableOpacity style={styles.pickerBtn} onPress={() => openPicker('date')}>
+                          <Text style={styles.pickerText}>{formatDateIndian(firstMatchDate)}</Text>
                           <Icon name="calendar" size={16} color={Colors.primary} />
                         </TouchableOpacity>
                       </View>
                       
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.label}>Start Time</Text>
-                        <TouchableOpacity style={styles.pickerBtn} onPress={() => openPicker('time', index)}>
+                        <TouchableOpacity style={styles.pickerBtn} onPress={() => openPicker('time')}>
                           <Text style={styles.pickerText}>
-                            {gs.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {firstMatchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </Text>
                           <Icon name="clock" size={16} color={Colors.primary} />
                         </TouchableOpacity>
                       </View>
                     </View>
                   </View>
-                ))}
-              </View>
-            ) : (
-              <View style={{ marginTop: Spacing.lg }}>
-                <Text style={styles.label}>Matches Per Day</Text>
-                <TextInput 
-                  style={styles.input} 
-                  keyboardType="numeric" 
-                  value={matchesPerDay} 
-                  onChangeText={setMatchesPerDay} 
-                />
-
-                <Text style={[styles.label, { marginTop: Spacing.md }]}>Start Time for First Match</Text>
-                <View style={styles.pickerRow}>
-                  <View style={{ flex: 1, marginRight: Spacing.sm }}>
-                    <TouchableOpacity style={styles.pickerBtn} onPress={() => openPicker('date')}>
-                      <Text style={styles.pickerText}>{formatDateIndian(firstMatchDate)}</Text>
-                      <Icon name="calendar" size={16} color={Colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <View style={{ flex: 1 }}>
-                    <TouchableOpacity style={styles.pickerBtn} onPress={() => openPicker('time')}>
-                      <Text style={styles.pickerText}>
-                        {firstMatchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                      <Icon name="clock" size={16} color={Colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            )}
+                )}
 
                 <View style={{ height: 60 }} />
               </>
@@ -304,7 +296,7 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
             )}
           </KeyboardAwareScrollView>
 
-          <View style={styles.footer}>
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.xl) }]}>
             {!isPreviewMode ? (
               <>
                 <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={onClose}>
@@ -316,14 +308,11 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
               </>
             ) : (
               <>
-                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm, paddingHorizontal: 5 }]} onPress={() => setIsPreviewMode(false)} disabled={loading}>
-                  <Text style={[styles.actionBtnText, { color: Colors.textSecondary, fontSize: 13 }]}>Back</Text>
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={() => setIsPreviewMode(false)}>
+                  <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Back</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha20, marginRight: Spacing.sm, paddingHorizontal: 5 }]} onPress={handleGenerate} disabled={loading}>
-                  {loading ? <ActivityIndicator color={Colors.primary} /> : <Text style={[styles.actionBtnText, { color: Colors.primary, fontSize: 13 }]}>Regenerate</Text>}
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, { flex: 1, paddingHorizontal: 5 }]} onPress={handleConfirm} disabled={loading}>
-                  {loading ? <ActivityIndicator color="#000000" /> : <Text style={[styles.actionBtnText, { fontSize: 13 }]}>Confirm</Text>}
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={handleConfirm} disabled={loading}>
+                  {loading ? <ActivityIndicator color="#000000" /> : <Text style={styles.actionBtnText}>Confirm</Text>}
                 </TouchableOpacity>
               </>
             )}
@@ -345,16 +334,40 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
 
 const styles = StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: Colors.background, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, height: '80%' },
+  modalContainer: { backgroundColor: Colors.background, borderTopLeftRadius: 16, borderTopRightRadius: 16, height: '80%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, paddingBottom: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
   modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  wizardIntro: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20, marginBottom: Spacing.md },
-  infoBox: { flexDirection: 'row', backgroundColor: 'rgba(46, 204, 113, 0.1)', padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.primary },
-  infoText: { flex: 1, fontSize: 13, color: Colors.primary, lineHeight: 18 },
-  sectionTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.md },
+  wizardIntro: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.md },
+  infoBox: { flexDirection: 'row', backgroundColor: Colors.primaryAlpha10, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.primary },
+  infoText: { fontSize: 13, color: Colors.primary, lineHeight: 18 },
+  sectionTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.sm },
   
-  groupCard: { backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.lg, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border },
-  groupName: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.sm },
+  groupRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  groupName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  groupRowPickers: { flexDirection: 'row', gap: 8 },
+  compactPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundElevated,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 6,
+  },
+  compactPickerText: {
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 12,
+  },
   
   label: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: Spacing.xs },
   input: { backgroundColor: Colors.backgroundElevated, color: Colors.textPrimary, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border },
@@ -363,8 +376,8 @@ const styles = StyleSheet.create({
   pickerBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border },
   pickerText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
 
-  footer: { flexDirection: 'row', padding: Spacing.md, paddingBottom: Spacing.xl, borderTopWidth: 1, borderTopColor: Colors.border },
-  actionBtn: { paddingVertical: 14, borderRadius: BorderRadius.xl, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
+  footer: { flexDirection: 'row', padding: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
+  actionBtn: { paddingVertical: 14, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
   actionBtnText: { color: '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
   
   previewCard: { backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border },

@@ -92,7 +92,7 @@ const SearchScreen = ({ navigation, route }) => {
   const { matches = [], isLoading: matchLoading = false } = useSelector((s) => s.match || {});
   const { tournaments = [], isLoading: tournamentLoading = false } = useSelector((s) => s.tournament || {});
 
-  const [activeTab, setActiveTab] = useState('players');
+  const [activeTab, setActiveTab] = useState('turfs');
   const [isFilterVisible, setFilterVisible] = useState(false);
 
   // Location State
@@ -147,6 +147,20 @@ const SearchScreen = ({ navigation, route }) => {
       hasInitializedLocation.current = true;
     }
   }, [myProfile, user]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('blur', () => {
+      const city = myProfile?.city || user?.city || '';
+      if (city) {
+        setSelectedLocation({ name: city, city: city });
+      } else {
+        setSelectedLocation(null);
+      }
+      dispatch(setSearchQuery(''));
+      setPage(1);
+    });
+    return unsubscribe;
+  }, [navigation, dispatch, myProfile?.city, user?.city]);
 
   // Reset to page 1 whenever search criteria change (not when page increments)
   const [page, setPage] = useState(1);
@@ -642,24 +656,8 @@ const SearchScreen = ({ navigation, route }) => {
         )}
 
 
-        {/* ── MAIN TABS: Cricket | Grounds ── */}
+        {/* ── MAIN TABS: Grounds | Cricket ── */}
         <View style={styles.mainTabContainer}>
-          <TouchableOpacity
-            style={[styles.mainTab, activeTab !== 'turfs' && styles.mainTabActive]}
-            onPress={() => setActiveTab('players')}
-            activeOpacity={0.85}
-          >
-            {activeTab !== 'turfs'
-              ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                <Icon name="cricket" size={14} color="#000" />
-                <Text style={styles.mainTabTextActive}>Cricket</Text>
-              </LinearGradient>
-              : <View style={styles.mainTabGrad}>
-                <Icon name="cricket" size={14} color={Colors.textTertiary} />
-                <Text style={styles.mainTabText}>Cricket</Text>
-              </View>
-            }
-          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.mainTab, activeTab === 'turfs' && styles.mainTabActive]}
             onPress={() => setActiveTab('turfs')}
@@ -673,6 +671,22 @@ const SearchScreen = ({ navigation, route }) => {
               : <View style={styles.mainTabGrad}>
                 <Icon name="soccer-field" size={14} color={Colors.textTertiary} />
                 <Text style={styles.mainTabText}>Grounds</Text>
+              </View>
+            }
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.mainTab, activeTab !== 'turfs' && styles.mainTabActive]}
+            onPress={() => setActiveTab('players')}
+            activeOpacity={0.85}
+          >
+            {activeTab !== 'turfs'
+              ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                <Icon name="cricket" size={14} color="#000" />
+                <Text style={styles.mainTabTextActive}>Cricket</Text>
+              </LinearGradient>
+              : <View style={styles.mainTabGrad}>
+                <Icon name="cricket" size={14} color={Colors.textTertiary} />
+                <Text style={styles.mainTabText}>Cricket</Text>
               </View>
             }
           </TouchableOpacity>

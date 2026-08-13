@@ -19,6 +19,39 @@ import { MatchSummaryPoster } from '../../tournament/components/PosterTemplates'
 const { width } = Dimensions.get('window');
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+// ─── 3D Animated Keypad Button ────────────────────────────────────────────────
+const ScoreBtn3D = ({ onPress, style, children, lift = 5 }) => {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(anim, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
+  };
+  const handlePressOut = () => {
+    Animated.spring(anim, { toValue: 0, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
+  };
+
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, lift - 1] });
+
+  // Extract flex/layout props for the outer wrapper so the button fills its row slot
+  const flatStyle = Array.isArray(style) ? Object.assign({}, ...style.map(s => s || {})) : (style || {});
+  const { flex, width, height: _h, ...innerStyle } = flatStyle;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={1}
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={{ flex, width }}
+    >
+      <Animated.View style={[style, { flex: undefined, width: undefined, transform: [{ translateY }] }]}>
+        {children}
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 const globalAlwaysSkipWagonWheel = {};
 
 const LiveScorerScreen = ({ navigation, route }) => {
@@ -32,9 +65,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
   // Scoring Modal/Drawer states
   const [showExtrasPanel, setShowExtrasPanel] = useState(null);
   const [extraWicketToggle, setExtraWicketToggle] = useState(false);
+  const [nbRunSource, setNbRunSource] = useState('bat');
   const [pendingExtraOpts, setPendingExtraOpts] = useState(null);
   const [pendingExtraScore, setPendingExtraScore] = useState(0);
   const [advWicketRuns, setAdvWicketRuns] = useState(0);
+  const [selectedExtraRuns, setSelectedExtraRuns] = useState(0); // Default to 0 runs
   const [showWicketPanel, setShowWicketPanel] = useState(false);
   const [showFiveSevenModal, setShowFiveSevenModal] = useState(false);
   const [fiveSevenRuns, setFiveSevenRuns] = useState(5);
@@ -48,7 +83,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     globalAlwaysSkipWagonWheel[cleanMatchId] = val;
     setAlwaysSkipWagonWheelState(val);
   };
-  
+
   const [pendingScoreOptions, setPendingScoreOptions] = useState(null);
   const [pendingRuns, setPendingRuns] = useState(0);
 
@@ -117,9 +152,48 @@ const LiveScorerScreen = ({ navigation, route }) => {
   // Socket.io for Realtime updates
   const lastScoredAtRef = useRef(0); // timestamp of last ball scored — used to debounce socket overwrites
   const liveStateRef = useRef(liveState);
+  const overTimelineScrollRef = useRef(null);
   useEffect(() => {
     liveStateRef.current = liveState;
   }, [liveState]);
+
+  const getOversTotalBalls = (oversStr) => {
+    if (!oversStr) return 0;
+    const parts = String(oversStr).split('.');
+    const overs = parseInt(parts[0], 10) || 0;
+    const balls = parseInt(parts[1], 10) || 0;
+    return (overs * 6) + balls;
+  };
+
+  const isStateNewer = (currentState, newState) => {
+    if (!currentState) return true;
+    if (newState.isUndo) return true;
+    const currentInnings = currentState.inningsNumber || 1;
+    const newInnings = newState.inningsNumber || 1;
+    if (newInnings > currentInnings) return true;
+    if (newInnings < currentInnings) return false;
+
+    const currentOvers = currentState.score?.overs || '0.0';
+    const newOvers = newState.score?.overs || '0.0';
+    
+    const currentBalls = getOversTotalBalls(currentOvers);
+    const newBalls = getOversTotalBalls(newOvers);
+    
+    if (newBalls > currentBalls) return true;
+    if (newBalls < currentBalls) return false;
+
+    const currentRuns = currentState.score?.runs || 0;
+    const newRuns = newState.score?.runs || 0;
+    if (newRuns > currentRuns) return true;
+
+    const currentWickets = currentState.score?.wickets || 0;
+    const newWickets = newState.score?.wickets || 0;
+    if (newWickets > currentWickets) return true;
+
+    if (newState.ballEvent && !currentState.ballEvent) return true;
+
+    return false;
+  };
 
   useEffect(() => {
     if (!cleanMatchId) return;
@@ -128,7 +202,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     socketService.joinMatch(cleanMatchId);
 
     const handleScoreUpdate = (data) => {
-      if (!data || !data.match) {
+      if (!data || (!data.match && !data.isDelta)) {
         socketService.remoteLog('LiveScorerScreen', 'Socket Score Update Ignored: No match data');
         return;
       }
@@ -137,30 +211,43 @@ const LiveScorerScreen = ({ navigation, route }) => {
       const activeCleanId = socketService.cleanId(cleanMatchId);
       if (activeCleanId && updateMatchId && activeCleanId !== updateMatchId) return;
 
+      const currentLiveState = liveStateRef.current;
+      if (!isStateNewer(currentLiveState, data)) {
+        socketService.remoteLog('LiveScorerScreen', `Socket Update Ignored: Stale event received`);
+        return;
+      }
+
       // Skip socket updates for 1.5 seconds after we score to protect our optimistic UI
+      // But allow updates if the innings or match is completed (terminal state change)
+      const isCompleteUpdate = data.isInningsComplete || data.isMatchComplete || data.isUndo;
       const msSinceScore = Date.now() - lastScoredAtRef.current;
-      if (msSinceScore < 1500) {
+      if (msSinceScore < 1500 && !isCompleteUpdate) {
         socketService.remoteLog('LiveScorerScreen', 'Socket Update Skipped (optimistic state active)');
         return;
       }
 
       // If user has already selected a bowler for the new over, ignore lagging over-completion socket events
-      const currentLiveState = liveStateRef.current;
       if (currentLiveState?.bowler && !currentLiveState?.needsBowler && data?.needsBowler && !data?.bowler) {
         socketService.remoteLog('LiveScorerScreen', 'Socket Update Ignored: Stale over-completion event');
         return;
       }
-      
+
       // Also ignore stale events from before the bowler change
       if (currentLiveState?.bowler && data?.bowler && typeof currentLiveState.bowler === 'object' && typeof data.bowler === 'object') {
         if (currentLiveState.bowler._id !== data.bowler._id) {
-            // Check if we recently selected a bowler (within 2 seconds)
-            const msSinceScore = Date.now() - lastScoredAtRef.current;
-            if (msSinceScore < 2000) {
-               socketService.remoteLog('LiveScorerScreen', 'Socket Update Ignored: Stale bowler data');
-               return;
-            }
+          // Check if we recently selected a bowler (within 2 seconds)
+          const msSinceScore = Date.now() - lastScoredAtRef.current;
+          if (msSinceScore < 2000) {
+            socketService.remoteLog('LiveScorerScreen', 'Socket Update Ignored: Stale bowler data');
+            return;
+          }
         }
+      }
+
+      // Prevent stale background socket events from reverting bowler selection at the start of an over
+      if (currentLiveState?.bowler && !data?.bowler && data?.needsBowler) {
+        socketService.remoteLog('LiveScorerScreen', 'Socket Update Ignored: Stale between-overs state reverting active bowler');
+        return;
       }
 
       const runs = data?.score?.runs ?? data?.teamAScore?.runs ?? 0;
@@ -171,7 +258,21 @@ const LiveScorerScreen = ({ navigation, route }) => {
       dispatch(setLiveState(data));
     };
 
+    const handleScorerAssigned = (data) => {
+      const updateMatchId = socketService.cleanId(data?.matchId);
+      const activeCleanId = socketService.cleanId(cleanMatchId);
+      if (activeCleanId && updateMatchId && activeCleanId !== updateMatchId) {
+        return;
+      }
+      if (data.activeScorerId && String(data.activeScorerId) !== String(currentUser?._id || currentUser?.id)) {
+        socketService.remoteLog('LiveScorerScreen', `Scoring reassigned to another user. Exiting scoring.`);
+        showCustomAlert('Access Transferred', 'Scoring has been reassigned to another user. You no longer have scoring control.');
+        navigation.reset({ index: 0, routes: [{ name: 'MatchSummary', params: { matchId: cleanMatchId } }] });
+      }
+    };
+
     const unsubscribeScore = socketService.onScoreUpdate(handleScoreUpdate);
+    const unsubscribeScorer = socketService.on('scorer_assigned', handleScorerAssigned);
     dispatch(fetchLiveState(cleanMatchId));
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
@@ -187,9 +288,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
     return () => {
       unsubscribeFocus();
       unsubscribeScore();
+      unsubscribeScorer();
       socketService.leaveMatch(cleanMatchId);
     };
-  }, [dispatch, cleanMatchId, navigation]);
+  }, [dispatch, cleanMatchId, navigation, currentUser?._id, currentUser?.id, route.params?.skipFocusFetch]);
 
   // Reset nav lock every time this screen comes into focus (e.g. after returning from player selection)
   useEffect(() => {
@@ -207,6 +309,22 @@ const LiveScorerScreen = ({ navigation, route }) => {
     });
     return unsubscribe;
   }, [navigation, route.params?.skipAutoBowler, route.params?.skipFocusFetch]);
+
+  // Enforce Active Scorer Exclusivity
+  useEffect(() => {
+    if (liveState?.match && currentUser?._id) {
+      const match = liveState.match;
+      const activeScorerId =
+        (typeof match.activeScorerId === 'object' ? match.activeScorerId?._id : match.activeScorerId) ||
+        (typeof match.creator === 'object' ? match.creator?._id : match.creator) ||
+        (typeof match.organizerId === 'object' ? match.organizerId?._id : match.organizerId);
+        
+      if (activeScorerId && String(activeScorerId) !== String(currentUser._id)) {
+        showCustomAlert('Access Transferred', 'You have transferred scoring rights. You are no longer the active scorer.');
+        navigation.reset({ index: 0, routes: [{ name: 'MatchSummary', params: { matchId: cleanMatchId } }] });
+      }
+    }
+  }, [liveState?.match?.activeScorerId, liveState?.match?.organizerId, liveState?.match?.creator, currentUser?._id, navigation, cleanMatchId]);
 
   // Self-correcting reset: release nav lock when active bowler/batters are successfully set
   useEffect(() => {
@@ -258,8 +376,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
       // activeScorerId may be a populated object {_id, name} or a raw ID string
       const activeScorerId =
         (typeof rawActiveScorerId === 'object' ? rawActiveScorerId?._id : rawActiveScorerId) ||
-        (typeof liveState.match.organizerId === 'object' ? liveState.match.organizerId?._id : liveState.match.organizerId) ||
-        (typeof liveState.match.creator === 'object' ? liveState.match.creator?._id : liveState.match.creator);
+        (typeof liveState.match.creator === 'object' ? liveState.match.creator?._id : liveState.match.creator) ||
+        (typeof liveState.match.organizerId === 'object' ? liveState.match.organizerId?._id : liveState.match.organizerId);
       if (activeScorerId && String(activeScorerId) !== String(currentUser._id)) {
         showCustomAlert(
           'Scoring Transferred',
@@ -394,12 +512,14 @@ const LiveScorerScreen = ({ navigation, route }) => {
     }
   };
 
+  const { isInningsComplete, isMatchComplete, completedReason } = liveState || {};
+  const isTargetAchieved = liveState?.inningsNumber % 2 === 0 && liveState?.toWin !== null && liveState?.toWin <= 0;
+  const showInningsComplete = isInningsComplete || isMatchComplete || isTargetAchieved;
+
   useEffect(() => {
     if (!liveState) return;
     // Prevent rapid repeated navigations
     if (navLockRef.current) return;
-
-    const { isInningsComplete, isMatchComplete } = liveState;
 
     // 1. Innings break — navigate to player selection ONLY if players haven't been set yet.
     //    If striker + nonStriker + bowler are already set, scoring has started and we should
@@ -523,11 +643,6 @@ const LiveScorerScreen = ({ navigation, route }) => {
     const inningsNum = liveState?.inningsNumber;
     return (
       <View style={styles.scoreBoard}>
-        <View style={styles.teamsRow}>
-          <Text style={[styles.teamLabel, battingTeam === m?.teamA?._id && styles.teamLabelActive]} numberOfLines={1}>{m?.teamA?.name}</Text>
-          <View style={styles.vsChip}><Text style={styles.vsText}>VS</Text></View>
-          <Text style={[styles.teamLabel, styles.teamLabelRight, battingTeam === m?.teamB?._id && styles.teamLabelActive]} numberOfLines={1}>{m?.teamB?.name}</Text>
-        </View>
         <View style={styles.scoreBoardDivider} />
         <View style={styles.mainScore}>
           <Text style={styles.runs}>{s?.runs || 0}</Text>
@@ -547,36 +662,67 @@ const LiveScorerScreen = ({ navigation, route }) => {
           </View>
         ) : null}
         {inningsNum % 2 === 0 && tw !== null ? (
-          <View style={styles.chaseBanner}>
-            {tw <= 0 ? (
-              <Text style={styles.chaseMainText}>Target Reached</Text>
-            ) : (
-              <Text style={styles.chaseMainText}>
-                Need <Text style={styles.chaseHighlight}>{tw}</Text> runs from <Text style={styles.chaseHighlight}>{br}</Text> balls{dls ? <Text style={styles.dlsTag}> · DLS</Text> : null}
-              </Text>
-            )}
-            <Text style={styles.chaseSubText}>Target {(s?.runs || 0) + tw}{tw > 0 ? `   ·   RRR ${rrr}` : ''}</Text>
-            {dlsPar !== null && dlsPar > 0 ? (() => {
-              const isAhead = s?.runs > dlsPar;
-              const isBehind = s?.runs < dlsPar;
-              const battingName = battingTeam === m?.teamA?._id ? m?.teamA?.name : m?.teamB?.name;
-              const fieldingName = battingTeam === m?.teamA?._id ? m?.teamB?.name : m?.teamA?.name;
-              const safeTeam = isAhead ? battingName : (isBehind ? fieldingName : 'None');
-              return (
-                <View style={[styles.dlsParRow, { backgroundColor: isAhead ? 'rgba(34,197,94,0.12)' : isBehind ? 'rgba(239,68,68,0.12)' : 'rgba(148,163,184,0.12)' }]}>
-                  <Text style={styles.dlsParLabel}>DLS Par Score: </Text>
-                  <Text style={styles.dlsParValue}>{dlsPar}</Text>
-                  <Text style={[styles.dlsParStatus, { color: isAhead ? '#22c55e' : isBehind ? '#ef4444' : Colors.textSecondary }]}>
-                    {isAhead ? `  ✓ Ahead (${safeTeam} is safe)` : isBehind ? `  ✗ Behind (${safeTeam} is safe)` : '  = On Par'}
-                  </Text>
+          tw <= 0 ? (
+            <View style={[styles.chaseStrip, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}>
+              <Icon name="trophy" size={16} color="#FFD54F" style={{ marginRight: 6 }} />
+              <Text style={[styles.chaseStripHighlight, { fontSize: 14 }]}>Target Reached!</Text>
+            </View>
+          ) : (
+            <View style={styles.chaseStrip}>
+              {/* Row 1: Need X runs from Y balls */}
+              <View style={styles.chaseNeedRow}>
+                <Text style={styles.chaseNeedLabel}>Need </Text>
+                <Text style={styles.chaseNeedRuns}>{tw}</Text>
+                <Text style={styles.chaseNeedLabel}> runs from </Text>
+                <Text style={styles.chaseNeedRuns}>{br}</Text>
+                <Text style={styles.chaseNeedLabel}> balls{dls ? <Text style={styles.chaseDlsTag}> (DLS)</Text> : null}</Text>
+              </View>
+              {/* Row 2: Target | CRR | RRR pills */}
+              <View style={styles.chaseMetaRow}>
+                <View style={styles.chaseMetaPill}>
+                  <Text style={styles.chaseMetaLabel}>Target</Text>
+                  <Text style={styles.chaseMetaValue}>{(s?.runs || 0) + tw}</Text>
                 </View>
-              );
-            })() : null}
-          </View>
+                <View style={styles.chaseMetaDot} />
+                <View style={styles.chaseMetaPill}>
+                  <Text style={styles.chaseMetaLabel}>CRR</Text>
+                  <Text style={styles.chaseMetaValue}>{(() => {
+                    const [o, b] = String(s?.overs || '0.0').split('.');
+                    const totalBalls = parseInt(o || 0) * 6 + parseInt(b || 0);
+                    return (totalBalls > 0 ? ((s?.runs || 0) / totalBalls) * 6 : 0).toFixed(2);
+                  })()}</Text>
+                </View>
+                <View style={styles.chaseMetaDot} />
+                <View style={styles.chaseMetaPill}>
+                  <Text style={styles.chaseMetaLabel}>RRR</Text>
+                  <Text style={styles.chaseMetaValue}>{rrr}</Text>
+                </View>
+              </View>
+              {/* DLS Par line */}
+              {dlsPar !== null && dlsPar > 0 ? (() => {
+                const isAhead = s?.runs > dlsPar;
+                const isBehind = s?.runs < dlsPar;
+                const color = isAhead ? '#22c55e' : isBehind ? '#ef4444' : Colors.textSecondary;
+                const statusText = isAhead ? 'Ahead' : isBehind ? 'Behind' : 'On Par';
+                const statusIcon = isAhead ? '▲' : isBehind ? '▼' : '=';
+                const battingName = battingTeam === m?.teamA?._id ? m?.teamA?.name : m?.teamB?.name;
+                const fieldingName = battingTeam === m?.teamA?._id ? m?.teamB?.name : m?.teamA?.name;
+                const safeTeam = isAhead ? battingName : (isBehind ? fieldingName : null);
+                return (
+                  <View style={[styles.chaseDlsParRow, { borderColor: color + '40', backgroundColor: color + '12' }]}>
+                    <Text style={[styles.chaseDlsParText, { color }]}>
+                      {statusIcon} DLS Par {Math.round(dlsPar)} — {statusText}{safeTeam ? ` (${safeTeam} safe)` : ''}
+                    </Text>
+                  </View>
+                );
+              })() : null}
+            </View>
+          )
         ) : null}
       </View>
     );
   }, [liveState?.battingTeam, liveState?.inningsNumber, liveState?.score?.runs, liveState?.score?.wickets, liveState?.score?.overs, liveState?.requiredRunRate, liveState?.toWin, liveState?.ballsRemaining, liveState?.isDlsTarget, liveState?.dlsParScore, liveState?.match?.teamA?.name, liveState?.match?.teamB?.name, liveState?.match?.overs]);
+
 
   if (!liveState) {
     return <View style={styles.container}><Text style={styles.loading}>Loading match...</Text></View>;
@@ -609,10 +755,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     toWin,
     ballsRemaining,
     dlsParScore,
-    isDlsTarget,
-    isInningsComplete,
-    isMatchComplete,
-    completedReason
+    isDlsTarget
   } = liveState;
   const needsBatter = !striker || !nonStriker;
   const isSingleWicketValid = match?.isSingleWicketBatting && (striker || nonStriker);
@@ -646,8 +789,13 @@ const LiveScorerScreen = ({ navigation, route }) => {
         const isTeamABatting = String(liveState.battingTeam?._id || liveState.battingTeam) === String(match.teamA?._id || match.teamA);
         const wk = isTeamABatting ? match.wicketKeeper?.teamB : match.wicketKeeper?.teamA;
         setPrimaryFielder(wk || null);
+        setFielderSelectionMode(wk ? null : 'primary');
+      } else if (type === 'caught') {
+        setPrimaryFielder(null);
+        setFielderSelectionMode('primary');
       } else {
         setPrimaryFielder(null);
+        setFielderSelectionMode(null);
       }
 
       setSecondaryFielder(null);
@@ -817,16 +965,16 @@ const LiveScorerScreen = ({ navigation, route }) => {
               `Are you sure you want to change ${tappedPlayer.name || 'this batter'}?`,
               [
                 { text: 'Cancel', style: 'cancel' },
-                { 
-                  text: 'Change', 
-                  style: 'destructive', 
+                {
+                  text: 'Change',
+                  style: 'destructive',
                   onPress: () => {
                     const payload = { matchId };
                     if (isStriker) payload.striker = null;
                     else payload.nonStriker = null;
-                    
+
                     socketService.getSocket()?.emit('set_players', payload);
-                    
+
                     if (liveState) {
                       dispatch(setLiveState({
                         ...liveState,
@@ -911,14 +1059,14 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   const handleSettingsAction = async (action) => {
     if (!action) return;
-    
+
     // Check if initialAction triggered this
     if (route.params?.initialAction) {
       navigation.setParams({ initialAction: null });
     }
 
     setShowSettingsModal(false);
-    
+
     if (action === 'view_scoreboard') {
       navigation.navigate('MatchSummary', { matchId, initialTab: 'Scorecard' });
     } else if (action === 'add_scorer') {
@@ -975,7 +1123,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
       if (liveState?.dlsParScore !== null && liveState?.dlsParScore !== undefined && liveState?.score?.runs !== undefined) {
         const battingTeamName = liveState.battingTeam === match.teamA._id ? match.teamA.name : match.teamB.name;
         const fieldingTeamName = liveState.battingTeam === match.teamA._id ? match.teamB.name : match.teamA.name;
-        
+
         let expectedWinner = '';
         if (liveState.score.runs > liveState.dlsParScore) {
           expectedWinner = `${battingTeamName} will win.`;
@@ -1045,10 +1193,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
     const isFirstOverOfInnings = parseFloat(liveState?.score?.overs || 0) === 0;
     const alertTitle = isNewOverWithNoBalls ? "Unselect Bowler" : "Undo Ball";
-    const alertMsg = isNewOverWithNoBalls 
+    const alertMsg = isNewOverWithNoBalls
       ? (isFirstOverOfInnings
-          ? "No balls bowled in this match yet. Do you want to unselect the opening bowler?"
-          : "No balls bowled in this over yet. Unselect current bowler and return to previous over?") 
+        ? "No balls bowled in this match yet. Do you want to unselect the opening bowler?"
+        : "No balls bowled in this over yet. Unselect current bowler and return to previous over?")
       : "Are you sure you want to undo the last ball?";
     const confirmBtnText = isNewOverWithNoBalls ? "Unselect Bowler" : "Undo";
 
@@ -1094,7 +1242,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 deductedRuns = lastOverBall.runs || 0;
                 isWicket = lastOverBall.type === 'wicket' || lastOverBall.display === 'W';
               }
-              
+
               let newOvers = parseFloat(liveState.score?.overs || 0);
               if (currentBalls.length > 0) {
                 const lastOverBall = currentBalls[currentBalls.length - 1];
@@ -1118,10 +1266,13 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   wickets: Math.max(0, (liveState.score?.wickets || 0) - (isWicket ? 1 : 0)),
                   overs: newOvers.toFixed(1)
                 },
-                currentOverBalls: poppedBalls
+                currentOverBalls: poppedBalls,
+                isInningsComplete: false,
+                isMatchComplete: false,
+                completedReason: null
               }));
             }
-            
+
             socket.emit('undo_ball', { matchId });
             setTimeout(() => {
               scoringLockRef.current = false;
@@ -1153,18 +1304,19 @@ const LiveScorerScreen = ({ navigation, route }) => {
       scoringLockRef.current = false; // release lock — modal handles submission
       return;
     }
-    
+
     if (options.isWicket && !options.singleWicketResolved) {
       const currentWickets = liveState.score?.wickets || 0;
       const matchWickets = (liveState?.inningsNumber >= 3) ? 2 : (match.wickets || 10);
-      
+
       if (liveState?.inningsNumber < 3 && currentWickets + 1 === matchWickets - 1 && !match.isSingleWicketBatting) {
         showCustomAlert(
           'Last Wicket Alert',
           'This is the second-to-last wicket. Do you want to enable Single Wicket Batting for the remaining batsman, or declare All Out?',
           [
             { text: 'Bring New Batsman', style: 'cancel', onPress: () => handleScore(runs, { ...options, singleWicketResolved: true }) },
-            { text: 'All Out', style: 'destructive', onPress: async () => {
+            {
+              text: 'All Out', style: 'destructive', onPress: async () => {
                 try {
                   const payload = {
                     batsmanRuns: runs,
@@ -1192,11 +1344,14 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 } finally {
                   scoringLockRef.current = false;
                 }
-            }},
-            { text: 'Single Wicket Batting', onPress: async () => {
+              }
+            },
+            {
+              text: 'Single Wicket Batting', onPress: async () => {
                 await api.put(`/matches/${matchId}/settings`, { isSingleWicketBatting: true });
                 handleScore(runs, { ...options, singleWicketResolved: true });
-            }}
+              }
+            }
           ]
         );
         scoringLockRef.current = false; // release — alert dialog takes over
@@ -1231,24 +1386,36 @@ const LiveScorerScreen = ({ navigation, route }) => {
         const addedRuns = runs + (options.extraRuns || 0) + ((options.isWide || options.isNoBall) ? 1 : 0);
         const currentRuns = liveState.score?.runs || 0;
         const currentWickets = (liveState.score?.wickets || 0) + (options.isWicket ? 1 : 0);
-        
+
         let currentOvers = parseFloat(liveState.score?.overs || 0);
 
         // Optimistic ball creation
-        const optimisticBallType = options.isWicket ? 'wicket' : options.isWide ? 'wide' : options.isNoBall ? 'noball' : options.isBye ? 'bye' : options.isLegBye ? 'legbye' : 'normal';
-        let optimisticBallDisplay = runs === 0 ? '.' : runs.toString();
-        if (options.isWicket) optimisticBallDisplay = 'W';
-        else if (options.isWide) optimisticBallDisplay = (runs + 1) + 'Wd';
-        else if (options.isNoBall) optimisticBallDisplay = (runs + 1) + 'Nb';
-        else if (options.isBye) optimisticBallDisplay = runs + 'B';
-        else if (options.isLegBye) optimisticBallDisplay = runs + 'Lb';
+        const optimisticBallType = options.isWicket ? 'wicket' : options.isWide ? 'wide' : options.isNoBall ? 'noball' : options.isBye ? 'bye' : options.isLegBye ? 'legbye' : (runs === 0 ? 'dot' : 'normal');
+        let optimisticBallDisplay = runs === 0 ? '•' : runs.toString();
+        if (options.isWicket) {
+          optimisticBallDisplay = 'W';
+        } else if (options.isWide) {
+          const extra = options.extraRuns || 0;
+          optimisticBallDisplay = extra > 0 ? `Wd${extra}` : 'Wd';
+        } else if (options.isNoBall) {
+          optimisticBallDisplay = runs > 0 ? `Nb${runs}` : 'Nb';
+        } else if (options.isBye) {
+          optimisticBallDisplay = runs > 0 ? `${runs}B` : 'B';
+        } else if (options.isLegBye) {
+          optimisticBallDisplay = runs > 0 ? `${runs}Lb` : 'Lb';
+        }
 
         const optimisticBall = {
           runs: runs + (options.extraRuns || 0) + ((options.isWide || options.isNoBall) ? 1 : 0),
           type: optimisticBallType,
           display: optimisticBallDisplay
         };
-        const newCurrentOverBalls = [...(liveState.currentOverBalls || []), optimisticBall];
+        
+        // If we are at exactly X.0 overs, the next ball is definitively the start of a new over.
+        // We wipe any stale balls from the previous over to prevent appending to them.
+        const isStartOfNewOver = currentOvers % 1 === 0;
+        const baseBalls = isStartOfNewOver ? [] : (liveState.currentOverBalls || []);
+        const newCurrentOverBalls = [...baseBalls, optimisticBall];
 
         let isOptimisticOverComplete = false;
         if (!options.isWide && !options.isNoBall) {
@@ -1256,9 +1423,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
           let overBalls = Math.round((currentOvers - overWhole) * 10);
           overBalls++;
           if (overBalls >= 6) {
-             overWhole++;
-             overBalls = 0;
-             isOptimisticOverComplete = true;
+            overWhole++;
+            overBalls = 0;
+            isOptimisticOverComplete = true;
           }
           currentOvers = overWhole + (overBalls / 10);
         }
@@ -1266,28 +1433,33 @@ const LiveScorerScreen = ({ navigation, route }) => {
         // 1. Optimistic stats updates FIRST
         let newStrikerStats = { ...(liveState.strikerStats || { runs: 0, balls: 0, fours: 0, sixes: 0 }) };
         let newBowlerStats = { ...(liveState.bowlerStats || { balls: 0, runs: 0, wickets: 0 }) };
-        
-        if (!options.isWide && !options.isNoBall && !options.isBye && !options.isLegBye) {
-           newStrikerStats.runs = (newStrikerStats.runs || 0) + runs;
-           newStrikerStats.balls = (newStrikerStats.balls || 0) + 1;
-           if (runs === 4) newStrikerStats.fours = (newStrikerStats.fours || 0) + 1;
-           if (runs === 6) newStrikerStats.sixes = (newStrikerStats.sixes || 0) + 1;
+
+        const isRunOffBat = !options.isWide && !options.isBye && !options.isLegBye && (!options.isNoBall || nbRunSource === 'bat' || runs > 0);
+        if (isRunOffBat && runs > 0) {
+          newStrikerStats.runs = (newStrikerStats.runs || 0) + runs;
+          newStrikerStats.balls = (newStrikerStats.balls || 0) + 1;
+          if (runs === 4) newStrikerStats.fours = (newStrikerStats.fours || 0) + 1;
+          if (runs === 6) newStrikerStats.sixes = (newStrikerStats.sixes || 0) + 1;
         } else if (!options.isWide) {
-           newStrikerStats.balls = (newStrikerStats.balls || 0) + 1;
+          newStrikerStats.balls = (newStrikerStats.balls || 0) + 1;
         }
 
         if (!options.isWide && !options.isNoBall) {
-           newBowlerStats.balls = (newBowlerStats.balls || 0) + 1;
+          newBowlerStats.balls = (newBowlerStats.balls || 0) + 1;
         }
         newBowlerStats.runs = (newBowlerStats.runs || 0) + runs + (options.extraRuns || 0) + ((options.isWide || options.isNoBall) ? 1 : 0);
         if (options.isWicket && options.wicketType !== 'run_out' && options.wicketType !== 'retired_hurt') {
-           newBowlerStats.wickets = (newBowlerStats.wickets || 0) + 1;
+          newBowlerStats.wickets = (newBowlerStats.wickets || 0) + 1;
         }
 
         // 2. Strike rotation calculation SECOND
-        const creditedToBatsman = !options.isWide && !options.isBye && !options.isLegBye ? runs : 0;
-        const shouldRotateStrike = !options.isWide && !options.isNoBall && (creditedToBatsman % 2 === 1);
+        let runsRunByBatsmen = runs;
+        if (options.isWide) runsRunByBatsmen = options.extraRuns || 0;
+        if (options.isBye || options.isLegBye) runsRunByBatsmen = options.extraRuns || 0;
+        if (options.isNoBall && options.isBye) runsRunByBatsmen = options.extraRuns || 0; // for NB Byes
         
+        const shouldRotateStrike = (runsRunByBatsmen % 2 === 1);
+
         let nextStriker = liveState.striker;
         let nextStrikerStats = newStrikerStats;
         let nextNonStriker = liveState.nonStriker;
@@ -1329,26 +1501,46 @@ const LiveScorerScreen = ({ navigation, route }) => {
         }
         const maxWickets = (liveState.inningsNumber >= 3) ? 2 : (match.wickets || 10);
 
+        const inningsList = liveState.match?.innings || [];
+        const prevInn = inningsList.find(i => i.inningsNumber === (liveState.inningsNumber - 1));
+        const computedTarget = liveState.target || (prevInn?.score?.runs ? (prevInn.score.runs + 1) : null);
+
         if (currentWickets >= maxWickets) {
           isOptimisticInningsComplete = true;
         } else if (currentOvers >= maxOvers) {
           isOptimisticInningsComplete = true;
         } else if (
           liveState.inningsNumber % 2 === 0 &&
-          liveState.target &&
-          (currentRuns + addedRuns) >= liveState.target
+          computedTarget &&
+          (currentRuns + addedRuns) >= computedTarget
         ) {
           isOptimisticInningsComplete = true;
         }
 
+        const isTeamABatting = String(liveState.battingTeam?._id || liveState.battingTeam || '').trim() === String(match.teamA?._id || match.teamA || '').trim();
+        const updatedRuns = currentRuns + addedRuns;
+        const updatedWickets = currentWickets;
+        const updatedOvers = currentOvers.toFixed(1);
+
+        const newTeamAScore = isTeamABatting 
+          ? { ...liveState.teamAScore, runs: updatedRuns, wickets: updatedWickets, overs: updatedOvers } 
+          : liveState.teamAScore;
+
+        const newTeamBScore = !isTeamABatting 
+          ? { ...liveState.teamBScore, runs: updatedRuns, wickets: updatedWickets, overs: updatedOvers } 
+          : liveState.teamBScore;
+
         const optimisticState = {
           ...liveState,
+          ballEvent: payload,
           score: {
             ...liveState.score,
-            runs: currentRuns + addedRuns,
-            wickets: currentWickets,
-            overs: currentOvers.toFixed(1)
+            runs: updatedRuns,
+            wickets: updatedWickets,
+            overs: updatedOvers
           },
+          teamAScore: newTeamAScore,
+          teamBScore: newTeamBScore,
           currentOverBalls: newCurrentOverBalls,
           striker: nextStriker,
           strikerStats: nextStrikerStats,
@@ -1358,6 +1550,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
           needsBowler: isOptimisticInningsComplete ? false : (isOptimisticOverComplete ? true : liveState.needsBowler),
           ...(isOptimisticOverComplete ? {
             previousBowler: liveState.bowler,
+            bowler: null,
+            bowlerStats: null,
           } : {}),
           isInningsComplete: liveState.isInningsComplete || isOptimisticInningsComplete,
           isMatchComplete: liveState.isMatchComplete || (isOptimisticInningsComplete && liveState.inningsNumber % 2 === 0)
@@ -1382,7 +1576,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
       setTimeout(() => {
         scoringLockRef.current = false;
         setIsScoring(false);
-      }, 750);
+      }, 150);
     } catch (e) {
       showCustomAlert('Error', e.message);
       scoringLockRef.current = false;
@@ -1393,16 +1587,26 @@ const LiveScorerScreen = ({ navigation, route }) => {
     return (
       <View style={styles.overTimeline}>
         <Text style={styles.overTimelineLabel}>This Over:</Text>
-        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineScroll}>
+        <ScrollView 
+          ref={overTimelineScrollRef}
+          horizontal 
+          nestedScrollEnabled={true}
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.timelineScroll}
+          onContentSizeChange={() => {
+            overTimelineScrollRef.current?.scrollToEnd({ animated: true });
+          }}
+        >
           {currentOverBalls?.map((ball, i) => {
             const isWicket = ball.type === 'wicket' || ball.display === 'W';
-            const isFour = ball.runs === 4;
-            const isSix = ball.runs === 6;
+            const isFour = ball.display ? String(ball.display).includes('4') : ball.runs === 4;
+            const isSix = ball.display ? String(ball.display).includes('6') : ball.runs === 6;
             const isZero = ball.runs === 0 && !isWicket;
 
             return (
               <View key={i} style={[
                 styles.ballCircle,
+                { marginRight: 7 },
                 isWicket && styles.ballWicket,
                 isFour && { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
                 isSix && { backgroundColor: '#2196F3', borderColor: '#2196F3' },
@@ -1412,7 +1616,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
               </View>
             );
           })}
-        </KeyboardAwareScrollView>
+        </ScrollView>
       </View>
     );
   };
@@ -1426,29 +1630,32 @@ const LiveScorerScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {isScoring && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }]}>
-           <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={Colors.primary} />
         </View>
       )}
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBackPress} style={styles.headerBackBtn}>
-          <Icon name="arrow-left" size={22} color={Colors.textPrimary} />
+          <Icon name="arrow-left" size={20} color={Colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle} numberOfLines={1}>Match Score</Text>
+          <View style={styles.headerTeamsRow}>
+            <Text style={[styles.headerTeamName, liveState?.battingTeam === liveState?.match?.teamA?._id && styles.headerTeamNameActive]} numberOfLines={1}>
+              {liveState?.match?.teamA?.name || 'Team A'}
+            </Text>
+            <View style={styles.headerVsChip}><Text style={styles.headerVsText}>VS</Text></View>
+            <Text style={[styles.headerTeamName, liveState?.battingTeam === liveState?.match?.teamB?._id && styles.headerTeamNameActive]} numberOfLines={1}>
+              {liveState?.match?.teamB?.name || 'Team B'}
+            </Text>
+          </View>
           <View style={styles.headerLiveBadge}>
             <View style={styles.headerLiveDot} />
             <Text style={styles.headerLiveText}>LIVE</Text>
           </View>
         </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleShare} style={styles.headerActionBtn}>
-            <Icon name="share-variant" size={20} color={Colors.textPrimary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowSettingsModal(true)} style={[styles.headerActionBtn, { backgroundColor: Colors.primaryAlpha20 }]}>
-            <Icon name="cog" size={20} color={Colors.primary} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={() => setShowSettingsModal(true)} style={[styles.headerActionBtn, { backgroundColor: Colors.primaryAlpha20 }]}>
+          <Icon name="cog" size={18} color={Colors.primary} />
+        </TouchableOpacity>
       </View>
 
       <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.content} showsVerticalScrollIndicator={false}>
@@ -1475,72 +1682,47 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   <Icon name="cricket" size={12} color={Colors.textTertiary} />
                   <Text style={styles.playersGridHeaderText}>Batting</Text>
                 </View>
-                <View style={[styles.playerRowBordered, { borderBottomWidth: 0, padding: 0 }]}>
-                  {leftBatterId ? (
+              <View style={styles.battingRow}>
+                {/* Left batter col */}
+                {leftBatterId ? (
                   <TouchableOpacity
-                    style={[
-                      styles.playerStatsCol,
-                      isLeftStriker && styles.strikerHighlightCol,
-                      !rightBatterId && { borderTopRightRadius: 8, borderBottomRightRadius: 8, borderTopLeftRadius: 8, borderBottomLeftRadius: 8, borderRightWidth: 0 }
-                    ]}
+                    style={[styles.batterCol, isLeftStriker && styles.batterColStriker]}
                     onPress={() => handleRotateStrikePress(leftBatterId, leftPlayerStats)}
                     disabled={!isScorer}
+                    activeOpacity={0.75}
                   >
-                    <View style={styles.playerNameRow}>
-                      {isLeftStriker ? <Icon key="left-striker-bat-icon" name="cricket" size={13} color={Colors.primary} style={{ marginRight: 3 }} /> : null}
-                      <Text key="left-striker-name-text" style={[
-                        styles.playerName,
-                        isLeftStriker && styles.strikerName,
-                      ]} numberOfLines={1}>
-                        {leftPlayer?.name || 'Striker'}
+                    <View style={styles.batterColInner}>
+                      <Text style={[styles.batterColName, isLeftStriker && styles.batterColNameActive]} numberOfLines={1}>
+                        {isLeftStriker ? '* ' : ''}{leftPlayer?.name || 'Striker'}
                       </Text>
-                      {leftPlayerStats?.balls === 0 && (
-                        <Icon name="account-switch" size={14} color={Colors.primary} style={{ marginLeft: 6, opacity: 0.8 }} />
-                      )}
+                      <Text style={[styles.batterColScore, isLeftStriker && styles.batterColScoreActive]}>
+                        {leftPlayerStats?.runs ?? 0}<Text style={styles.batterColBalls}>({leftPlayerStats?.balls ?? 0})</Text>
+                      </Text>
                     </View>
-                    <Text style={[
-                      styles.playerScore,
-                      isLeftStriker && { color: Colors.primary }
-                    ]}>
-                      {leftPlayerStats?.runs || 0}<Text style={styles.playerScoreBalls}>({leftPlayerStats?.balls || 0})</Text>
-                    </Text>
                   </TouchableOpacity>
-                  ) : null}
+                ) : <View style={{ flex: 1 }} />}
 
-                  {leftBatterId && rightBatterId ? <View style={styles.playerStatsColDivider} /> : null}
+                {leftBatterId && rightBatterId ? <View style={styles.batterColDivider} /> : null}
 
-                  {rightBatterId ? (
+                {/* Right batter col */}
+                {rightBatterId ? (
                   <TouchableOpacity
-                    style={[
-                      styles.playerStatsCol,
-                      isRightStriker && styles.strikerHighlightCol,
-                      isRightStriker && { borderTopRightRadius: 8, borderBottomRightRadius: 8, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
-                      !leftBatterId && { borderTopRightRadius: 8, borderBottomRightRadius: 8, borderTopLeftRadius: 8, borderBottomLeftRadius: 8, borderLeftWidth: 0 }
-                    ]}
+                    style={[styles.batterCol, isRightStriker && styles.batterColStriker]}
                     onPress={() => handleRotateStrikePress(rightBatterId, rightPlayerStats)}
                     disabled={!isScorer}
+                    activeOpacity={0.75}
                   >
-                    <View style={styles.playerNameRow}>
-                      {isRightStriker ? <Icon key="right-striker-bat-icon" name="cricket" size={13} color={Colors.primary} style={{ marginRight: 3 }} /> : null}
-                      <Text key="right-striker-name-text" style={[
-                        styles.playerName,
-                        isRightStriker && styles.strikerName,
-                      ]} numberOfLines={1}>
-                        {rightPlayer?.name || 'Non-Striker'}
+                    <View style={styles.batterColInner}>
+                      <Text style={[styles.batterColName, isRightStriker && styles.batterColNameActive]} numberOfLines={1}>
+                        {isRightStriker ? '* ' : ''}{rightPlayer?.name || 'Non-Striker'}
                       </Text>
-                      {rightPlayerStats?.balls === 0 && (
-                        <Icon name="account-switch" size={14} color={Colors.primary} style={{ marginLeft: 6, opacity: 0.8 }} />
-                      )}
+                      <Text style={[styles.batterColScore, isRightStriker && styles.batterColScoreActive]}>
+                        {rightPlayerStats?.runs ?? 0}<Text style={styles.batterColBalls}>({rightPlayerStats?.balls ?? 0})</Text>
+                      </Text>
                     </View>
-                    <Text style={[
-                      styles.playerScore,
-                      isRightStriker && { color: Colors.primary }
-                    ]}>
-                      {rightPlayerStats?.runs || 0}<Text style={styles.playerScoreBalls}>({rightPlayerStats?.balls || 0})</Text>
-                    </Text>
                   </TouchableOpacity>
-                  ) : null}
-                </View>
+                ) : <View style={{ flex: 1 }} />}
+              </View>
 
                 <View style={styles.playerRowDividerLine} />
 
@@ -1606,16 +1788,16 @@ const LiveScorerScreen = ({ navigation, route }) => {
       {isScorer ? (
         <>
           {/* Scoring Keypad */}
-          {isInningsComplete || isMatchComplete ? (
+          {showInningsComplete ? (
             <View style={[styles.keypad, { padding: Spacing.lg }]}>
               <Text style={styles.inningsCompleteTitle}>
-                {isMatchComplete ? 'Match Complete' : 'Innings Complete'}
+                {isMatchComplete || isTargetAchieved ? 'Match Complete' : 'Innings Complete'}
               </Text>
               <Text style={styles.inningsCompleteSubtitle}>
-                {isMatchComplete ? getLocalMatchSummary(completedReason) : `Reason: ${completedReason === 'all_out' ? 'All Out' : completedReason === 'overs_completed' ? 'Overs Completed' : completedReason === 'target_achieved' ? 'Target Achieved' : 'Completed'}`}
+                {isMatchComplete || isTargetAchieved ? getLocalMatchSummary(completedReason || 'target_achieved') : `Reason: ${completedReason === 'all_out' ? 'All Out' : completedReason === 'overs_completed' ? 'Overs Completed' : completedReason === 'target_achieved' || isTargetAchieved ? 'Target Achieved' : 'Completed'}`}
               </Text>
 
-              {isMatchComplete && getLocalMatchSummary(completedReason).startsWith('Match Tied') ? (
+              {(isMatchComplete || isTargetAchieved) && getLocalMatchSummary(completedReason || 'target_achieved').startsWith('Match Tied') ? (
                 <View style={{ gap: Spacing.sm }}>
                   <Text style={styles.tiedText}>Scores are Tied!</Text>
                   <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
@@ -1670,11 +1852,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     style={[styles.keypadActionBtn, { flex: 1, height: 50, backgroundColor: Colors.accent }]}
                     onPress={() => {
                       showCustomAlert(
-                        isMatchComplete ? "End Match" : "End Innings",
-                        isMatchComplete ? "Are you sure you want to complete this match?" : "Are you sure you want to complete this innings?",
+                        isMatchComplete || isTargetAchieved ? "End Match" : "End Innings",
+                        isMatchComplete || isTargetAchieved ? "Are you sure you want to complete this match?" : "Are you sure you want to complete this innings?",
                         [
                           { text: "Cancel", style: "cancel" },
-                          { text: isMatchComplete ? "End Match" : "End Innings", onPress: () => executeSettingsAction('end_innings') }
+                          { text: isMatchComplete || isTargetAchieved ? "End Match" : "End Innings", onPress: () => executeSettingsAction('end_innings') }
                         ]
                       );
                     }}
@@ -1718,42 +1900,42 @@ const LiveScorerScreen = ({ navigation, route }) => {
               {/* Row 1: RUNS [ 0 ] [ 1 ] [ 2 ] [ 3 ] [ UNDO ] */}
               <View style={styles.keypadRow}>
                 {[0, 1, 2, 3].map(n => (
-                  <TouchableOpacity key={n} style={styles.scoreBtn} onPress={() => handleScore(n)} activeOpacity={0.7}>
+                  <ScoreBtn3D key={n} style={styles.scoreBtn} onPress={() => handleScore(n)}>
                     <Text style={styles.scoreBtnText}>{n}</Text>
-                  </TouchableOpacity>
+                  </ScoreBtn3D>
                 ))}
-                <TouchableOpacity style={styles.scoreBtnUndo} onPress={handleUndoBall} activeOpacity={0.7}>
+                <ScoreBtn3D style={styles.scoreBtnUndo} onPress={handleUndoBall} lift={3}>
                   <Text style={styles.scoreBtnUndoText}>UNDO</Text>
-                </TouchableOpacity>
+                </ScoreBtn3D>
               </View>
 
               {/* Row 2: [ 4 ] [ 6 ] [ WICKET ] [ MORE ] */}
               <View style={styles.keypadRow}>
-                <TouchableOpacity style={[styles.scoreBtn, styles.scoreBtnFour]} onPress={() => handleScore(4)} activeOpacity={0.7}>
+                <ScoreBtn3D style={[styles.scoreBtn, styles.scoreBtnFour]} onPress={() => handleScore(4)}>
                   <Text style={[styles.scoreBtnText, styles.scoreBtnBoundaryText]}>4</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.scoreBtn, styles.scoreBtnSix]} onPress={() => handleScore(6)} activeOpacity={0.7}>
+                </ScoreBtn3D>
+                <ScoreBtn3D style={[styles.scoreBtn, styles.scoreBtnSix]} onPress={() => handleScore(6)}>
                   <Text style={[styles.scoreBtnText, styles.scoreBtnBoundaryText]}>6</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.scoreBtn, styles.scoreBtnWicket]} onPress={() => setShowWicketPanel(true)} activeOpacity={0.7}>
+                </ScoreBtn3D>
+                <ScoreBtn3D style={[styles.scoreBtn, styles.scoreBtnWicket]} onPress={() => setShowWicketPanel(true)}>
                   <Text style={[styles.scoreBtnText, { color: '#fff', fontSize: 15 }]}>WICKET</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.scoreBtnExtra, styles.scoreBtnMore]} onPress={() => setShowFiveSevenModal(true)} activeOpacity={0.7}>
+                </ScoreBtn3D>
+                <ScoreBtn3D style={[styles.scoreBtnExtra, styles.scoreBtnMore]} onPress={() => setShowFiveSevenModal(true)}>
                   <Text style={[styles.scoreBtnExtraText, { color: Colors.primary }]}>MORE</Text>
-                </TouchableOpacity>
+                </ScoreBtn3D>
               </View>
 
               {/* Row 3: EXTRAS [ WD ] [ NB ] [ BYE ] [ LB ] */}
               <View style={styles.keypadRow}>
                 {[
-                  { label: 'WD', action: () => { setExtraWicketToggle(false); setShowExtrasPanel({ type: 'wide' }); } },
-                  { label: 'NB', action: () => { setExtraWicketToggle(false); setShowExtrasPanel({ type: 'noBall' }); } },
-                  { label: 'BYE', action: () => { setExtraWicketToggle(false); setShowExtrasPanel({ type: 'bye' }); } },
-                  { label: 'LB', action: () => { setExtraWicketToggle(false); setShowExtrasPanel({ type: 'legBye' }); } },
+                  { label: 'WD', action: () => { setExtraWicketToggle(false); setSelectedExtraRuns(0); setShowExtrasPanel({ type: 'wide' }); } },
+                  { label: 'NB', action: () => { setExtraWicketToggle(false); setSelectedExtraRuns(0); setShowExtrasPanel({ type: 'noBall' }); } },
+                  { label: 'BYE', action: () => { setExtraWicketToggle(false); setSelectedExtraRuns(0); setShowExtrasPanel({ type: 'bye' }); } },
+                  { label: 'LB', action: () => { setExtraWicketToggle(false); setSelectedExtraRuns(0); setShowExtrasPanel({ type: 'legBye' }); } },
                 ].map(({ label, action }) => (
-                  <TouchableOpacity key={label} style={styles.scoreBtnExtra} onPress={action} activeOpacity={0.7}>
+                  <ScoreBtn3D key={label} style={styles.scoreBtnExtra} onPress={action} lift={4}>
                     <Text style={styles.scoreBtnExtraText}>{label}</Text>
-                  </TouchableOpacity>
+                  </ScoreBtn3D>
                 ))}
               </View>
             </View>
@@ -1853,7 +2035,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
                   <TouchableOpacity
                     style={[
-                      styles.modalBtnAdd, 
+                      styles.modalBtnAdd,
                       { marginTop: 16, width: '100%', borderRadius: 10, height: 48, justifyContent: 'center', alignItems: 'center', opacity: (scorerSearchResult && scorerSearchResult.exists && !isLoading) ? 1 : 0.5 }
                     ]}
                     onPress={handleAddScorer}
@@ -1942,71 +2124,157 @@ const LiveScorerScreen = ({ navigation, route }) => {
           <View style={styles.bottomSheet}>
             <View style={styles.bsHeader}>
               <Text style={styles.bsTitle}>
-                {showExtrasPanel.type === 'wide' ? 'Wide Runs' :
-                  showExtrasPanel.type === 'noBall' ? 'No Ball Runs' :
-                    showExtrasPanel.type === 'bye' ? 'Bye Runs' : 'Leg Bye Runs'}
+                {showExtrasPanel.type === 'wide' ? 'Wide' :
+                  showExtrasPanel.type === 'noBall' ? 'No Ball' :
+                    showExtrasPanel.type === 'bye' ? 'Bye Runs' : 'Leg Bye'}
               </Text>
               <TouchableOpacity onPress={() => setShowExtrasPanel(null)}><Icon name="close" size={24} color="#FFF" /></TouchableOpacity>
             </View>
-            
+
             {/* Wicket Toggle for WD/NB */}
             {(showExtrasPanel.type === 'wide' || showExtrasPanel.type === 'noBall') && (
-              <TouchableOpacity 
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: extraWicketToggle ? '#f4433620' : Colors.surfaceVariant, padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: extraWicketToggle ? '#f44336' : 'transparent' }}
-                onPress={() => setExtraWicketToggle(!extraWicketToggle)}
-              >
-                <Text style={{ color: extraWicketToggle ? '#f44336' : Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold }}>Wicket on this delivery?</Text>
-                <View style={[styles.checkbox, extraWicketToggle && { backgroundColor: '#f44336', borderColor: '#f44336' }]}>
-                  {extraWicketToggle && <Icon name="check" size={14} color="#FFF" />}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Wicket on this delivery?</Text>
+                <View style={{ flexDirection: 'row', gap: 16 }}>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    onPress={() => setExtraWicketToggle(true)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: extraWicketToggle ? Colors.primary : Colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                      {extraWicketToggle && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                    </View>
+                    <Text style={{ color: extraWicketToggle ? Colors.textPrimary : Colors.textSecondary, fontFamily: extraWicketToggle ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>Yes</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    onPress={() => setExtraWicketToggle(false)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: !extraWicketToggle ? Colors.primary : Colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                      {!extraWicketToggle && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                    </View>
+                    <Text style={{ color: !extraWicketToggle ? Colors.textPrimary : Colors.textSecondary, fontFamily: !extraWicketToggle ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>No</Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+              </View>
             )}
 
-            <Text style={{ color: Colors.textSecondary, marginBottom: 12 }}>Select additional runs scored:</Text>
-            <View style={styles.bsGrid}>
+
+
+            <Text style={{ color: Colors.textSecondary, marginBottom: 12, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Select additional runs scored:</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 }}>
               {[0, 1, 2, 3, 4, 5, 6].map((runs) => {
                 const actualRuns = (showExtrasPanel.type === 'bye' || showExtrasPanel.type === 'legBye')
                   ? runs + 1
                   : runs;
+                  
+                const isSelected = selectedExtraRuns === runs;
 
                 return (
-                  <TouchableOpacity key={runs} style={[styles.bsBtn, { width: '31%', marginBottom: 8 }]} onPress={() => {
-                    const opts = {};
-                    let scoreValue = 0;
-
-                    if (showExtrasPanel.type === 'wide') {
-                      opts.isWide = true;
-                      opts.extraRuns = actualRuns;
-                    } else if (showExtrasPanel.type === 'noBall') {
-                      opts.isNoBall = true;
-                      opts.extraRuns = 0;
-                      scoreValue = actualRuns; // No ball runs are scored off the bat by batsman
-                    } else if (showExtrasPanel.type === 'bye') {
-                      opts.isBye = true;
-                      opts.extraRuns = actualRuns;
-                    } else if (showExtrasPanel.type === 'legBye') {
-                      opts.isLegBye = true;
-                      opts.extraRuns = actualRuns;
-                    }
-
-                    if (extraWicketToggle && (showExtrasPanel.type === 'wide' || showExtrasPanel.type === 'noBall')) {
-                      setPendingExtraOpts(opts);
-                      setPendingExtraScore(scoreValue);
-                      setShowExtrasPanel(null);
-                      setExtraWicketToggle(false);
-                      setShowWicketPanel(true);
-                    } else {
-                      handleScore(scoreValue, opts);
-                      setShowExtrasPanel(null);
-                    }
-                  }}>
-                    <Text style={styles.bsBtnText}>
-                      {actualRuns} Runs
+                  <TouchableOpacity 
+                    key={runs} 
+                    style={{
+                      width: 40, 
+                      height: 40, 
+                      borderRadius: 8, 
+                      borderWidth: 1, 
+                      borderColor: isSelected ? Colors.primary : Colors.border,
+                      backgroundColor: isSelected ? Colors.primary : 'transparent',
+                      alignItems: 'center', 
+                      justifyContent: 'center'
+                    }} 
+                    onPress={() => setSelectedExtraRuns(runs)}
+                  >
+                    <Text style={{
+                      color: isSelected ? '#000' : Colors.textPrimary,
+                      fontFamily: Typography.fontFamily.semiBold,
+                      fontSize: 16
+                    }}>
+                      {actualRuns}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
+
+            {showExtrasPanel.type === 'noBall' && selectedExtraRuns > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Runs scored from:</Text>
+                <View style={{ flexDirection: 'row', gap: 16 }}>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    onPress={() => setNbRunSource('bat')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: nbRunSource === 'bat' ? Colors.primary : Colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                      {nbRunSource === 'bat' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                    </View>
+                    <Text style={{ color: nbRunSource === 'bat' ? Colors.textPrimary : Colors.textSecondary, fontFamily: nbRunSource === 'bat' ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>Bat</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    onPress={() => setNbRunSource('byes')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: nbRunSource === 'byes' ? Colors.primary : Colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                      {nbRunSource === 'byes' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                    </View>
+                    <Text style={{ color: nbRunSource === 'byes' ? Colors.textPrimary : Colors.textSecondary, fontFamily: nbRunSource === 'byes' ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>Byes</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: Colors.primary,
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: 'center',
+                marginTop: 10
+              }}
+              onPress={() => {
+                const runs = selectedExtraRuns;
+                const actualRuns = (showExtrasPanel.type === 'bye' || showExtrasPanel.type === 'legBye') ? runs + 1 : runs;
+                const opts = {};
+                let scoreValue = 0;
+
+                if (showExtrasPanel.type === 'wide') {
+                  opts.isWide = true;
+                  opts.extraRuns = actualRuns;
+                } else if (showExtrasPanel.type === 'noBall') {
+                  opts.isNoBall = true;
+                  if (nbRunSource === 'byes') {
+                    opts.isBye = true;
+                    opts.extraRuns = actualRuns;
+                    scoreValue = 0;
+                  } else {
+                    opts.extraRuns = 0;
+                    scoreValue = actualRuns;
+                  }
+                } else if (showExtrasPanel.type === 'bye') {
+                  opts.isBye = true;
+                  opts.extraRuns = actualRuns;
+                } else if (showExtrasPanel.type === 'legBye') {
+                  opts.isLegBye = true;
+                  opts.extraRuns = actualRuns;
+                }
+
+                if (extraWicketToggle && (showExtrasPanel.type === 'wide' || showExtrasPanel.type === 'noBall')) {
+                  setPendingExtraOpts(opts);
+                  setPendingExtraScore(scoreValue);
+                  setShowExtrasPanel(null);
+                  setExtraWicketToggle(false);
+                  setShowWicketPanel(true);
+                } else {
+                  handleScore(scoreValue, opts);
+                  setShowExtrasPanel(null);
+                }
+              }}
+            >
+              <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Confirm</Text>
+            </TouchableOpacity>
           </View>
         </View>
       ) : null}
@@ -2028,12 +2296,49 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 let availableWickets = ['bowled', 'caught', 'caught_behind', 'caught_and_bowled', 'lbw', 'run_out', 'stumped', 'hit_wicket', 'obstructing_field', 'cheating'];
                 if (pendingExtraOpts?.isWide) availableWickets = ['stumped', 'run_out', 'hit_wicket', 'obstructing_field', 'cheating'];
                 if (pendingExtraOpts?.isNoBall) availableWickets = ['run_out', 'obstructing_field', 'cheating'];
-                
-                return availableWickets.map((type) => (
-                  <TouchableOpacity key={type} style={[styles.bsBtn, styles.bsBtnDanger]} onPress={() => handleWicketSelect(type)}>
-                    <Text style={[styles.bsBtnText, { fontSize: 13 }]}>{type.replace(/_/g, ' ').toUpperCase()}</Text>
-                  </TouchableOpacity>
-                ));
+
+                const WICKET_META = {
+                  bowled:           { image: require('../../../../Bowled.png'), label: 'Bowled' },
+                  caught:           { image: require('../../../../Caught.png'), label: 'Caught' },
+                  caught_behind:    { image: require('../../../../CaughtBehind.png'), label: 'Caught Behind' },
+                  caught_and_bowled:{ image: require('../../../../CaughtBowled.png'), label: 'Caught & Bowled' },
+                  lbw:              { image: require('../../../../LBW.png'), label: 'LBW' },
+                  run_out:          { image: require('../../../../RunOut.png'), label: 'Run Out' },
+                  stumped:          { image: require('../../../../Stumped.png'), label: 'Stumped' },
+                  hit_wicket:       { image: require('../../../../HitWicket.png'), label: 'Hit Wicket' },
+                  obstructing_field:{ image: require('../../../../FieldRestrict.png'), label: 'Obstructing Field' },
+                  cheating:         { image: require('../../../../Cheating.png'), label: 'Cheating' },
+                };
+
+                return availableWickets.map((type) => {
+                  const meta = WICKET_META[type] || { icon: 'close-circle', label: type.replace(/_/g, ' ').toUpperCase() };
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      style={[styles.bsBtn, styles.bsBtnDanger, {
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        paddingVertical: 14,
+                        paddingHorizontal: 8,
+                        gap: 8,
+                        width: '48%',
+                        height: 90,
+                      }]}
+                      onPress={() => handleWicketSelect(type)}
+                    >
+                      {meta.image
+                        ? <Image source={meta.image} style={{ width: 48, height: 48, tintColor: '#FFF' }} resizeMode="contain" />
+                        : <Icon name={meta.icon} size={42} color="#FFF" />
+                      }
+                      <Text style={[styles.bsBtnText, { fontSize: 10, textAlign: 'center' }]}>{meta.label.toUpperCase()}</Text>
+                    </TouchableOpacity>
+                  );
+                });
+
+
+
+
               })()}
             </View>
           </View>
@@ -2080,6 +2385,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     }}
                     renderItem={({ item }) => {
                       if (fielderSelectionMode === 'secondary' && item._id === primaryFielder) return null;
+                      const photo = item.photo || item.user?.photo || item.userId?.photo || item.avatar || item.profileImage || item.image || item.profilePic || item.profile;
                       return (
                         <TouchableOpacity
                           style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border }}
@@ -2089,8 +2395,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
                             setFielderSelectionMode(null);
                           }}
                         >
-                          {item.photo ? (
-                            <Image source={{ uri: getImageUrl(item.photo) }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
+                          {photo ? (
+                            <Image source={{ uri: getImageUrl(photo) }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
                           ) : (
                             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                               <Text style={{ color: '#000', fontWeight: 'bold' }}>{item.name.charAt(0).toUpperCase()}</Text>
@@ -2219,7 +2525,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                         <Text style={{ color: Colors.textSecondary, marginBottom: 10 }}>Runs completed before Run Out</Text>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
                           {[0, 1, 2, 3, 4, 5].map(runs => (
-                            <TouchableOpacity 
+                            <TouchableOpacity
                               key={runs}
                               style={[{ flex: 1, paddingVertical: 12, backgroundColor: Colors.surfaceVariant, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: 'transparent' }, advWicketRuns === runs && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
                               onPress={() => setAdvWicketRuns(runs)}
@@ -2245,13 +2551,13 @@ const LiveScorerScreen = ({ navigation, route }) => {
       {/* Settings Modal (Right Sidebar) */}
       {showSettingsModal ? (
         <Modal visible={true} transparent animationType="fade">
-          <TouchableOpacity 
+          <TouchableOpacity
             style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', flexDirection: 'row', justifyContent: 'flex-end' }}
-            activeOpacity={1} 
+            activeOpacity={1}
             onPress={() => setShowSettingsModal(false)}
           >
-            <TouchableOpacity 
-              activeOpacity={1} 
+            <TouchableOpacity
+              activeOpacity={1}
               style={{ width: '75%', backgroundColor: Colors.background, height: '100%', padding: 20, paddingTop: 60, elevation: 5, shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 5 }}
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -2264,21 +2570,16 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     <Icon name="clipboard-text-outline" size={20} color={Colors.primary} style={{ marginRight: 12 }} />
                     <Text style={[styles.bsBtnText, { color: Colors.primary }]}>View Full Scorecard</Text>
                   </TouchableOpacity>
-                  {isCreator && isMatchActive ? (
-                    <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('add_scorer')}>
-                      <Icon name="account-plus-outline" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
-                      <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Add / Change Scorer</Text>
-                    </TouchableOpacity>
-                  ) : null}
+
                   {isCreator && isMatchActive ? (
                     <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('toggle_single_wicket')}>
                       <Icon name="account-outline" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
                       <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>{match?.isSingleWicketBatting ? 'Disable' : 'Enable'} Single Wicket Batting</Text>
                     </TouchableOpacity>
                   ) : null}
-                  
+
                   <View style={{ height: 1, backgroundColor: Colors.border, marginVertical: 8 }} />
-                  
+
                   {(isCreator || isScorer) && isMatchActive ? (
                     <>
                       <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('add_penalty_runs')}>
@@ -2353,7 +2654,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Penalty Runs</Text>
               <Text style={styles.modalSub}>Add runs without counting a ball.</Text>
-              
+
               <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>Award Penalty to:</Text>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
                 <TouchableOpacity style={[styles.bsBtn, { flex: 1 }, penaltyTeam === 'batting' ? { backgroundColor: Colors.primary } : { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }]} onPress={() => setPenaltyTeam('batting')}>
@@ -2392,7 +2693,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Revise Match</Text>
               <Text style={styles.modalSub}>Reduce overs due to rain or other interruptions.</Text>
-              
+
               <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>Revised Total Overs:</Text>
               <TextInput
                 style={styles.modalInput}
@@ -2427,7 +2728,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Abandon Match</Text>
               <Text style={styles.modalSub}>Are you sure you want to abandon this match? This action cannot be undone.</Text>
-              
+
               <Text style={{ color: Colors.textSecondary, marginBottom: 8, marginTop: 10 }}>Reason for abandoning:</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {['Rain', 'Bad Light', 'Pitch Unplayable', 'Other'].map(r => {
@@ -2439,13 +2740,13 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   return (
                     <TouchableOpacity
                       key={r}
-                      style={{ 
-                        backgroundColor: isSelected ? Colors.primary : Colors.surface, 
-                        paddingVertical: 8, 
-                        paddingHorizontal: 12, 
-                        borderRadius: 16, 
-                        borderWidth: 1, 
-                        borderColor: isSelected ? Colors.primary : Colors.border 
+                      style={{
+                        backgroundColor: isSelected ? Colors.primary : Colors.surface,
+                        paddingVertical: 8,
+                        paddingHorizontal: 12,
+                        borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor: isSelected ? Colors.primary : Colors.border
                       }}
                       onPress={() => setAbandonReason(r === 'Other' ? 'Custom Reason' : r)}
                     >
@@ -2734,11 +3035,12 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.base,
-    paddingVertical: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.backgroundCard,
+    gap: 8,
   },
   headerBackBtn: {
     width: 38,
@@ -2752,10 +3054,39 @@ const styles = StyleSheet.create({
   },
   headerCenter: {
     flex: 1,
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flexDirection: 'column',
     justifyContent: 'center',
-    gap: 8,
+    gap: 0,
+  },
+  headerTeamsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  headerTeamName: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textSecondary,
+  },
+  headerTeamNameRight: {
+  },
+  headerTeamNameActive: {
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 12,
+  },
+  headerVsChip: {
+    backgroundColor: Colors.border,
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  headerVsText: {
+    fontSize: 7,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textTertiary,
+    letterSpacing: 1,
   },
   headerTitle: {
     fontSize: 15,
@@ -2767,21 +3098,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(244, 67, 54, 0.15)',
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    gap: 4,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    gap: 2,
     borderWidth: 1,
     borderColor: 'rgba(244, 67, 54, 0.3)',
+    flexShrink: 0,
   },
   headerLiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: Colors.error,
   },
   headerLiveText: {
-    fontSize: 10,
+    fontSize: 8,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.error,
     letterSpacing: 0.5,
@@ -2789,12 +3121,12 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
   },
   headerActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.07)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -2901,63 +3233,104 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   chaseBanner: {
-    marginTop: 6,
+    display: 'none', // no longer used
+  },
+  chaseStrip: {
+    marginTop: 5,
     width: '100%',
-    backgroundColor: Colors.primaryAlpha20 || 'rgba(154,188,47,0.1)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.primary + '40',
-    paddingVertical: 6,
+    borderColor: Colors.primary + '35',
+    backgroundColor: 'rgba(154,188,47,0.07)',
+    paddingVertical: 8,
     paddingHorizontal: 12,
+    gap: 4,
     alignItems: 'center',
   },
-  chaseMainText: {
-    color: Colors.textPrimary,
-    fontSize: 13,
-    fontFamily: Typography.fontFamily.semiBold,
-    textAlign: 'center',
-    marginBottom: 1,
+  chaseNeedRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
   },
-  chaseHighlight: {
-    color: Colors.primary,
+  chaseNeedLabel: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+  },
+  chaseNeedRuns: {
+    fontSize: 20,
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 15,
+    color: Colors.primary,
+    lineHeight: 24,
   },
-  dlsTag: {
-    color: Colors.textTertiary,
-    fontSize: 11,
+  chaseDlsTag: {
+    fontSize: 10,
     fontFamily: Typography.fontFamily.regular,
-  },
-  chaseSubText: {
     color: Colors.textTertiary,
-    fontSize: 10.5,
-    fontFamily: Typography.fontFamily.regular,
-    textAlign: 'center',
-    letterSpacing: 0.2,
-    marginBottom: 3,
   },
-  dlsParRow: {
+  chaseMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginTop: 1,
+    justifyContent: 'center',
+    gap: 12,
   },
-  dlsParLabel: {
-    color: Colors.textTertiary,
-    fontSize: 11,
+  chaseMetaPill: {
+    alignItems: 'center',
+  },
+  chaseMetaLabel: {
+    fontSize: 9,
     fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 1,
   },
-  dlsParValue: {
-    color: Colors.textPrimary,
-    fontSize: 13,
+  chaseMetaValue: {
+    fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
   },
-  dlsParStatus: {
-    fontSize: 12,
+  chaseMetaDot: {
+    width: 1,
+    height: 22,
+    backgroundColor: Colors.border,
+  },
+  chaseDlsParRow: {
+    borderRadius: 5,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    alignSelf: 'center',
+  },
+  chaseDlsParText: {
+    fontSize: 11,
     fontFamily: Typography.fontFamily.semiBold,
+    textAlign: 'center',
   },
+  chaseStripHighlight: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+  },
+  chaseStripText: { fontSize: 12, color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
+  chaseStripMuted: { fontSize: 0 },
+  chaseStripDls: { fontSize: 0 },
+  chaseStripDlsPar: { fontSize: 0 },
+  chaseRow: { display: 'none' },
+  chaseBlock: { display: 'none' },
+  chaseBlockLabel: { fontSize: 0 },
+  chaseBlockValue: { fontSize: 0 },
+  chaseBlockSub: { fontSize: 0 },
+  chaseDivider: { width: 0 },
+  chaseMainText: { fontSize: 0 },
+  chaseHighlight: { fontSize: 0 },
+  dlsTag: { fontSize: 0 },
+  chaseSubText: { fontSize: 0 },
+  dlsParRow: { display: 'none' },
+  dlsParLabel: { fontSize: 0 },
+  dlsParValue: { fontSize: 0 },
+  dlsParStatus: { fontSize: 0 },
   tossText: {
     color: Colors.textTertiary,
     fontSize: 12,
@@ -2997,7 +3370,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  timelineScroll: { gap: 7, paddingRight: 20 },
+  timelineScroll: { paddingRight: 20 },
   ballCircle: {
     width: 38,
     height: 38,
@@ -3042,6 +3415,80 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
+  // Clean 2-column batter layout
+  battingRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  batterCol: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  batterColStriker: {
+    borderLeftWidth: 2,
+    borderLeftColor: Colors.primary,
+  },
+  batterColInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  batterColNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginBottom: 1,
+  },
+  strikerAsterisk: {
+    color: Colors.primary,
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    lineHeight: 16,
+    marginRight: 1,
+  },
+  batterColName: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textSecondary,
+    flexShrink: 1,
+  },
+  batterColNameActive: {
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  batterColScore: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textSecondary,
+    flexShrink: 0,
+  },
+  batterColScoreActive: {
+    color: Colors.primary,
+  },
+  batterColBalls: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  batterColDivider: {
+    width: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 4,
+  },
+  // Legacy chip styles (unused but kept)
+  batterChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20, backgroundColor: 'transparent', gap: 2 },
+  batterChipStriker: { backgroundColor: 'rgba(154,188,47,0.12)', borderWidth: 1, borderColor: 'rgba(154,188,47,0.3)' },
+  batterChipName: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginRight: 4, maxWidth: 80 },
+  batterChipNameStriker: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
+  batterChipScoreWrap: { flexDirection: 'row', alignItems: 'baseline', gap: 1 },
+  batterChipRuns: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary },
+  batterChipRunsStriker: { color: Colors.primary, fontSize: 16 },
+  batterChipBalls: { fontSize: 10, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular },
+  batterChipSep: { paddingHorizontal: 2 },
+  // Legacy styles kept for non-batting areas
   playerRowBordered: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3105,35 +3552,35 @@ const styles = StyleSheet.create({
   bowlingTableHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingBottom: 5,
+    paddingBottom: 3,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   bowlingTableHeaderCell: {
-    width: 52,
-    fontSize: 10,
+    width: 46,
+    fontSize: 9,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textTertiary,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
     textAlign: 'right',
   },
   bowlingTableRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 9,
+    paddingVertical: 6,
   },
   bowlingTableName: {
     color: Colors.textPrimary,
     fontFamily: Typography.fontFamily.semiBold,
-    fontSize: 14,
+    fontSize: 13,
   },
   bowlingTableCell: {
-    width: 52,
+    width: 46,
     color: Colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
-    fontSize: 13,
+    fontSize: 12,
     textAlign: 'right',
   },
 
@@ -3147,35 +3594,42 @@ const styles = StyleSheet.create({
   },
   keypadRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
+    gap: 10,
+    marginBottom: 10,
   },
   scoreBtn: {
     flex: 1,
-    height: 78,
+    height: 72,
     backgroundColor: Colors.card,
-    borderRadius: BorderRadius.md,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
+    borderBottomWidth: 5,
+    borderBottomColor: '#1A1A1A',
   },
   scoreBtnFour: {
     backgroundColor: 'rgba(76, 175, 80, 0.18)',
     borderColor: 'rgba(76, 175, 80, 0.4)',
+    borderBottomColor: 'rgba(76, 175, 80, 0.6)',
   },
   scoreBtnSix: {
     backgroundColor: 'rgba(33, 150, 243, 0.18)',
     borderColor: 'rgba(33, 150, 243, 0.4)',
+    borderBottomColor: 'rgba(33, 150, 243, 0.6)',
   },
   scoreBtnMore: {
     backgroundColor: Colors.primaryAlpha10,
     borderColor: Colors.primaryAlpha30,
-    height: 62,
+    borderBottomColor: 'rgba(255, 204, 0, 0.4)',
+    height: 72,
+    borderBottomWidth: 5,
   },
   scoreBtnWicket: {
-    backgroundColor: Colors.error,
-    borderColor: Colors.error,
+    backgroundColor: '#F44336',
+    borderColor: '#D32F2F',
+    borderBottomColor: '#B71C1C',
     flex: 1,
   },
   scoreBtnBoundaryText: {
@@ -3196,14 +3650,16 @@ const styles = StyleSheet.create({
   },
   scoreBtnUndo: {
     flex: 1,
-    height: 78,
+    height: 72,
     backgroundColor: Colors.card,
-    borderRadius: BorderRadius.md,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
     borderStyle: 'dashed',
+    borderBottomWidth: 3,
+    borderBottomColor: '#1A1A1A',
   },
   scoreBtnUndoText: {
     color: Colors.textTertiary,
@@ -3213,13 +3669,15 @@ const styles = StyleSheet.create({
   },
   scoreBtnExtra: {
     flex: 1,
-    height: 62,
+    height: 60,
     backgroundColor: Colors.primaryAlpha10,
-    borderRadius: BorderRadius.md,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.primaryAlpha30,
+    borderBottomWidth: 4,
+    borderBottomColor: 'rgba(255, 204, 0, 0.3)',
   },
   scoreBtnExtraText: {
     color: Colors.primary,
@@ -3317,8 +3775,8 @@ const styles = StyleSheet.create({
   modalBtnAdd: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   modalBtnTextAdd: { color: Colors.background || '#000000', fontFamily: Typography.fontFamily.bold },
 
-  bottomSheetOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  bottomSheet: { backgroundColor: Colors.backgroundModal, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl },
+  bottomSheetOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end', zIndex: 100 },
+  bottomSheet: { backgroundColor: Colors.backgroundModal, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl, paddingBottom: 40 },
   bsHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.lg },
   bsTitle: { color: '#FFF', fontSize: 20, fontFamily: Typography.fontFamily.bold },
   bsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

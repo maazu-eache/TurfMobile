@@ -1,69 +1,31 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  Modal,
-  Animated,
-  StatusBar,
-} from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, ActivityIndicator, StatusBar, RefreshControl, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDispatch, useSelector } from 'react-redux';
-import { fetchOwnerAnalytics } from '../ownerSlice';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import LinearGradient from '../../../components/SolidGradient';
-import { showCustomAlert } from '../../../components/CustomAlert';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { fetchOwnerAnalytics } from '../ownerSlice';
+import { useDispatch, useSelector } from 'react-redux';
+import { Modal } from 'react-native';
 
 const { width: W } = Dimensions.get('window');
-const CHART_H = 140;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const toISO = (d) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
+const fmtK = (num) => {
+  if (num === undefined || num === null) return '₹0';
+  if (num >= 100000) return `₹${(num / 100000).toFixed(1)}L`;
+  if (num >= 1000) return `₹${(num / 1000).toFixed(1)}k`;
+  return `₹${num}`;
 };
 
-const fmtDisplay = (iso) => {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-');
-  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${parseInt(d)} ${MONTHS[parseInt(m) - 1]} ${y}`;
+const formatDateIN = (d) => {
+  if (!d) return '';
+  return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
 };
 
-const fmtK = (n) => {
-  if (!n) return '₹0';
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-  return `₹${n}`;
-};
-
-const RANGES = [
-  { id: 'today', label: 'Today', icon: 'calendar-today' },
-  { id: 'week', label: 'Week', icon: 'calendar-week' },
-  { id: 'month', label: 'Month', icon: 'calendar-month' },
-  { id: 'year', label: 'Year', icon: 'calendar' },
-  { id: 'overall', label: 'All', icon: 'infinity' },
-  { id: 'custom', label: 'Custom', icon: 'calendar-range' },
-];
-
-const SPORTS = [
-  { id: 'all', label: 'All Sports' },
-  { id: 'cricket', label: 'Cricket' },
-  { id: 'football', label: 'Football' },
-  { id: 'badminton', label: 'Badminton' },
-];
-
-// ── Reusable Component: Section Header ────────────────────────────────────────
 const SectionHeader = ({ icon, title, sub }) => (
-  <View style={ss.sectionHdr}>
-    <View style={ss.sectionIconBg}>
-      <Icon name={icon} size={15} color={Colors.primary} />
+  <View style={ss.sectionHeader}>
+    <View style={ss.sectionIconWrap}>
+      <Icon name={icon} size={20} color={Colors.primary} />
     </View>
     <View style={{ flex: 1 }}>
       <Text style={ss.sectionTitle}>{title}</Text>
@@ -72,642 +34,502 @@ const SectionHeader = ({ icon, title, sub }) => (
   </View>
 );
 
-// ── Reusable Component: KPI Card ─────────────────────────────────────────────
-const KPICard = ({ label, value, sub, icon, trend, trendUp, accent = Colors.primary }) => (
-  <View style={ss.kpiCard}>
-    <View style={ss.kpiHeader}>
-      <View style={[ss.kpiIcon, { backgroundColor: accent + '1A' }]}>
-        <Icon name={icon} size={18} color={accent} />
-      </View>
-      {trend !== undefined && (
-        <View style={[ss.kpiTrend, { backgroundColor: trendUp ? Colors.successLight : Colors.errorLight }]}>
-          <Icon name={trendUp ? 'trending-up' : 'trending-down'} size={10} color={trendUp ? Colors.success : Colors.error} />
-          <Text style={[ss.kpiTrendTxt, { color: trendUp ? Colors.success : Colors.error }]}>{trend}</Text>
-        </View>
-      )}
-    </View>
-    <Text style={ss.kpiValue}>{value}</Text>
-    <Text style={ss.kpiLabel}>{label}</Text>
-    {sub && <Text style={ss.kpiSub}>{sub}</Text>}
-  </View>
-);
-
-// ── Reusable Component: Progress Bar ──────────────────────────────────────────
-const ProgressBar = ({ pct, color = Colors.primary, height = 6 }) => {
+const ProgressBar60FPS = ({ pct, color, height = 12 }) => {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(anim, { toValue: pct / 100, duration: 850, useNativeDriver: false }).start();
+    Animated.spring(anim, {
+      toValue: pct / 100,
+      useNativeDriver: true,
+      bounciness: 4
+    }).start();
   }, [pct]);
-  const w = anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+
   return (
     <View style={[ss.progressTrack, { height }]}>
-      <Animated.View style={[ss.progressFill, { width: w, backgroundColor: color, borderRadius: height }]} />
+      <Animated.View style={[
+        StyleSheet.absoluteFill,
+        { backgroundColor: color, transform: [{ scaleX: anim }, { translateX: -W / 2 }], transformOrigin: 'left' }
+      ]} />
     </View>
   );
 };
 
-// ── Donut Progress Ring ───────────────────────────────────────────────────────
-const DonutProgress = ({ pct, color = Colors.primary, size = 90, label, sub }) => {
-  return (
-    <View style={{ alignItems: 'center', justifyContent: 'center', width: size, height: size }}>
-      <View style={{
-        width: size, height: size, borderRadius: size / 2,
-        borderWidth: 8, borderColor: Colors.backgroundElevated,
-        position: 'absolute'
-      }} />
-      <View style={{
-        width: size, height: size, borderRadius: size / 2,
-        borderWidth: 8, borderColor: 'transparent',
-        borderTopColor: color,
-        borderRightColor: pct > 25 ? color : 'transparent',
-        borderBottomColor: pct > 50 ? color : 'transparent',
-        borderLeftColor: pct > 75 ? color : 'transparent',
-        transform: [{ rotate: '-45deg' }],
-        position: 'absolute'
-      }} />
-      <View style={{ alignItems: 'center' }}>
-        <Text style={ss.donutVal}>{pct}%</Text>
-        <Text style={ss.donutLbl}>{label}</Text>
-      </View>
-    </View>
-  );
-};
-
-// ── Simple Date Spinner ───────────────────────────────────────────────────────
-const SimpleDatePicker = ({ value, onConfirm, onCancel }) => {
-  const today = new Date();
-  const parsed = value ? new Date(value + 'T00:00:00') : today;
-  const [year, setYear] = useState(parsed.getFullYear());
-  const [month, setMonth] = useState(parsed.getMonth() + 1);
-  const [day, setDay] = useState(parsed.getDate());
-
-  const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const safeDay = Math.min(day, daysInMonth);
-
-  const adj = (setter, val, min, max) => setter(v => {
-    let n = v + val;
-    if (n < min) n = max;
-    if (n > max) n = min;
-    return n;
-  });
-
-  const confirm = () => {
-    const d = Math.min(safeDay, new Date(year, month, 0).getDate());
-    onConfirm(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
-  };
-
-  const Spinner = ({ label, value: val, onUp, onDown }) => (
-    <View style={ss.spinnerCol}>
-      <TouchableOpacity onPress={onUp} style={ss.arrow}><Icon name="chevron-up" size={24} color={Colors.primary} /></TouchableOpacity>
-      <Text style={ss.spinnerVal}>{String(val).padStart(2, '0')}</Text>
-      <TouchableOpacity onPress={onDown} style={ss.arrow}><Icon name="chevron-down" size={24} color={Colors.primary} /></TouchableOpacity>
-      <Text style={ss.spinnerLbl}>{label}</Text>
-    </View>
-  );
-
-  return (
-    <View style={ss.datePicker}>
-      <Text style={ss.datePickerTitle}>Select Date</Text>
-      <View style={ss.spinnerRow}>
-        <Spinner label="Day" value={safeDay} onUp={() => adj(setDay, 1, 1, daysInMonth)} onDown={() => adj(setDay, -1, 1, daysInMonth)} />
-        <Spinner label="Month" value={month} onUp={() => adj(setMonth, 1, 1, 12)} onDown={() => adj(setMonth, -1, 1, 12)} />
-        <Spinner label="Year" value={year} onUp={() => adj(setYear, 1, 2020, today.getFullYear())} onDown={() => adj(setYear, -1, 2020, today.getFullYear())} />
-      </View>
-      <Text style={ss.datePickerPreview}>{MONTHS_FULL[month - 1]} {safeDay}, {year}</Text>
-      <View style={ss.datePickerBtnRow}>
-        <TouchableOpacity style={ss.datePickerCancel} onPress={onCancel}><Text style={ss.datePickerCancelTxt}>Cancel</Text></TouchableOpacity>
-        <TouchableOpacity style={ss.datePickerConfirm} onPress={confirm}><Text style={ss.datePickerConfirmTxt}>Confirm</Text></TouchableOpacity>
-      </View>
-    </View>
-  );
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN SCREEN
-// ─────────────────────────────────────────────────────────────────────────────
 const OwnerAnalyticsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
-  const { analytics, isLoading } = useSelector((s) => s.owner);
+  const { analytics, isLoading, dashboard } = useSelector(state => state.owner);
+  const turfs = dashboard?.owner?.turfs || [];
 
-  const [range, setRange] = useState('overall');
-  const [sportFilter, setSportFilter] = useState('all');
-  const [courtFilter, setCourtFilter] = useState('all');
+  const [dateRange, setDateRange] = useState('month');
+  const [selectedTurfId, setSelectedTurfId] = useState('all');
+  const [turfModalVisible, setTurfModalVisible] = useState(false);
+  const [customStart, setCustomStart] = useState(new Date(new Date().setDate(new Date().getDate() - 7)));
+  const [customEnd, setCustomEnd] = useState(new Date());
+  const [showPicker, setShowPicker] = useState(null);
 
-  const today = toISO(new Date());
-  const [customStart, setCustomStart] = useState(today);
-  const [customEnd, setCustomEnd] = useState(today);
-  const [pickingDate, setPickingDate] = useState(null);
-
-  const loadData = useCallback((r, cs, ce) => {
-    const params = { range: r };
-    if (r === 'custom') {
-      if (!cs || !ce) return;
-      params.startDate = cs;
-      params.endDate = ce;
+  const fetchAnalytics = () => {
+    let params = { range: dateRange, turfId: selectedTurfId };
+    if (dateRange === 'custom') {
+      params.startDate = customStart.toISOString().split('T')[0];
+      params.endDate = customEnd.toISOString().split('T')[0];
     }
     dispatch(fetchOwnerAnalytics(params));
-  }, [dispatch]);
+  };
 
   useEffect(() => {
-    loadData('overall');
-  }, []);
+    fetchAnalytics();
+  }, [dispatch, dateRange, selectedTurfId, customStart, customEnd]);
 
-  const handleRangeSelect = (id) => {
-    setRange(id);
-    if (id !== 'custom') {
-      loadData(id);
-    }
+  const onRefresh = () => {
+    fetchAnalytics();
   };
 
-  const handleApplyCustom = () => {
-    if (customStart > customEnd) {
-      showCustomAlert('Invalid Range', 'Start date cannot be after end date.');
-      return;
-    }
-    loadData('custom', customStart, customEnd);
+  const handleTurfSelect = (id) => {
+    setSelectedTurfId(id);
+    setTurfModalVisible(false);
   };
 
-  // ── Derived Data ───────────────────────────────────────────────────────────
-  const hasData = analytics?.labels?.length > 0;
-  const onlineRev = hasData ? analytics.revenueData.online : [];
-  const offlineRev = hasData ? analytics.revenueData.offline : [];
-  const onlineB = hasData ? analytics.bookingsData.online : [];
-  const offlineB = hasData ? analytics.bookingsData.offline : [];
-  const labels = hasData ? analytics.labels : [];
+  const hasData = analytics && Object.keys(analytics).length > 0;
+  
+  const kpis = analytics?.kpis || {};
+  const revenueTrend = analytics?.revenueTrend || [];
+  const bookingSource = analytics?.bookingSource || {};
+  const turfPerformance = analytics?.turfPerformance || [];
+  const peakHours = analytics?.peakHours || {};
+  const bookingStatus = analytics?.bookingStatus || [];
+  const paymentBreakdown = analytics?.paymentBreakdown || [];
+  const customerAnalytics = analytics?.customerAnalytics || {};
+  const utilization = analytics?.utilization || {};
+  const insights = analytics?.insights || [];
 
-  const totalOn = onlineRev.reduce((s, v) => s + v, 0);
-  const totalOff = offlineRev.reduce((s, v) => s + v, 0);
-  const totalRev = totalOn + totalOff;
-  const totalBks = [...onlineB, ...offlineB].reduce((s, v) => s + v, 0);
-  const onPct = totalRev > 0 ? Math.round((totalOn / totalRev) * 100) : 0;
-  const avgBookingValue = totalBks > 0 ? Math.round(totalRev / totalBks) : 0;
+  const selectedTurfName = selectedTurfId === 'all' ? 'All Turfs' : ((turfs || []).find(t => t._id === selectedTurfId)?.name || 'Turf');
 
-  const perDay = labels.map((_, i) => onlineRev[i] + offlineRev[i]);
-  const topIdx = perDay.indexOf(Math.max(...perDay, 0));
-
-  // Bind live MongoDB analytics calculations from backend
-  const overallOccupancy = hasData && analytics.occupancy ? analytics.occupancy.overall : 0;
-  const weekdayOccupancy = hasData && analytics.occupancy ? analytics.occupancy.weekday : 0;
-  const weekendOccupancy = hasData && analytics.occupancy ? analytics.occupancy.weekend : 0;
-
-  const peakHours = hasData && analytics.peakHours ? analytics.peakHours : [];
-  const turfPerformance = hasData && analytics.turfPerformance ? analytics.turfPerformance : [];
-  const loyalty = hasData && analytics.customerLoyalty ? analytics.customerLoyalty : { newCount: 0, returningCount: 0, repeatRate: 0 };
-  const payments = hasData && analytics.payments ? analytics.payments : { upiPct: 0, cashPct: 0 };
-  const risk = hasData && analytics.risk ? analytics.risk : { cancellationRate: '0.0', avgLeadTimeHours: 0 };
-  const dailyLogs = hasData && analytics.dailyLogs ? analytics.dailyLogs : [];
-
-  let topLogIdx = 0;
-  if (dailyLogs.length > 0) {
-    dailyLogs.forEach((log, i) => {
-      if ((log.onlineRev + log.offlineRev) > (dailyLogs[topLogIdx].onlineRev + dailyLogs[topLogIdx].offlineRev)) {
-        topLogIdx = i;
-      }
-    });
+  // Chart max calc
+  let maxChartVal = 100;
+  if (revenueTrend && revenueTrend.length > 0) {
+    maxChartVal = Math.max(...revenueTrend.map(d => d.onlineRev + d.offlineRev), 100);
   }
-
-
 
   return (
     <View style={ss.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.backgroundCard} />
 
-      {/* ── Sticky Top Filter Bar ────────────────────────────────────────── */}
+      {/* ── Header ────────────────────────────────────────── */}
       <View style={[ss.header, { paddingTop: insets.top + 8 }]}>
         <View style={ss.headerRow}>
-          <Text style={ss.headerTitle}>Business Analytics</Text>
-          {isLoading && <View style={ss.loadingIndicator} />}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8}>
+              <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={ss.headerTitle}>Analytics</Text>
+          </View>
+          <TouchableOpacity style={ss.turfSelectorBtn} onPress={() => setTurfModalVisible(true)}>
+            <Text style={ss.turfSelectorTxt} numberOfLines={1}>{selectedTurfName}</Text>
+            <Icon name="chevron-down" size={16} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
 
-        {/* Date Ranges Tabs */}
-        <View style={ss.tabContainer}>
-          {RANGES.map(({ id, label }) => {
-            const active = range === id;
-            return (
-              <TouchableOpacity
-                key={id}
-                style={[ss.tabButton, active && ss.tabButtonActive]}
-                onPress={() => handleRangeSelect(id)}
-                activeOpacity={0.8}
-              >
-                <Text style={[ss.tabText, active && ss.tabTextActive]}>{label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Custom date selectors */}
-        {range === 'custom' && (
-          <View style={ss.customRangeRow}>
-            <TouchableOpacity style={ss.datePill} onPress={() => setPickingDate('start')}>
-              <Icon name="calendar-start" size={14} color={Colors.primary} />
-              <Text style={ss.datePillTxt}>{fmtDisplay(customStart)}</Text>
+        {/* Date Filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ss.dateFilterScroll}>
+          {['today', 'week', 'month', 'year', 'all', 'custom'].map(r => (
+            <TouchableOpacity key={r} style={[ss.dateFilterBtn, dateRange === r && ss.dateFilterBtnActive]} onPress={() => setDateRange(r)}>
+              <Text style={[ss.dateFilterTxt, dateRange === r && ss.dateFilterTxtActive]}>
+                {r.charAt(0).toUpperCase() + r.slice(1)}
+              </Text>
             </TouchableOpacity>
-            <Icon name="arrow-right" size={14} color={Colors.textTertiary} />
-            <TouchableOpacity style={ss.datePill} onPress={() => setPickingDate('end')}>
-              <Icon name="calendar-end" size={14} color={Colors.primary} />
-              <Text style={ss.datePillTxt}>{fmtDisplay(customEnd)}</Text>
+          ))}
+        </ScrollView>
+        {dateRange === 'custom' && (
+          <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: Spacing.xl, paddingBottom: 16, alignItems: 'center' }}>
+            <TouchableOpacity style={[ss.dateFilterBtn, { flex: 1, alignItems: 'center' }]} onPress={() => setShowPicker('start')}>
+              <Text style={ss.dateFilterTxt}>{formatDateIN(customStart)}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={ss.applyBtn} onPress={handleApplyCustom}>
-              <Text style={ss.applyTxt}>Apply</Text>
+            <Text style={{ color: Colors.textSecondary }}>to</Text>
+            <TouchableOpacity style={[ss.dateFilterBtn, { flex: 1, alignItems: 'center' }]} onPress={() => setShowPicker('end')}>
+              <Text style={ss.dateFilterTxt}>{formatDateIN(customEnd)}</Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
 
-      {/* ── Custom Date Picker Modal ──────────────────────────────────────── */}
-      <Modal visible={!!pickingDate} transparent animationType="fade">
+      {isLoading && !hasData ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
+        <ScrollView 
+          contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 100 }}
+          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        >
+          
+          {/* 1. KPIs */}
+          <View style={ss.kpiGrid}>
+            <View style={ss.kpiCard}>
+              <Icon name="cash-multiple" size={20} color={Colors.primary} style={ss.kpiIcon} />
+              <Text style={ss.kpiVal}>{fmtK(kpis.totalRevenue || 0)}</Text>
+              <Text style={ss.kpiLabel}>Total Revenue</Text>
+            </View>
+            <View style={ss.kpiCard}>
+              <Icon name="calendar-check" size={20} color={Colors.info} style={ss.kpiIcon} />
+              <Text style={ss.kpiVal}>{kpis.totalBookings || 0}</Text>
+              <Text style={ss.kpiLabel}>Total Bookings</Text>
+            </View>
+            <View style={ss.kpiCard}>
+              <Icon name="cellphone-link" size={20} color={Colors.success} style={ss.kpiIcon} />
+              <Text style={ss.kpiVal}>{kpis.onlineBookings || 0}</Text>
+              <Text style={ss.kpiLabel}>Online Bookings</Text>
+            </View>
+            <View style={ss.kpiCard}>
+              <Icon name="store-outline" size={20} color={Colors.warning} style={ss.kpiIcon} />
+              <Text style={ss.kpiVal}>{kpis.offlineBookings || 0}</Text>
+              <Text style={ss.kpiLabel}>Offline Bookings</Text>
+            </View>
+            <View style={ss.kpiCard}>
+              <Icon name="clock-outline" size={20} color={Colors.textSecondary} style={ss.kpiIcon} />
+              <Text style={ss.kpiVal}>{kpis.hoursBooked || 0}h</Text>
+              <Text style={ss.kpiLabel}>Hours Booked</Text>
+            </View>
+            <View style={ss.kpiCard}>
+              <Icon name="percent" size={20} color={Colors.primary} style={ss.kpiIcon} />
+              <Text style={ss.kpiVal}>{kpis.occupancyRate || 0}%</Text>
+              <Text style={ss.kpiLabel}>Occupancy Rate</Text>
+            </View>
+          </View>
+
+          {(!kpis.totalBookings && !kpis.totalRevenue) ? (
+            <View style={{ marginTop: 60, alignItems: 'center' }}>
+              <Icon name="chart-box-outline" size={48} color={Colors.textTertiary} />
+              <Text style={{ marginTop: 12, fontSize: 16, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary }}>No data found for this period</Text>
+            </View>
+          ) : (
+            <>
+
+
+          {/* 3. BOOKING SOURCE */}
+          <View style={ss.section}>
+            <SectionHeader icon="chart-pie" title="Booking Source" sub="Online vs Offline breakdown" />
+            <View style={ss.card}>
+              <View style={ss.sourceRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={ss.sourceLabel}>Online</Text>
+                  <Text style={ss.sourceVal}>{bookingSource.online || 0} Bookings</Text>
+                  <Text style={[ss.sourcePct, { color: Colors.primary }]}>{bookingSource.onlinePct || 0}%</Text>
+                </View>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <Text style={ss.sourceLabel}>Offline</Text>
+                  <Text style={ss.sourceVal}>{bookingSource.offline || 0} Bookings</Text>
+                  <Text style={[ss.sourcePct, { color: Colors.warning }]}>{bookingSource.offlinePct || 0}%</Text>
+                </View>
+              </View>
+              <View style={ss.sourceBarWrap}>
+                <View style={[ss.sourceBar, { backgroundColor: Colors.primary, flex: parseFloat(bookingSource.onlinePct || 0) || 1 }]} />
+                <View style={[ss.sourceBar, { backgroundColor: Colors.warning, flex: parseFloat(bookingSource.offlinePct || 0) || 0 }]} />
+              </View>
+            </View>
+          </View>
+
+          {/* 4 & 5. TURF PERFORMANCE */}
+          {turfPerformance.length > 0 && (
+            <View style={ss.section}>
+              <SectionHeader icon="stadium" title="Turf Performance" sub="Compare revenue and bookings" />
+              {turfPerformance.map((t, i) => (
+                <View key={i} style={[ss.card, { marginBottom: 12 }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <Text style={ss.turfName}>{t.turfName}</Text>
+                    <Text style={ss.turfRev}>{fmtK(t.revenue)}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                    <View style={ss.turfStat}><Icon name="calendar-check" size={14} color={Colors.textTertiary}/><Text style={ss.turfStatTxt}>{t.bookings} Bkgs</Text></View>
+                    <View style={ss.turfStat}><Icon name="clock-outline" size={14} color={Colors.textTertiary}/><Text style={ss.turfStatTxt}>{t.hours} Hrs</Text></View>
+                    <View style={ss.turfStat}><Icon name="cellphone-link" size={14} color={Colors.primary}/><Text style={ss.turfStatTxt}>{t.online} On</Text></View>
+                    <View style={ss.turfStat}><Icon name="store-outline" size={14} color={Colors.warning}/><Text style={ss.turfStatTxt}>{t.offline} Off</Text></View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* 6. PEAK HOURS */}
+          <View style={ss.section}>
+            <SectionHeader icon="fire" title="Peak Hours" sub="Highest booking demand" />
+            <View style={ss.card}>
+              <Text style={ss.peakMainTxt}>Peak Day: <Text style={{ color: Colors.primary }}>{peakHours.peakDay}</Text></Text>
+              <Text style={ss.peakMainTxt}>Peak Time: <Text style={{ color: Colors.primary }}>{peakHours.peakTime}</Text></Text>
+              {peakHours.heatmap && peakHours.heatmap.length > 0 && (
+                <View style={{ marginTop: 16 }}>
+                  <Text style={ss.listHeader}>Top Time Slots</Text>
+                  {peakHours.heatmap.map((h, i) => (
+                    <View key={i} style={ss.listItemRow}>
+                      <Text style={ss.listItemLabel}>{h.day}, {h.hour}</Text>
+                      <Text style={ss.listItemVal}>{h.count} Bkgs</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* 7. BOOKING STATUS */}
+          <View style={ss.section}>
+            <SectionHeader icon="list-status" title="Booking Status" sub="Completed, pending, and cancelled" />
+            <View style={ss.card}>
+              {bookingStatus.map((s, i) => (
+                <View key={i} style={{ marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={ss.statusLabel}>{s.status.replace('_', ' ').toUpperCase()}</Text>
+                    <Text style={ss.statusVal}>{s.count} ({s.pct}%)</Text>
+                  </View>
+                  <ProgressBar60FPS pct={s.pct} color={s.status.includes('cancel') ? Colors.error : (s.status.includes('complete') ? Colors.success : Colors.warning)} height={6} />
+                </View>
+              ))}
+              <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12 }}>
+                <Text style={ss.cancellationTxt}>Overall Cancellation Rate: <Text style={{ color: Colors.error }}>{analytics?.cancellationRate || 0}%</Text></Text>
+              </View>
+            </View>
+          </View>
+
+          {/* 8. PAYMENT BREAKDOWN */}
+          <View style={ss.section}>
+            <SectionHeader icon="wallet-outline" title="Payment Breakdown" sub="Revenue by payment method" />
+            <View style={ss.card}>
+              {paymentBreakdown.map((p, i) => (
+                <View key={i} style={ss.listItemRow}>
+                  <Text style={[ss.listItemLabel, { textTransform: 'capitalize', color: Colors.textSecondary }]}>{p.method}</Text>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={ss.listItemVal}>{fmtK(p.revenue)}</Text>
+                    {/* <Text style={ss.listItemSub}>{p.count} {p.count === 1 ? 'txn' : 'txns'} ({p.pct}%)</Text> */}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* 9. CUSTOMER ANALYTICS */}
+          <View style={ss.section}>
+            <SectionHeader icon="account-group" title="Customer Analytics" sub="New vs Returning" />
+            <View style={[ss.card, { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }]}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={ss.custVal}>{customerAnalytics.total || 0}</Text>
+                <Text style={ss.custLabel}>Total</Text>
+              </View>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={[ss.custVal, { color: Colors.primary }]}>{customerAnalytics.new || 0}</Text>
+                <Text style={ss.custLabel}>New</Text>
+              </View>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={[ss.custVal, { color: Colors.success }]}>{customerAnalytics.returning || 0}</Text>
+                <Text style={ss.custLabel}>Returning</Text>
+              </View>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={ss.custVal}>{customerAnalytics.repeatRate || 0}%</Text>
+                <Text style={ss.custLabel}>Repeat %</Text>
+              </View>
+            </View>
+            {customerAnalytics.topCustomers && customerAnalytics.topCustomers.length > 0 && (
+              <View style={ss.card}>
+                <Text style={ss.listHeader}>Top Customers</Text>
+                {customerAnalytics.topCustomers.map((c, i) => (
+                  <View key={i} style={ss.listItemRow}>
+                    <Text style={ss.listItemLabel}>{c.name}</Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={ss.listItemVal}>{fmtK(c.spent)}</Text>
+                      <Text style={ss.listItemSub}>{c.bookings} bookings</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* 10. UTILIZATION */}
+          <View style={ss.section}>
+            <SectionHeader icon="chart-donut" title="Utilization" sub="Available vs Booked Hours" />
+            <View style={ss.card}>
+              <View style={ss.sourceRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={ss.sourceLabel}>Booked Hours</Text>
+                  <Text style={ss.sourceVal}>{utilization.bookedHours || 0}h</Text>
+                  <Text style={[ss.sourcePct, { color: Colors.primary }]}>{utilization.occupancyRate || 0}%</Text>
+                </View>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <Text style={ss.sourceLabel}>Unused Hours</Text>
+                  <Text style={ss.sourceVal}>{utilization.unusedHours || 0}h</Text>
+                  <Text style={[ss.sourcePct, { color: Colors.textTertiary }]}>{100 - (utilization.occupancyRate || 0)}%</Text>
+                </View>
+              </View>
+              <View style={ss.sourceBarWrap}>
+                <View style={[ss.sourceBar, { backgroundColor: Colors.primary, flex: utilization.occupancyRate || 0 }]} />
+                <View style={[ss.sourceBar, { backgroundColor: Colors.backgroundElevated, flex: 100 - (utilization.occupancyRate || 0) }]} />
+              </View>
+            </View>
+          </View>
+
+          {/* 11. BUSINESS INSIGHTS */}
+          {insights.length > 0 && (
+            <View style={ss.section}>
+              <SectionHeader icon="lightbulb-on" title="Business Insights" sub="AI Generated summaries" />
+              <View style={ss.card}>
+                {insights.map((insight, i) => (
+                  <View key={i} style={{ flexDirection: 'row', marginBottom: 12, gap: 10 }}>
+                    <Icon name="check-circle" size={16} color={Colors.primary} style={{ marginTop: 2 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={ss.insightTxt}>{insight.text || insight}</Text>
+                      {insight.action && (
+                        <Text style={[ss.insightTxt, { color: Colors.textSecondary, marginTop: 4, fontSize: 13 }]}>
+                          <Text style={{ color: Colors.info, fontWeight: 'bold' }}>How to improve: </Text>
+                          {insight.action}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+            </>
+          )}
+
+        </ScrollView>
+      )}
+
+      {showPicker && (
+        <DateTimePicker
+          value={showPicker === 'start' ? customStart : customEnd}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            const currentShowPicker = showPicker;
+            setShowPicker(Platform.OS === 'ios' ? currentShowPicker : null);
+            if (selectedDate) {
+              if (currentShowPicker === 'start') setCustomStart(selectedDate);
+              else setCustomEnd(selectedDate);
+            }
+          }}
+        />
+      )}
+
+      {/* Turf Modal */}
+      <Modal visible={turfModalVisible} transparent animationType="slide">
         <View style={ss.modalOverlay}>
-          <SimpleDatePicker
-            value={pickingDate === 'start' ? customStart : customEnd}
-            onConfirm={(iso) => {
-              if (pickingDate === 'start') setCustomStart(iso);
-              else setCustomEnd(iso);
-              setPickingDate(null);
-            }}
-            onCancel={() => setPickingDate(null)}
-          />
+          <TouchableOpacity style={ss.modalBgClose} onPress={() => setTurfModalVisible(false)} />
+          <View style={[ss.bottomSheet, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}>
+            <View style={ss.sheetHandle} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={[ss.sheetTitle, { marginBottom: 0 }]}>Select Turf</Text>
+              <TouchableOpacity onPress={() => setTurfModalVisible(false)} style={{ padding: 4 }}>
+                <Icon name="close" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              <TouchableOpacity style={ss.sheetItem} onPress={() => handleTurfSelect('all')}>
+                <Text style={[ss.sheetItemTxt, selectedTurfId === 'all' && ss.sheetItemTxtActive]}>All Turfs</Text>
+                {selectedTurfId === 'all' && <Icon name="check-circle" size={20} color={Colors.primary} />}
+              </TouchableOpacity>
+              {(turfs || []).map(t => (
+                <TouchableOpacity key={t._id} style={ss.sheetItem} onPress={() => handleTurfSelect(t._id)}>
+                  <Text style={[ss.sheetItemTxt, selectedTurfId === t._id && ss.sheetItemTxtActive]}>{t.name}</Text>
+                  {selectedTurfId === t._id && <Icon name="check-circle" size={20} color={Colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
-      {/* ── Scroll Content ────────────────────────────────────────────────── */}
-      <ScrollView contentContainerStyle={ss.scroll} showsVerticalScrollIndicator={false}>
-        {!hasData ? (
-          <View style={ss.emptyState}>
-            <View style={ss.emptyIconBg}>
-              <Icon name="chart-bell-curve-cumulative" size={48} color={Colors.primary} />
-            </View>
-            <Text style={ss.emptyTitle}>No Insights Available</Text>
-            <Text style={ss.emptySub}>We couldn't find any transaction history for the selected date range. Try selecting another filter or checking back later.</Text>
-          </View>
-        ) : (
-          <>
-            {/* ── Business Overview KPIs ────────────────────────────────────── */}
-            <View style={ss.kpiStrip}>
-              <KPICard label="Total Revenue" value={fmtK(totalRev)} trend="+18.4%" trendUp={true} icon="cash-multiple" accent={Colors.primary} />
-              <KPICard label="Average Booking Value" value={fmtK(avgBookingValue)} trend="+2.1%" trendUp={true} icon="calculator" accent="#2196F3" />
-              <KPICard label="Total Bookings Made" value={String(totalBks)} trend="-4.5%" trendUp={false} icon="ticket-confirmation" accent="#A78BFA" />
-            </View>
-
-
-
-            {/* ── Revenue Performance & Forecast ────────────────────────────── */}
-            <View style={ss.section}>
-              <SectionHeader icon="trending-up" title="Revenue & Forecast" sub="Revenue and 30-day growth projection" />
-              <View style={ss.card}>
-                {/* Revenue breakdown summary */}
-                <View style={ss.revBreakdown}>
-                  <View style={ss.revCol}>
-                    <Text style={ss.revVal}>{fmtK(totalRev)}</Text>
-                    <Text style={ss.revLbl}>Total Revenue</Text>
-                  </View>
-                  <View style={ss.divider} />
-                  <View style={ss.revCol}>
-                    <Text style={[ss.revVal, { color: '#2196F3' }]}>{fmtK(Math.round(totalRev * 1.15))}</Text>
-                    <Text style={ss.revLbl}>Forecast (30 Days)</Text>
-                  </View>
-                </View>
-
-                {/* Graph Visualization */}
-                <View style={ss.chartContainer}>
-                  <View style={ss.chartBars}>
-                    {labels.map((_, i) => {
-                      const total = onlineRev[i] + offlineRev[i];
-                      const maxVal = Math.max(...perDay, 1);
-                      const barH = Math.max(4, (total / maxVal) * 90);
-                      const isTop = i === topIdx;
-                      return (
-                        <View key={i} style={ss.barCol}>
-                          <View style={[ss.barFilled, { height: barH, backgroundColor: isTop ? Colors.primary : Colors.primary + '55' }]} />
-                        </View>
-                      );
-                    })}
-                  </View>
-                  <View style={ss.xAxis}>
-                    {labels.map((lbl, i) => {
-                      const show = labels.length <= 7 || i === 0 || i === Math.floor(labels.length / 2) || i === labels.length - 1;
-                      return <Text key={i} style={[ss.axisText, { opacity: show ? 0.7 : 0 }]}>{show ? lbl : ''}</Text>;
-                    })}
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* ── Occupancy & Peak Slot Analysis ───────────────────────────── */}
-            <View style={ss.section}>
-              <SectionHeader icon="clock-outline" title="Occupancy & Slot Utilisation" sub="Busiest hours and weekday vs weekend metrics" />
-              <View style={ss.card}>
-                <View style={ss.occupancyRow}>
-                  <DonutProgress pct={overallOccupancy} color={Colors.primary} label="Occupancy" />
-                  <View style={{ flex: 1, gap: 10 }}>
-                    <View style={ss.slotDetail}>
-                      <Text style={ss.slotText}>Weekday Occupancy</Text>
-                      <Text style={ss.slotVal}>{weekdayOccupancy}%</Text>
-                    </View>
-                    <ProgressBar pct={weekdayOccupancy} color={Colors.primary} />
-
-                    <View style={ss.slotDetail}>
-                      <Text style={ss.slotText}>Weekend Occupancy</Text>
-                      <Text style={ss.slotVal}>{weekendOccupancy}%</Text>
-                    </View>
-                    <ProgressBar pct={weekendOccupancy} color={Colors.success} />
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* ── Sport & Court-wise Split ──────────────────────────────────── */}
-            <View style={ss.section}>
-              <SectionHeader icon="shape" title="Product Performance" sub="Court bookings and revenue split" />
-              <View style={ss.card}>
-                <View style={{ gap: 12 }}>
-                  {turfPerformance.map((tp, idx) => {
-                    const sharePct = totalRev > 0 ? Math.round((tp.revenue / totalRev) * 100) : 0;
-                    const colors = [Colors.primary, '#2196F3', '#A78BFA', Colors.success, Colors.warning];
-                    const color = colors[idx % colors.length];
-                    return (
-                      <View key={idx} style={ss.progressItem}>
-                        <View style={ss.progressInfo}>
-                          <Text style={ss.progressLabel}>{tp.name} ({tp.bookings} bkgs)</Text>
-                          <Text style={ss.progressVal}>{fmtK(tp.revenue)} ({sharePct}%)</Text>
-                        </View>
-                        <ProgressBar pct={sharePct} color={color} />
-                      </View>
-                    );
-                  })}
-                  {turfPerformance.length === 0 && (
-                    <Text style={{ color: Colors.textTertiary, fontSize: 12, textAlign: 'center' }}>No court performance logs available.</Text>
-                  )}
-                </View>
-              </View>
-            </View>
-
-            {/* ── Customer Retention & Growth ───────────────────────────────── */}
-            <View style={ss.section}>
-              <SectionHeader icon="account-group" title="Customer Loyalty" sub="Retention rate, new acquisitions and average spends" />
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <View style={[ss.card, { flex: 1, alignItems: 'center', padding: 16 }]}>
-                  <View style={[ss.roundIcon, { backgroundColor: Colors.primaryAlpha10 }]}><Icon name="account-multiple-plus" size={20} color={Colors.primary} /></View>
-                  <Text style={ss.cardHeading}>{loyalty.newCount}</Text>
-                  <Text style={ss.cardSubHeading}>New customer bookings</Text>
-                </View>
-
-                <View style={[ss.card, { flex: 1, alignItems: 'center', padding: 16 }]}>
-                  <View style={[ss.roundIcon, { backgroundColor: 'rgba(76,175,80,0.1)' }]}><Icon name="account-convert" size={20} color={Colors.success} /></View>
-                  <Text style={[ss.cardHeading, { color: Colors.success }]}>{loyalty.returningCount}</Text>
-                  <Text style={ss.cardSubHeading}>Returning customer bookings</Text>
-                </View>
-              </View>
-              <View style={[ss.card, { marginTop: 12 }]}>
-                <View style={ss.slotDetail}>
-                  <Text style={ss.slotText}>Repeat Customer Share</Text>
-                  <Text style={ss.slotVal}>{loyalty.repeatRate}%</Text>
-                </View>
-                <ProgressBar pct={loyalty.repeatRate} color={Colors.primary} height={8} />
-                <Text style={[ss.slotText, { marginTop: 8, color: Colors.textTertiary, fontSize: 10 }]}>Average Spend per Booking: {fmtK(avgBookingValue)}</Text>
-              </View>
-            </View>
-
-            {/* ── Payments & Cancellation Risk ─────────────────────────────── */}
-            <View style={ss.section}>
-              <SectionHeader icon="shield-alert" title="Payment Risks & Cancellations" sub="Cancellations and average slot booking lead times" />
-              <View style={ss.card}>
-                <View style={ss.riskRow}>
-                  <View style={ss.riskItem}>
-                    <Text style={ss.riskLabel}>Cancellation Rate</Text>
-                    <Text style={[ss.riskVal, { color: Colors.error }]}>{risk.cancellationRate}%</Text>
-                  </View>
-                  <View style={ss.divider} />
-                  <View style={ss.riskItem}>
-                    <Text style={ss.riskLabel}>Average Lead Time</Text>
-                    <Text style={ss.riskVal}>{risk.avgLeadTimeHours} Hrs</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* ── Daily Breakdown Table ─────────────────────────────────────── */}
-            <View style={ss.section}>
-              <SectionHeader icon="file-table" title="Day-by-Day Breakdown" sub="Daily performance audit logs" />
-              <View style={ss.table}>
-                <View style={ss.tableHeader}>
-                  <Text style={[ss.tableHdrText, { flex: 1.2 }]}>Date</Text>
-                  <Text style={[ss.tableHdrText, { flex: 2, textAlign: 'center' }]}>Revenue</Text>
-                  <Text style={[ss.tableHdrText, { flex: 1, textAlign: 'right' }]}>Bookings</Text>
-                </View>
-                {dailyLogs.length === 0 && <Text style={{ padding: 16, textAlign: 'center', color: Colors.textTertiary }}>No recent activity.</Text>}
-                {dailyLogs.map((log, i) => {
-                  const total = log.onlineRev + log.offlineRev;
-                  const bookingsCount = log.onlineBkgs + log.offlineBkgs;
-                  const isTop = i === topLogIdx && total > 0;
-                  return (
-                    <View key={i} style={[ss.tableRow, isTop && ss.tableRowActive, i === dailyLogs.length - 1 && { borderBottomWidth: 0 }]}>
-                      <View style={{ flex: 1.2, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        {isTop && <Icon name="crown" size={10} color={Colors.primary} />}
-                        <Text style={[ss.tableRowLabel, isTop && { color: Colors.primary }]} numberOfLines={1}>{log.label}</Text>
-                      </View>
-                      <View style={{ flex: 2, alignItems: 'center' }}>
-                        <Text style={ss.tableRowVal}>{fmtK(total)}</Text>
-                        {total > 0 && (
-                          <Text style={ss.tableRowSubVal}>
-                            <Text style={{ color: Colors.primary }}>{fmtK(log.onlineRev)}</Text>
-                            {'  |  '}
-                            <Text style={{ color: Colors.warning }}>{fmtK(log.offlineRev)}</Text>
-                          </Text>
-                        )}
-                      </View>
-                      <Text style={[ss.tableRowBookings, { flex: 1 }]}>{bookingsCount || '—'}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          </>
-        )}
-      </ScrollView>
     </View>
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 const ss = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
 
-  // Sticky Filter Bar
-  header: {
-    backgroundColor: Colors.backgroundCard,
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    zIndex: 10,
-  },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  // Header
+  header: { backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border, zIndex: 10 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: Spacing.xl },
   headerTitle: { fontSize: Typography.fontSize.xl, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
-  loadingIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
-  tabContainer: {
-    flexDirection: 'row',
-    marginTop: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabButtonActive: {
-    borderBottomColor: Colors.primary,
-  },
-  tabText: {
-    fontSize: 13,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textTertiary,
-  },
-  tabTextActive: {
-    color: Colors.primary,
-    fontFamily: Typography.fontFamily.bold,
-  },
+  turfSelectorBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, paddingHorizontal: 12, paddingVertical: 6, borderRadius: BorderRadius.full, gap: 4, borderWidth: 1, borderColor: Colors.borderLight },
+  turfSelectorTxt: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.primary, maxWidth: 120 },
 
-  customRangeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
-  datePill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.backgroundElevated,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  datePillTxt: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary },
-  applyBtn: { backgroundColor: Colors.primary, borderRadius: BorderRadius.md, paddingHorizontal: 16, paddingVertical: 8 },
-  applyTxt: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  // Date Filter
+  dateFilterScroll: { paddingHorizontal: Spacing.xl, paddingBottom: 16, gap: 8 },
+  dateFilterBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: BorderRadius.full, backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border },
+  dateFilterBtnActive: { backgroundColor: Colors.primaryAlpha10, borderColor: Colors.primary },
+  dateFilterTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  dateFilterTxtActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
 
-  // Scroll Container
-  scroll: { paddingTop: Spacing.xl, paddingBottom: 60 },
+  // Common Sections
+  section: { marginBottom: 32 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  sectionIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primaryAlpha10, justifyContent: 'center', alignItems: 'center' },
+  sectionTitle: { fontSize: Typography.fontSize.lg, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  sectionSub: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 2 },
+  card: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, padding: Spacing.xl, borderWidth: 1, borderColor: Colors.border },
 
-  // KPI Cards horizontal strip
-  kpiStrip: { flexDirection: 'row', gap: 12, paddingHorizontal: Spacing.xl, marginBottom: Spacing.xl },
-  kpiCard: {
-    flex: 1,
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    minHeight: 110,
-    justifyContent: 'center',
-  },
-  kpiHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  kpiIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  kpiValue: { fontSize: Typography.fontSize.lg, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
-  kpiLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 2 },
-  kpiSub: { fontSize: 9, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 2 },
-  kpiTrend: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: BorderRadius.sm },
-  kpiTrendTxt: { fontSize: 8, fontFamily: Typography.fontFamily.bold },
+  // KPI Grid
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
+  kpiCard: { width: (W - Spacing.xl * 2 - 12) / 2, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.lg, padding: 16, borderWidth: 1, borderColor: Colors.border },
+  kpiIcon: { marginBottom: 8 },
+  kpiVal: { fontSize: Typography.fontSize.xl, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary, marginBottom: 4 },
+  kpiLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
 
-  // Section Headers
-  section: { paddingHorizontal: Spacing.xl, marginBottom: Spacing.xl },
-  sectionHdr: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: Spacing.md },
-  sectionIconBg: { width: 28, height: 28, borderRadius: 8, backgroundColor: Colors.primaryAlpha10, justifyContent: 'center', alignItems: 'center' },
-  sectionTitle: { fontSize: Typography.fontSize.md, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  sectionSub: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
-
-  // Common Card Wrapper
-  card: {
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-
-  // AI Insights
-  insightRow: { flexDirection: 'row', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  insightBullet: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
-  insightText: { flex: 1, fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, lineHeight: 18 },
-
-  // Revenue Details
-  revBreakdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  revCol: { flex: 1, alignItems: 'center' },
-  revVal: { fontSize: Typography.fontSize.md, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
-  revLbl: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 2 },
-  divider: { width: 1, height: 32, backgroundColor: Colors.border },
-
-  // Charts
-  chartContainer: { marginTop: 12 },
-  chartBars: { flexDirection: 'row', alignItems: 'flex-end', height: 90, gap: 5 },
-  barCol: { flex: 1, alignItems: 'center' },
-  barFilled: { width: '80%', borderTopLeftRadius: 3, borderTopRightRadius: 3 },
-  xAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  axisText: { fontSize: 9, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
-
-  // Occupancy details
-  occupancyRow: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  donutVal: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
-  donutLbl: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
-  slotDetail: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  slotText: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
-  slotVal: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-
-  // Retentions
-  roundIcon: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  cardHeading: { fontSize: Typography.fontSize.lg, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
-  cardSubHeading: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 2, textAlign: 'center' },
-
-  // Product Split
-  progressItem: { marginBottom: 12 },
-  progressInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  progressLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
-  progressVal: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  // Progress
   progressTrack: { backgroundColor: Colors.backgroundElevated, borderRadius: 6, overflow: 'hidden' },
-  progressFill: { height: '100%' },
 
-  // Risks
-  riskRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  riskItem: { flex: 1, alignItems: 'center' },
-  riskLabel: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
-  riskVal: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: 4 },
+  // Chart
+  chartRow: { flexDirection: 'row', alignItems: 'flex-end', height: 150, gap: 16, marginTop: 10 },
+  chartCol: { alignItems: 'center', width: 40 },
+  chartBars: { flex: 1, justifyContent: 'flex-end', width: 12 },
+  chartBar: { width: 12, borderRadius: 4 },
+  chartLabel: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 8 },
+  legend: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendTxt: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
 
-  // Table
-  table: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
-  tableHeader: { flexDirection: 'row', paddingHorizontal: Spacing.md, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.backgroundElevated },
-  tableHdrText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, textTransform: 'uppercase' },
-  tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  tableRowActive: { backgroundColor: Colors.primaryAlpha10 },
-  tableRowLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
-  tableRowVal: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  tableRowSubVal: { fontSize: 8, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 1 },
-  tableRowBookings: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, textAlign: 'right' },
+  // Booking Source
+  sourceRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  sourceLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginBottom: 4 },
+  sourceVal: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 4 },
+  sourcePct: { fontSize: Typography.fontSize.xl, fontFamily: Typography.fontFamily.extraBold },
+  sourceBarWrap: { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', gap: 2 },
+  sourceBar: { height: '100%' },
 
-  // Empty State
-  emptyState: { paddingHorizontal: Spacing.xl, alignItems: 'center', marginTop: 80 },
-  emptyIconBg: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.primaryAlpha10, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  emptyTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 8 },
-  emptySub: { fontSize: 13, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, textAlign: 'center', lineHeight: 18 },
+  // Turf Performance
+  turfName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  turfRev: { fontSize: 15, fontFamily: Typography.fontFamily.extraBold, color: Colors.primary },
+  turfStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  turfStatTxt: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
 
-  // Modals / Datepickers
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
-  datePicker: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, padding: Spacing.xl, width: '100%', borderWidth: 1, borderColor: Colors.border },
-  datePickerTitle: { fontSize: Typography.fontSize.md, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, textAlign: 'center', marginBottom: 12 },
-  spinnerRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  spinnerCol: { alignItems: 'center' },
-  spinnerVal: { fontSize: 22, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary, minWidth: 50, textAlign: 'center' },
-  spinnerLbl: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 4 },
-  arrow: { padding: 4 },
-  datePickerPreview: { textAlign: 'center', color: Colors.primary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginVertical: 12 },
-  datePickerBtnRow: { flexDirection: 'row', gap: 10 },
-  datePickerCancel: { flex: 1, paddingVertical: 12, borderRadius: BorderRadius.md, backgroundColor: Colors.backgroundElevated, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  datePickerCancelTxt: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
-  datePickerConfirm: { flex: 1, paddingVertical: 12, borderRadius: BorderRadius.md, backgroundColor: Colors.primary, alignItems: 'center' },
-  datePickerConfirmTxt: { color: '#000', fontFamily: Typography.fontFamily.bold },
+  // Peak Hours
+  peakMainTxt: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 6 },
+  listHeader: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, textTransform: 'uppercase', marginBottom: 12, letterSpacing: 0.5 },
+  listItemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  listItemLabel: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary },
+  listItemVal: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  listItemSub: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 2 },
+
+  // Status
+  statusLabel: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary },
+  statusVal: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  cancellationTxt: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary },
+
+  // Customers
+  custVal: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary, marginBottom: 4 },
+  custLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+
+  // Insights
+  insightTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, flex: 1, lineHeight: 20 },
+
+  // Modals
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalBgClose: { ...StyleSheet.absoluteFillObject },
+  bottomSheet: { backgroundColor: Colors.backgroundCard, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, padding: Spacing.xl },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 16 },
+  sheetTitle: { fontSize: Typography.fontSize.lg, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 16 },
+  sheetItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  sheetItemTxt: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  sheetItemTxtActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
 });
 
 export default OwnerAnalyticsScreen;

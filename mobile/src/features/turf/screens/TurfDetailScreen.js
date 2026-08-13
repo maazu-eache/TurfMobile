@@ -24,6 +24,8 @@ import { toggleUserFavourite, setUserFavouriteStatus } from '../../auth/authSlic
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
+import SharePreviewModal from '../../tournament/components/SharePreviewModal';
+import { TurfPoster } from '../../tournament/components/PosterTemplates';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -103,6 +105,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
   const [errorMsg, setErrorMsg] = useState('');
   const [cardLayouts, setCardLayouts] = useState({});
   const [selectedImageIndex, setSelectedImageIndex] = useState(null);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -675,15 +678,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
           
           <View style={styles.topBarRight}>
             <TouchableOpacity 
-              onPress={async () => {
-                try {
-                  await Share.share({
-                    message: `Check out ${selectedTurf?.name} on Scoreverse! \n\nhttps://scoreverse.in/turf/${selectedTurf?._id}`,
-                  });
-                } catch (error) {
-                  console.error(error.message);
-                }
-              }}
+              onPress={() => setShareModalVisible(true)}
               style={styles.floatingIconBtn}
             >
               <Icon name="share-variant" size={20} color="#FFF" />
@@ -713,6 +708,15 @@ const TurfDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
       </SafeAreaView>
+      
+      <SharePreviewModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        title={selectedTurf?.name}
+        shareUrl={`https://scoreverse.in/turf/${selectedTurf?._id}`}
+      >
+        <TurfPoster turf={selectedTurf} />
+      </SharePreviewModal>
 
       {/* ── Floating Sticky Bottom Booking Card ── */}
       <View style={styles.bottomStickyBar}>

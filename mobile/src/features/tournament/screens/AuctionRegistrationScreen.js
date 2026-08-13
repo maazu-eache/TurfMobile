@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import moment from 'moment';
 import { Colors, Spacing, Typography } from '../../../theme/theme';
 import auctionService from '../../../services/auctionService';
 import { useSelector } from 'react-redux';
@@ -69,16 +70,12 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
   const [tempImageUri, setTempImageUri] = useState('');
 
   const isRegistrationClosed = auction?.registrationEndDate
-    ? new Date() > new Date(auction.registrationEndDate)
+    ? moment().isAfter(moment.utc(auction.registrationEndDate).endOf('day'))
     : false;
 
   const formatEndDate = (dateStr) => {
     if (!dateStr) return 'No deadline';
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    return moment.utc(dateStr).format('D MMM YYYY');
   };
 
   useEffect(() => {

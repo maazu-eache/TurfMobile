@@ -15,6 +15,7 @@ import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import api, { getImageUrl } from '../../../api/axios';
 import NotificationBell from '../../../components/NotificationBell';
 import PlayerProfileCard from '../../../components/PlayerProfileCard';
+import AppUpdateBanner from '../../../components/common/AppUpdateBanner';
 import { toggleUserFavourite, setUserFavouriteStatus } from '../../auth/authSlice';
 import { PremiumTurfCarousel } from '../components/PremiumTurfCarousel';
 
@@ -416,6 +417,8 @@ const HomeScreen = ({ navigation }) => {
           </LinearGradient>
         </Animated.View>
 
+        <AppUpdateBanner />
+
         {/* ── STATS (authenticated) ── */}
         {/* {isAuthenticated && (
           <View style={styles.statsRow}>
@@ -434,6 +437,49 @@ const HomeScreen = ({ navigation }) => {
             ))}
           </View>
         )} */}
+
+        {/* ── TOP RATED TURFS ── */}
+        <View style={{ marginBottom: Spacing['2xl'] }}>
+          <View style={styles.sectionHead}>
+            <View>
+              <Text style={styles.sectionTitle}>Top Rated Grounds</Text>
+              <Text style={styles.sectionSub}>
+                {displayCity ? `Highest rated turfs in ${displayCity.trim()}` : 'Highest rated near you'}
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.seeAll} onPress={() => navigation.navigate('Search')}>
+              <Text style={styles.seeAllTxt}>See All</Text>
+              <Icon name="chevron-right" size={14} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {isLoading ? (
+            <SkeletonPlaceholder backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
+              <View style={{ flexDirection: 'row', gap: 14, paddingHorizontal: (SW - PREMIUM_CARD_W) / 2 }}>
+                {[1, 2].map(k => <View key={k} style={{ width: PREMIUM_CARD_W, height: PREMIUM_CARD_H, borderRadius: 24 }} />)}
+              </View>
+            </SkeletonPlaceholder>
+          ) : !turfs || turfs.length === 0 ? (
+            <View style={{ marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.05)' }}>
+              <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: 'rgba(255, 215, 0, 0.1)', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                <Icon name="map-marker-off-outline" size={24} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontFamily: 'Outfit-SemiBold', color: '#FFF', marginBottom: 4 }}>No Turfs Found</Text>
+                <Text style={{ fontSize: 13, fontFamily: 'Inter-Regular', color: Colors.textTertiary, lineHeight: 18 }}>
+                  No turfs registered in {displayCity ? displayCity.trim() : 'your location'} yet.
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <PremiumTurfCarousel 
+              data={turfs} 
+              onTurfPress={(id) => navigation.navigate('TurfDetail', { id })} 
+              onFavoriteToggle={handleToggleFavorite} 
+              favourites={favourites} 
+            />
+          )}
+        </View>
 
         {/* ── BOOK A TURF ── */}
         <View style={styles.section}>
@@ -458,7 +504,7 @@ const HomeScreen = ({ navigation }) => {
                   <Text style={styles.instantTxt}>INSTANT BOOKING</Text>
                 </View> */}
                 <Text style={styles.bookHeroTitle}>Find & Reserve{'\n'}Your Turf Now</Text>
-                <Text style={styles.bookHeroSub}>Browse 50+ turfs · Filter by time & sport</Text>
+                {/* <Text style={styles.bookHeroSub}>Browse 50+ turfs · Filter by time & sport</Text> */}
                 <View style={styles.bookHeroCTA}>
                   <Text style={styles.bookHeroCTATxt}>Browse Turfs</Text>
                   <Icon name="arrow-right" size={13} color={Colors.primary} />
@@ -520,6 +566,52 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {/* ── PLAYERS NEAR YOU ── */}
+        {isAuthenticated && (
+          <View style={{ marginBottom: Spacing['2xl'] }}>
+            <View style={styles.sectionHead}>
+              <View>
+                <Text style={styles.sectionTitle}>Players Near You</Text>
+                <Text style={styles.sectionSub}>{displayCity ? `Cricketers in ${displayCity.trim()}` : 'Based on your location'}</Text>
+              </View>
+              <TouchableOpacity style={styles.seeAll} onPress={() => navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'players' } })}>
+                <Text style={styles.seeAllTxt}>See All</Text>
+                <Icon name="chevron-right" size={14} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+            {(!nearPlayers || nearPlayers.length === 0) ? (
+              <View style={{ marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.05)' }}>
+                <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: 'rgba(255, 215, 0, 0.1)', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                  <Icon name="account-search-outline" size={24} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontFamily: 'Outfit-SemiBold', color: '#FFF', marginBottom: 4 }}>No Players Found</Text>
+                  <Text style={{ fontSize: 13, fontFamily: 'Inter-Regular', color: Colors.textTertiary, lineHeight: 18 }}>
+                    No players registered in {displayCity ? displayCity.trim() : 'your location'} yet.
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <FlatList
+                data={nearPlayers}
+                keyExtractor={it => it._id || it.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: Spacing.xl, gap: 16 }}
+                snapToInterval={260 + 16}
+                snapToAlignment="start"
+                decelerationRate="fast"
+                pagingEnabled={false}
+                initialNumToRender={4}
+                maxToRenderPerBatch={4}
+                windowSize={5}
+                removeClippedSubviews={false}
+                renderItem={renderPlayerCard}
+              />
+            )}
+          </View>
+        )}
+
         {/* ── LIVE MATCHES BANNER ── */}
         <View style={styles.section}>
           <TouchableOpacity onPress={() => navigation.navigate('My Cricket', { screen: 'MyCricketMain' })} activeOpacity={0.88}>
@@ -546,71 +638,8 @@ const HomeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* ── PLAYERS NEAR YOU ── */}
-        {isAuthenticated && (
-          <View style={{ marginBottom: Spacing['2xl'] }}>
-            <View style={styles.sectionHead}>
-              <View>
-                <Text style={styles.sectionTitle}>Players Near You</Text>
-                <Text style={styles.sectionSub}>{displayCity ? `Cricketers in ${displayCity.trim()}` : 'Based on your location'}</Text>
-              </View>
-              <TouchableOpacity style={styles.seeAll} onPress={() => navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'players' } })}>
-                <Text style={styles.seeAllTxt}>See All</Text>
-                <Icon name="chevron-right" size={14} color={Colors.primary} />
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={nearPlayers?.length > 0 ? nearPlayers : MOCK_PLAYERS}
-              keyExtractor={it => it._id || it.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: Spacing.xl, gap: 16 }}
-              snapToInterval={260 + 16}
-              snapToAlignment="start"
-              decelerationRate="fast"
-              pagingEnabled={false}
-              initialNumToRender={4}
-              maxToRenderPerBatch={4}
-              windowSize={5}
-              removeClippedSubviews={false}
-              renderItem={renderPlayerCard}
-            />
-          </View>
-        )}
-
-        {/* ── TOP RATED TURFS ── */}
-        <View style={{ marginBottom: Spacing['2xl'] }}>
-          <View style={styles.sectionHead}>
-            <View>
-              <Text style={styles.sectionTitle}>Top Rated Grounds</Text>
-              <Text style={styles.sectionSub}>
-                {displayCity ? `Highest rated turfs in ${displayCity.trim()}` : 'Highest rated near you'}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.seeAll} onPress={() => navigation.navigate('Search')}>
-              <Text style={styles.seeAllTxt}>See All</Text>
-              <Icon name="chevron-right" size={14} color={Colors.primary} />
-            </TouchableOpacity>
-          </View>
-
-          {isLoading ? (
-            <SkeletonPlaceholder backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
-              <View style={{ flexDirection: 'row', gap: 14, paddingHorizontal: (SW - PREMIUM_CARD_W) / 2 }}>
-                {[1, 2].map(k => <View key={k} style={{ width: PREMIUM_CARD_W, height: PREMIUM_CARD_H, borderRadius: 24 }} />)}
-              </View>
-            </SkeletonPlaceholder>
-          ) : (
-            <PremiumTurfCarousel 
-              data={turfs} 
-              onTurfPress={(id) => navigation.navigate('TurfDetail', { id })} 
-              onFavoriteToggle={handleToggleFavorite} 
-              favourites={favourites} 
-            />
-          )}
-        </View>
-
         {/* ── EXPLORE CTA ── */}
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <TouchableOpacity onPress={() => navigation.navigate('Search')} activeOpacity={0.85}>
             <LinearGradient colors={['rgba(255,204,0,0.08)', 'rgba(255,204,0,0.03)']} style={styles.exploreCTA} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
               <View style={styles.exploreIcon}>
@@ -625,7 +654,7 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </LinearGradient>
           </TouchableOpacity>
-        </View>
+        </View> */}
 
       </Animated.ScrollView>
     </View>
@@ -729,8 +758,8 @@ const styles = StyleSheet.create({
   chipLabel: { fontSize: 10, color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, textAlign: 'center' },
 
   /* Cricket Grid */
-  cricketGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  cricketCard: { width: (SW - Spacing.xl * 2 - 10) / 2, borderRadius: 16, overflow: 'hidden', ...Shadows.sm },
+  cricketGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
+  cricketCard: { width: '48%', borderRadius: 16, overflow: 'hidden', ...Shadows.sm },
   cricketCardInner: { flexDirection: 'row', alignItems: 'center', padding: 12, paddingHorizontal: 14, gap: 10, borderWidth: 1, borderColor: 'rgba(154,188,47,0.1)', borderRadius: 16 },
   cricketIconWrap: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)' },
   cricketCardLabel: { flex: 1, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary },

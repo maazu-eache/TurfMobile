@@ -3,9 +3,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
-  ActivityIndicator, Modal, Platform, SafeAreaView, StatusBar,
+  ActivityIndicator, Modal, Platform, StatusBar,
   FlatList, Image, Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyPlayer, updatePlayerProfile, fetchMatchHistory } from '../playerSlice';
 import { Colors, Typography } from '../../../theme/theme';
@@ -269,24 +270,50 @@ const PlayerProfileScreen = ({ navigation }) => {
     }
   };
 
-  const handleRemoveFollower = async (id) => {
-    try {
-      await api.delete(`/players/${myProfile._id}/followers/${id}`);
-      setSocialList(prev => prev.filter(p => p._id !== id));
-      dispatch(fetchMyPlayer());
-    } catch (err) {
-      showCustomAlert('Error', err.response?.data?.message || 'Failed to remove follower');
-    }
+  const handleRemoveFollower = (followerId, followerName) => {
+    showCustomAlert(
+      'Remove Follower',
+      `Remove ${followerName || 'this player'} from your followers?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/players/${myProfile._id}/followers/${followerId}`);
+              setSocialList(prev => prev.filter(p => p._id !== followerId));
+              dispatch(fetchMyPlayer());
+            } catch (err) {
+              showCustomAlert('Error', err.response?.data?.message || 'Failed to remove follower');
+            }
+          },
+        },
+      ]
+    );
   };
 
-  const handleUnfollowFromList = async (id) => {
-    try {
-      await api.delete(`/players/${myProfile._id}/following/${id}`);
-      setSocialList(prev => prev.filter(p => p._id !== id));
-      dispatch(fetchMyPlayer());
-    } catch (err) {
-      showCustomAlert('Error', err.response?.data?.message || 'Failed to unfollow');
-    }
+  const handleUnfollowFromList = (followingId, followingName) => {
+    showCustomAlert(
+      'Unfollow',
+      `Unfollow ${followingName || 'this player'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unfollow',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/players/${myProfile._id}/following/${followingId}`);
+              setSocialList(prev => prev.filter(p => p._id !== followingId));
+              dispatch(fetchMyPlayer());
+            } catch (err) {
+              showCustomAlert('Error', err.response?.data?.message || 'Failed to unfollow');
+            }
+          },
+        },
+      ]
+    );
   };
 
   useEffect(() => { dispatch(fetchMyPlayer()); }, [dispatch]);
@@ -1046,20 +1073,23 @@ const PlayerProfileScreen = ({ navigation }) => {
                 data={socialList}
                 keyExtractor={item => item._id}
                 renderItem={({ item }) => {
-                  const photo = item.photo || item.userId?.photo;
+                  const photo = item.photo || item.userId?.profilePicture || item.userId?.photo;
                   const hasError = imgErrors[item._id];
+                  const imageUrl = getImageUrl(photo);
                   return (
                     <View style={styles.socialItem}>
                       <TouchableOpacity style={styles.socialItemLeft} onPress={() => { setSocialModalVisible(false); navigation.navigate('PlayerDetail', { id: item._id }); }}>
-                        {photo && !hasError ? (
+                        {imageUrl && !hasError ? (
                           <Image 
-                            source={{ uri: getImageUrl(photo) }} 
+                            source={{ uri: imageUrl }} 
                             style={styles.socialAvatar} 
                             onError={() => setImgErrors(prev => ({ ...prev, [item._id]: true }))} 
                           />
                         ) : (
                           <View style={[styles.socialAvatar, styles.socialAvatarPlaceholder]}>
-                            <Icon name="person" size={18} color={Colors.primary} />
+                            <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.primary }}>
+                              {(item.name || '?').charAt(0).toUpperCase()}
+                            </Text>
                           </View>
                         )}
                         <View style={{ flex: 1 }}>
@@ -1067,15 +1097,23 @@ const PlayerProfileScreen = ({ navigation }) => {
                           <Text style={styles.socialRole}>{item.playingRole || 'Cricket Player'}</Text>
                         </View>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.socialActionBtn} onPress={() => socialType === 'followers' ? handleRemoveFollower(item._id) : handleUnfollowFromList(item._id)}>
+                      <TouchableOpacity
+                        style={styles.socialActionBtn}
+                        onPress={() => socialType === 'followers'
+                          ? handleRemoveFollower(item._id, item.name)
+                          : handleUnfollowFromList(item._id, item.name)
+                        }
+                      >
                         <Text style={styles.socialActionBtnText}>{socialType === 'followers' ? 'Remove' : 'Unfollow'}</Text>
                       </TouchableOpacity>
                     </View>
                   );
                 }}
-                contentContainerStyle={{ paddingBottom: 40 }}
+                contentContainerStyle={{ paddingBottom: 16 }}
               />
             )}
+            {/* SafeAreaView bottom — prevents nav bar from overlapping list */}
+            <SafeAreaView edges={['bottom']} />
           </View>
         </View>
       </Modal>
@@ -1085,7 +1123,7 @@ const PlayerProfileScreen = ({ navigation }) => {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: Colors.border },
   backBtn: { padding: 5, marginLeft: -5 },
   headerTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },

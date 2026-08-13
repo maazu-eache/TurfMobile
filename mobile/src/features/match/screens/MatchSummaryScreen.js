@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl, Share, TextInput, BackHandler, Pressable } from 'react-native';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchLiveState, setLiveState, addMatchScorer } from '../matchSlice';
+import { fetchLiveState, setLiveState, addMatchScorer, updateLiveViewers } from '../matchSlice';
 import api, { BASE_URL, getImageUrl } from '../../../api/axios';
 import socketService from '../../../services/socketService';
 import { Colors, Typography, BorderRadius, Spacing, Shadows } from '../../../theme/theme';
@@ -14,7 +15,7 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import SharePreviewModal from '../../tournament/components/SharePreviewModal';
-import { MatchSummaryPoster } from '../../tournament/components/PosterTemplates';
+import { MatchSummaryPoster, MotmPoster, AiReportPoster } from '../../tournament/components/PosterTemplates';
 import PartnershipsView from '../components/PartnershipsView';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -127,17 +128,85 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const matchId = cleanMatchId;
 
   const dispatch = useDispatch();
+  const currentUser = useSelector((state) => state.auth.user);
+
+  // Register Match View (Deduplicated via Backend)
+  useEffect(() => {
+    let isMounted = true;
+    const registerView = async () => {
+      if (!cleanMatchId) return;
+      try {
+        // Use authenticated user ID if logged in, otherwise use a persistent anonymous ID
+        let viewerId = currentUser?._id;
+        if (!viewerId) {
+          viewerId = await AsyncStorage.getItem('scoreverse_viewer_id');
+          if (!viewerId) {
+            viewerId = 'anon_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+            await AsyncStorage.setItem('scoreverse_viewer_id', viewerId);
+          }
+        }
+        
+        // Only registers a view if it passes backend deduplication
+        await api.post(`/matches/${cleanMatchId}/view`, { viewerId });
+      } catch (err) {
+        console.log('Error registering match view:', err.message);
+      }
+    };
+    registerView();
+    return () => { isMounted = false; };
+  }, [cleanMatchId, currentUser?._id]);
   const insets = useSafeAreaInsets();
   const reduxLiveState = useSelector((state) => state.match.liveState);
   const [matchData, setMatchData] = useState(null);
+  const matchDataRef = useRef(null);
+  const [matchNotFound, setMatchNotFound] = useState(false);
   const liveState = matchData || (reduxLiveState && String(reduxLiveState.match?._id || reduxLiveState.matchId || '').trim() === String(cleanMatchId).trim() ? reduxLiveState : null);
-  const currentUser = useSelector((state) => state.auth.user);
-  const [activeTab, setActiveTab] = useState(route.params?.initialTab || 'Summary');
+  
+  useEffect(() => {
+    matchDataRef.current = matchData;
+  }, [matchData]);
+
+  const [activeTab, setActiveTab] = useState('Summary');
   const [selectedPlayerPreview, setSelectedPlayerPreview] = useState(null);
   const [playerPreviewStats, setPlayerPreviewStats] = useState(null);
   const [playerPreviewLoading, setPlayerPreviewLoading] = useState(false);
   const [selectedTagDefinition, setSelectedTagDefinition] = useState(null);
   const [expandedInnings, setExpandedInnings] = useState({});
+  const flatListRef = useRef(null);
+  const msOverTimelineScrollRef = useRef(null);
+  const headerScrollRef = useRef(null);
+
+  const dynamicTabs = useMemo(() => {
+    const tabs = ['Info', 'Summary'];
+    if (matchData?.status === 'completed' || route.params?.match?.status === 'completed') {
+      if (aiReportLoading && !aiReport) {
+        tabs.push('AI Report (Generating...)');
+      } else {
+        tabs.push('AI Report');
+      }
+    }
+    tabs.push('Scorecard', 'Comms', 'Squads', 'Analysis', 'Partnerships', 'Leaderboard');
+    return tabs;
+  }, [matchData?.status, route.params?.match?.status, aiReportLoading, aiReport]);
+
+  const handleTabPress = (tab) => {
+    setActiveTab(tab);
+    const index = dynamicTabs.indexOf(tab);
+    if (index !== -1 && flatListRef.current) {
+      flatListRef.current.scrollToIndex({ index, animated: true });
+    }
+  };
+
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    if (viewableItems && viewableItems.length > 0) {
+      const newTab = viewableItems[0].item;
+      setActiveTab(newTab);
+      // Optional: scroll the header to keep the active tab visible
+      // Not strictly necessary, but good UX
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
 
   const toggleInnings = (index) => {
     setExpandedInnings(prev => ({ ...prev, [index]: prev[index] === false ? true : false }));
@@ -192,6 +261,52 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const [aiReportError, setAiReportError] = useState(false);
   const [progressMsgIdx, setProgressMsgIdx] = useState(0);
 
+  const [aiReportSubTab, setAiReportSubTab] = useState('individual');
+  const [aiPlayerReport, setAiPlayerReport] = useState(null);
+  const [aiPlayerReportLoading, setAiPlayerReportLoading] = useState(false);
+  const [aiPlayerReportError, setAiPlayerReportError] = useState(false);
+
+  const userPlayed = useMemo(() => {
+    if (!currentUser || !scorecards || scorecards.length === 0) return false;
+    return scorecards.some(sc => {
+      const isBatter = sc.batting?.some(b => {
+        const playerObj = b.player;
+        if (!playerObj) return false;
+        const pUserId = playerObj.userId?._id || playerObj.userId || playerObj._id;
+        return pUserId?.toString() === currentUser._id?.toString();
+      });
+      const isBowler = sc.bowling?.some(b => {
+        const playerObj = b.player;
+        if (!playerObj) return false;
+        const pUserId = playerObj.userId?._id || playerObj.userId || playerObj._id;
+        return pUserId?.toString() === currentUser._id?.toString();
+      });
+      return isBatter || isBowler;
+    });
+  }, [currentUser, scorecards]);
+
+  const resolvedMvp = useMemo(() => {
+    const match = liveState?.match;
+    if (!match || !match.playerOfMatch) return null;
+    
+    if (typeof match.playerOfMatch === 'object' && match.playerOfMatch.name) {
+      return match.playerOfMatch;
+    }
+    
+    const mvpId = String(match.playerOfMatch);
+    const allXI = [...(match.playingXI?.teamA || []), ...(match.playingXI?.teamB || [])];
+    let mvpObj = allXI.find(p => String(p._id || p) === mvpId);
+
+    if (!mvpObj && scorecards?.length > 0) {
+      const scorecardPlayers = scorecards.flatMap(sc => [
+        ...(sc.batting || []).map(b => b.player),
+        ...(sc.bowling || []).map(b => b.player)
+      ]).filter(Boolean);
+      mvpObj = scorecardPlayers.find(p => String(p._id || p) === mvpId);
+    }
+    return mvpObj;
+  }, [liveState?.match, scorecards]);
+
   const progressMessages = [
     "Analyzing batting performances...",
     "Reviewing bowling statistics...",
@@ -240,12 +355,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   };
 
   const [refreshing, setRefreshing] = useState(false);
-  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [activePosterType, setActivePosterType] = useState(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAddScorerModal, setShowAddScorerModal] = useState(false);
   const [showDeclareResultModal, setShowDeclareResultModal] = useState(false);
   const [showAbandonModal, setShowAbandonModal] = useState(false);
   const [newScorerMobile, setNewScorerMobile] = useState('');
+  const [scorerSearchResult, setScorerSearchResult] = useState(null);
+  const [isScorerSearching, setIsScorerSearching] = useState(false);
   const [abandonReason, setAbandonReason] = useState('');
   const [resultType, setResultType] = useState('walkover');
   const [winnerTeamId, setWinnerTeamId] = useState(null);
@@ -255,7 +372,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (!silent) setLoadingScorecards(true);
     try {
       const res = await api.get(`/matches/${cleanMatchId}/scorecard`);
-      setScorecards(res.data?.data || []);
+      setScorecards(Array.isArray(res.data?.data) ? res.data.data : res.data?.data?.scorecards || []);
     } catch (e) {
       console.log('Error fetching scorecards', e);
     } finally {
@@ -292,8 +409,27 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
   }, [cleanMatchId]);
 
+  const fetchAiPlayerReport = useCallback(async () => {
+    if (!cleanMatchId || !currentUser?._id) return;
+    setAiPlayerReportLoading(true);
+    setAiPlayerReportError(false);
+    try {
+      const res = await api.get(`/matches/${cleanMatchId}/ai-report/player/${currentUser._id}`);
+      if (res.data?.data) {
+        setAiPlayerReport(res.data.data);
+      } else {
+        setAiPlayerReport(null);
+      }
+    } catch (e) {
+      console.log('Error fetching AI Player Report', e);
+      setAiPlayerReportError(true);
+    } finally {
+      setAiPlayerReportLoading(false);
+    }
+  }, [cleanMatchId, currentUser?._id]);
+
   const handleShare = () => {
-    setShareModalVisible(true);
+    setActivePosterType('summary');
   };
 
 
@@ -315,11 +451,15 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     try {
       const res = await api.get(`/matches/${cleanMatchId}/live`);
       if (res.data?.data) {
+        setMatchNotFound(false);
         setMatchData(res.data.data);
         dispatch(setLiveState(res.data.data));
       }
     } catch (e) {
       console.log('Error fetching match live state:', e);
+      if (e.response?.status === 404 || e.message?.includes('not found') || e.response?.data?.message?.includes('not found')) {
+        setMatchNotFound(true);
+      }
     }
   }, [cleanMatchId, dispatch]);
 
@@ -327,11 +467,18 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (!cleanMatchId) return;
     setRefreshing(true);
     try {
-      await Promise.all([
+      const promises = [
         fetchLocalLiveState(),
         fetchCommentary(),
         fetchScorecards(),
-      ]);
+      ];
+      if (activeTab.startsWith('AI Report')) {
+        promises.push(fetchAiReport());
+        if (userPlayed) {
+          promises.push(fetchAiPlayerReport());
+        }
+      }
+      await Promise.all(promises);
     } catch (e) {
       console.log('Error refreshing match summary:', e);
     } finally {
@@ -390,6 +537,44 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }, 2800);
   };
 
+  const getOversTotalBalls = (oversStr) => {
+    if (!oversStr) return 0;
+    const parts = String(oversStr).split('.');
+    const overs = parseInt(parts[0], 10) || 0;
+    const balls = parseInt(parts[1], 10) || 0;
+    return (overs * 6) + balls;
+  };
+
+  const isStateNewer = (currentState, newState) => {
+    if (!currentState) return true;
+    if (newState.isUndo) return true;
+    const currentInnings = currentState.inningsNumber || 1;
+    const newInnings = newState.inningsNumber || 1;
+    if (newInnings > currentInnings) return true;
+    if (newInnings < currentInnings) return false;
+
+    const currentOvers = currentState.score?.overs || '0.0';
+    const newOvers = newState.score?.overs || '0.0';
+    
+    const currentBalls = getOversTotalBalls(currentOvers);
+    const newBalls = getOversTotalBalls(newOvers);
+    
+    if (newBalls > currentBalls) return true;
+    if (newBalls < currentBalls) return false;
+
+    const currentRuns = currentState.score?.runs || 0;
+    const newRuns = newState.score?.runs || 0;
+    if (newRuns > currentRuns) return true;
+
+    const currentWickets = currentState.score?.wickets || 0;
+    const newWickets = newState.score?.wickets || 0;
+    if (newWickets > currentWickets) return true;
+
+    if (newState.ballEvent && !currentState.ballEvent) return true;
+
+    return false;
+  };
+
   useEffect(() => {
     if (!cleanMatchId) return;
 
@@ -404,12 +589,58 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         return; // Ignore updates for other matches
       }
 
+      let prev = matchDataRef.current;
+      let isNew = false;
+      
+      if (!prev) {
+        isNew = true;
+      } else if (!isStateNewer(prev, data)) {
+        socketService.remoteLog('MatchSummaryScreen', `Ignored stale update | Current: ${prev.score?.overs} (${prev.score?.runs}/${prev.score?.wickets}), Received: ${data?.score?.overs} (${data?.score?.runs}/${data?.score?.wickets})`);
+        return;
+      } else {
+        isNew = true;
+      }
+
+      if (!isNew) return;
+
+      const mergedData = data?.isDelta && prev ? {
+        ...prev,
+        ...data,
+        match: prev.match ? {
+          ...prev.match,
+          ...(data.match || {}),
+          activeScorerId: data.activeScorerId !== undefined ? data.activeScorerId : prev.match.activeScorerId,
+          scorers: data.scorers !== undefined ? data.scorers : prev.match.scorers,
+          status: data.status !== undefined ? data.status : prev.match.status,
+        } : data.match,
+        score: data.score || prev.score,
+        striker: data.striker !== undefined ? data.striker : prev.striker,
+        strikerStats: data.strikerStats !== undefined ? data.strikerStats : prev.strikerStats,
+        nonStriker: data.nonStriker !== undefined ? data.nonStriker : prev.nonStriker,
+        nonStrikerStats: data.nonStrikerStats !== undefined ? data.nonStrikerStats : prev.nonStrikerStats,
+        bowler: data.bowler !== undefined ? data.bowler : prev.bowler,
+        bowlerStats: data.bowlerStats !== undefined ? data.bowlerStats : prev.bowlerStats,
+        needsBowler: data.needsBowler !== undefined ? data.needsBowler : prev.needsBowler,
+        isWicket: data.isWicket !== undefined ? data.isWicket : prev.isWicket,
+        fallOfWickets: data.fallOfWickets !== undefined ? data.fallOfWickets : prev.fallOfWickets,
+        isInningsComplete: data.isInningsComplete !== undefined ? data.isInningsComplete : prev.isInningsComplete,
+        isMatchComplete: data.isMatchComplete !== undefined ? data.isMatchComplete : prev.isMatchComplete,
+        inningsNumber: data.inningsNumber !== undefined ? data.inningsNumber : prev.inningsNumber,
+        result: data.result !== undefined ? data.result : prev.result,
+        currentOverBalls: data.currentOverBalls || prev.currentOverBalls,
+        recentCommentary: data.recentCommentary && data.recentCommentary.length > 0
+          ? [...data.recentCommentary, ...(prev.recentCommentary || [])].slice(0, 10)
+          : prev.recentCommentary,
+      } : data;
+
+      matchDataRef.current = mergedData;
+      setMatchData(mergedData);
+
       const runs = data?.score?.runs ?? data?.teamAScore?.runs ?? 0;
       const wickets = data?.score?.wickets ?? data?.teamAScore?.wickets ?? 0;
       const overs = data?.score?.overs ?? data?.teamAScore?.overs ?? '0.0';
 
       socketService.remoteLog('MatchSummaryScreen', `Live Update Received | Score: ${runs}/${wickets} (${overs} Ov)`, { matchId: updateMatchId });
-      setMatchData(data);
       dispatch(setLiveState(data));
       socketService.remoteLog('MatchSummaryScreen', 'State & UI Updated via setMatchData');
 
@@ -464,7 +695,39 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       }
     };
 
+    const handleScorerAssigned = (data) => {
+      const updateMatchId = socketService.cleanId(data?.matchId);
+      const activeCleanId = socketService.cleanId(cleanMatchId);
+      if (activeCleanId && updateMatchId && activeCleanId !== updateMatchId) {
+        return;
+      }
+      socketService.remoteLog('MatchSummaryScreen', `Scorer reassignment received. New active scorer: ${data.activeScorerId}`);
+      setMatchData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          match: {
+            ...prev.match,
+            activeScorerId: data.activeScorerId,
+            scorers: data.scorers || prev.match.scorers
+          }
+        };
+      });
+      dispatch(setLiveState({
+        isDelta: true,
+        matchId: cleanMatchId,
+        match: {
+          activeScorerId: data.activeScorerId,
+          scorers: data.scorers
+        }
+      }));
+    };
+
     const unsubscribeScore = socketService.onScoreUpdate(handleScoreUpdate);
+    const unsubscribeScorer = socketService.on('scorer_assigned', handleScorerAssigned);
+    const unsubscribeViewer = socketService.on('viewer_update', (data) => {
+      dispatch(updateLiveViewers(data));
+    });
     fetchLocalLiveState();
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
@@ -478,6 +741,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     return () => {
       unsubscribeFocus();
       unsubscribeScore();
+      unsubscribeScorer();
+      unsubscribeViewer();
       socketService.leaveMatch(cleanMatchId);
     };
   }, [dispatch, cleanMatchId, navigation, fetchCommentary, fetchScorecards, fetchLocalLiveState]);
@@ -490,10 +755,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (activeTab === 'Scorecard' || activeTab === 'Analysis' || activeTab === 'Partnerships') {
       fetchScorecards();
     }
-    if (activeTab === 'AI Report') {
+    if (activeTab.startsWith('AI Report')) {
       fetchAiReport();
+      if (userPlayed) {
+        fetchAiPlayerReport();
+      }
     }
-  }, [activeTab, cleanMatchId, fetchCommentary, fetchScorecards, fetchAiReport]);
+  }, [activeTab, cleanMatchId, fetchCommentary, fetchScorecards, fetchAiReport, userPlayed, fetchAiPlayerReport]);
 
   useEffect(() => {
     let interval;
@@ -523,9 +791,45 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     };
   }, [isAwardCalculationPending, fetchLocalLiveState, fetchScorecards]);
 
+  const handleSearchScorer = async (mob) => {
+    if (!mob || mob.length < 10) {
+      setScorerSearchResult(null);
+      return;
+    }
+    setIsScorerSearching(true);
+    setScorerSearchResult(null);
+    try {
+      const res = await api.get(`/users/lookup/${mob}`);
+      setScorerSearchResult(res.data?.data || null);
+    } catch (e) {
+      setScorerSearchResult({ exists: false });
+    } finally {
+      setIsScorerSearching(false);
+    }
+  };
+
+  useEffect(() => {
+    if (newScorerMobile.length === 10) {
+      handleSearchScorer(newScorerMobile);
+    } else {
+      setScorerSearchResult(null);
+    }
+  }, [newScorerMobile]);
+
   const isCurrentMatchLoaded = liveState && String(liveState.match?._id || liveState.matchId || '').trim() === String(cleanMatchId).trim();
 
-  if (!isCurrentMatchLoaded) {
+  if (matchNotFound) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Match data not found</Text>
+        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('My Cricket', { screen: 'MyCricketMain' })} style={{ marginTop: 20 }}>
+          <Text style={{ color: Colors.primary }}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!isCurrentMatchLoaded || !liveState?.match) {
     socketService.remoteLog('MatchSummaryScreen', `Loading condition met: isCurrentMatchLoaded=${isCurrentMatchLoaded}, cleanMatchId=${cleanMatchId}, liveStateMatchId=${liveState?.match?._id || liveState?.matchId}`);
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }]}>
@@ -536,20 +840,6 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginTop: 8 }}>
           Fetching statistics and details
         </Text>
-      </View>
-    );
-  }
-
-  // Removing isAwardCalculationPending blocker so UI can render the normal match summary
-  // while polling for player of the match.
-
-  if (!liveState || !liveState.match) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Match data not found</Text>
-        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('My Cricket', { screen: 'MyCricketMain' })} style={{ marginTop: 20 }}>
-          <Text style={{ color: Colors.primary }}>Go Back</Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -578,8 +868,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const activeScorerId =
     (typeof match.activeScorerId === 'object' ? match.activeScorerId?._id : match.activeScorerId) ||
-    (typeof match.organizerId === 'object' ? match.organizerId?._id : match.organizerId) ||
-    creatorId;
+    creatorId ||
+    (typeof match.organizerId === 'object' ? match.organizerId?._id : match.organizerId);
   const isActiveScorer = String(activeScorerId) === String(currentUser?._id);
 
   const runs = score?.runs || 0;
@@ -654,7 +944,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       const res = await api.put(`/matches/${matchId}/declare-result`, { resultType, winnerTeamId });
       if (res.data.success) {
         showCustomAlert('Success', 'Match result has been declared.');
-        dispatch(fetchLiveState(matchId));
+        onRefresh();
       }
     } catch (e) {
       console.log('Error declaring result', e);
@@ -662,16 +952,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleShareReport = async () => {
-    if (!aiReport) return;
-    try {
-      await Share.share({
-        message: `${aiReport.headline?.[0] || 'AI Match Report'}\n\n${aiReport.summary}\n\nRead full report on ScoreVerse!`,
-        title: 'AI Match Report'
-      });
-    } catch (e) {
-      console.log('Error sharing report', e);
-    }
+  const handleShareReport = () => {
+    setActivePosterType('aiReport');
   };
 
   const handleCopyReport = async () => {
@@ -689,71 +971,300 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   };
 
   const renderAIReport = () => {
+    const renderSubTabs = () => {
+      if (!userPlayed) return null;
+      return (
+        <View style={{ flexDirection: 'row', width: '100%', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+          <TouchableOpacity
+            onPress={() => setAiReportSubTab('individual')}
+            style={{
+              flex: 1,
+              paddingVertical: 12,
+              alignItems: 'center',
+              borderBottomWidth: 2,
+              borderBottomColor: aiReportSubTab === 'individual' ? Colors.primary : 'transparent'
+            }}
+          >
+            <Text style={{
+              color: aiReportSubTab === 'individual' ? Colors.primary : Colors.textSecondary,
+              fontFamily: Typography.fontFamily.semiBold,
+              fontSize: Typography.fontSize.sm
+            }}>
+              My Report
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setAiReportSubTab('team')}
+            style={{
+              flex: 1,
+              paddingVertical: 12,
+              alignItems: 'center',
+              borderBottomWidth: 2,
+              borderBottomColor: aiReportSubTab === 'team' ? Colors.primary : 'transparent'
+            }}
+          >
+            <Text style={{
+              color: aiReportSubTab === 'team' ? Colors.primary : Colors.textSecondary,
+              fontFamily: Typography.fontFamily.semiBold,
+              fontSize: Typography.fontSize.sm
+            }}>
+              Team Report
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    };
+
+    if (userPlayed && aiReportSubTab === 'individual') {
+      if (aiPlayerReportLoading && !aiPlayerReport) {
+        return (
+          <ScrollView
+            contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
+            style={{ backgroundColor: Colors.background }}
+            refreshControl={getRefreshControl()}
+            showsVerticalScrollIndicator={false}
+          >
+            {renderSubTabs()}
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200, padding: 32 }}>
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginBottom: 12 }} />
+              <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
+                Analyzing your match performance...
+              </Text>
+            </View>
+          </ScrollView>
+        );
+      }
+
+      if (aiPlayerReportError || (!aiPlayerReport && !aiPlayerReportLoading)) {
+        return (
+          <ScrollView
+            contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
+            style={{ backgroundColor: Colors.background }}
+            refreshControl={getRefreshControl()}
+            showsVerticalScrollIndicator={false}
+          >
+            {renderSubTabs()}
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 250, padding: 32 }}>
+              <Icon name="alert-circle-outline" size={32} color={Colors.textSecondary} style={{ marginBottom: 16 }} />
+              <Text style={{ color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginBottom: 8 }}>
+                Individual Report Unavailable
+              </Text>
+              <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.regular, textAlign: 'center', marginBottom: 24 }}>
+                We couldn't generate your coaching analysis at this time.
+              </Text>
+              <TouchableOpacity
+                style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border }}
+                onPress={fetchAiPlayerReport}
+              >
+                <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
+                  Retry
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        );
+      }
+
+      return (
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
+          style={{ backgroundColor: Colors.background }}
+          refreshControl={getRefreshControl()}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderSubTabs()}
+          <View style={{ marginBottom: 24 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+              <Icon name="brain" size={14} color={Colors.textSecondary} />
+              <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase', letterSpacing: 1 }}>
+                My Coaching Analysis
+              </Text>
+            </View>
+            <Text style={{ color: Colors.textPrimary, fontSize: Typography.fontSize['3xl'], fontFamily: Typography.fontFamily.bold, marginBottom: 4 }}>
+              {currentUser.name}
+            </Text>
+          </View>
+
+          <View style={{ padding: 18, backgroundColor: Colors.surface, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border, marginBottom: 24 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <View>
+                <Text style={{ color: Colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  COACH RATING
+                </Text>
+                <Text style={{ color: Colors.primary, fontSize: Typography.fontSize['3xl'], fontFamily: Typography.fontFamily.extraBold }}>
+                  {aiPlayerReport.rating || 'N/A'}
+                </Text>
+              </View>
+              <View style={{ backgroundColor: 'rgba(255,204,0,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
+                <Text style={{ color: Colors.primary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.semiBold }}>
+                  Personal Scorecard
+                </Text>
+              </View>
+            </View>
+
+            <Text style={{ color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.bold, marginBottom: 16, lineHeight: 22, fontStyle: 'italic' }}>
+              "{aiPlayerReport.verdict}"
+            </Text>
+
+            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginVertical: 16 }} />
+
+            {/* Batting Analysis */}
+            {aiPlayerReport.battingAnalysis && aiPlayerReport.battingAnalysis !== 'Did not bat' && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ color: Colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 6 }}>
+                  Batting Performance
+                </Text>
+                <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.regular, lineHeight: 24 }}>
+                  {aiPlayerReport.battingAnalysis}
+                </Text>
+              </View>
+            )}
+
+            {/* Bowling Analysis */}
+            {aiPlayerReport.bowlingAnalysis && aiPlayerReport.bowlingAnalysis !== 'Did not bowl' && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ color: Colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 6 }}>
+                  Bowling Performance
+                </Text>
+                <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.regular, lineHeight: 24 }}>
+                  {aiPlayerReport.bowlingAnalysis}
+                </Text>
+              </View>
+            )}
+
+            {/* Key Coaching Areas Divider */}
+            {((aiPlayerReport.strengths && aiPlayerReport.strengths.length > 0) ||
+              (aiPlayerReport.drawbacks && aiPlayerReport.drawbacks.length > 0) ||
+              (aiPlayerReport.improvementSteps && aiPlayerReport.improvementSteps.length > 0)) && (
+              <View style={{ height: 1, backgroundColor: Colors.borderLight, marginVertical: 16 }} />
+            )}
+
+            {/* Key Strengths */}
+            {aiPlayerReport.strengths && aiPlayerReport.strengths.length > 0 && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ color: '#4CAF50', fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
+                  Key Strengths
+                </Text>
+                <View style={{ gap: 8 }}>
+                  {aiPlayerReport.strengths.map((str, idx) => (
+                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                      <Icon name="check-circle" size={16} color="#4CAF50" style={{ marginTop: 2 }} />
+                      <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.medium, flex: 1, lineHeight: 20 }}>
+                        {str}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Areas of Improvement (Drawbacks) */}
+            {aiPlayerReport.drawbacks && aiPlayerReport.drawbacks.length > 0 && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ color: '#FF9800', fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
+                  Areas to Improve
+                </Text>
+                <View style={{ gap: 8 }}>
+                  {aiPlayerReport.drawbacks.map((dr, idx) => (
+                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                      <Icon name="alert-circle" size={16} color="#FF9800" style={{ marginTop: 2 }} />
+                      <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.medium, flex: 1, lineHeight: 20 }}>
+                        {dr}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* How to Improve (Action Plan) */}
+            {aiPlayerReport.improvementSteps && aiPlayerReport.improvementSteps.length > 0 && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ color: Colors.primary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
+                  Actionable Coach Advice
+                </Text>
+                <View style={{ gap: 8 }}>
+                  {aiPlayerReport.improvementSteps.map((step, idx) => (
+                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                      <Icon name="play-circle" size={16} color={Colors.primary} style={{ marginTop: 2 }} />
+                      <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.medium, flex: 1, lineHeight: 20 }}>
+                        {step}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginVertical: 16 }} />
+
+            {/* Key Takeaway */}
+            {aiPlayerReport.keyTakeaway && (
+              <View>
+                <Text style={{ color: Colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 8 }}>
+                  Coach Takeaway
+                </Text>
+                <View style={{ padding: 14, backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: Colors.borderLight }}>
+                  <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.regular, lineHeight: 24, fontStyle: 'italic' }}>
+                    {aiPlayerReport.keyTakeaway}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      );
+    }
+
     if (aiReportLoading && !aiReport) {
       return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background, padding: 32 }}>
-          <View style={{ marginBottom: 24 }}>
-            <Icon name="brain" size={32} color={Colors.textSecondary} />
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
+          style={{ backgroundColor: Colors.background }}
+          refreshControl={getRefreshControl()}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderSubTabs()}
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200, padding: 32 }}>
+            <ActivityIndicator size="small" color={Colors.primary} style={{ marginBottom: 16 }} />
+            <Text style={{ color: Colors.textPrimary, fontSize: Typography.fontSize.lg, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8, textAlign: 'center' }}>
+              Analyzing Match Data
+            </Text>
+            <Text style={{ color: Colors.textTertiary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.regular, textAlign: 'center' }}>
+              {progressMessages[progressMsgIdx]}
+            </Text>
           </View>
-          <ActivityIndicator size="small" color={Colors.primary} style={{ marginBottom: 16 }} />
-          <Text style={{
-            color: Colors.textPrimary,
-            fontSize: Typography.fontSize.lg,
-            fontFamily: Typography.fontFamily.semiBold,
-            marginBottom: 8,
-            textAlign: 'center',
-          }}>
-            Analyzing Match Data
-          </Text>
-          <Text style={{
-            color: Colors.textTertiary,
-            fontSize: Typography.fontSize.sm,
-            fontFamily: Typography.fontFamily.regular,
-            textAlign: 'center',
-          }}>
-            {progressMessages[progressMsgIdx]}
-          </Text>
-        </View>
+        </ScrollView>
       );
     }
 
     if (aiReportError || (!aiReport && !aiReportLoading)) {
       return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background, padding: 32 }}>
-          <Icon name="alert-circle-outline" size={32} color={Colors.textSecondary} style={{ marginBottom: 16 }} />
-          <Text style={{
-            color: Colors.textPrimary,
-            fontSize: Typography.fontSize.base,
-            fontFamily: Typography.fontFamily.medium,
-            textAlign: 'center',
-            marginBottom: 8,
-          }}>
-            Report Unavailable
-          </Text>
-          <Text style={{
-            color: Colors.textSecondary,
-            fontSize: Typography.fontSize.sm,
-            fontFamily: Typography.fontFamily.regular,
-            textAlign: 'center',
-            marginBottom: 24,
-          }}>
-            We couldn't generate the match report at this time.
-          </Text>
-          <TouchableOpacity
-            style={{
-              paddingHorizontal: 20,
-              paddingVertical: 10,
-              borderRadius: BorderRadius.md,
-              borderWidth: 1,
-              borderColor: Colors.border,
-            }}
-            onPress={fetchAiReport}
-          >
-            <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
-              Retry
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
+          style={{ backgroundColor: Colors.background }}
+          refreshControl={getRefreshControl()}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderSubTabs()}
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 250, padding: 32 }}>
+            <Icon name="alert-circle-outline" size={32} color={Colors.textSecondary} style={{ marginBottom: 16 }} />
+            <Text style={{ color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginBottom: 8 }}>
+              Report Unavailable
             </Text>
-          </TouchableOpacity>
-        </View>
+            <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.regular, textAlign: 'center', marginBottom: 24 }}>
+              We couldn't generate the match report at this time.
+            </Text>
+            <TouchableOpacity
+              style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border }}
+              onPress={fetchAiReport}
+            >
+              <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
+                Retry
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       );
     }
 
@@ -764,6 +1275,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         refreshControl={getRefreshControl()}
         showsVerticalScrollIndicator={false}
       >
+        {renderSubTabs()}
         {/* ── Header Area ── */}
         <View style={{ marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
@@ -1077,22 +1589,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   };
 
   const renderTabHeader = () => {
-    const tabs = ['Info', 'Summary'];
-    if (match.status === 'completed') {
-      if (aiReportLoading && !aiReport) {
-        tabs.push('AI Report (Generating...)');
-      } else {
-        tabs.push('AI Report');
-      }
-    }
-    tabs.push('Scorecard', 'Comms', 'Squads', 'Analysis', 'Partnerships', 'Leaderboard');
-
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
-        {tabs.map(tab => (
+      <ScrollView ref={headerScrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
+        {dynamicTabs.map(tab => (
           <TouchableOpacity 
             key={tab} 
-            onPress={() => setActiveTab(tab)} 
+            onPress={() => handleTabPress(tab)} 
             style={styles.tabItem}
           >
             {activeTab === tab && <View style={styles.tabActivePill} />}
@@ -1503,7 +2005,26 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             <View style={[styles.section, { paddingBottom: 16, paddingTop: 16 }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1 }}>
-                  {scorecards?.map((sc, idx) => {
+                  {(!scorecards || scorecards.length === 0) ? (
+                    <>
+                      <View style={{ marginBottom: 12 }}>
+                        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14, marginBottom: 4 }}>
+                          {match.teamA?.name || 'Team A'}
+                        </Text>
+                        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 22 }}>
+                          0/0 <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: 'normal' }}>(0.0 Ov)</Text>
+                        </Text>
+                      </View>
+                      <View style={{ marginBottom: 12 }}>
+                        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14, marginBottom: 4 }}>
+                          {match.teamB?.name || 'Team B'}
+                        </Text>
+                        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 22 }}>
+                          0/0 <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: 'normal' }}>(0.0 Ov)</Text>
+                        </Text>
+                      </View>
+                    </>
+                  ) : scorecards.map((sc, idx) => {
                     const teamName = sc.battingTeam?.name || (sc.battingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name);
                     return (
                       <View key={idx} style={{ marginBottom: 12 }}>
@@ -1536,15 +2057,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 </Text>
               )}
 
-              {/* Views & Live Viewers Row */}
+              {/* Views Row */}
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, borderTopWidth: 0.5, borderTopColor: Colors.border, paddingTop: 8, gap: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Icon name="eye-outline" size={14} color={Colors.textTertiary} />
                   <Text style={{ color: Colors.textSecondary, fontSize: 11 }}>{liveState?.views || match?.views || 0} Views</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#ff4d4d' }} />
-                  <Text style={{ color: '#ff4d4d', fontSize: 11, fontWeight: 'bold' }}>{liveState?.liveViewers || 0} Live Viewers</Text>
                 </View>
               </View>
 
@@ -1612,11 +2129,27 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                           </View>
                         )}
                         {/* Gold badge strip at top */}
-                        <LinearGradient colors={['rgba(0,0,0,0.75)', 'transparent']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 58, justifyContent: 'center', paddingHorizontal: 16 }}>
-                          <LinearGradient colors={[Colors.warning, '#FF9800']} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start' }}>
+                        <LinearGradient colors={['rgba(0,0,0,0.75)', 'transparent']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
+                          <LinearGradient colors={[Colors.warning, '#FF9800']} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20 }}>
                             <Icon name="star" size={11} color="#000" />
                             <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Player of the Match</Text>
                           </LinearGradient>
+                          <TouchableOpacity
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              setActivePosterType('motm');
+                            }}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 16,
+                              backgroundColor: 'rgba(0,0,0,0.5)',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <Icon name="share-variant" size={15} color="#FFF" />
+                          </TouchableOpacity>
                         </LinearGradient>
 
                         {/* Bottom info overlay */}
@@ -1753,7 +2286,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     <View style={{ flex: 1 }} />
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={styles.crrText}>CRR: {score?.runRate || '0.00'}</Text>
-                      {liveState?.requiredRunRate && (
+                      {!!liveState?.requiredRunRate && (
                         <Text style={[styles.crrText, { marginTop: 2 }]}>RRR: {liveState.requiredRunRate}</Text>
                       )}
                     </View>
@@ -1809,16 +2342,26 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               {liveState?.currentOverBalls?.length > 0 && (
                 <View style={styles.msOverTimeline}>
                   <Text style={styles.msOverTimelineLabel}>This Over:</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingRight: 16 }}>
+                  <ScrollView 
+                    ref={msOverTimelineScrollRef}
+                    horizontal 
+                    nestedScrollEnabled={true}
+                    showsHorizontalScrollIndicator={false} 
+                    contentContainerStyle={{ paddingRight: 16 }}
+                    onContentSizeChange={() => {
+                      msOverTimelineScrollRef.current?.scrollToEnd({ animated: true });
+                    }}
+                  >
                     {liveState.currentOverBalls.map((ball, i) => {
                       const isWicket = ball.type === 'wicket' || ball.display === 'W';
-                      const isFour = ball.runs === 4;
-                      const isSix = ball.runs === 6;
+                      const isFour = ball.display ? String(ball.display).includes('4') : ball.runs === 4;
+                      const isSix = ball.display ? String(ball.display).includes('6') : ball.runs === 6;
                       const isZero = ball.runs === 0 && !isWicket;
                       const isExtra = ball.display && (ball.display.includes('Wd') || ball.display.includes('Nb') || ball.display.includes('Lb') || ball.display.includes('B'));
                       return (
                         <View key={i} style={[
                           styles.msBallCircle,
+                          { marginRight: 7 },
                           isWicket && { backgroundColor: Colors.primary, borderColor: Colors.primary },
                           isFour && { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
                           isSix && { backgroundColor: Colors.primary, borderColor: Colors.primary },
@@ -1956,7 +2499,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {liveState?.recentCommentary?.length > 0 && (
               <View style={[styles.section, { paddingBottom: 16, marginTop: 12 }]}>
                 <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Recent Deliveries</Text>
-                {liveState.recentCommentary.map((ball) => {
+                {liveState.recentCommentary.map((ball, index) => {
                   let display = `${ball.batsmanRuns}`;
                   let bgColor = Colors.borderLight;
                   let textColor = Colors.textPrimary;
@@ -1989,7 +2532,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                   const batsmanName = ball.batsman?.name || 'Batsman';
 
                   return (
-                    <View key={ball._id} style={{ flexDirection: 'row', marginBottom: 12, alignItems: 'flex-start' }}>
+                    <View key={`${ball._id || 'commentary'}-${index}`} style={{ flexDirection: 'row', marginBottom: 12, alignItems: 'flex-start' }}>
                       <View style={{ width: 40 }}>
                         <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary, fontSize: 13, marginTop: 6 }}>{ball.overNumber - 1}.{ball.ballNumber}</Text>
                       </View>
@@ -2602,6 +3145,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           data={timelineData}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 180 }}
+          refreshControl={getRefreshControl()}
           renderItem={({ item }) => {
             if (item.type === 'overSummary') {
               return renderOverSummary(item);
@@ -3601,11 +4145,16 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       showCustomAlert('Error', 'Please enter a mobile number');
       return;
     }
+    if (scorerSearchResult?.user?._id && String(scorerSearchResult.user._id) === String(activeScorerId)) {
+      showCustomAlert('Alert', 'He is already the active scorer');
+      return;
+    }
     const res = await dispatch(addMatchScorer({ matchId: cleanMatchId, mobile: newScorerMobile }));
     if (addMatchScorer.fulfilled.match(res)) {
       showCustomAlert('Success', 'Scorer added successfully');
       setShowAddScorerModal(false);
       setNewScorerMobile('');
+      setScorerSearchResult(null);
       dispatch(fetchLiveState(cleanMatchId));
     } else {
       showCustomAlert('Error', res.payload || 'Failed to add scorer');
@@ -3624,7 +4173,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       });
       showCustomAlert('Success', 'Match result declared successfully');
       setShowDeclareResultModal(false);
-      dispatch(fetchLiveState(cleanMatchId));
+      onRefresh();
     } catch (error) {
       showCustomAlert('Error', error.response?.data?.message || 'Failed to declare result');
     }
@@ -3639,7 +4188,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       await api.put(`/matches/${cleanMatchId}/abandon`, { reason: abandonReason });
       showCustomAlert('Success', 'Match abandoned successfully');
       setShowAbandonModal(false);
-      dispatch(fetchLiveState(cleanMatchId));
+      onRefresh();
     } catch (error) {
       showCustomAlert('Error', error.response?.data?.message || 'Failed to abandon match');
     }
@@ -3691,7 +4240,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {isScorer && match.status !== 'completed' && match.status !== 'abandoned' && match.status !== 'no_result' && (
+            {isActiveScorer && match.status !== 'completed' && match.status !== 'abandoned' && match.status !== 'no_result' && (
               <TouchableOpacity style={{ padding: 8 }} onPress={() => setShowSettingsModal(true)}>
                 <Icon name="cog" size={20} color="#fff" />
               </TouchableOpacity>
@@ -3710,16 +4259,42 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
       {/* Content */}
       <View style={styles.tabContentContainer}>
-        {activeTab === 'Info' && renderMatchDetails()}
-        {activeTab === 'Summary' && renderSummary()}
-        {activeTab.startsWith('AI Report') && renderAIReport()}
-        {activeTab === 'Scorecard' && renderScorecard()}
-        {activeTab === 'Comms' && renderCommentary()}
-        {activeTab === 'Squads' && renderSquads()}
-        {activeTab === 'Analysis' && renderAnalysis()}
-        {activeTab === 'Partnerships' && renderPartnerships()}
-        {activeTab === 'Leaderboard' && renderLeaderboard()}
-        {/* {activeTab === 'MVP' && renderMvp()} */}
+        <FlatList
+          ref={flatListRef}
+          data={dynamicTabs}
+          keyExtractor={(item) => item}
+          horizontal
+          pagingEnabled
+          scrollEnabled={false}
+          initialScrollIndex={1}
+          showsHorizontalScrollIndicator={false}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          getItemLayout={(data, index) => (
+            { length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index }
+          )}
+          onScrollToIndexFailed={(info) => {
+            const wait = new Promise(resolve => setTimeout(resolve, 50));
+            wait.then(() => {
+              flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+            });
+          }}
+          initialNumToRender={2}
+          windowSize={3}
+          renderItem={({ item }) => (
+            <View style={{ width: SCREEN_WIDTH }}>
+              {item === 'Info' && renderMatchDetails()}
+              {item === 'Summary' && renderSummary()}
+              {item.startsWith('AI Report') && renderAIReport()}
+              {item === 'Scorecard' && renderScorecard()}
+              {item === 'Comms' && renderCommentary()}
+              {item === 'Squads' && renderSquads()}
+              {item === 'Analysis' && renderAnalysis()}
+              {item === 'Partnerships' && renderPartnerships()}
+              {item === 'Leaderboard' && renderLeaderboard()}
+            </View>
+          )}
+        />
       </View>
 
       {/* Floating Action Bar */}
@@ -3729,16 +4304,17 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           bottom: insets.bottom + 16,
           left: 16,
           right: 16,
-          backgroundColor: 'rgba(28, 28, 30, 0.85)',
+          backgroundColor: 'rgba(28, 28, 30, 0.92)',
           borderRadius: 24,
           padding: 12,
           borderWidth: 1,
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: 'rgba(255, 255, 255, 0.15)',
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: 0.5,
           shadowRadius: 16,
-          elevation: 10,
+          elevation: 20,
+          zIndex: 999,
         }}>
           <TouchableOpacity
             style={{
@@ -4027,10 +4603,33 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 value={newScorerMobile}
                 onChangeText={setNewScorerMobile}
               />
-              {newScorerMobile.length === 10 && (
-                <Icon name="check-circle" size={18} color="#4CAF50" />
+              {isScorerSearching && <ActivityIndicator color={Colors.primary} size="small" style={{ marginLeft: 10 }} />}
+              {newScorerMobile.length === 10 && !isScorerSearching && scorerSearchResult?.exists && (
+                <Icon name="check-circle" size={18} color="#4CAF50" style={{ marginLeft: 10 }} />
               )}
             </View>
+
+            {scorerSearchResult && scorerSearchResult.exists && (
+              <View style={{ marginTop: -8, marginBottom: 20, backgroundColor: Colors.surfaceVariant, padding: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${Colors.primary}18`, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                    {(scorerSearchResult.user?.name || 'U').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>
+                    {scorerSearchResult.user?.name || 'Registered User'}
+                  </Text>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Registered User</Text>
+                </View>
+              </View>
+            )}
+
+            {scorerSearchResult && !scorerSearchResult.exists && !isScorerSearching && (
+              <Text style={{ color: Colors.error, fontSize: 13, marginTop: -8, marginBottom: 20, textAlign: 'center', fontFamily: Typography.fontFamily.medium }}>
+                User not found. Please enter a registered user's number.
+              </Text>
+            )}
 
             {/* CTA */}
             <TouchableOpacity
@@ -4038,9 +4637,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 backgroundColor: Colors.primary, paddingVertical: 15,
                 borderRadius: 12, alignItems: 'center', flexDirection: 'row',
                 justifyContent: 'center', gap: 8,
+                opacity: (scorerSearchResult && scorerSearchResult.exists) ? 1 : 0.5
               }}
               onPress={executeAddScorer}
               activeOpacity={0.8}
+              disabled={!scorerSearchResult?.exists}
             >
               <Icon name="account-switch" size={18} color={Colors.background} />
               <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 15 }}>Change Scorer</Text>
@@ -4298,12 +4899,20 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
       {/* Share Preview Modal */}
       <SharePreviewModal
-        visible={shareModalVisible}
-        onClose={() => setShareModalVisible(false)}
-        title={`${liveState?.match?.teamA?.name || 'Team A'} vs ${liveState?.match?.teamB?.name || 'Team B'}`}
+        visible={!!activePosterType}
+        onClose={() => setActivePosterType(null)}
+        title={
+          activePosterType === 'motm'
+            ? 'Player of the Match'
+            : activePosterType === 'aiReport'
+            ? 'AI Match Report'
+            : `${liveState?.match?.teamA?.name || 'Team A'} vs ${liveState?.match?.teamB?.name || 'Team B'}`
+        }
         shareUrl={`https://scoreverse.in/match/${cleanMatchId}`}
       >
-        <MatchSummaryPoster liveState={liveState} />
+        {activePosterType === 'summary' && <MatchSummaryPoster liveState={liveState} />}
+        {activePosterType === 'motm' && <MotmPoster liveState={liveState} mvp={resolvedMvp} />}
+        {activePosterType === 'aiReport' && <AiReportPoster liveState={liveState} aiReport={aiReport} />}
       </SharePreviewModal>
 
       {/* Tag Definition Modal */}

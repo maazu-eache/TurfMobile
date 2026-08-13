@@ -316,7 +316,65 @@ export const TournamentSummaryPoster = ({ tournament, theme }) => {
           ]}
         >
           <Text style={[styles.footerText, { color: t.secTextColor }]}>
-            Powered by Decolz X OCA
+            POWERED BY DECOLZ X OCA
+          </Text>
+        </View>
+      </View>
+    </ImageBackground>
+  );
+};
+
+export const TurfPoster = ({ turf, theme }) => {
+  const t = getThemeStyles(theme);
+  const bgImage = turf?.coverImage
+    ? { uri: getImageUrl(turf.coverImage) }
+    : STADIUM_BG;
+
+  return (
+    <ImageBackground source={bgImage} style={getContainerStyle(t, 320)}>
+      <View style={{ width: "100%", height: "100%", backgroundColor: t.overlayBg, justifyContent: "flex-end" }}>
+        <View style={[styles.posterContent, { paddingBottom: Spacing.xl }]}>
+          <Text style={[styles.posterTitle, { color: t.textColor }]}>
+            {turf?.name}
+          </Text>
+          <Text style={[styles.posterSubtitle, { color: t.secTextColor }]}>
+            {turf?.city} {turf?.type ? `• ${turf.type}` : ""}
+          </Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: t.textColor }]}>
+                {turf?.rating > 0 ? turf.rating.toFixed(1) : "New"}
+              </Text>
+              <Text style={[styles.statLabel, { color: t.secTextColor }]}>
+                Rating
+              </Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: t.textColor }]}>
+                {turf?.size || "8v8"}
+              </Text>
+              <Text style={[styles.statLabel, { color: t.secTextColor }]}>
+                Size
+              </Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: t.textColor }]}>
+                {turf?.sports?.[0] || "Multi"}
+              </Text>
+              <Text style={[styles.statLabel, { color: t.secTextColor }]}>
+                Sport
+              </Text>
+            </View>
+          </View>
+        </View>
+        <View
+          style={[
+            styles.footer,
+            t.type === "liquid_metal" && { borderTopColor: t.borderColor },
+          ]}
+        >
+          <Text style={[styles.footerText, { color: t.secTextColor }]}>
+            POWERED BY DECOLZ X OCA
           </Text>
         </View>
       </View>
@@ -1421,9 +1479,7 @@ export const MatchSummaryPoster = ({ liveState, theme }) => {
 
   return (
     <ImageBackground source={bgImage} style={getContainerStyle(t, 340)}>
-      <View
-        style={{ width: "100%", backgroundColor: t.overlayBg, height: "100%" }}
-      >
+      <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
         <View style={{ padding: Spacing.lg, alignItems: "center" }}>
           <Text
             style={{
@@ -1582,25 +1638,18 @@ export const MatchSummaryPoster = ({ liveState, theme }) => {
               alignItems: "center",
               marginTop: 24,
               paddingBottom: 10,
+              justifyContent: "center",
             }}
           >
             <Text
               style={{
-                color: "#fff",
-                fontSize: 12,
+                color: "rgba(255,255,255,0.6)",
+                fontSize: 10,
                 fontFamily: Typography.fontFamily.bold,
+                letterSpacing: 2,
               }}
             >
-              Score
-            </Text>
-            <Text
-              style={{
-                color: "#00F2FE",
-                fontSize: 12,
-                fontFamily: Typography.fontFamily.bold,
-              }}
-            >
-              Verse
+              POWERED BY DECOLZ X OCA
             </Text>
           </View>
         </View>
@@ -1617,38 +1666,40 @@ export const AiReportPoster = ({ liveState, aiReport, theme }) => {
   const teamB = match?.teamB;
 
   return (
-    <ImageBackground source={bgImage} style={getContainerStyle(t, 460)}>
-      <View
-        style={{ width: "100%", backgroundColor: t.overlayBg, height: "100%" }}
-      >
-        <View style={{ padding: Spacing.lg, flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-               <Image source={getSource(teamA?.logo)} style={{ width: 32, height: 32, borderRadius: t.type === "cyberpunk" ? 0 : 16 }} />
-               <Text style={{ color: t.accentColor, fontSize: 14, fontFamily: Typography.fontFamily.bold }}>VS</Text>
-               <Image source={getSource(teamB?.logo)} style={{ width: 32, height: 32, borderRadius: t.type === "cyberpunk" ? 0 : 16 }} />
+    <ImageBackground source={bgImage} style={getContainerStyle(t, 340)}>
+      <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
+        <View style={{ padding: Spacing.md }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+               <View style={{ width: 28, height: 28, borderRadius: t.type === "cyberpunk" ? 0 : 14, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
+                 <Image source={teamA?.logo ? { uri: getImageUrl(teamA.logo) } : SPORTVERSE_LOGO} style={{ width: teamA?.logo ? 28 : 20, height: teamA?.logo ? 28 : 20, borderRadius: teamA?.logo ? (t.type === "cyberpunk" ? 0 : 14) : 0 }} resizeMode={teamA?.logo ? "cover" : "contain"} />
+               </View>
+               <Text style={{ color: t.accentColor, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>VS</Text>
+               <View style={{ width: 28, height: 28, borderRadius: t.type === "cyberpunk" ? 0 : 14, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
+                 <Image source={teamB?.logo ? { uri: getImageUrl(teamB.logo) } : SPORTVERSE_LOGO} style={{ width: teamB?.logo ? 28 : 20, height: teamB?.logo ? 28 : 20, borderRadius: teamB?.logo ? (t.type === "cyberpunk" ? 0 : 14) : 0 }} resizeMode={teamB?.logo ? "cover" : "contain"} />
+               </View>
             </View>
-            <View style={{ backgroundColor: t.accentColor + '30', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-              <Text style={{ color: t.accentColor, fontSize: 10, fontFamily: Typography.fontFamily.bold, textTransform: "uppercase" }}>
+            <View style={{ backgroundColor: t.accentColor + '30', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ color: t.accentColor, fontSize: 9, fontFamily: Typography.fontFamily.bold, textTransform: "uppercase" }}>
                 AI Analysis
               </Text>
             </View>
           </View>
           
-          <View style={{ marginBottom: 16 }}>
-             <Text style={{ color: t.secTextColor, fontSize: 11, fontFamily: Typography.fontFamily.bold, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          <View style={{ marginBottom: 12 }}>
+             <Text style={{ color: t.secTextColor, fontSize: 10, fontFamily: Typography.fontFamily.bold, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                Headline
              </Text>
-             <Text style={{ color: t.textColor, fontSize: 16, fontFamily: Typography.fontFamily.bold, lineHeight: 22 }} numberOfLines={3}>
+             <Text style={{ color: t.textColor, fontSize: 15, fontFamily: Typography.fontFamily.bold, lineHeight: 20 }} numberOfLines={2}>
                {aiReport?.headline?.[0] || 'Match Summary'}
              </Text>
           </View>
 
-          <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
-             <Text style={{ color: t.secTextColor, fontSize: 11, fontFamily: Typography.fontFamily.bold, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', marginBottom: 12 }}>
+             <Text style={{ color: t.secTextColor, fontSize: 10, fontFamily: Typography.fontFamily.bold, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                Summary
              </Text>
-             <Text style={{ color: t.textColor, fontSize: 13, fontFamily: Typography.fontFamily.regular, lineHeight: 20 }} numberOfLines={7}>
+             <Text style={{ color: t.textColor, fontSize: 13.5, fontFamily: Typography.fontFamily.regular, lineHeight: 20 }}>
                {aiReport?.summary || 'No summary available.'}
              </Text>
           </View>
@@ -1657,27 +1708,107 @@ export const AiReportPoster = ({ liveState, aiReport, theme }) => {
             style={{
               flexDirection: "row",
               alignItems: "center",
-              marginTop: 16,
               justifyContent: "center",
+              marginTop: 4,
             }}
           >
             <Text
               style={{
-                color: "#fff",
-                fontSize: 12,
+                color: "rgba(255,255,255,0.6)",
+                fontSize: 9,
                 fontFamily: Typography.fontFamily.bold,
+                letterSpacing: 2,
               }}
             >
-              Score
+              POWERED BY DECOLZ X OCA
             </Text>
+          </View>
+        </View>
+      </View>
+    </ImageBackground>
+  );
+};
+
+export const MotmPoster = ({ liveState, mvp, theme }) => {
+  const t = getThemeStyles(theme);
+  const bgImage = STADIUM_BG;
+  const { match } = liveState || {};
+  const motm = mvp || match?.playerOfMatch;
+
+  return (
+    <ImageBackground source={bgImage} style={getContainerStyle(t, 340)}>
+      <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
+        <View style={{ padding: Spacing.md }}>
+          {/* Header */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <Text style={{ color: t.textColor, fontSize: 14, fontFamily: Typography.fontFamily.bold }}>
+              PLAYER OF THE MATCH
+            </Text>
+            <View style={{ backgroundColor: t.accentColor + '30', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ color: t.accentColor, fontSize: 9, fontFamily: Typography.fontFamily.bold, textTransform: "uppercase" }}>
+                ScoreVerse
+              </Text>
+            </View>
+          </View>
+
+          {/* Profile Card Container */}
+          <View style={{ alignItems: 'center', marginVertical: 12 }}>
+            <View style={{
+                width: 100,
+                height: 100,
+                borderRadius: 50,
+                borderWidth: 3,
+                borderColor: t.accentColor,
+                marginBottom: 12,
+                backgroundColor: '#000000',
+                justifyContent: 'center',
+                alignItems: 'center',
+                overflow: 'hidden'
+            }}>
+              <Image 
+                source={motm?.photo ? { uri: getImageUrl(motm.photo) } : SPORTVERSE_LOGO} 
+                style={{ 
+                  width: motm?.photo ? 100 : 70, 
+                  height: motm?.photo ? 100 : 70, 
+                  borderRadius: motm?.photo ? 50 : 0
+                }} 
+                resizeMode={motm?.photo ? "cover" : "contain"}
+              />
+            </View>
+            
+            <Text style={{ color: t.textColor, fontSize: 20, fontFamily: Typography.fontFamily.bold, marginBottom: 2, textAlign: 'center' }}>
+              {motm?.name || 'N/A'}
+            </Text>
+            <Text style={{ color: t.secTextColor, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center' }}>
+              {match?.teamA?.name} vs {match?.teamB?.name}
+            </Text>
+          </View>
+
+          {/* Stats Summary if any */}
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }}>
+            <Text style={{ color: t.textColor, fontSize: 12, fontFamily: Typography.fontFamily.bold, textAlign: 'center', fontStyle: 'italic' }} numberOfLines={2}>
+              "Outstanding Match-Winning Contribution"
+            </Text>
+          </View>
+
+          {/* Footer */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 12,
+            }}
+          >
             <Text
               style={{
-                color: "#00F2FE",
-                fontSize: 12,
+                color: "rgba(255,255,255,0.6)",
+                fontSize: 9,
                 fontFamily: Typography.fontFamily.bold,
+                letterSpacing: 2,
               }}
             >
-              Verse
+              POWERED BY DECOLZ X OCA
             </Text>
           </View>
         </View>

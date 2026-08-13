@@ -25,8 +25,14 @@ export const fetchRankings = createAsyncThunk('player/rankings', async (params, 
   catch (err) { return rejectWithValue(err.response?.data?.message); }
 });
 
-export const fetchGlobalLeaderboard = createAsyncThunk('player/globalLeaderboard', async (params, { rejectWithValue }) => {
-  try { return (await api.get('/players/leaderboard/global', { params })).data.data; }
+export const fetchGlobalLeaderboard = createAsyncThunk('player/globalLeaderboard', async (params, { rejectWithValue, getState }) => {
+  try {
+    // Inject myPlayerId from player profile so backend can return logged-in user's rank
+    const state = getState();
+    const myPlayerId = state.player?.myProfile?._id;
+    const queryParams = myPlayerId ? { ...params, myPlayerId } : params;
+    return (await api.get('/players/leaderboard/global', { params: queryParams })).data.data;
+  }
   catch (err) { return rejectWithValue(err.response?.data?.message || 'Failed to fetch leaderboard'); }
 });
 
@@ -65,6 +71,7 @@ const playerSlice = createSlice({
       fielders: [],
       category: 'batters',
       ballType: 'All',
+      myRank: null, // { rank: number, player: object }
     },
     matchHistory: [],
     achievements: [],
@@ -101,9 +108,10 @@ const playerSlice = createSlice({
       .addCase(fetchGlobalLeaderboard.pending, (state) => { state.isLoading = true; })
       .addCase(fetchGlobalLeaderboard.fulfilled, (state, action) => {
         state.isLoading = false;
-        const { category, players, ballType } = action.payload;
+        const { category, players, ballType, myRank } = action.payload;
         state.globalLeaderboard.category = category;
         state.globalLeaderboard.ballType = ballType;
+        state.globalLeaderboard.myRank = myRank || null;
         if (category === 'batters') state.globalLeaderboard.batters = players;
         else if (category === 'bowlers') state.globalLeaderboard.bowlers = players;
         else if (category === 'fielders') state.globalLeaderboard.fielders = players;

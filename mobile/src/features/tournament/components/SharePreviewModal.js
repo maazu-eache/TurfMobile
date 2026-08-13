@@ -43,7 +43,7 @@ const SharePreviewModal = ({ visible, onClose, title, shareUrl, children }) => {
       
       const shareOptions = {
         title: 'Share Poster',
-        message: `Check out ${title} on ScoreVerse!\nApp Link: ${shareUrl || ''}\nDirect App Link: ${shareUrl?.replace('https://scoreverse.in', 'scoreverse://')}`.trim(),
+        message: `Check out ${title} on ScoreVerse!\nApp Link: ${shareUrl || ''}`.trim(),
       };
       
       if (uris.length === 1) {

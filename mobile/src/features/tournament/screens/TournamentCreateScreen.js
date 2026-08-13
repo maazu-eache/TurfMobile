@@ -251,8 +251,23 @@ const TournamentCreateScreen = ({ navigation }) => {
         return;
       }
       if (form.tournamentType === 'Auction') {
-        if (!form.registrationStartDate || !form.registrationEndDate) {
-          showCustomAlert('Error', 'Please select mandatory Registration Start Date and End Date');
+        if (!form.registrationStartDate || !form.registrationEndDate || !form.auctionDate) {
+          showCustomAlert('Error', 'Please select mandatory Registration Start Date, End Date, and Auction Date');
+          return;
+        }
+        
+        const parseDate = (d) => {
+          if (!d) return null;
+          const parts = d.split('/');
+          if (parts.length === 3) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+          return new Date(d);
+        };
+        
+        const regEnd = parseDate(form.registrationEndDate);
+        const aucDate = parseDate(form.auctionDate);
+        
+        if (aucDate <= regEnd) {
+          showCustomAlert('Error', 'Auction date must be at least one day after the registration closes');
           return;
         }
       }
@@ -330,9 +345,8 @@ const TournamentCreateScreen = ({ navigation }) => {
       await api.post('/tournaments', payload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      showCustomAlert('Success', 'Tournament created successfully!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      showCustomAlert('Success', 'Tournament created successfully!');
+      navigation.goBack();
     } catch (error) {
       showCustomAlert('Error', error.response?.data?.message || 'Failed to create tournament');
     } finally {
@@ -444,10 +458,12 @@ const TournamentCreateScreen = ({ navigation }) => {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Co-Organizers (Optional)</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                  <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} keyboardType="phone-pad" placeholderTextColor={offWhite} value={multiLookupType === 'coOrganizers' ? multiLookupMobile : ''} onFocus={() => setMultiLookupType('coOrganizers')} onChangeText={setMultiLookupMobile} placeholder="Enter mobile number" />
-                  <TouchableOpacity style={styles.lookupBtn} onPress={handleMultiLookup}><Text style={styles.lookupBtnText}>Add</Text></TouchableOpacity>
-                </View>
+                {form.coOrganizers.length === 0 && (
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                    <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} keyboardType="phone-pad" placeholderTextColor={offWhite} value={multiLookupType === 'coOrganizers' ? multiLookupMobile : ''} onFocus={() => setMultiLookupType('coOrganizers')} onChangeText={setMultiLookupMobile} placeholder="Enter mobile number" />
+                    <TouchableOpacity style={styles.lookupBtn} onPress={handleMultiLookup}><Text style={styles.lookupBtnText}>Add</Text></TouchableOpacity>
+                  </View>
+                )}
                 {form.coOrganizers.map((o, idx) => (
                   <View key={idx} style={styles.organizerProfile}>
                     <Image source={{ uri: o.photo ? getImageUrl(o.photo) : 'https://via.placeholder.com/40' }} style={styles.organizerAvatar} />
@@ -457,22 +473,7 @@ const TournamentCreateScreen = ({ navigation }) => {
                 ))}
               </View>
 
-              {form.tournamentType !== 'Auction' && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Scorers (Optional)</Text>
-                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                    <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} keyboardType="phone-pad" placeholderTextColor={offWhite} value={multiLookupType === 'scorers' ? multiLookupMobile : ''} onFocus={() => setMultiLookupType('scorers')} onChangeText={setMultiLookupMobile} placeholder="Enter mobile number" />
-                    <TouchableOpacity style={styles.lookupBtn} onPress={handleMultiLookup}><Text style={styles.lookupBtnText}>Add</Text></TouchableOpacity>
-                  </View>
-                  {form.scorers.map((s, idx) => (
-                    <View key={idx} style={styles.organizerProfile}>
-                      <Image source={{ uri: s.photo ? getImageUrl(s.photo) : 'https://via.placeholder.com/40' }} style={styles.organizerAvatar} />
-                      <Text style={styles.organizerNameText}>{s.name}</Text>
-                      <TouchableOpacity onPress={() => removeMultiUser('scorers', idx)} style={{ marginLeft: 'auto' }}><Icon name="x" size={16} color={Colors.error} /></TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
+
             </>
           ) : (
             <>

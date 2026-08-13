@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Image, ScrollView, Animated, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Image, ScrollView, Animated, Dimensions, Platform, Switch } from 'react-native';
 import FinanceView from './FinanceView';
 import SupportAdminView from './SupportAdminView';
 
@@ -11,6 +11,7 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 import api, { getImageUrl } from '../../../api/axios';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { formatISTDateSpelled } from '../../../utils/dateFormatter';
+import AppUpdateBanner from '../../../components/common/AppUpdateBanner';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import moment from 'moment';
 import { useDispatch } from 'react-redux';
@@ -79,6 +80,8 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [cancellationRefundPercent, setCancellationRefundPercent] = useState('70');
   const [cancellationOwnerPercent, setCancellationOwnerPercent] = useState('20');
   const [cancellationPlatformPercent, setCancellationPlatformPercent] = useState('10');
+  const [latestAndroidVersion, setLatestAndroidVersion] = useState('1.7');
+  const [forceUpdateRequired, setForceUpdateRequired] = useState(false);
   
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [selectedVerificationPayment, setSelectedVerificationPayment] = useState(null);
@@ -98,6 +101,8 @@ const AdminDashboardScreen = ({ navigation }) => {
       if (res.data.data?.cancellationRefundPercent !== undefined) setCancellationRefundPercent(res.data.data.cancellationRefundPercent.toString());
       if (res.data.data?.cancellationOwnerPercent !== undefined) setCancellationOwnerPercent(res.data.data.cancellationOwnerPercent.toString());
       if (res.data.data?.cancellationPlatformPercent !== undefined) setCancellationPlatformPercent(res.data.data.cancellationPlatformPercent.toString());
+      if (res.data.data?.latestAndroidVersion !== undefined) setLatestAndroidVersion(res.data.data.latestAndroidVersion);
+      if (res.data.data?.forceUpdateRequired !== undefined) setForceUpdateRequired(res.data.data.forceUpdateRequired);
     } catch (err) {
       console.log('Failed to fetch admin settings', err);
     }
@@ -111,6 +116,9 @@ const AdminDashboardScreen = ({ navigation }) => {
       formData.append('cancellationRefundPercent', cancellationRefundPercent);
       formData.append('cancellationOwnerPercent', cancellationOwnerPercent);
       formData.append('cancellationPlatformPercent', cancellationPlatformPercent);
+      formData.append('latestAndroidVersion', latestAndroidVersion);
+      formData.append('latestIOSVersion', latestAndroidVersion);
+      formData.append('forceUpdateRequired', forceUpdateRequired.toString());
       
       const ref = Number(cancellationRefundPercent);
       const own = Number(cancellationOwnerPercent);
@@ -887,6 +895,8 @@ const AdminDashboardScreen = ({ navigation }) => {
         </View>
       </View>
       
+      <AppUpdateBanner />
+
       {/* Settlement Action Modal */}
       <Modal visible={!!selectedSettlement} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
@@ -1023,6 +1033,27 @@ const AdminDashboardScreen = ({ navigation }) => {
                   placeholderTextColor={Colors.textTertiary}
                 />
               </View>
+            </View>
+
+            <View style={{ marginTop: Spacing.md }}>
+              <Text style={styles.inputLabel}>Required App Version (Android & iOS)</Text>
+              <TextInput
+                style={styles.input}
+                value={latestAndroidVersion}
+                onChangeText={setLatestAndroidVersion}
+                placeholder="e.g. 1.8"
+                placeholderTextColor={Colors.textTertiary}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.md }}>
+              <Text style={styles.inputLabel}>Force Update?</Text>
+              <Switch
+                value={forceUpdateRequired}
+                onValueChange={setForceUpdateRequired}
+                trackColor={{ false: Colors.surfaceLight, true: Colors.primary }}
+                thumbColor={Colors.textPrimary}
+              />
             </View>
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>

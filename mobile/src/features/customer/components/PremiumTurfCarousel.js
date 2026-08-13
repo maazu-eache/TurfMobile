@@ -127,7 +127,7 @@ export const PremiumTurfCarousel = ({ data, onTurfPress, onFavoriteToggle, favou
                     <View style={styles.locationRow}>
                       <Icon name="map-marker" size={12} color={Colors.textSecondary} />
                       <Text style={styles.locationText} numberOfLines={1}>
-                        {item.city} • {item.distance ? `${item.distance} km` : 'Near you'}
+                        {item.city} • {item.distance ? (item.distance / 1000 < 1 ? 'Near you' : `${(item.distance / 1000).toFixed(1)} km`) : 'Near you'}
                       </Text>
                     </View>
                   </View>

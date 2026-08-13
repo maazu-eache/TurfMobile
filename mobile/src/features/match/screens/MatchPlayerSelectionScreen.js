@@ -69,11 +69,11 @@ const MatchPlayerSelectionScreen = () => {
 
   const [scorerTab, setScorerTab] = useState('teamA');
   const [scorerAddingId, setScorerAddingId] = useState(null);
-  
+
   const [showReviseModal, setShowReviseModal] = useState(false);
   const [revisedOvers, setRevisedOvers] = useState('');
   const [revisedTarget, setRevisedTarget] = useState('');
-  
+
   const [showAbandonModal, setShowAbandonModal] = useState(false);
   const [abandonReason, setAbandonReason] = useState('');
 
@@ -93,17 +93,17 @@ const MatchPlayerSelectionScreen = () => {
   const teamAId = String(liveState?.match?.teamA?._id || liveState?.match?.teamA || '');
   const isTeamABatting = batTeamId === teamAId;
 
-  const battingSquad = useMemo(() => {
-    if (!liveState?.match) return [];
-    const XI = isTeamABatting ? liveState.match.playingXI?.teamA : liveState.match.playingXI?.teamB;
-    return (XI || []).filter(Boolean);
-  }, [liveState?.match?.playingXI, isTeamABatting]);
+  const [battingSquad, setBattingSquad] = useState([]);
+  const [bowlingSquad, setBowlingSquad] = useState([]);
 
-  const bowlingSquad = useMemo(() => {
-    if (!liveState?.match) return [];
-    const XI = isTeamABatting ? liveState.match.playingXI?.teamB : liveState.match.playingXI?.teamA;
-    return (XI || []).filter(Boolean);
-  }, [liveState?.match?.playingXI, isTeamABatting]);
+  useEffect(() => {
+    if (liveState?.match && !showEditSquadModal) {
+      const XI_A = isTeamABatting ? liveState.match.playingXI?.teamA : liveState.match.playingXI?.teamB;
+      const XI_B = isTeamABatting ? liveState.match.playingXI?.teamB : liveState.match.playingXI?.teamA;
+      setBattingSquad((XI_A || []).filter(Boolean));
+      setBowlingSquad((XI_B || []).filter(Boolean));
+    }
+  }, [liveState?.match?.playingXI, isTeamABatting, showEditSquadModal]);
 
   useEffect(() => {
     // Fetch live state if missing or for a different match (e.g. after clearing old state)
@@ -409,7 +409,7 @@ const MatchPlayerSelectionScreen = () => {
 
   const handleSettingsAction = async (action) => {
     setShowSettingsModal(false);
-    
+
     if (action === 'add_scorer') {
       setShowAddScorerModal(true);
     } else if (action === 'revise_overs') {
@@ -423,7 +423,7 @@ const MatchPlayerSelectionScreen = () => {
       if (liveState?.dlsParScore !== null && liveState?.dlsParScore !== undefined && liveState?.score?.runs !== undefined) {
         const battingTeamName = liveState.battingTeam === match.teamA._id ? match.teamA.name : match.teamB.name;
         const fieldingTeamName = liveState.battingTeam === match.teamA._id ? match.teamB.name : match.teamA.name;
-        
+
         let expectedWinner = '';
         if (liveState.score.runs > liveState.dlsParScore) {
           expectedWinner = `${battingTeamName} will win.`;
@@ -453,7 +453,7 @@ const MatchPlayerSelectionScreen = () => {
 
 
 
-  if (isLoading || !liveState || !liveState.match) {
+  if (!liveState || !liveState.match) {
     return (
       <SafeAreaView style={styles.centerContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -557,17 +557,26 @@ const MatchPlayerSelectionScreen = () => {
         {liveState?.inningsNumber === 2 && liveState?.target ? (
           <View style={styles.targetBanner}>
             <View style={styles.targetCol}>
-              <Text style={styles.targetLabel}>🎯 Target</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <Icon name="target" size={14} color="#EF5350" style={{ marginRight: 4 }} />
+                <Text style={[styles.targetLabel, { marginBottom: 0 }]}>Target</Text>
+              </View>
               <Text style={styles.targetValue}>{liveState.target}</Text>
             </View>
             <View style={styles.targetDivider} />
             <View style={styles.targetCol}>
-              <Text style={styles.targetLabel}>⚡ RRR</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <Icon name="flash" size={14} color="#FFCA28" style={{ marginRight: 4 }} />
+                <Text style={[styles.targetLabel, { marginBottom: 0 }]}>RRR</Text>
+              </View>
               <Text style={styles.targetValue}>{liveState.requiredRunRate || '0.00'}</Text>
             </View>
             <View style={styles.targetDivider} />
             <View style={styles.targetCol}>
-              <Text style={styles.targetLabel}>🏏 Need</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <Icon name="cricket" size={14} color="#FF7043" style={{ marginRight: 4 }} />
+                <Text style={[styles.targetLabel, { marginBottom: 0 }]}>Need</Text>
+              </View>
               <Text style={[styles.targetValue, { fontSize: 16 }]}>{liveState.toWin} off {liveState.ballsRemaining}b</Text>
             </View>
           </View>
@@ -687,8 +696,22 @@ const MatchPlayerSelectionScreen = () => {
                       } else {
                         // Check if dismissed
                         const fow = liveState?.match?.innings?.[currentInnings - 1]?.fallOfWickets || [];
-                        const isDismissed = fow.some(f => f.batsman === p._id);
-                        if (isDismissed) {
+                        const isDismissed = fow.some(f => String(f.batsman) === String(p._id) || String(f.batsman?._id) === String(p._id));
+                        
+                        // Optimistic check: if they have batted but are no longer active striker or non-striker
+                        let isNoLongerActive = false;
+                        if (currentScorecard) {
+                          const batterStat = currentScorecard.batting.find(b => String(b.player?._id || b.player) === String(p._id));
+                          if (batterStat) {
+                            const isCurrentlyStriker = String(selectedStriker?._id || selectedStriker) === String(p._id);
+                            const isCurrentlyNonStriker = String(selectedNonStriker?._id || selectedNonStriker) === String(p._id);
+                            if (!isCurrentlyStriker && !isCurrentlyNonStriker) {
+                              isNoLongerActive = true;
+                            }
+                          }
+                        }
+
+                        if (isDismissed || isNoLongerActive) {
                           isDisabled = true;
                           disabledReason = 'Dismissed';
                         }
@@ -707,55 +730,55 @@ const MatchPlayerSelectionScreen = () => {
                       }
                     }
 
-                     let playerStatsStr = '';
-                      if (currentScorecard) {
-                        if (activeSelectionMode === 'striker' || activeSelectionMode === 'nonStriker') {
-                          const batterStat = currentScorecard.batting.find(b => b.player?._id === p._id || b.player === p._id);
-                          if (batterStat) {
-                            playerStatsStr = `${batterStat.runs} (${batterStat.balls})`;
-                          }
-                        } else if (activeSelectionMode === 'bowler') {
-                          const bowlerStat = currentScorecard.bowling.find(b => b.player?._id === p._id || b.player === p._id);
-                          if (bowlerStat) {
-                            playerStatsStr = `${bowlerStat.wickets}-${bowlerStat.runs} in ${bowlerStat.overs} ${bowlerStat.overs === 1 ? 'over' : 'overs'}`;
-                          }
+                    let playerStatsStr = '';
+                    if (currentScorecard) {
+                      if (activeSelectionMode === 'striker' || activeSelectionMode === 'nonStriker') {
+                        const batterStat = currentScorecard.batting.find(b => b.player?._id === p._id || b.player === p._id);
+                        if (batterStat) {
+                          playerStatsStr = `${batterStat.runs} (${batterStat.balls})`;
+                        }
+                      } else if (activeSelectionMode === 'bowler') {
+                        const bowlerStat = currentScorecard.bowling.find(b => b.player?._id === p._id || b.player === p._id);
+                        if (bowlerStat) {
+                          playerStatsStr = `${bowlerStat.wickets}-${bowlerStat.runs} in ${bowlerStat.overs} ${bowlerStat.overs === 1 ? 'over' : 'overs'}`;
                         }
                       }
+                    }
 
-                      return (
-                        <TouchableOpacity
-                          key={p._id + '_' + idx}
-                          style={[styles.modalListItem, isDisabled && { opacity: 0.5 }]}
-                          onPress={() => {
-                            if (isDisabled) return showCustomAlert('Info', `Cannot select player: ${disabledReason}`);
-                            handleSelectSquadPlayer(p);
-                          }}
-                        >
-                          <View style={styles.avatarPlaceholderSm}>
-                            {(p.photo || p.userId?.photo || p.avatar) ? (
-                              <Image
-                                source={{ uri: getImageUrl(p.photo || p.userId?.photo || p.avatar) }}
-                                style={{ width: '100%', height: '100%', borderRadius: 21 }}
-                                resizeMode="cover"
-                              />
-                            ) : (
-                              <Text style={styles.avatarTextSm}>{p.name.charAt(0).toUpperCase()}</Text>
-                            )}
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.modalListText}>{p.name}</Text>
-                            {!!playerStatsStr && (
-                              <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}>
-                                {playerStatsStr}
-                              </Text>
-                            )}
-                            {isDisabled ? <Text style={{ fontSize: 12, color: Colors.error, marginTop: 2 }}>{disabledReason}</Text> : null}
-                          </View>
-                          {!isDisabled ? (
-                            <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
-                          ) : null}
-                        </TouchableOpacity>
-                      );
+                    return (
+                      <TouchableOpacity
+                        key={p._id + '_' + idx}
+                        style={[styles.modalListItem, isDisabled && { opacity: 0.5 }]}
+                        onPress={() => {
+                          if (isDisabled) return showCustomAlert('Info', `Cannot select player: ${disabledReason}`);
+                          handleSelectSquadPlayer(p);
+                        }}
+                      >
+                        <View style={styles.avatarPlaceholderSm}>
+                          {(p.photo || p.userId?.photo || p.avatar) ? (
+                            <Image
+                              source={{ uri: getImageUrl(p.photo || p.userId?.photo || p.avatar) }}
+                              style={{ width: '100%', height: '100%', borderRadius: 21 }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Text style={styles.avatarTextSm}>{p.name.charAt(0).toUpperCase()}</Text>
+                          )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.modalListText}>{p.name}</Text>
+                          {!!playerStatsStr && (
+                            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}>
+                              {playerStatsStr}
+                            </Text>
+                          )}
+                          {isDisabled ? <Text style={{ fontSize: 12, color: Colors.error, marginTop: 2 }}>{disabledReason}</Text> : null}
+                        </View>
+                        {!isDisabled ? (
+                          <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
+                        ) : null}
+                      </TouchableOpacity>
+                    );
                   })}
                 {(activeSelectionMode === 'bowler' ? bowlingSquad : battingSquad).length === 0 ? (
                   <Text style={styles.emptyText}>Squad is empty.</Text>
@@ -789,10 +812,10 @@ const MatchPlayerSelectionScreen = () => {
               </View>
               <Text style={styles.instructionText}>Check the players you want in the playing XI. Pull down to refresh.</Text>
 
-              <KeyboardAwareScrollView 
-                enableOnAndroid={true} 
-                extraScrollHeight={20} 
-                keyboardShouldPersistTaps="handled" 
+              <KeyboardAwareScrollView
+                enableOnAndroid={true}
+                extraScrollHeight={20}
+                keyboardShouldPersistTaps="handled"
                 style={styles.modalList}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshModal} colors={[Colors.primary]} tintColor={Colors.primary} />}
               >
@@ -842,7 +865,7 @@ const MatchPlayerSelectionScreen = () => {
                         try {
                           const currentTeamA_XI = match?.playingXI?.teamA?.map(p => p._id || p) || [];
                           const currentTeamB_XI = match?.playingXI?.teamB?.map(p => p._id || p) || [];
-                          
+
                           const isTeamABattingLocal = liveState.battingTeam === match.teamA._id;
                           if (isBattingLocal) {
                             if (isTeamABattingLocal) {
@@ -915,16 +938,16 @@ const MatchPlayerSelectionScreen = () => {
 
 
 
-          {/* Settings Modal (Right Sidebar) */}
+      {/* Settings Modal (Right Sidebar) */}
       {showSettingsModal ? (
         <Modal visible={true} transparent animationType="fade">
-          <TouchableOpacity 
+          <TouchableOpacity
             style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', flexDirection: 'row', justifyContent: 'flex-end' }}
-            activeOpacity={1} 
+            activeOpacity={1}
             onPress={() => setShowSettingsModal(false)}
           >
-            <TouchableOpacity 
-              activeOpacity={1} 
+            <TouchableOpacity
+              activeOpacity={1}
               style={{ width: '75%', backgroundColor: Colors.background, height: '100%', padding: 20, paddingTop: 60, elevation: 5, shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 5 }}
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -1073,7 +1096,7 @@ const MatchPlayerSelectionScreen = () => {
 
                   <TouchableOpacity
                     style={[
-                      styles.settingsModalBtnAdd, 
+                      styles.settingsModalBtnAdd,
                       { marginTop: 16, width: '100%', borderRadius: 10, height: 48, justifyContent: 'center', alignItems: 'center', opacity: (scorerSearchResult && scorerSearchResult.exists && !isLoading) ? 1 : 0.5 }
                     ]}
                     onPress={handleAddScorer}
@@ -1162,7 +1185,7 @@ const MatchPlayerSelectionScreen = () => {
             <View style={styles.settingsModalContent}>
               <Text style={styles.settingsModalTitle}>Revise Match</Text>
               <Text style={styles.settingsModalSub}>Reduce overs due to rain or other interruptions.</Text>
-              
+
               <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>Revised Total Overs:</Text>
               <TextInput
                 style={styles.settingsModalInput}
@@ -1189,14 +1212,14 @@ const MatchPlayerSelectionScreen = () => {
           </View>
         </Modal>
       ) : null}
-{/* Abandon Match Modal */}
+      {/* Abandon Match Modal */}
       {showAbandonModal ? (
         <Modal visible={true} transparent animationType="fade">
           <View style={styles.settingsModalOverlay}>
             <View style={styles.settingsModalContent}>
               <Text style={styles.settingsModalTitle}>Abandon Match</Text>
               <Text style={styles.settingsModalSub}>Are you sure you want to abandon this match? This action cannot be undone.</Text>
-              
+
               <Text style={{ color: Colors.textSecondary, marginBottom: 8, marginTop: 10 }}>Reason for abandoning:</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {['Rain', 'Bad Light', 'Pitch Unplayable', 'Other'].map(r => (
@@ -1231,7 +1254,7 @@ const MatchPlayerSelectionScreen = () => {
           </View>
         </Modal>
       ) : null}
-</SafeAreaView>
+    </SafeAreaView>
   );
 };
 

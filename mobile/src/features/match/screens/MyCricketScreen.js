@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Image, TextInput, RefreshControl, Alert, ToastAndroid, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Image, TextInput, RefreshControl, Alert, ToastAndroid, Platform, ScrollView, Dimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,10 @@ const MATCH_SUB_TABS = ['My', 'Played', 'Network', 'Near By'];
 const TEAM_SUB_TABS = ['My', 'Opponents', 'Following'];
 const TOURNAMENT_SUB_TABS = ['My', 'Following', 'Near By'];
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
 const MyCricketScreen = ({ route }) => {
+  const scrollViewRef = useRef(null);
   const [activeTopTab, setActiveTopTab] = useState('Matches');
   const [activeSubTab, setActiveSubTab] = useState('My');
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,35 +116,67 @@ const MyCricketScreen = ({ route }) => {
     };
   }, [isFocused, activeTopTab, activeSubTab, dispatch]);
 
+  const joinedRoomsRef = useRef(new Set());
   // Join match rooms when myMatches or matches change
   useEffect(() => {
     const list = (myMatches && myMatches.length > 0) ? myMatches : matches;
     myMatchesRef.current = list || [];
 
     if (isFocused && activeTopTab === 'Matches' && activeSubTab !== 'Played' && list?.length > 0) {
+      const activeIds = new Set();
       list.forEach(m => {
         if (['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(m.status)) {
           const cleanId = socketService.cleanId(m._id || m.id);
-          socketService.joinMatch(cleanId);
-          socketService.remoteLog('MyCricketScreen', `Joined live match room: match_${cleanId}`);
+          activeIds.add(cleanId);
         }
       });
-      return () => {
-        list.forEach(m => {
-          const cleanId = socketService.cleanId(m._id || m.id);
-          socketService.leaveMatch(cleanId);
-          socketService.remoteLog('MyCricketScreen', `Left live match room: match_${cleanId}`);
-        });
-      };
+
+      // Join new rooms
+      activeIds.forEach(id => {
+        if (!joinedRoomsRef.current.has(id)) {
+          socketService.joinMatch(id);
+          joinedRoomsRef.current.add(id);
+          socketService.remoteLog('MyCricketScreen', `Joined live match room: match_${id}`);
+        }
+      });
+
+      // Leave old rooms no longer in the active list
+      joinedRoomsRef.current.forEach(id => {
+        if (!activeIds.has(id)) {
+          socketService.leaveMatch(id);
+          joinedRoomsRef.current.delete(id);
+          socketService.remoteLog('MyCricketScreen', `Left live match room: match_${id}`);
+        }
+      });
+    } else {
+      joinedRoomsRef.current.forEach(id => {
+        socketService.leaveMatch(id);
+        socketService.remoteLog('MyCricketScreen', `Left live match room (unfocused): match_${id}`);
+      });
+      joinedRoomsRef.current.clear();
     }
   }, [isFocused, activeTopTab, activeSubTab, myMatches, matches]);
 
   // Handle Tab changes
-  const handleTopTabChange = (tab) => {
+  const handleTopTabChange = (tab, scrollToTab = true) => {
     setActiveTopTab(tab);
     if (tab === 'Matches') setActiveSubTab('My');
     if (tab === 'Teams') setActiveSubTab('My');
     if (tab === 'Tournaments') setActiveSubTab('My');
+
+    if (scrollToTab && scrollViewRef.current) {
+      const index = TOP_TABS.indexOf(tab);
+      scrollViewRef.current.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
+    }
+  };
+
+  const handleScroll = (e) => {
+    const x = e.nativeEvent.contentOffset.x;
+    const index = Math.round(x / SCREEN_WIDTH);
+    const newTab = TOP_TABS[index];
+    if (newTab && newTab !== activeTopTab) {
+      handleTopTabChange(newTab, false);
+    }
   };
 
   const handleFollowTournament = async (tournamentId, isFollowing) => {
@@ -234,59 +269,82 @@ const MyCricketScreen = ({ route }) => {
     </View>
   );
 
-  const renderMatchCard = ({ item }) => (
-    <TouchableOpacity style={styles.cardContainer} activeOpacity={0.9} onPress={() => navigation.navigate('MatchSummary', { matchId: item._id })}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardFormatText} numberOfLines={1}>
-          {item.tournament ? item.tournament.name : 'Individual Match'} • {item.ground || item.venueDetails || 'Ground'}, {item.city || 'City'}
-        </Text>
-        <View style={[styles.resultBadge, { backgroundColor: ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status) ? Colors.error : Colors.surface }]}>
-          <Text style={[styles.resultBadgeText, { color: ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status) ? Colors.white : Colors.textSecondary }]}>
-            {['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status) ? 'LIVE' : item.status === 'scheduled' ? 'Upcoming' : 'Result'}
+  const renderMatchCard = ({ item }) => {
+    const isLive = ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status);
+    const isCompleted = item.status === 'completed';
+
+    let teamABattedFirst = true;
+    if (item.toss && item.toss.winner) {
+      const tossWinnerId = String(item.toss.winner._id || item.toss.winner || '').trim();
+      const teamAId = String(item.teamA?._id || item.teamA || '').trim();
+      const teamBId = String(item.teamB?._id || item.teamB || '').trim();
+      if (tossWinnerId === teamAId) {
+        teamABattedFirst = (item.toss.choice === 'bat');
+      } else if (tossWinnerId === teamBId) {
+        teamABattedFirst = (item.toss.choice === 'bowl');
+      }
+    }
+
+    const firstTeam = teamABattedFirst ? item.teamA : item.teamB;
+    const firstScore = teamABattedFirst ? item.teamAScore : item.teamBScore;
+    const isFirstWinner = isCompleted && (item.result?.winner === firstTeam?._id || item.result?.winner?._id === firstTeam?._id);
+
+    const secondTeam = teamABattedFirst ? item.teamB : item.teamA;
+    const secondScore = teamABattedFirst ? item.teamBScore : item.teamAScore;
+    const isSecondWinner = isCompleted && (item.result?.winner === secondTeam?._id || item.result?.winner?._id === secondTeam?._id);
+
+    return (
+      <TouchableOpacity style={styles.cardContainer} activeOpacity={0.9} onPress={() => navigation.navigate('MatchSummary', { matchId: item._id })}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardFormatText} numberOfLines={1}>
+            {item.tournament ? item.tournament.name : 'Individual Match'} • {item.ground || item.venueDetails || 'Ground'}, {item.city || 'City'}
+          </Text>
+          <View style={[styles.resultBadge, { backgroundColor: isLive ? Colors.error : Colors.surface }]}>
+            <Text style={[styles.resultBadgeText, { color: isLive ? Colors.white : Colors.textSecondary }]}>
+              {isLive ? 'LIVE' : item.status === 'scheduled' ? 'Upcoming' : 'Result'}
+            </Text>
+          </View>
+        </View>
+        
+        <Text style={styles.cardSubText}>{item.stage ? `${item.stage} | ` : ''}{item.format === 'test' ? 'Test' : item.format === 't20' ? 'T20' : item.format === 'odi' ? 'ODI' : item.format || 'Custom'} | {moment(item.scheduledAt || item.createdAt).format('DD MMM YYYY, h:mm a')} | {item.overs} Ov.</Text>
+        
+        <View style={styles.teamScoreRow}>
+          <Text style={[styles.teamNameText, isFirstWinner && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{firstTeam?.name}</Text>
+          <Text style={styles.scoreText}>
+            {firstScore?.runs || 0}/{firstScore?.wickets || 0} <Text style={styles.overText}>({firstScore?.overs || '0.0'} Ov)</Text>
           </Text>
         </View>
-      </View>
-      
-      <Text style={styles.cardSubText}>{item.stage ? `${item.stage} | ` : ''}{item.format === 'test' ? 'Test' : item.format === 't20' ? 'T20' : item.format === 'odi' ? 'ODI' : item.format || 'Custom'} | {moment(item.scheduledAt || item.createdAt).format('DD MMM YYYY, h:mm a')} | {item.overs} Ov.</Text>
-      
-      <View style={styles.teamScoreRow}>
-        <Text style={[styles.teamNameText, item.status === 'completed' && (item.result?.winner === item.teamA?._id || item.result?.winner?._id === item.teamA?._id) && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{item.teamA?.name}</Text>
-        <Text style={styles.scoreText}>
-          {item.teamAScore?.runs || 0}/{item.teamAScore?.wickets || 0} <Text style={styles.overText}>({item.teamAScore?.overs || '0.0'} Ov)</Text>
-        </Text>
-      </View>
-      <View style={styles.teamScoreRow}>
-        <Text style={[styles.teamNameText, item.status === 'completed' && (item.result?.winner === item.teamB?._id || item.result?.winner?._id === item.teamB?._id) && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{item.teamB?.name}</Text>
-        <Text style={styles.scoreText}>
-          {item.teamBScore?.runs || 0}/{item.teamBScore?.wickets || 0} <Text style={styles.overText}>({item.teamBScore?.overs || '0.0'} Ov)</Text>
-        </Text>
-      </View>
+        <View style={styles.teamScoreRow}>
+          <Text style={[styles.teamNameText, isSecondWinner && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{secondTeam?.name}</Text>
+          <Text style={styles.scoreText}>
+            {secondScore?.runs || 0}/{secondScore?.wickets || 0} <Text style={styles.overText}>({secondScore?.overs || '0.0'} Ov)</Text>
+          </Text>
+        </View>
 
-      {item.status !== 'completed' && (
-        <Text style={styles.matchStatusText}>
-          {item.status === 'in_progress' 
-            ? 'LIVE' 
-            : item.status === 'scheduled' 
-              ? `SCHEDULED AT ${moment(item.scheduledAt || item.createdAt).format('DD MMM YYYY, hh:mm A').toUpperCase()}` 
-              : item.status === 'abandoned' && item.result?.summary
-                ? item.result.summary.toUpperCase()
-                : item.status.replace('_', ' ').toUpperCase()}
-        </Text>
-      )}
+        {item.status !== 'completed' && (
+          <Text style={styles.matchStatusText}>
+            {item.status === 'in_progress' 
+              ? 'LIVE' 
+              : item.status === 'scheduled' 
+                ? `SCHEDULED AT ${moment(item.scheduledAt || item.createdAt).format('DD MMM YYYY, hh:mm A').toUpperCase()}` 
+                : item.status === 'abandoned' && item.result?.summary
+                  ? item.result.summary.toUpperCase()
+                  : item.status.replace('_', ' ').toUpperCase()}
+          </Text>
+        )}
 
-      {item.status === 'completed' && item.result?.summary ? (
-        <Text style={[styles.matchStatusText, { color: Colors.textSecondary, fontSize: 12, marginTop: 4 }]}>
-          {item.result.summary}
-        </Text>
-      ) : item.toss?.winner && item.status !== 'scheduled' ? (
-        <Text style={[styles.matchStatusText, { color: Colors.textSecondary, fontSize: 12, marginTop: 4 }]}>
-          {item.toss.winner.name || (item.toss.winner?.toString() === item.teamA?._id?.toString() ? item.teamA?.name : item.teamB?.name)} won the toss and elected to {item.toss.choice}
-        </Text>
-      ) : null}
-      
-
-    </TouchableOpacity>
-  );
+        {item.status === 'completed' && item.result?.summary ? (
+          <Text style={[styles.matchStatusText, { color: Colors.textSecondary, fontSize: 12, marginTop: 4 }]}>
+            {item.result.summary}
+          </Text>
+        ) : item.toss?.winner && item.status !== 'scheduled' ? (
+          <Text style={[styles.matchStatusText, { color: Colors.textSecondary, fontSize: 12, marginTop: 4 }]}>
+            {(item.toss.winner.name || (String(item.toss.winner) === String(item.teamA?._id) ? item.teamA?.name : item.teamB?.name))} won the toss and elected to {item.toss.choice}
+          </Text>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
 
   const renderTournamentCard = ({ item }) => (
     <TouchableOpacity style={styles.tournamentCard} activeOpacity={0.9} onPress={() => navigation.navigate('TournamentDetail', { tournamentId: item._id })}>
@@ -298,7 +356,11 @@ const MyCricketScreen = ({ route }) => {
             <Icon name="trophy" size={40} color={Colors.primary} />
           </View>
         )}
-        <View style={styles.tournamentStatusBadge}><Text style={styles.tournamentStatusText}>{
+        <View style={[styles.tournamentStatusBadge, {
+          backgroundColor: (item.status === 'ongoing' || item.status === 'live') ? Colors.error 
+            : item.status === 'completed' ? Colors.success 
+            : Colors.warning // default to orange (upcoming/reg open)
+        }]}><Text style={styles.tournamentStatusText}>{
           item.status === 'draft' ? 'UPCOMING' : 
           item.status === 'registration_open' ? 'REG OPEN' : 
           item.status === 'registration_closed' ? 'REG CLOSED' : 
@@ -414,120 +476,112 @@ const MyCricketScreen = ({ route }) => {
     </View>
   );
 
-  const renderContent = () => {
-    if (activeTopTab === 'Matches') {
-      const isListLoading = matchLoading && !refreshing;
-
-      return (
-        <>
-          <View style={styles.actionHeader}>
-            <Text style={styles.actionTitle}>Want to start a match?</Text>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('MatchSetup')}>
-              <Text style={styles.actionBtnText}>Start</Text>
-            </TouchableOpacity>
-          </View>
-          {renderSubTabBar(MATCH_SUB_TABS)}
-          {isListLoading ? (
-            <View style={styles.listContainer}>
-              {[1, 2, 3].map(i => <React.Fragment key={i}>{renderMatchSkeleton()}</React.Fragment>)}
-            </View>
-          ) : (
-            <FlatList
-              data={myMatches}
-              keyExtractor={i => i._id}
-              renderItem={renderMatchCard}
-              contentContainerStyle={styles.listContainer}
-              ListEmptyComponent={<Text style={styles.emptyText}>No matches found</Text>}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
-            />
-          )}
-        </>
-      );
-    } else if (activeTopTab === 'Tournaments') {
-      const isListLoading = tournamentLoading && !refreshing;
-
-      return (
-        <>
-          <View style={styles.actionHeader}>
-            <Text style={styles.actionTitle}>Want to host a tournament?</Text>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('TournamentCreate')}>
-              <Text style={styles.actionBtnText}>Register</Text>
-            </TouchableOpacity>
-          </View>
-          {renderSubTabBar(TOURNAMENT_SUB_TABS)}
-          <View style={styles.searchContainer}>
-            <Icon name="magnify" size={20} color={Colors.textTertiary} style={styles.searchIcon} />
-            <TextInput 
-              style={styles.searchInput}
-              placeholder="Search by name"
-              placeholderTextColor={Colors.textTertiary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-          {isListLoading ? (
-            <View style={styles.listContainer}>
-              {[1, 2].map(i => <React.Fragment key={i}>{renderTournamentSkeleton()}</React.Fragment>)}
-            </View>
-          ) : (
-            <FlatList
-              data={tournaments.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))}
-              keyExtractor={i => i._id}
-              renderItem={renderTournamentCard}
-              contentContainerStyle={styles.listContainer}
-              ListEmptyComponent={<Text style={styles.emptyText}>No tournaments found</Text>}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
-            />
-          )}
-        </>
-      );
-    } else if (activeTopTab === 'Teams') {
-      const isListLoading = (teamLoading || opponentsLoading || followingLoading) && !refreshing;
-      
-      const teamData = activeSubTab === 'My' ? myTeams : activeSubTab === 'Opponents' ? opponentTeams : followingTeams || [];
-
-      return (
-        <>
-          <View style={styles.actionHeader}>
-            <Text style={styles.actionTitle}>Want to create a new team?</Text>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('TeamCreate')}>
-              <Text style={styles.actionBtnText}>Create</Text>
-            </TouchableOpacity>
-          </View>
-          {renderSubTabBar(TEAM_SUB_TABS)}
-          <View style={styles.searchContainer}>
-            <Icon name="magnify" size={20} color={Colors.textTertiary} style={styles.searchIcon} />
-            <TextInput 
-              style={styles.searchInput}
-              placeholder="Quick search"
-              placeholderTextColor={Colors.textTertiary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-          {isListLoading ? (
-            <View style={styles.listContainer}>
-              {[1, 2, 3, 4].map(i => <React.Fragment key={i}>{renderTeamSkeleton()}</React.Fragment>)}
-            </View>
-          ) : (
-            <FlatList
-              data={teamData.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))}
-              keyExtractor={i => i._id}
-              renderItem={renderTeamCard}
-              contentContainerStyle={styles.listContainer}
-              ListEmptyComponent={<Text style={styles.emptyText}>No teams found</Text>}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
-            />
-          )}
-        </>
-      );
-    } else {
-      return (
-        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-          <Text style={styles.emptyText}>Coming Soon</Text>
+  const renderMatchesTab = () => {
+    const isListLoading = matchLoading && !refreshing;
+    return (
+      <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+        <View style={styles.actionHeader}>
+          <Text style={styles.actionTitle}>Want to start a match?</Text>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('MatchSetup')}>
+            <Text style={styles.actionBtnText}>Start</Text>
+          </TouchableOpacity>
         </View>
-      );
-    }
+        {renderSubTabBar(MATCH_SUB_TABS)}
+        {isListLoading ? (
+          <View style={styles.listContainer}>
+            {[1, 2, 3].map(i => <React.Fragment key={i}>{renderMatchSkeleton()}</React.Fragment>)}
+          </View>
+        ) : (
+          <FlatList
+            data={myMatches}
+            keyExtractor={i => i._id}
+            renderItem={renderMatchCard}
+            contentContainerStyle={styles.listContainer}
+            ListEmptyComponent={<Text style={styles.emptyText}>No matches found</Text>}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+          />
+        )}
+      </View>
+    );
+  };
+
+  const renderTournamentsTab = () => {
+    const isListLoading = tournamentLoading && !refreshing;
+    return (
+      <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+        <View style={styles.actionHeader}>
+          <Text style={styles.actionTitle}>Want to host a tournament?</Text>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('TournamentCreate')}>
+            <Text style={styles.actionBtnText}>Register</Text>
+          </TouchableOpacity>
+        </View>
+        {renderSubTabBar(TOURNAMENT_SUB_TABS)}
+        <View style={styles.searchContainer}>
+          <Icon name="magnify" size={20} color={Colors.textTertiary} style={styles.searchIcon} />
+          <TextInput 
+            style={styles.searchInput}
+            placeholder="Search by name"
+            placeholderTextColor={Colors.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+        {isListLoading ? (
+          <View style={styles.listContainer}>
+            {[1, 2].map(i => <React.Fragment key={i}>{renderTournamentSkeleton()}</React.Fragment>)}
+          </View>
+        ) : (
+          <FlatList
+            data={tournaments.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))}
+            keyExtractor={i => i._id}
+            renderItem={renderTournamentCard}
+            contentContainerStyle={styles.listContainer}
+            ListEmptyComponent={<Text style={styles.emptyText}>No tournaments found</Text>}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+          />
+        )}
+      </View>
+    );
+  };
+
+  const renderTeamsTab = () => {
+    const isListLoading = (teamLoading || opponentsLoading || followingLoading) && !refreshing;
+    const teamData = activeSubTab === 'My' ? myTeams : activeSubTab === 'Opponents' ? opponentTeams : followingTeams || [];
+    return (
+      <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+        <View style={styles.actionHeader}>
+          <Text style={styles.actionTitle}>Want to create a new team?</Text>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('TeamCreate')}>
+            <Text style={styles.actionBtnText}>Create</Text>
+          </TouchableOpacity>
+        </View>
+        {renderSubTabBar(TEAM_SUB_TABS)}
+        <View style={styles.searchContainer}>
+          <Icon name="magnify" size={20} color={Colors.textTertiary} style={styles.searchIcon} />
+          <TextInput 
+            style={styles.searchInput}
+            placeholder="Quick search"
+            placeholderTextColor={Colors.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+        {isListLoading ? (
+          <View style={styles.listContainer}>
+            {[1, 2, 3, 4].map(i => <React.Fragment key={i}>{renderTeamSkeleton()}</React.Fragment>)}
+          </View>
+        ) : (
+          <FlatList
+            data={teamData.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))}
+            keyExtractor={i => i._id}
+            renderItem={renderTeamCard}
+            contentContainerStyle={styles.listContainer}
+            ListEmptyComponent={<Text style={styles.emptyText}>No teams found</Text>}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+          />
+        )}
+      </View>
+    );
   };
 
   if (!isAuthenticated) return null;
@@ -536,7 +590,17 @@ const MyCricketScreen = ({ route }) => {
     <View style={styles.safe}>
       {renderTopTabBar()}
       <View style={styles.mainContainer}>
-        {renderContent()}
+        <ScrollView
+          ref={scrollViewRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleScroll}
+        >
+          {renderMatchesTab()}
+          {renderTournamentsTab()}
+          {renderTeamsTab()}
+        </ScrollView>
       </View>
     </View>
   );
@@ -555,11 +619,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 1 },
     shadowRadius: 2,
-    paddingHorizontal: 16,
   },
   topTabBtn: {
+    flex: 1,
+    alignItems: 'center',
     paddingVertical: 14,
-    marginRight: 20,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },

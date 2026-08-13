@@ -45,11 +45,28 @@ const getStats = (player, ballType) => {
   };
 };
 
-const getMainStat = (player, tab, ballType) => {
+const getMainStat = (player, tab, ballType, statFilter) => {
   const s = getStats(player, ballType);
-  if (tab === 'Batters')  return s.batting.runs    ?? 0;
-  if (tab === 'Bowlers')  return s.bowling.wickets ?? 0;
-  if (tab === 'Fielders') return s.fielding.catches ?? 0;
+  const f = statFilter?.toLowerCase() || '';
+
+  if (tab === 'Batters') {
+    if (f === 'matches') return player.career?.matches || 0;
+    if (f === 'highscore' || f === 'high score') return s.batting?.highestScore || 0;
+    if (f === 'avg' || f === 'average') return fmt(player.calculatedAvg);
+    return s.batting?.runs ?? 0;
+  }
+  if (tab === 'Bowlers') {
+    if (f === 'matches') return player.career?.matches || 0;
+    if (f === 'maidens') return s.bowling?.maidens || 0;
+    if (f === 'best') return `${s.bowling?.bestWickets || 0}/${s.bowling?.bestRuns === 999 ? 0 : (s.bowling?.bestRuns || 0)}`;
+    if (f === 'eco' || f === 'economy') return fmt(player.calculatedEco);
+    return s.bowling?.wickets ?? 0;
+  }
+  if (tab === 'Fielders') {
+    if (f === 'stumpings') return s.fielding?.stumpings || 0;
+    if (f === 'run outs') return s.fielding?.runOuts || 0;
+    return s.fielding?.catches ?? 0;
+  }
   return 0;
 };
 
@@ -92,8 +109,21 @@ const getSubStats = (player, tab, ballType) => {
   ];
 };
 
-const statLabel = (tab) =>
-  tab === 'Batters' ? 'Runs' : tab === 'Bowlers' ? 'Wkts' : 'Catches';
+const statLabel = (tab, statFilter) => {
+  const f = statFilter?.toLowerCase() || '';
+  if (f === 'average' || f === 'avg') return 'Avg';
+  if (f === 'high score' || f === 'highscore') return 'Highest';
+  if (f === 'matches') return 'Matches';
+  
+  if (f === 'economy' || f === 'eco') return 'Econ';
+  if (f === 'maidens') return 'Maidens';
+  if (f === 'best') return 'Best Bowl';
+  
+  if (f === 'stumpings') return 'Stumps';
+  if (f === 'run outs') return 'Run Outs';
+  
+  return tab === 'Batters' ? 'Runs' : tab === 'Bowlers' ? 'Wkts' : 'Catches';
+};
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 const Avatar = ({ uri, name, size = 48, isChampion = false }) => {
@@ -160,7 +190,7 @@ const Particle = ({ delay, x, size, duration }) => {
 };
 
 // ─── Podium Column ────────────────────────────────────────────────────────────
-const PodiumColumn = ({ player, rank, tab, ballType, navigation, floatAnim }) => {
+const PodiumColumn = ({ player, rank, tab, ballType, statFilter, navigation, floatAnim }) => {
   if (!player) return <View style={{ width: (width - 32) / 3 }} />;
 
   const isFirst  = rank === 1;
@@ -222,13 +252,13 @@ const PodiumColumn = ({ player, rank, tab, ballType, navigation, floatAnim }) =>
         fontFamily: Typography.fontFamily.extraBold,
         fontSize: isFirst ? 22 : 18,
         color: isFirst ? S.yellow : S.white,
-      }}>{getMainStat(player, tab, ballType)}</Text>
+      }}>{getMainStat(player, tab, ballType, statFilter)}</Text>
 
       <Text style={{
         fontFamily: Typography.fontFamily.regular,
         fontSize: 10,
         color: S.textSecondary,
-      }}>{statLabel(tab)}</Text>
+      }}>{statLabel(tab, statFilter)}</Text>
 
       {/* Podium base */}
       <View style={{
@@ -257,7 +287,7 @@ const PodiumColumn = ({ player, rank, tab, ballType, navigation, floatAnim }) =>
 };
 
 // ─── List Row (rank 4+) ────────────────────────────────────────────────────────
-const ListRow = ({ item, rank, tab, ballType, navigation, entryAnim }) => {
+const ListRow = ({ item, rank, tab, ballType, statFilter, navigation, entryAnim }) => {
   const mainStat = getMainStat(item, tab, ballType);
   const subs     = getSubStats(item, tab, ballType);
   const uri      = getImageUrl(item.photo || item.userId?.profilePicture);
@@ -377,23 +407,32 @@ const SkeletonRow = () => {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 const GlobalLeaderboardScreen = () => {
-  const [activeTab,      setActiveTab]      = useState('Batters');
-  const [activeBallType, setActiveBallType] = useState('Tennis');
-  const [selectedCity,   setSelectedCity]   = useState(null);
-  const [showModal,      setShowModal]      = useState(false);
+  const [activeTab,         setActiveTab]         = useState('Batters');
+  const [activeBallType,    setActiveBallType]    = useState('Tennis');
+  const [selectedCity,      setSelectedCity]      = useState(null);
+  const [showModal,         setShowModal]         = useState(false);
+  const [statFilter,        setStatFilter]        = useState('all');
+  // Filter sheet state
+  const [showFilterModal,   setShowFilterModal]   = useState(false);
+  const [pendingTab,        setPendingTab]        = useState('Batters');
+  const [pendingBallType,   setPendingBallType]   = useState('Tennis');
+  const [pendingStatFilter, setPendingStatFilter] = useState('all');
 
   const dispatch   = useDispatch();
   const navigation = useNavigation();
   const insets     = useSafeAreaInsets();
   const { globalLeaderboard, isLoading } = useSelector(s => s.player);
   const { myProfile }                    = useSelector(s => s.player);
+  const myRank = globalLeaderboard.myRank;
+
+  // FlatList ref for scroll-to-my-rank
+  const flatListRef = useRef(null);
 
   // Animations
-  const fadeAnim      = useRef(new Animated.Value(0)).current;
-  const tabSlide      = useRef(new Animated.Value(0)).current;
-  const ballTypeSlide = useRef(new Animated.Value(0)).current;
-  const floatAnim     = useRef(new Animated.Value(0)).current;
-  const entryAnim     = useRef(new Animated.Value(0)).current;
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const entryAnim = useRef(new Animated.Value(0)).current;
+  const myRankBarAnim = useRef(new Animated.Value(0)).current;
 
   // Champion float loop
   useEffect(() => {
@@ -409,39 +448,63 @@ const GlobalLeaderboardScreen = () => {
     if (city && !selectedCity) setSelectedCity(city);
   }, [myProfile]);
 
-  // Tab slide
+  // Reset pending stat filter when category changes in the sheet
   useEffect(() => {
-    Animated.spring(tabSlide, {
-      toValue: TABS.indexOf(activeTab),
-      useNativeDriver: true, tension: 90, friction: 14,
-    }).start();
-  }, [activeTab]);
+    setPendingStatFilter('all');
+  }, [pendingTab]);
 
-  // Ball type slide
-  useEffect(() => {
-    Animated.spring(ballTypeSlide, {
-      toValue: BALL_TYPES.indexOf(activeBallType),
-      useNativeDriver: true, tension: 90, friction: 14,
-    }).start();
-  }, [activeBallType]);
+  // Open filter sheet: seed pending values from active
+  const openFilterSheet = () => {
+    setPendingTab(activeTab);
+    setPendingBallType(activeBallType);
+    setPendingStatFilter(statFilter);
+    setShowFilterModal(true);
+  };
+
+  const applyFilter = () => {
+    setActiveTab(pendingTab);
+    setActiveBallType(pendingBallType);
+    setStatFilter(pendingStatFilter);
+    setShowFilterModal(false);
+  };
 
   // Fetch on change
   useEffect(() => {
     if (!selectedCity) return;
     fadeAnim.setValue(0);
     entryAnim.setValue(0);
+    myRankBarAnim.setValue(0);
     dispatch(fetchGlobalLeaderboard({
       category: activeTab.toLowerCase(),
       ballType: activeBallType,
       city:     selectedCity,
       limit:    50,
+      statFilter: statFilter,
     })).then(() => {
       Animated.parallel([
         Animated.spring(fadeAnim,  { toValue: 1, useNativeDriver: true, tension: 60, friction: 10 }),
         Animated.spring(entryAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 12, delay: 200 }),
+        Animated.spring(myRankBarAnim, { toValue: 1, useNativeDriver: true, tension: 60, friction: 12, delay: 400 }),
       ]).start();
     });
-  }, [activeTab, activeBallType, selectedCity, dispatch]);
+  }, [activeTab, activeBallType, selectedCity, statFilter, dispatch]);
+
+  const scrollToMyRank = () => {
+    if (!myRank || !flatListRef.current) return;
+    const rank = myRank.rank;
+    if (rank <= 3) {
+      // Top 3 are in the header, scroll to top
+      flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+    } else {
+      // rank 4+ are in the FlatList data (rest), index = rank - 4
+      const index = rank - 4;
+      try {
+        flatListRef.current.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
+      } catch (e) {
+        flatListRef.current.scrollToOffset({ offset: index * 110, animated: true });
+      }
+    }
+  };
 
   const currentData =
     activeTab === 'Batters'  ? (globalLeaderboard.batters  || []) :
@@ -451,8 +514,8 @@ const GlobalLeaderboardScreen = () => {
   const top3 = currentData.slice(0, 3);
   const rest = currentData.slice(3);
 
-  const TAB_W   = (width - 32 - 6) / TABS.length;
-  const BALL_W  = (width - 32 - 6) / BALL_TYPES.length;
+  // Active filter summary label shown in the header sub-line
+  const filterSummary = `${activeTab} • ${activeBallType} • ${statFilter.charAt(0).toUpperCase() + statFilter.slice(1)}`;
 
   // ─── List Header (Podium) ────────────────────────────────────────────────
   const renderHeader = () => (
@@ -465,17 +528,17 @@ const GlobalLeaderboardScreen = () => {
         }]}>
           <PodiumColumn
             player={top3[1]} rank={2}
-            tab={activeTab} ballType={activeBallType}
+            tab={activeTab} ballType={activeBallType} statFilter={statFilter}
             navigation={navigation} floatAnim={floatAnim}
           />
           <PodiumColumn
             player={top3[0]} rank={1}
-            tab={activeTab} ballType={activeBallType}
+            tab={activeTab} ballType={activeBallType} statFilter={statFilter}
             navigation={navigation} floatAnim={floatAnim}
           />
           <PodiumColumn
             player={top3[2]} rank={3}
-            tab={activeTab} ballType={activeBallType}
+            tab={activeTab} ballType={activeBallType} statFilter={statFilter}
             navigation={navigation} floatAnim={floatAnim}
           />
         </Animated.View>
@@ -518,44 +581,31 @@ const GlobalLeaderboardScreen = () => {
             ) : null}
           </View>
 
-          <TouchableOpacity onPress={() => setShowModal(true)} style={styles.changeCityBtn}>
-            <Icon name="swap-horizontal" size={14} color={S.yellow} />
-            <Text style={styles.changeCityText}>{selectedCity ? 'Change' : 'Set City'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Category Tabs ── */}
-        <View style={styles.tabsContainer}>
-          <View style={styles.tabsTrack}>
-            {/* Sliding yellow pill */}
-            <Animated.View style={[
-              styles.tabPill,
-              { width: TAB_W, transform: [{ translateX: tabSlide.interpolate({ inputRange: [0,1,2], outputRange: [0, TAB_W, TAB_W*2] }) }] },
-            ]} />
-            {TABS.map((tab, i) => (
-              <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={[styles.tabItem, { width: TAB_W }]}>
-                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => setShowModal(true)} style={styles.changeCityBtn}>
+              <Icon name="swap-horizontal" size={14} color={S.yellow} />
+              <Text style={styles.changeCityText}>{selectedCity ? 'Change' : 'Set City'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={openFilterSheet} style={[styles.iconBtn, { backgroundColor: 'rgba(255,212,0,0.12)', borderWidth: 1, borderColor: S.borderYellow, borderRadius: 10 }]}>
+              <Icon name="tune-variant" size={18} color={S.yellow} />
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* ── Ball Type Tabs ── */}
-        <View style={styles.ballTypeContainer}>
-          <View style={styles.ballTypeTrack}>
-            <Animated.View style={[
-              styles.ballTypePill,
-              { width: BALL_W, transform: [{ translateX: ballTypeSlide.interpolate({ inputRange: [0,1,2], outputRange: [0, BALL_W, BALL_W*2] }) }] },
-            ]} />
-            {BALL_TYPES.map((bt) => (
-              <TouchableOpacity key={bt} onPress={() => setActiveBallType(bt)} style={[styles.ballTypeItem, { width: BALL_W }]}>
-                <Text style={[styles.ballTypeText, activeBallType === bt && styles.ballTypeTextActive]}>{bt}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        {/* ── Active Filter Status Bar ── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 10, gap: 6 }}>
+          <Icon name="filter-variant" size={13} color={S.textSecondary} />
+          {[activeTab, activeBallType, statFilter === 'all' ? 'All' : statFilter.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')].map((label, i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              {i > 0 && <Text style={{ color: S.textTertiary, fontSize: 10 }}>›</Text>}
+              <View style={{ backgroundColor: i === 0 ? 'rgba(255,212,0,0.12)' : 'rgba(255,255,255,0.06)', borderRadius: 5, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: i === 0 ? S.borderYellow : 'rgba(255,255,255,0.08)' }}>
+                <Text style={{ fontFamily: Typography.fontFamily.semiBold, fontSize: 11, color: i === 0 ? S.yellow : S.textSecondary }}>{label}</Text>
+              </View>
+            </View>
+          ))}
         </View>
 
-        {/* ── Content ── */}
+
         {!selectedCity ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconWrap}>
@@ -575,11 +625,16 @@ const GlobalLeaderboardScreen = () => {
           </ScrollView>
         ) : (
           <FlatList
+            ref={flatListRef}
             data={rest}
             keyExtractor={i => i._id}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, myRank && { paddingBottom: 90 + insets.bottom + 24 }]}
             ListHeaderComponent={renderHeader}
+            onScrollToIndexFailed={info => {
+              // Fallback: scroll to approximate offset
+              flatListRef.current?.scrollToOffset({ offset: info.index * 110, animated: true });
+            }}
             ListEmptyComponent={
               currentData.length === 0 ? (
                 <View style={styles.noData}>
@@ -594,6 +649,7 @@ const GlobalLeaderboardScreen = () => {
                 rank={index + 4}
                 tab={activeTab}
                 ballType={activeBallType}
+                statFilter={statFilter}
                 navigation={navigation}
                 entryAnim={entryAnim}
               />
@@ -601,6 +657,52 @@ const GlobalLeaderboardScreen = () => {
           />
         )}
       </SafeAreaView>
+
+      {/* ── My Rank Fixed Bottom Bar ── */}
+      {myRank && selectedCity && !isLoading && (
+        <Animated.View
+          style={[
+            styles.myRankBar,
+            { paddingBottom: insets.bottom + 12 },
+            { opacity: myRankBarAnim, transform: [{ translateY: myRankBarAnim.interpolate({ inputRange: [0, 1], outputRange: [80, 0] }) }] },
+          ]}
+        >
+          <TouchableOpacity style={styles.myRankInner} onPress={scrollToMyRank} activeOpacity={0.85}>
+            {/* Rank badge */}
+            <View style={[
+              styles.myRankBadge,
+              myRank.rank <= 3 && { backgroundColor: myRank.rank === 1 ? S.yellow : myRank.rank === 2 ? '#C0C0C0' : '#CD7F32' },
+            ]}>
+              <Text style={[styles.myRankBadgeText, myRank.rank <= 3 && { color: S.black }]}>
+                #{myRank.rank}
+              </Text>
+            </View>
+
+            {/* Avatar */}
+            <Avatar
+              uri={getImageUrl(myRank.player?.photo || myRank.player?.userId?.profilePicture)}
+              name={myRank.player?.name || myProfile?.name}
+              size={36}
+            />
+
+            {/* Info */}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.myRankName} numberOfLines={1}>
+                {myRank.player?.name || myProfile?.name || 'You'}
+              </Text>
+              <Text style={styles.myRankSub}>
+                {statLabel(activeTab, statFilter)}: {getMainStat(myRank.player, activeTab, activeBallType, statFilter)}
+              </Text>
+            </View>
+
+            {/* Scroll hint */}
+            {/* <View style={styles.myRankScrollHint}>
+              <Icon name="target" size={14} color={S.yellow} />
+              <Text style={styles.myRankScrollText}>Locate</Text>
+            </View> */}
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       {/* ── Location Modal ── */}
       <Modal visible={showModal} animationType="slide" transparent={false} onRequestClose={() => setShowModal(false)}>
@@ -655,6 +757,93 @@ const GlobalLeaderboardScreen = () => {
           </SafeAreaView>
         </View>
       </Modal>
+
+      {/* ── Filter Bottom Sheet Modal ── */}
+      <Modal
+        visible={showFilterModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowFilterModal(false)} />
+          <View style={{
+            backgroundColor: '#161616',
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            paddingHorizontal: 24,
+            paddingTop: 16,
+            paddingBottom: 36,
+            borderTopWidth: 1,
+            borderTopColor: 'rgba(255,255,255,0.08)',
+            maxHeight: '82%',
+          }}>
+            {/* Handle bar */}
+            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'center', marginBottom: 20 }} />
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* ─ Category ─ */}
+              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 15, color: S.white, marginBottom: 14 }}>Category</Text>
+              {TABS.map(tab => (
+                <TouchableOpacity key={tab} onPress={() => setPendingTab(tab)}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}>
+                  <View style={{
+                    width: 20, height: 20, borderRadius: 10,
+                    borderWidth: 2, borderColor: pendingTab === tab ? S.yellow : 'rgba(255,255,255,0.25)',
+                    alignItems: 'center', justifyContent: 'center', marginRight: 14,
+                  }}>
+                    {pendingTab === tab && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: S.yellow }} />}
+                  </View>
+                  <Text style={{ fontFamily: Typography.fontFamily.semiBold, fontSize: 14, color: pendingTab === tab ? S.white : S.textSecondary }}>{tab}</Text>
+                </TouchableOpacity>
+              ))}
+
+              {/* ─ Ball Type ─ */}
+              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 15, color: S.white, marginTop: 24, marginBottom: 14 }}>Ball Type</Text>
+              {BALL_TYPES.map(bt => (
+                <TouchableOpacity key={bt} onPress={() => setPendingBallType(bt)}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}>
+                  <View style={{
+                    width: 20, height: 20, borderRadius: 10,
+                    borderWidth: 2, borderColor: pendingBallType === bt ? S.yellow : 'rgba(255,255,255,0.25)',
+                    alignItems: 'center', justifyContent: 'center', marginRight: 14,
+                  }}>
+                    {pendingBallType === bt && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: S.yellow }} />}
+                  </View>
+                  <Text style={{ fontFamily: Typography.fontFamily.semiBold, fontSize: 14, color: pendingBallType === bt ? S.white : S.textSecondary }}>{bt}</Text>
+                </TouchableOpacity>
+              ))}
+
+              {/* ─ Sort By ─ */}
+              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 15, color: S.white, marginTop: 24, marginBottom: 14 }}>Sort By</Text>
+              {['all', ...(pendingTab === 'Batters' ? ['runs', 'average', 'high score', 'matches'] :
+                pendingTab === 'Bowlers' ? ['wickets', 'economy', 'maidens', 'best', 'matches'] :
+                ['catches', 'stumpings', 'run outs'])
+              ].map(f => (
+                <TouchableOpacity key={f} onPress={() => setPendingStatFilter(f)}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}>
+                  <View style={{
+                    width: 20, height: 20, borderRadius: 10,
+                    borderWidth: 2, borderColor: pendingStatFilter === f ? S.yellow : 'rgba(255,255,255,0.25)',
+                    alignItems: 'center', justifyContent: 'center', marginRight: 14,
+                  }}>
+                    {pendingStatFilter === f && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: S.yellow }} />}
+                  </View>
+                  <Text style={{ fontFamily: Typography.fontFamily.semiBold, fontSize: 14, color: pendingStatFilter === f ? S.white : S.textSecondary, textTransform: 'capitalize' }}>{f === 'all' ? 'All (Default)' : f}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Apply Button (Fixed at bottom) */}
+            <TouchableOpacity
+              onPress={applyFilter}
+              style={{ marginTop: 20, backgroundColor: S.yellow, borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}
+            >
+              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 15, color: S.black }}>Apply Filter</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -664,6 +853,73 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: S.black,
+  },
+
+  // ── My Rank Fixed Bottom Bar ─────────────────────────────────────────────
+  myRankBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(18,18,18,0.97)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,212,0,0.2)',
+    paddingTop: 12,
+    paddingHorizontal: 16,
+  },
+  myRankInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255,212,0,0.07)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,212,0,0.18)',
+  },
+  myRankBadge: {
+    minWidth: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  myRankBadgeText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+    color: S.yellow,
+  },
+  myRankName: {
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 14,
+    color: S.white,
+  },
+  myRankSub: {
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 11,
+    color: S.textSecondary,
+    marginTop: 1,
+  },
+  myRankScrollHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,212,0,0.12)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,212,0,0.25)',
+  },
+  myRankScrollText: {
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 11,
+    color: S.yellow,
   },
 
   // ── Header ──────────────────────────────────────────────────────────────
@@ -840,7 +1096,7 @@ const styles = StyleSheet.create({
   // ── List ─────────────────────────────────────────────────────────────────
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 40,
+    paddingBottom: 32,
   },
   listCard: {
     flexDirection: 'row',

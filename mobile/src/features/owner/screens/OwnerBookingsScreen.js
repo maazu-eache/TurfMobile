@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, Modal, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, Modal, TextInput, ScrollView, Dimensions } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
@@ -11,6 +11,9 @@ import { formatISTDate, formatISTTime } from '../../../utils/dateFormatter';
 import moment from 'moment';
 import { confirmBookingPayment, rejectBookingPayment, approveCancellation, rejectCancellation, fetchOwnerDashboard } from '../ownerSlice';
 import { showCustomAlert } from '../../../components/CustomAlert';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const TABS = ['All', 'Confirmed', 'Completed', 'Cancel Req', 'Cancelled'];
 
 const OwnerBookingsScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -49,6 +52,9 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  const scrollViewRef = useRef(null);
+  const topTabsRef = useRef(null);
 
   useEffect(() => {
     if (route.params?.turfId) {
@@ -378,12 +384,15 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
         </View>
       </View>
       <View style={styles.tabsWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer}>
-          {['All', 'Confirmed', 'Completed', 'Cancel Req', 'Cancelled'].map(status => (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer} ref={topTabsRef}>
+          {TABS.map((status, index) => (
             <TouchableOpacity 
               key={status} 
               style={[styles.tabButton, statusFilter === status && styles.tabButtonActive]}
-              onPress={() => setStatusFilter(status)}
+              onPress={() => {
+                setStatusFilter(status);
+                scrollViewRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
+              }}
             >
               <Text style={[styles.tabText, statusFilter === status && styles.tabTextActive]}>{status}</Text>
               {status === 'Cancel Req' && pendingCancellationsCount > 0 && (
@@ -396,36 +405,60 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
         </ScrollView>
       </View>
 
-      {/* Bookings List */}
-      {loading && !refreshing && page === 1 ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      ) : bookings.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <Icon name="calendar-blank" size={64} color={Colors.textTertiary} />
-          <Text style={styles.emptyText}>No bookings match your search.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={bookings}
-          keyExtractor={(item) => item._id}
-          renderItem={renderBookingCard}
-          contentContainerStyle={styles.listContainer}
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          showsVerticalScrollIndicator={false}
-          onEndReached={() => {
-            if (hasMore && !loadingMore && !loading) {
-              fetchBookings(page + 1, false);
-            }
-          }}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={() => loadingMore ? (
-            <ActivityIndicator size="small" color={Colors.primary} style={{ margin: 20 }} />
-          ) : null}
-        />
-      )}
+      {/* Bookings List (Swipable) */}
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={(e) => {
+          const index = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+          if (TABS[index] !== statusFilter) {
+            setStatusFilter(TABS[index]);
+            topTabsRef.current?.scrollTo({ x: Math.max(0, (index - 1) * 80), animated: true });
+          }
+        }}
+        style={{ flex: 1 }}
+      >
+        {TABS.map(tab => (
+          <View key={tab} style={{ width: SCREEN_WIDTH, flex: 1 }}>
+            {statusFilter === tab ? (
+              loading && !refreshing && page === 1 ? (
+                <View style={styles.centerContainer}>
+                  <ActivityIndicator size="large" color={Colors.primary} />
+                </View>
+              ) : bookings.length === 0 ? (
+                <View style={styles.centerContainer}>
+                  <Icon name="calendar-blank" size={64} color={Colors.textTertiary} />
+                  <Text style={styles.emptyText}>No bookings match your search.</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={bookings}
+                  keyExtractor={(item) => item._id}
+                  renderItem={renderBookingCard}
+                  contentContainerStyle={styles.listContainer}
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  showsVerticalScrollIndicator={false}
+                  onEndReached={() => {
+                    if (hasMore && !loadingMore && !loading) {
+                      fetchBookings(page + 1, false);
+                    }
+                  }}
+                  onEndReachedThreshold={0.5}
+                  ListFooterComponent={() => loadingMore ? (
+                    <ActivityIndicator size="small" color={Colors.primary} style={{ margin: 20 }} />
+                  ) : null}
+                />
+              )
+            ) : (
+              <View style={styles.centerContainer} />
+            )}
+          </View>
+        ))}
+      </ScrollView>
 
       {/* Verification Modal */}
       <Modal visible={verifyModalVisible} animationType="slide" transparent>

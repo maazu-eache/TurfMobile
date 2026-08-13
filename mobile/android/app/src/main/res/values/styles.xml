@@ -4,8 +4,8 @@
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
-        <item name="colorAccent">#9abc2f</item>
-        <item name="colorPrimary">#9abc2f</item>
-        <item name="colorPrimaryDark">#799622</item>
+        <item name="colorAccent">#F6C10B</item>
+        <item name="colorPrimary">#121212</item>
+        <item name="colorPrimaryDark">#000000</item>
     </style>
 </resources>

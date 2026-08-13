@@ -87,37 +87,41 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
           </View>
 
           <KeyboardAwareScrollView enableOnAndroid extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ flex: 1, marginTop: Spacing.sm }}>
-            <View style={styles.searchContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter 10-digit mobile number"
-                placeholderTextColor={Colors.textTertiary}
-                value={mobileToSearch}
-                onChangeText={setMobileToSearch}
-                keyboardType="phone-pad"
-                maxLength={10}
-              />
-              <TouchableOpacity style={styles.searchBtn} onPress={handleSearch} disabled={searching}>
-                {searching ? <ActivityIndicator size="small" color={Colors.white} /> : <Icon name="search" size={20} color={Colors.white} />}
-              </TouchableOpacity>
-            </View>
+            {!coOrganizer && (
+              <>
+                <View style={styles.searchContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter 10-digit mobile number"
+                    placeholderTextColor={Colors.textTertiary}
+                    value={mobileToSearch}
+                    onChangeText={setMobileToSearch}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                  />
+                  <TouchableOpacity style={styles.searchBtn} onPress={handleSearch} disabled={searching}>
+                    {searching ? <ActivityIndicator size="small" color={Colors.white} /> : <Icon name="search" size={20} color={Colors.white} />}
+                  </TouchableOpacity>
+                </View>
 
-            {searchResults && (
-              <View style={styles.resultCard}>
-                {searchResults.photo ? (
-                  <Image source={{ uri: getImageUrl(searchResults.photo) }} style={styles.userPhoto} />
-                ) : (
-                  <View style={styles.userPhotoPlaceholder}>
-                    <Icon name="user" size={20} color={Colors.primary} />
+                {searchResults && (
+                  <View style={styles.resultCard}>
+                    {searchResults.photo ? (
+                      <Image source={{ uri: getImageUrl(searchResults.photo) }} style={styles.userPhoto} />
+                    ) : (
+                      <View style={styles.userPhotoPlaceholder}>
+                        <Icon name="user" size={20} color={Colors.primary} />
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.userName}>{searchResults.name}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.addBtn} onPress={handleSelectCoOrganizer}>
+                      <Text style={styles.addBtnText}>Select</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.userName}>{searchResults.name}</Text>
-                </View>
-                <TouchableOpacity style={styles.addBtn} onPress={handleSelectCoOrganizer}>
-                  <Text style={styles.addBtnText}>Select</Text>
-                </TouchableOpacity>
-              </View>
+              </>
             )}
 
             <Text style={styles.subTitle}>Current Co-Organizer (Max 1)</Text>

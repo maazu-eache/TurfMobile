@@ -386,7 +386,7 @@ const CustomerNavigator = ({ navigation }) => {
         listeners={({ navigation }) => ({
           tabPress: (e) => {
             e.preventDefault();
-            navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'players' } });
+            navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'turfs' } });
           }
         })}
       />

@@ -411,7 +411,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
             </Text>
             {match?.currentInnings === 2 && liveState?.toWin && liveState?.ballsRemaining ? (
               <Text style={styles.scoreFooterNeed}>
-                {'  '}Need {liveState.toWin} off {liveState.ballsRemaining}b
+                {'  '}Need {liveState.toWin} runs off {liveState.ballsRemaining} balls
               </Text>
             ) : null}
           </View>

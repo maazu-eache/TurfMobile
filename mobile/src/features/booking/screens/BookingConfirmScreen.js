@@ -24,11 +24,33 @@ import RazorpayCheckout from 'react-native-razorpay';
 import api, { getImageUrl } from '../../../api/axios';
 import { formatISTDateFull, formatISTTime } from '../../../utils/dateFormatter';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import socketService from '../../../services/socketService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const BookingConfirmScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
+  const paymentProcessed = useRef(false);
+
+  useEffect(() => {
+    // Listen for webhook payment confirmation
+    const unsub = socketService.on('payment_confirmed', (data) => {
+      if (paymentProcessed.current) return;
+      paymentProcessed.current = true;
+      
+      setIsProcessing(false);
+      setShowConfetti(true);
+      showCustomAlert('Success', 'Payment successful & Booking confirmed!');
+      setTimeout(() => {
+        navigation.popToTop();
+        navigation.navigate('Bookings');
+      }, 2500);
+    });
+
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [navigation]);
   const { turf, slots, platformFeePercent = 5 } = route.params;
   const dispatch = useDispatch();
   const { isLoading } = useSelector((state) => state.booking);
@@ -84,7 +106,7 @@ const BookingConfirmScreen = ({ route, navigation }) => {
         };
         
         RazorpayCheckout.open(options).then(async (data) => {
-          // 4. Verify Payment
+          // 4. Verify Payment (Fallback in case webhook is delayed)
           try {
             await api.post('/payments/verify', {
               razorpay_order_id: data.razorpay_order_id,
@@ -92,6 +114,10 @@ const BookingConfirmScreen = ({ route, navigation }) => {
               razorpay_signature: data.razorpay_signature,
               bookingId
             });
+            
+            if (paymentProcessed.current) return;
+            paymentProcessed.current = true;
+
             setIsProcessing(false);
             setShowConfetti(true);
             showCustomAlert('Success', 'Payment successful & Booking confirmed!');

@@ -21,12 +21,10 @@ const computeLiveNRR = (pt, battingFirst, score, maxOvers) => {
   const oa = pt.oversAgainst || 0;
 
   if (battingFirst) {
-    // Restrict to score-1 (worst winning margin)
     const nrrBest = ((rf + score) / (of_ + maxOvers)) - ((ra + 0) / (oa + maxOvers));
     const nrrWorst = ((rf + score) / (of_ + maxOvers)) - ((ra + score - 1) / (oa + maxOvers));
     return { best: nrrBest, worst: nrrWorst };
   } else {
-    // If we are bowling first and they scored 'score', assume we chase it in maxOvers for worst case scenario preview
     const nrr = ((rf + score + 1) / (of_ + maxOvers)) - ((ra + score) / (oa + maxOvers));
     return { chase: nrr };
   }
@@ -58,65 +56,87 @@ const CircularProgress = ({ probability, size = 120 }) => {
     }).start();
   }, [probability]);
 
-  const color = probability > 70 ? Colors.success : probability > 40 ? Colors.warning : Colors.error;
-
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', width: size, height: size }}>
       {/* Background ring */}
       <View style={{
         width: size, height: size, borderRadius: size / 2,
-        borderWidth: 8, borderColor: 'rgba(255,255,255,0.08)',
+        borderWidth: 6, borderColor: 'rgba(255,255,255,0.06)',
         position: 'absolute'
       }} />
       {/* Progress ring via rotation trick */}
       <View style={{
         width: size - 4, height: size - 4, borderRadius: (size - 4) / 2,
-        borderWidth: 8,
+        borderWidth: 6,
         borderColor: 'transparent',
-        borderTopColor: color,
+        borderTopColor: Colors.primary,
         transform: [{ rotate: `${(probability / 100) * 360}deg` }],
         position: 'absolute',
       }} />
-      <Text style={{ color, fontFamily: Typography.fontFamily.extraBold, fontSize: 26 }}>
+      <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.extraBold, fontSize: 22 }}>
         {probability}%
       </Text>
       <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 10, textAlign: 'center' }}>
-        Probability
+        Chance
       </Text>
     </View>
   );
 };
 
-const AnimatedNumber = ({ value, prefix = '', suffix = '', style }) => {
-  const animVal = useRef(new Animated.Value(0)).current;
-  const [display, setDisplay] = useState('0');
-
-  useEffect(() => {
-    const target = parseFloat(value) || 0;
-    animVal.setValue(0);
-    Animated.timing(animVal, {
-      toValue: target,
-      duration: 800,
-      useNativeDriver: false,
-    }).start();
-    const listener = animVal.addListener(({ value: v }) => {
-      setDisplay(Number.isInteger(target) ? Math.round(v).toString() : v.toFixed(3));
-    });
-    return () => animVal.removeListener(listener);
-  }, [value]);
-
-  return <Text style={style}>{prefix}{display}{suffix}</Text>;
-};
-
-const StatusBadge = ({ statusCode, status, color }) => {
-  const emoji = {
-    Q: '🟢', CQ: '🟡', TBD: '🟠', NRR: '🔵', E: '🔴'
-  }[statusCode] || '⚪';
+const StatusBadge = ({ statusCode, status }) => {
+  const iconName = {
+    Q: 'check-circle', CQ: 'info', TBD: 'help-circle', NRR: 'trending-up', E: 'x-circle'
+  }[statusCode] || 'minus-circle';
 
   return (
-    <View style={[styles.statusBadge, { backgroundColor: color + '22', borderColor: color }]}>
-      <Text style={styles.statusEmoji}>{emoji}</Text>
-      <Text style={[styles.statusText, { color }]}>{status}</Text>
+    <View style={styles.statusBadge}>
+      <Icon name={iconName} size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+      <Text style={[styles.statusText, { color: Colors.textPrimary }]}>{status}</Text>
+    </View>
+  );
+};
+
+const DropdownSelector = ({ label, placeholder, options, selectedValue, onSelect, visible, setVisible }) => {
+  const selectedOption = options.find(opt => opt.value === selectedValue);
+
+  return (
+    <View style={{ marginHorizontal: Spacing.base, marginBottom: Spacing.md }}>
+      <TouchableOpacity
+        style={styles.dropdownBtn}
+        activeOpacity={0.8}
+        onPress={() => setVisible(!visible)}
+      >
+        <Text style={[styles.dropdownBtnText, !selectedOption && { color: Colors.textTertiary }]}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </Text>
+        <Icon name={visible ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.textSecondary} />
+      </TouchableOpacity>
+
+      {visible && (
+        <View style={styles.dropdownList}>
+          {options.map((opt, idx) => (
+            <TouchableOpacity
+              key={opt.value || idx}
+              style={[
+                styles.dropdownItem,
+                selectedValue === opt.value && styles.dropdownItemActive,
+                idx < options.length - 1 && { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }
+              ]}
+              onPress={() => {
+                onSelect(opt.value);
+                setVisible(false);
+              }}
+            >
+              <Text style={[styles.dropdownItemText, selectedValue === opt.value && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+                {opt.label}
+              </Text>
+              {selectedValue === opt.value && (
+                <Icon name="check" size={14} color={Colors.primary} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 };
@@ -128,7 +148,7 @@ const TeamCard = ({ pt, selected, onPress }) => {
 
   const handlePress = () => {
     Animated.sequence([
-      Animated.timing(scale, { toValue: 0.94, duration: 80, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 0.96, duration: 80, useNativeDriver: true }),
       Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
     ]).start(() => onPress());
   };
@@ -140,62 +160,62 @@ const TeamCard = ({ pt, selected, onPress }) => {
         onPress={handlePress}
         activeOpacity={0.85}
       >
-        <View style={styles.teamCardLogoWrap}>
+        <View style={styles.teamLogoCircle}>
           {logoUri ? (
-            <View style={styles.teamLogoCircle}>
-              <Text style={{ fontSize: 16 }}>🏏</Text>
-            </View>
+            <Text style={{ fontSize: 14 }}>🏏</Text>
           ) : (
-            <View style={styles.teamLogoCircle}>
-              <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.extraBold, fontSize: 11 }}>
-                {(team.shortName || team.name || '?').substring(0, 3).toUpperCase()}
-              </Text>
-            </View>
-          )}
-          {selected && (
-            <View style={styles.teamCardCheck}>
-              <Icon name="check" size={10} color={Colors.background} />
-            </View>
+            <Text style={{ color: selected ? Colors.primary : Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 10 }}>
+              {(team.shortName || team.name || '?').substring(0, 3).toUpperCase()}
+            </Text>
           )}
         </View>
-        <Text style={[styles.teamCardName, selected && styles.teamCardNameSelected]} numberOfLines={1}>
-          {team.shortName || (team.name || '').substring(0, 6)}
-        </Text>
-        <Text style={styles.teamCardPts}>{pt.points || 0} pts</Text>
-        <Text style={[styles.teamCardNRR, { color: (pt.netRunRate || 0) >= 0 ? Colors.success : Colors.error }]}>
-          {(pt.netRunRate || 0) >= 0 ? '+' : ''}{(pt.netRunRate || 0).toFixed(3)}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.teamCardName, selected && styles.teamCardNameSelected]} numberOfLines={1}>
+            {team.name}
+          </Text>
+          <Text style={styles.teamCardMeta}>
+            {pt.points || 0} pts  •  NRR {(pt.netRunRate || 0) >= 0 ? '+' : ''}{(pt.netRunRate || 0).toFixed(3)}
+          </Text>
+        </View>
+        {selected && (
+          <Icon name="check" size={14} color={Colors.primary} style={{ marginLeft: 4 }} />
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
 };
 
 const ScenarioCard = ({ scenario, index, battingFirst }) => {
-  const stars = '⭐'.repeat(scenario.stars);
-  const difficultyColor = scenario.stars === 3 ? Colors.success : scenario.stars === 2 ? Colors.warning : Colors.error;
+  const difficultyLabel = {
+    3: 'Easy',
+    2: 'Moderate',
+    1: 'Hard'
+  }[scenario.stars] || 'Normal';
 
   return (
     <GlassCard style={styles.scenarioCardWrap}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Text style={[styles.scenarioCardLabel, { color: difficultyColor }]}>{scenario.label}</Text>
-        <Text style={{ fontSize: 14 }}>{stars}</Text>
+        <Text style={[styles.scenarioCardLabel, { color: Colors.textPrimary }]}>{scenario.label}</Text>
+        <View style={styles.difficultyBadge}>
+          <Text style={styles.difficultyText}>{difficultyLabel.toUpperCase()}</Text>
+        </View>
       </View>
       {battingFirst ? (
         <>
           <View style={styles.scenarioRow}>
-            <MCIcon name="cricket" size={16} color={Colors.primary} />
+            <MCIcon name="cricket" size={16} color={Colors.textSecondary} />
             <Text style={styles.scenarioKey}>Your Score</Text>
             <Text style={styles.scenarioVal}>{scenario.yourScore}</Text>
           </View>
           <View style={styles.scenarioRow}>
-            <MCIcon name="shield-check" size={16} color='#60a5fa' />
+            <MCIcon name="shield-check" size={16} color={Colors.textSecondary} />
             <Text style={styles.scenarioKey}>Restrict To</Text>
-            <Text style={[styles.scenarioVal, { color: '#60a5fa' }]}>≤ {scenario.restrictOpponentTo}</Text>
+            <Text style={styles.scenarioVal}>≤ {scenario.restrictOpponentTo}</Text>
           </View>
           <View style={styles.scenarioRow}>
-            <MCIcon name="trending-up" size={16} color={Colors.success} />
+            <MCIcon name="trending-up" size={16} color={Colors.primary} />
             <Text style={styles.scenarioKey}>Win By</Text>
-            <Text style={[styles.scenarioVal, { color: Colors.success }]}>{scenario.winMarginRuns} runs</Text>
+            <Text style={[styles.scenarioVal, { color: Colors.primary }]}>{scenario.winMarginRuns} runs</Text>
           </View>
         </>
       ) : (
@@ -206,25 +226,25 @@ const ScenarioCard = ({ scenario, index, battingFirst }) => {
             <Text style={styles.scenarioVal}>{scenario.opponentScore}</Text>
           </View>
           <View style={styles.scenarioRow}>
-            <MCIcon name="target" size={16} color={Colors.primary} />
+            <MCIcon name="target" size={16} color={Colors.textSecondary} />
             <Text style={styles.scenarioKey}>Chase Target</Text>
-            <Text style={[styles.scenarioVal, { color: Colors.primary }]}>{scenario.chaseTarget}</Text>
+            <Text style={styles.scenarioVal}>{scenario.chaseTarget}</Text>
           </View>
           <View style={styles.scenarioRow}>
-            <MCIcon name="clock-fast" size={16} color={Colors.success} />
+            <MCIcon name="clock-fast" size={16} color={Colors.primary} />
             <Text style={styles.scenarioKey}>Within Overs</Text>
-            <Text style={[styles.scenarioVal, { color: Colors.success }]}>{scenario.mustChaseWithin}</Text>
+            <Text style={[styles.scenarioVal, { color: Colors.primary }]}>{scenario.mustChaseWithin}</Text>
           </View>
           <View style={styles.scenarioRow}>
-            <MCIcon name="run-fast" size={16} color={Colors.warning} />
+            <MCIcon name="run-fast" size={16} color={Colors.textSecondary} />
             <Text style={styles.scenarioKey}>Req. Rate</Text>
-            <Text style={[styles.scenarioVal, { color: Colors.warning }]}>{scenario.requiredRunRate}</Text>
+            <Text style={styles.scenarioVal}>{scenario.requiredRunRate}</Text>
           </View>
         </>
       )}
-      <View style={[styles.scenarioNRRRow, { backgroundColor: difficultyColor + '18' }]}>
-        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 }}>Projected NRR</Text>
-        <Text style={{ color: difficultyColor, fontFamily: Typography.fontFamily.extraBold, fontSize: 14 }}>
+      <View style={styles.scenarioNRRRow}>
+        <Text style={styles.scenarioNRRLabel}>Projected NRR</Text>
+        <Text style={styles.scenarioNRRVal}>
           {scenario.projectedNRR >= 0 ? '+' : ''}{scenario.projectedNRR.toFixed(3)}
         </Text>
       </View>
@@ -236,12 +256,13 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
   const highlight = isSelected;
   return (
     <View style={[styles.projTableRow, highlight && styles.projTableRowHighlight]}>
-      <Text style={[styles.projTableRank, highlight && { color: Colors.primary }]}>{index + 1}</Text>
+      {highlight && <View style={styles.highlightBar} />}
+      <Text style={[styles.projTableRank, highlight && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>{index + 1}</Text>
       <Text style={[styles.projTableTeam, highlight && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>
         {row.shortName || row.teamName}
       </Text>
-      <Text style={styles.projTablePts}>{row.points}</Text>
-      <Text style={[styles.projTableNRR, { color: row.nrr >= 0 ? Colors.success : Colors.error }]}>
+      <Text style={[styles.projTablePts, highlight && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
+      <Text style={[styles.projTableNRR, { color: Colors.textPrimary }, highlight && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>
         {row.nrr >= 0 ? '+' : ''}{row.nrr.toFixed(3)}
       </Text>
     </View>
@@ -259,9 +280,12 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
   const [targetRank, setTargetRank] = useState(4);
   const [battingFirst, setBattingFirst] = useState(true);
   const [firstInningsScore, setFirstInningsScore] = useState('');
+  const [oversInput, setOversInput] = useState(String(tournamentOvers || '20'));
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [liveNRR, setLiveNRR] = useState(null);
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+  const [showOpponentDropdown, setShowOpponentDropdown] = useState(false);
 
   // Animation refs
   const resultsAnim = useRef(new Animated.Value(0)).current;
@@ -289,13 +313,13 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
     });
     if (!teamPt) return;
 
-    const maxOvers = tournamentOvers || 20;
+    const maxOvers = parseFloat(oversInput) || 20;
     const live = computeLiveNRR(teamPt, battingFirst, score, maxOvers);
     setLiveNRR(live);
-  }, [firstInningsScore, selectedTeamId, battingFirst, pointsTable, tournamentOvers]);
+  }, [firstInningsScore, selectedTeamId, battingFirst, pointsTable, oversInput]);
 
   const handleCalculate = useCallback(async () => {
-    if (!selectedTeamId || !selectedOpponentId || !firstInningsScore) {
+    if (!selectedTeamId || !selectedOpponentId || !firstInningsScore || !oversInput) {
       return;
     }
 
@@ -315,6 +339,7 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
         battingFirst,
         firstInningsScore: parseInt(firstInningsScore, 10),
         targetRank,
+        overs: parseFloat(oversInput) || 20,
       });
 
       setResult(res.data.data || res.data);
@@ -324,18 +349,20 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
         duration: 500,
         useNativeDriver: true,
       }).start();
+
     } catch (e) {
-      console.error('[QualCalc] Error:', e?.response?.data || e.message);
+      console.log('Calculation error', e);
+      showCustomAlert('Calculation Failed', e.response?.data?.message || 'Could not compute scenario.');
     } finally {
       setLoading(false);
     }
-  }, [selectedTeamId, selectedOpponentId, battingFirst, firstInningsScore, targetRank, tournamentId]);
+  }, [selectedTeamId, selectedOpponentId, battingFirst, firstInningsScore, targetRank, oversInput, tournamentId]);
 
   const targetOptions = [
     { label: '1st', value: 1 },
-    { label: 'Top 2', value: 2 },
-    { label: 'Top 4', value: 4 },
-    { label: 'Top 8', value: 8 },
+    { label: '2nd', value: 2 },
+    { label: '3rd', value: 3 },
+    { label: '4th', value: 4 },
   ];
 
   const selectedTeamPt = pointsTable.find(pt => {
@@ -343,7 +370,32 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
     return (id?._id || id)?.toString() === selectedTeamId;
   });
 
-  const canCalculate = selectedTeamId && selectedOpponentId && firstInningsScore && parseInt(firstInningsScore) > 0;
+  const teamOptions = pointsTable.map(pt => {
+    const id = pt.team?._id?.toString() || pt.team?.toString();
+    return {
+      label: `${pt.team?.name || 'Unknown'} (Pts: ${pt.points || 0} | NRR: ${(pt.netRunRate || 0).toFixed(3)})`,
+      value: id,
+    };
+  });
+
+  const opponentOptions = pointsTable
+    .filter(pt => {
+      const id = pt.team?._id?.toString() || pt.team?.toString();
+      if (id === selectedTeamId) return false;
+      if (selectedTeamPt && selectedTeamPt.groupName) {
+        return pt.groupName === selectedTeamPt.groupName;
+      }
+      return true;
+    })
+    .map(pt => {
+      const id = pt.team?._id?.toString() || pt.team?.toString();
+      return {
+        label: `${pt.team?.name || 'Unknown'} (Pts: ${pt.points || 0} | NRR: ${(pt.netRunRate || 0).toFixed(3)})`,
+        value: id,
+      };
+    });
+
+  const canCalculate = selectedTeamId && selectedOpponentId && firstInningsScore && parseInt(firstInningsScore) > 0 && oversInput && parseFloat(oversInput) > 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -354,7 +406,7 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Icon name="arrow-left" size={20} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Qual. Calculator</Text>
+        <Text style={styles.headerTitle}>NRR Calculator</Text>
         <View style={{ width: 40, height: 40 }} />
       </View>
 
@@ -369,9 +421,8 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
           opacity: heroAnim,
           transform: [{ translateY: heroAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }]
         }]}>
-          <View style={styles.heroGradientOverlay} />
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <MCIcon name="calculator-variant-outline" size={22} color={Colors.primary} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <MCIcon name="calculator-variant-outline" size={20} color={Colors.primary} />
             <Text style={styles.heroTitle}>  Qualification Scenario</Text>
           </View>
           <Text style={styles.heroSubtitle}>
@@ -381,16 +432,12 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
             <View style={styles.heroTeamRow}>
               <View style={styles.heroTeamBadge}>
                 <Text style={styles.heroTeamName}>
-                  {selectedTeamPt.team?.shortName || selectedTeamPt.team?.name || 'Team'}
+                  {selectedTeamPt.team?.name || 'Selected Team'}
                 </Text>
               </View>
               <View style={styles.heroStatRow}>
                 <Text style={styles.heroStat}>
-                  {selectedTeamPt.points || 0} pts
-                </Text>
-                <Text style={styles.heroStatDivider}> · </Text>
-                <Text style={[styles.heroStat, { color: (selectedTeamPt.netRunRate || 0) >= 0 ? Colors.success : Colors.error }]}>
-                  NRR {(selectedTeamPt.netRunRate || 0) >= 0 ? '+' : ''}{(selectedTeamPt.netRunRate || 0).toFixed(3)}
+                  {selectedTeamPt.points || 0} pts  •  NRR {(selectedTeamPt.netRunRate || 0) >= 0 ? '+' : ''}{(selectedTeamPt.netRunRate || 0).toFixed(3)}
                 </Text>
               </View>
             </View>
@@ -399,48 +446,32 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
 
         {/* Section 1: Select Team */}
         <Text style={styles.sectionTitle}>SELECT TEAM</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.teamScroll} contentContainerStyle={{ paddingHorizontal: Spacing.base }}>
-          {pointsTable.map((pt, i) => {
-            const id = pt.team?._id?.toString() || pt.team?.toString();
-            return (
-              <TeamCard
-                key={id || i}
-                pt={pt}
-                selected={selectedTeamId === id}
-                onPress={() => {
-                  setSelectedTeamId(id);
-                  if (selectedOpponentId === id) setSelectedOpponentId('');
-                  setResult(null);
-                }}
-              />
-            );
-          })}
-        </ScrollView>
+        <DropdownSelector
+          placeholder="Select Team"
+          options={teamOptions}
+          selectedValue={selectedTeamId}
+          onSelect={(val) => {
+            setSelectedTeamId(val);
+            if (selectedOpponentId === val) setSelectedOpponentId('');
+            setResult(null);
+          }}
+          visible={showTeamDropdown}
+          setVisible={setShowTeamDropdown}
+        />
 
         {/* Section 2: Select Opponent */}
         <Text style={styles.sectionTitle}>SELECT OPPONENT</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.teamScroll} contentContainerStyle={{ paddingHorizontal: Spacing.base }}>
-          {pointsTable.filter(pt => {
-            const id = pt.team?._id?.toString() || pt.team?.toString();
-            if (id === selectedTeamId) return false;
-            
-            // If groups exist, only allow opponents from the SAME group
-            if (selectedTeamPt && selectedTeamPt.groupName) {
-              return pt.groupName === selectedTeamPt.groupName;
-            }
-            return true;
-          }).map((pt, i) => {
-            const id = pt.team?._id?.toString() || pt.team?.toString();
-            return (
-              <TeamCard
-                key={id || i}
-                pt={pt}
-                selected={selectedOpponentId === id}
-                onPress={() => { setSelectedOpponentId(id); setResult(null); }}
-              />
-            );
-          })}
-        </ScrollView>
+        <DropdownSelector
+          placeholder="Select Opponent"
+          options={opponentOptions}
+          selectedValue={selectedOpponentId}
+          onSelect={(val) => {
+            setSelectedOpponentId(val);
+            setResult(null);
+          }}
+          visible={showOpponentDropdown}
+          setVisible={setShowOpponentDropdown}
+        />
 
         {/* Section 3: Target Position */}
         <Text style={styles.sectionTitle}>TARGET POSITION</Text>
@@ -467,40 +498,58 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
             style={[styles.tossCard, battingFirst && styles.tossCardActive]}
             onPress={() => { setBattingFirst(true); setResult(null); setFirstInningsScore(''); setLiveNRR(null); }}
           >
-            {battingFirst && <View style={styles.tossCardGlow} />}
-            <MCIcon name="cricket" size={28} color={battingFirst ? Colors.primary : Colors.textSecondary} />
+            <MCIcon name="cricket" size={22} color={battingFirst ? Colors.primary : Colors.textSecondary} />
             <Text style={[styles.tossLabel, battingFirst && styles.tossLabelActive]}>Bat First</Text>
-            <Text style={styles.tossSubLabel}>Set the target</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tossCard, !battingFirst && styles.tossCardActive]}
             onPress={() => { setBattingFirst(false); setResult(null); setFirstInningsScore(''); setLiveNRR(null); }}
           >
-            {!battingFirst && <View style={styles.tossCardGlow} />}
-            <MCIcon name="shield-outline" size={28} color={!battingFirst ? Colors.primary : Colors.textSecondary} />
+            <MCIcon name="shield-outline" size={22} color={!battingFirst ? Colors.primary : Colors.textSecondary} />
             <Text style={[styles.tossLabel, !battingFirst && styles.tossLabelActive]}>Bowl First</Text>
-            <Text style={styles.tossSubLabel}>Chase the target</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Score Input */}
-        <Text style={styles.sectionTitle}>
-          {battingFirst ? 'YOUR PROJECTED SCORE' : 'OPPONENT FIRST INNINGS SCORE'}
-        </Text>
-        <GlassCard style={styles.inputCard}>
-          <View style={styles.inputRow}>
-            <MCIcon name="cricket" size={20} color={Colors.primary} />
-            <TextInput
-              style={styles.scoreInput}
-              placeholder={battingFirst ? 'e.g. 180' : 'e.g. 145'}
-              placeholderTextColor={Colors.textTertiary}
-              keyboardType="number-pad"
-              value={firstInningsScore}
-              onChangeText={v => { setFirstInningsScore(v); setResult(null); }}
-            />
-            <Text style={styles.inputUnit}>runs</Text>
+        {/* Score & Overs Form Row */}
+        <View style={styles.formGridRow}>
+          {/* Projected Score */}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitleGrid}>
+              {battingFirst ? 'PROJECTED SCORE' : 'OPPONENT SCORE'}
+            </Text>
+            <GlassCard style={styles.gridInputCard}>
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.scoreInput}
+                  placeholder={battingFirst ? 'e.g. 180' : 'e.g. 145'}
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="number-pad"
+                  value={firstInningsScore}
+                  onChangeText={v => { setFirstInningsScore(v); setResult(null); }}
+                />
+                <Text style={styles.inputUnit}>runs</Text>
+              </View>
+            </GlassCard>
           </View>
-        </GlassCard>
+
+          {/* Match Overs */}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitleGrid}>MATCH OVERS</Text>
+            <GlassCard style={styles.gridInputCard}>
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.scoreInput}
+                  placeholder="e.g. 20"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="decimal-pad"
+                  value={oversInput}
+                  onChangeText={v => { setOversInput(v); setResult(null); }}
+                />
+                <Text style={styles.inputUnit}>overs</Text>
+              </View>
+            </GlassCard>
+          </View>
+        </View>
 
         {/* Live NRR Preview */}
         {liveNRR && (
@@ -521,7 +570,7 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
               {battingFirst && liveNRR.best !== undefined ? (
                 <View style={{ alignItems: 'center' }}>
                   <Text style={styles.liveNRRLabel}>Projected NRR</Text>
-                  <Text style={[styles.liveNRRValue, { color: liveNRR.best >= 0 ? Colors.success : Colors.error }]}>
+                  <Text style={[styles.liveNRRValue, { color: Colors.primary }]}>
                     {liveNRR.best >= 0 ? '+' : ''}{liveNRR.best.toFixed(3)}
                   </Text>
                   <Text style={{ color: Colors.textTertiary, fontSize: 10 }}>Best case</Text>
@@ -529,7 +578,7 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
               ) : liveNRR.chase !== undefined ? (
                 <View style={{ alignItems: 'center' }}>
                   <Text style={styles.liveNRRLabel}>Projected NRR</Text>
-                  <Text style={[styles.liveNRRValue, { color: liveNRR.chase >= 0 ? Colors.success : Colors.error }]}>
+                  <Text style={[styles.liveNRRValue, { color: Colors.primary }]}>
                     {liveNRR.chase >= 0 ? '+' : ''}{liveNRR.chase.toFixed(3)}
                   </Text>
                   <Text style={{ color: Colors.textTertiary, fontSize: 10 }}>If chased now</Text>
@@ -564,7 +613,7 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
 
             {/* Status Badge */}
             <View style={styles.resultHeaderRow}>
-              <StatusBadge statusCode={result.statusCode} status={result.status} color={result.statusColor || Colors.warning} />
+              <StatusBadge statusCode={result.statusCode} status={result.status} />
               <CircularProgress probability={result.probability || 0} size={90} />
             </View>
 
@@ -609,14 +658,14 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
                     <GlassCard key={i} style={styles.fixtureCard}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text style={styles.fixtureMatchup}>{fx.teamAName} vs {fx.teamBName}</Text>
-                        <View style={[styles.fixtureBadge, { backgroundColor: fx.impact === 'Critical' ? Colors.error + '22' : Colors.warning + '22' }]}>
-                          <Text style={{ color: fx.impact === 'Critical' ? Colors.error : Colors.warning, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
+                        <View style={[styles.fixtureBadge, { backgroundColor: Colors.primaryAlpha10 }]}>
+                          <Text style={{ color: Colors.primary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
                             {fx.impact}
                           </Text>
                         </View>
                       </View>
                       <View style={styles.fixturePreferRow}>
-                        <MCIcon name="thumb-up-outline" size={14} color={Colors.success} />
+                        <MCIcon name="thumb-up-outline" size={14} color={Colors.primary} />
                         <Text style={styles.fixturePrefer}>{fx.preferredResult}</Text>
                       </View>
                     </GlassCard>
@@ -629,12 +678,12 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
             {result.projectedTable && result.projectedTable.length > 0 && (
               <>
                 <Text style={styles.sectionTitle}>PROJECTED TABLE</Text>
-                <GlassCard style={{ marginHorizontal: Spacing.base }}>
-                  <View style={styles.projTableHeader}>
-                    <Text style={styles.projTableHeaderText}>#</Text>
-                    <Text style={[styles.projTableHeaderText, { flex: 2, textAlign: 'left' }]}>Team</Text>
-                    <Text style={styles.projTableHeaderText}>Pts</Text>
-                    <Text style={styles.projTableHeaderText}>NRR</Text>
+                <View style={styles.cleanTableWrapper}>
+                  <View style={styles.cleanTableHeader}>
+                    <Text style={[styles.projTableHeaderText, { width: 30, textAlign: 'center' }]}>#</Text>
+                    <Text style={[styles.projTableHeaderText, { flex: 2, textAlign: 'left', paddingLeft: 8 }]}>Team</Text>
+                    <Text style={[styles.projTableHeaderText, { width: 40, textAlign: 'center' }]}>Pts</Text>
+                    <Text style={[styles.projTableHeaderText, { width: 80, textAlign: 'center' }]}>NRR</Text>
                   </View>
                   {result.projectedTable.map((row, i) => (
                     <ProjectedTableRow
@@ -644,7 +693,7 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
                       isSelected={row.teamId === selectedTeamId}
                     />
                   ))}
-                </GlassCard>
+                </View>
               </>
             )}
 
@@ -687,116 +736,115 @@ const styles = StyleSheet.create({
   heroCard: {
     marginHorizontal: Spacing.base, marginBottom: Spacing.lg,
     backgroundColor: Colors.backgroundElevated,
-    borderRadius: BorderRadius['2xl'],
-    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
     borderWidth: 1, borderColor: Colors.border,
-    overflow: 'hidden',
-    ...Shadows.md,
   },
-  heroGradientOverlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: Colors.primaryAlpha10,
-    borderRadius: BorderRadius['2xl'],
-  },
-  heroTitle: { fontFamily: Typography.fontFamily.bold, fontSize: 18, color: Colors.textPrimary },
-  heroSubtitle: { fontFamily: Typography.fontFamily.medium, fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginTop: 4 },
-  heroTeamRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  heroTeamBadge: { backgroundColor: Colors.primaryAlpha20, paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.full },
-  heroTeamName: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  heroTitle: { fontFamily: Typography.fontFamily.bold, fontSize: 16, color: Colors.textPrimary },
+  heroSubtitle: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginTop: 4 },
+  heroTeamRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroTeamBadge: { backgroundColor: Colors.primaryAlpha10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: Colors.primary },
+  heroTeamName: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
   heroStatRow: { flexDirection: 'row', alignItems: 'center' },
-  heroStat: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
-  heroStatDivider: { color: Colors.textTertiary },
+  heroStat: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
 
   // Glass card
   glassCard: {
     backgroundColor: Colors.backgroundElevated,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.md,
     padding: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    ...Shadows.sm,
   },
-  glassCardGlow: { borderColor: Colors.primary, ...Shadows.glow },
+  glassCardGlow: { borderColor: Colors.primary },
 
   // Section
   sectionTitle: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
     color: Colors.textTertiary,
-    letterSpacing: 1.5,
+    letterSpacing: 1,
     marginHorizontal: Spacing.base,
-    marginBottom: 10,
-    marginTop: Spacing.lg,
+    marginBottom: 8,
+    marginTop: Spacing.md,
+  },
+  sectionTitleGrid: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 11,
+    color: Colors.textTertiary,
+    letterSpacing: 1,
+    marginBottom: 8,
+    marginTop: Spacing.md,
   },
 
   // Team cards
   teamScroll: { marginBottom: 4 },
   teamCard: {
-    width: 90, alignItems: 'center', padding: 10,
+    width: 220,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     backgroundColor: Colors.backgroundElevated,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  teamCardSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryAlpha10 },
+  teamLogoCircle: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: Colors.surface,
+    justifyContent: 'center', alignItems: 'center',
     marginRight: 10,
     borderWidth: 1, borderColor: Colors.border,
   },
-  teamCardSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryAlpha10 },
-  teamCardLogoWrap: { position: 'relative', marginBottom: 6 },
-  teamLogoCircle: {
-    width: 46, height: 46, borderRadius: 23,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  teamCardCheck: {
-    position: 'absolute', bottom: -2, right: -2,
-    width: 16, height: 16, borderRadius: 8,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  teamCardName: { fontFamily: Typography.fontFamily.semiBold, fontSize: 11, color: Colors.textSecondary, textAlign: 'center' },
+  teamCardName: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textPrimary },
   teamCardNameSelected: { color: Colors.primary },
-  teamCardPts: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textPrimary, marginTop: 2 },
-  teamCardNRR: { fontFamily: Typography.fontFamily.medium, fontSize: 10, marginTop: 1 },
+  teamCardMeta: { fontFamily: Typography.fontFamily.medium, fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
 
   // Segment Control
   segmentCard: { marginHorizontal: Spacing.base },
   segmentRow: { flexDirection: 'row', gap: 8 },
   segmentBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: BorderRadius.lg,
+    flex: 1, paddingVertical: 10, borderRadius: BorderRadius.md,
     backgroundColor: Colors.surface,
     alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
   },
-  segmentBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  segmentBtnActive: { backgroundColor: Colors.background, borderColor: Colors.primary, borderWidth: 1.5 },
   segmentBtnText: { fontFamily: Typography.fontFamily.semiBold, fontSize: 12, color: Colors.textSecondary },
-  segmentBtnTextActive: { color: Colors.background },
+  segmentBtnTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
 
   // Toss cards
   tossRow: { flexDirection: 'row', gap: 12, marginHorizontal: Spacing.base },
   tossCard: {
-    flex: 1, alignItems: 'center', padding: Spacing.lg,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
     backgroundColor: Colors.backgroundElevated,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1, borderColor: Colors.border,
-    overflow: 'hidden',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  tossCardActive: { borderColor: Colors.primary, ...Shadows.glow },
-  tossCardGlow: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: Colors.primaryAlpha10,
-  },
-  tossLabel: { fontFamily: Typography.fontFamily.bold, fontSize: 15, color: Colors.textSecondary, marginTop: 8 },
+  tossCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryAlpha10 },
+  tossLabel: { fontFamily: Typography.fontFamily.bold, fontSize: 14, color: Colors.textSecondary },
   tossLabelActive: { color: Colors.primary },
-  tossSubLabel: { fontFamily: Typography.fontFamily.medium, fontSize: 11, color: Colors.textTertiary, marginTop: 2 },
+
+  // Form Grid
+  formGridRow: { flexDirection: 'row', gap: 12, marginHorizontal: Spacing.base },
+  gridInputCard: { padding: Spacing.sm },
 
   // Input
-  inputCard: { marginHorizontal: Spacing.base },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   scoreInput: {
-    flex: 1, fontFamily: Typography.fontFamily.bold, fontSize: 20,
+    flex: 1, fontFamily: Typography.fontFamily.bold, fontSize: 16,
     color: Colors.textPrimary,
     paddingVertical: 4,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  inputUnit: { fontFamily: Typography.fontFamily.medium, fontSize: 13, color: Colors.textTertiary },
+  inputUnit: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: Colors.textTertiary },
 
   // Live NRR
   liveNRRCard: { marginHorizontal: Spacing.base, marginTop: Spacing.md },
@@ -810,77 +858,203 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: Colors.primary,
     paddingVertical: 16,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.md,
     justifyContent: 'center', alignItems: 'center',
-    ...Shadows.glow,
   },
-  calcBtnDisabled: { backgroundColor: Colors.surface, ...Shadows.sm },
-  calcBtnText: { fontFamily: Typography.fontFamily.extraBold, fontSize: 15, color: Colors.background },
+  calcBtnDisabled: { backgroundColor: Colors.surface, opacity: 0.5 },
+  calcBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 15, color: Colors.background },
 
   // Results
   resultHeaderRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginHorizontal: Spacing.base, marginTop: Spacing.xl,
+    marginHorizontal: Spacing.base, marginTop: Spacing.xl, marginBottom: Spacing.md
   },
   statusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 16, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 10, paddingHorizontal: 16,
     borderRadius: BorderRadius.full, borderWidth: 1,
+    backgroundColor: Colors.primaryAlpha10, borderColor: Colors.primary,
   },
-  statusEmoji: { fontSize: 18 },
-  statusText: { fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  statusText: { fontFamily: Typography.fontFamily.bold, fontSize: 15 },
 
-  // Message card
-  messageCard: { marginHorizontal: Spacing.base, marginTop: Spacing.md, flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  messageText: { flex: 1, fontFamily: Typography.fontFamily.semiBold, fontSize: 14, color: Colors.textPrimary, lineHeight: 20 },
+  messageCard: { marginHorizontal: Spacing.base, flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: Spacing.md },
+  messageText: { flex: 1, fontFamily: Typography.fontFamily.medium, fontSize: 13, color: Colors.textPrimary, lineHeight: 18 },
 
-  // Stat chips
   statChip: {
-    paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.backgroundElevated,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 12, paddingHorizontal: 16,
     borderWidth: 1, borderColor: Colors.border,
-    alignItems: 'center', minWidth: 90,
+    minWidth: 100, alignItems: 'center',
   },
   statChipAccent: { borderColor: Colors.primary, backgroundColor: Colors.primaryAlpha10 },
-  statChipLabel: { fontFamily: Typography.fontFamily.medium, fontSize: 10, color: Colors.textTertiary, marginBottom: 3 },
-  statChipValue: { fontFamily: Typography.fontFamily.extraBold, fontSize: 16, color: Colors.textPrimary },
+  statChipLabel: { fontFamily: Typography.fontFamily.medium, fontSize: 10, color: Colors.textSecondary, marginBottom: 4 },
+  statChipValue: { fontFamily: Typography.fontFamily.bold, fontSize: 14, color: Colors.textPrimary },
   statChipValueAccent: { color: Colors.primary },
 
-  // Scenario card
-  scenarioCardWrap: { width: SCREEN_WIDTH * 0.65, marginRight: 0 },
+  scenarioCardWrap: { width: 220, padding: Spacing.md },
   scenarioCardLabel: { fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  scenarioRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  scenarioKey: { flex: 1, fontFamily: Typography.fontFamily.medium, fontSize: 13, color: Colors.textSecondary },
-  scenarioVal: { fontFamily: Typography.fontFamily.extraBold, fontSize: 15, color: Colors.textPrimary },
-  scenarioNRRRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 8, borderRadius: BorderRadius.md, marginTop: 6 },
+  scenarioRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 6 },
+  scenarioKey: { flex: 1, fontFamily: Typography.fontFamily.medium, fontSize: 12, color: Colors.textSecondary },
+  scenarioVal: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textPrimary },
+  scenarioNRRRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  scenarioNRRLabel: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 12,
+  },
+  scenarioNRRVal: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+  },
+  difficultyBadge: {
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  difficultyText: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textSecondary,
+  },
 
-  // Fixture cards
-  fixtureCard: { marginBottom: 10 },
-  fixtureMatchup: { fontFamily: Typography.fontFamily.bold, fontSize: 14, color: Colors.textPrimary, flex: 1 },
-  fixtureBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: BorderRadius.full },
-  fixturePreferRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  fixturePrefer: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: Colors.success },
+  fixtureCard: { marginBottom: 8, padding: Spacing.md },
+  fixtureMatchup: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textPrimary },
+  fixtureBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: BorderRadius.sm },
+  fixturePreferRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  fixturePrefer: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: Colors.textSecondary },
 
-  // Projected table
-  projTableHeader: { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, marginBottom: 4 },
-  projTableHeaderText: { flex: 1, textAlign: 'center', fontFamily: Typography.fontFamily.bold, fontSize: 10, color: Colors.textTertiary, letterSpacing: 0.5 },
-  projTableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderRadius: BorderRadius.md },
-  projTableRowHighlight: { backgroundColor: Colors.primaryAlpha10 },
-  projTableRank: { flex: 1, textAlign: 'center', fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textSecondary },
-  projTableTeam: { flex: 2, fontFamily: Typography.fontFamily.semiBold, fontSize: 13, color: Colors.textPrimary },
-  projTablePts: { flex: 1, textAlign: 'center', fontFamily: Typography.fontFamily.extraBold, fontSize: 13, color: Colors.textPrimary },
-  projTableNRR: { flex: 1, textAlign: 'center', fontFamily: Typography.fontFamily.semiBold, fontSize: 12 },
+  cleanTableWrapper: {
+    marginHorizontal: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.background,
+    overflow: 'hidden',
+  },
+  cleanTableHeader: {
+    flexDirection: 'row',
+    backgroundColor: Colors.backgroundElevated,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  projTableHeaderText: { fontFamily: Typography.fontFamily.bold, fontSize: 11, color: Colors.textSecondary },
+  projTableRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+    backgroundColor: Colors.background,
+    position: 'relative',
+  },
+  projTableRowHighlight: {
+    backgroundColor: Colors.primaryAlpha10,
+  },
+  highlightBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: Colors.primary,
+  },
+  projTableRank: {
+    width: 30,
+    textAlign: 'center',
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  projTableTeam: {
+    flex: 2,
+    paddingLeft: 8,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 12,
+    color: Colors.textPrimary,
+  },
+  projTablePts: {
+    width: 40,
+    textAlign: 'center',
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 12,
+    color: Colors.textPrimary,
+  },
+  projTableNRR: {
+    width: 80,
+    textAlign: 'center',
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 12,
+  },
 
-  // Bottom actions
-  bottomActions: { flexDirection: 'row', gap: 12, marginHorizontal: Spacing.base, marginTop: Spacing.xl },
+  bottomActions: { flexDirection: 'row', gap: 12, marginHorizontal: Spacing.base, marginTop: Spacing.lg },
   bottomBtn: {
-    flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center',
-    paddingVertical: 13, borderRadius: BorderRadius.xl,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    flex: 1, flexDirection: 'row', gap: 6,
+    backgroundColor: Colors.surface,
+    paddingVertical: 12, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: Colors.border,
+    justifyContent: 'center', alignItems: 'center',
   },
   bottomBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  bottomBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 14, color: Colors.textSecondary },
+  bottomBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textPrimary },
+
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+  emptyText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, textAlign: 'center' },
+
+  dropdownBtn: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundElevated,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  dropdownBtnText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textPrimary,
+  },
+  dropdownList: {
+    backgroundColor: Colors.backgroundElevated,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginTop: Spacing.xs,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  dropdownItemActive: {
+    backgroundColor: Colors.primaryAlpha10,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
 });
 
 export default QualificationCalculatorScreen;

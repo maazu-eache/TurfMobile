@@ -98,16 +98,54 @@ const matchSlice = createSlice({
   },
   reducers: {
     setLiveState: (state, action) => {
-      state.liveState = action.payload;
+      const payload = action.payload;
+      if (payload?.isDelta && state.liveState) {
+        state.liveState = {
+          ...state.liveState,
+          ...payload,
+          match: state.liveState.match ? {
+            ...state.liveState.match,
+            ...(payload.match || {}),
+            activeScorerId: payload.activeScorerId !== undefined ? payload.activeScorerId : state.liveState.match.activeScorerId,
+            scorers: payload.scorers !== undefined ? payload.scorers : state.liveState.match.scorers,
+            status: payload.status !== undefined ? payload.status : state.liveState.match.status,
+          } : payload.match,
+          score: payload.score || state.liveState.score,
+          striker: payload.striker !== undefined ? payload.striker : state.liveState.striker,
+          strikerStats: payload.strikerStats !== undefined ? payload.strikerStats : state.liveState.strikerStats,
+          nonStriker: payload.nonStriker !== undefined ? payload.nonStriker : state.liveState.nonStriker,
+          nonStrikerStats: payload.nonStrikerStats !== undefined ? payload.nonStrikerStats : state.liveState.nonStrikerStats,
+          bowler: payload.bowler !== undefined ? payload.bowler : state.liveState.bowler,
+          bowlerStats: payload.bowlerStats !== undefined ? payload.bowlerStats : state.liveState.bowlerStats,
+          needsBowler: payload.needsBowler !== undefined ? payload.needsBowler : state.liveState.needsBowler,
+          isWicket: payload.isWicket !== undefined ? payload.isWicket : state.liveState.isWicket,
+          fallOfWickets: payload.fallOfWickets !== undefined ? payload.fallOfWickets : state.liveState.fallOfWickets,
+          isInningsComplete: payload.isInningsComplete !== undefined ? payload.isInningsComplete : state.liveState.isInningsComplete,
+          isMatchComplete: payload.isMatchComplete !== undefined ? payload.isMatchComplete : state.liveState.isMatchComplete,
+          inningsNumber: payload.inningsNumber !== undefined ? payload.inningsNumber : state.liveState.inningsNumber,
+          result: payload.result !== undefined ? payload.result : state.liveState.result,
+          currentOverBalls: payload.currentOverBalls || state.liveState.currentOverBalls,
+          recentCommentary: payload.recentCommentary && payload.recentCommentary.length > 0
+            ? [...payload.recentCommentary, ...(state.liveState.recentCommentary || [])].slice(0, 10)
+            : state.liveState.recentCommentary,
+        };
+        if (payload.ballEvent) {
+          state.liveState.ballEvent = payload.ballEvent;
+        }
+      } else {
+        state.liveState = payload;
+      }
     },
     clearLiveState: (state) => {
       state.liveState = null;
+      state.pendingLiveViewers = null;
     },
     clearMatchState: (state) => {
       state.currentMatch = null;
       state.liveState = null;
       state.scorecard = null;
       state.ballHistory = [];
+      state.pendingLiveViewers = null;
     },
     addBallToHistory: (state, action) => {
       state.ballHistory = [action.payload, ...state.ballHistory].slice(0, 100);
@@ -120,6 +158,14 @@ const matchSlice = createSlice({
       state.liveState = null;
       state.scorecard = null;
       state.ballHistory = [];
+      state.pendingLiveViewers = null;
+    },
+    updateLiveViewers: (state, action) => {
+      const { matchId, liveViewers } = action.payload;
+      if (state.liveState && (String(state.liveState.match?._id || state.liveState.match) === String(matchId))) {
+        state.liveState.liveViewers = liveViewers;
+      }
+      state.pendingLiveViewers = { matchId, liveViewers };
     },
     updateLiveMatchScore: (state, action) => {
       const payload = action.payload || {};
@@ -211,6 +257,10 @@ const matchSlice = createSlice({
       })
       .addCase(fetchLiveState.fulfilled, (state, action) => {
         state.liveState = action.payload;
+        if (state.pendingLiveViewers && state.liveState && 
+            String(state.liveState.match?._id || state.liveState.match) === String(state.pendingLiveViewers.matchId)) {
+          state.liveState.liveViewers = state.pendingLiveViewers.liveViewers;
+        }
       })
       .addCase(fetchLiveState.rejected, (state, action) => {
         state.error = action.payload;
@@ -242,6 +292,18 @@ const matchSlice = createSlice({
         if (action.payload.ballEvent) {
           state.ballHistory = [action.payload.ballEvent, ...state.ballHistory].slice(0, 100);
         }
+        
+        // Update DLS and target fields from the API response since socket updates might be debounced
+        if (action.payload.liveState && state.liveState) {
+          const freshState = action.payload.liveState;
+          if (freshState.dlsParScore !== undefined) state.liveState.dlsParScore = freshState.dlsParScore;
+          if (freshState.toWin !== undefined) state.liveState.toWin = freshState.toWin;
+          if (freshState.ballsRemaining !== undefined) state.liveState.ballsRemaining = freshState.ballsRemaining;
+          if (freshState.target !== undefined) state.liveState.target = freshState.target;
+          if (freshState.isDlsTarget !== undefined) state.liveState.isDlsTarget = freshState.isDlsTarget;
+          if (freshState.requiredRunRate !== undefined) state.liveState.requiredRunRate = freshState.requiredRunRate;
+        }
+
         state.previousLiveState = null;
       })
       .addCase(scoreBall.rejected, (state, action) => {
@@ -273,5 +335,5 @@ const matchSlice = createSlice({
   },
 });
 
-export const { setLiveState, clearLiveState, clearMatchState, addBallToHistory, setSocketConnected, resetMatch, updateLiveMatchScore } = matchSlice.actions;
+export const { setLiveState, clearLiveState, clearMatchState, addBallToHistory, setSocketConnected, resetMatch, updateLiveMatchScore, updateLiveViewers } = matchSlice.actions;
 export default matchSlice.reducer;

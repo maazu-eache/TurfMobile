@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Svg, { Circle } from 'react-native-svg';
 import LinearGradient from '../../../components/SolidGradient';
 import { useSelector } from 'react-redux';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -386,9 +387,7 @@ const SlotManagerScreen = ({ navigation }) => {
           <Icon name="chevron-down" size={18} color="#FFD400" style={{marginLeft: 4}} />
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => setBulkModalVisible(true)} style={styles.headerBtn}>
-          <Icon name="layers-triple" size={20} color="#FFD400" />
-        </TouchableOpacity>
+        <View style={{ width: 44 }} />
       </View>
 
       <Animated.ScrollView
@@ -417,6 +416,50 @@ const SlotManagerScreen = ({ navigation }) => {
             {dates.map(renderDateItem)}
           </ScrollView>
         </View>
+
+        {/* ── Availability Summary Card ── */}
+        {!loading && slots.length > 0 && (
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryLeft}>
+              <Text style={styles.summaryTitle}>
+                {moment(selectedDate, 'YYYY-MM-DD').isSame(moment(), 'day')
+                  ? 'Available Today'
+                  : moment(selectedDate, 'YYYY-MM-DD').format('ddd, DD MMM YYYY')}
+              </Text>
+              <View style={styles.statsRow}>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Available</Text>
+                  <Text style={styles.statValue}>{slots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length}</Text>
+                </View>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Online</Text>
+                  <Text style={styles.statValue}>{slots.filter(s => s.status === 'booked').length}</Text>
+                </View>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Offline</Text>
+                  <Text style={styles.statValue}>{slots.filter(s => s.status === 'offline_booking').length}</Text>
+                </View>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Past</Text>
+                  <Text style={styles.statValue}>{slots.filter(s => isPastSlot(selectedDate, s.startTime)).length}</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.statsCircularProgress}>
+              <Svg width={60} height={60} style={{ position: 'absolute' }}>
+                <Circle
+                  cx={30} cy={30} r={26}
+                  stroke="#FFD400" strokeWidth={4} fill="none"
+                  strokeDasharray={2 * Math.PI * 26}
+                  strokeDashoffset={(2 * Math.PI * 26) * (1 - (slots.length ? (slots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length / slots.length) : 0))}
+                  rotation="-90" origin="30, 30" strokeLinecap="round"
+                />
+              </Svg>
+              <Text style={styles.progressText}>{slots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length}</Text>
+              <Text style={styles.progressSubText}>Slots</Text>
+            </View>
+          </View>
+        )}
 
         {loading ? (
           <ActivityIndicator size="large" color="#FFD400" style={{ marginTop: 50 }} />
@@ -901,6 +944,31 @@ const styles = StyleSheet.create({
   dateNum: { fontSize: 20, color: '#FFF', fontFamily: Typography.fontFamily.bold, marginVertical: 1 },
   dateMonth: { fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: Typography.fontFamily.medium },
   dateTextSelected: { color: '#FFD400' },
+
+  /* ── Availability Summary Card ── */
+  summaryCard: {
+    marginHorizontal: 16,
+    marginTop: 10, marginBottom: 16,
+    borderRadius: 22,
+    backgroundColor: '#0F0F0F',
+    borderWidth: 1, borderColor: '#2A2A2A',
+    padding: 16,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 6,
+  },
+  summaryLeft: { flex: 1 },
+  summaryTitle: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginBottom: 12 },
+  statsRow: { flexDirection: 'row', gap: 14 },
+  statBlock: { flexDirection: 'column' },
+  statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' },
+  statValue: { fontSize: 16, fontFamily: Typography.fontFamily.extraBold, color: '#FFF', marginTop: 2 },
+  statsCircularProgress: {
+    width: 60, height: 60, borderRadius: 30,
+    borderWidth: 4, borderColor: '#2A2A2A',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  progressText: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: '#FFF' },
+  progressSubText: { fontSize: 7, fontFamily: Typography.fontFamily.bold, color: '#FFD400', textTransform: 'uppercase', marginTop: -2 },
 
   /* ── Expandable Time Groups ── */
   groupsContainer: { marginHorizontal: 16, gap: 12 },

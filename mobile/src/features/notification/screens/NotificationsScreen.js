@@ -148,7 +148,7 @@ const NotificationsScreen = ({ navigation }) => {
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Icon name="arrow-left" size={24} color="#FFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notifications</Text>
+          <Text style={styles.headerTitle}>Notifications ({notifications.length})</Text>
         </View>
         {notifications.length > 0 && (
           <View style={{ flexDirection: 'row', gap: Spacing.md }}>

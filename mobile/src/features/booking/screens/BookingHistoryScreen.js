@@ -1,5 +1,7 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView, Dimensions } from 'react-native';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyBookings } from '../bookingSlice';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -14,6 +16,19 @@ const BookingHistoryScreen = ({ navigation }) => {
   
   const [activeTab, setActiveTab] = useState('Upcoming');
   const tabs = ['Upcoming', 'Completed', 'Cancelled', 'Requested Cancel'];
+  const flatListRef = useRef(null);
+
+  const handleTabPress = (index) => {
+    setActiveTab(tabs[index]);
+    flatListRef.current?.scrollToIndex({ index, animated: true });
+  };
+
+  const onMomentumScrollEnd = (e) => {
+    const index = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    if (tabs[index] && tabs[index] !== activeTab) {
+      setActiveTab(tabs[index]);
+    }
+  };
 
   const onRefresh = useCallback(() => {
     dispatch(fetchMyBookings({ limit: 100 }));
@@ -35,13 +50,15 @@ const BookingHistoryScreen = ({ navigation }) => {
     }
   };
 
-  const filteredBookings = bookings.filter(b => {
-    if (activeTab === 'Upcoming') return b.status === 'confirmed' || b.status === 'pending';
-    if (activeTab === 'Completed') return b.status === 'completed';
-    if (activeTab === 'Cancelled') return b.status === 'cancelled';
-    if (activeTab === 'Requested Cancel') return b.status === 'cancellation_requested' || b.status === 'pending_refund';
-    return true;
-  });
+  const getFilteredBookings = (tab) => {
+    return bookings.filter(b => {
+      if (tab === 'Upcoming') return b.status === 'confirmed' || b.status === 'pending';
+      if (tab === 'Completed') return b.status === 'completed';
+      if (tab === 'Cancelled') return b.status === 'cancelled';
+      if (tab === 'Requested Cancel') return b.status === 'cancellation_requested' || b.status === 'pending_refund';
+      return true;
+    });
+  };
 
   const renderItem = ({ item }) => {
     const turf = item.turf || {};
@@ -116,11 +133,11 @@ const BookingHistoryScreen = ({ navigation }) => {
         {/* Tabs */}
         <View style={styles.tabsWrapper}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer}>
-            {tabs.map(tab => (
+            {tabs.map((tab, index) => (
               <TouchableOpacity
                 key={tab}
                 style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
-                onPress={() => setActiveTab(tab)}
+                onPress={() => handleTabPress(index)}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
@@ -130,21 +147,38 @@ const BookingHistoryScreen = ({ navigation }) => {
         </View>
 
         <FlatList
-          data={filteredBookings}
-          keyExtractor={(item) => item._id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={Colors.primary} />}
-          ListEmptyComponent={
-            !isLoading && (
-              <View style={styles.center}>
-                <Icon name="ticket-confirmation-outline" size={64} color={Colors.textTertiary} />
-                <Text style={styles.emptyTitle}>No {activeTab} Bookings</Text>
-                <Text style={styles.emptySub}>You don't have any {activeTab.toLowerCase()} bookings at the moment.</Text>
-              </View>
-            )
-          }
+          ref={flatListRef}
+          data={tabs}
+          keyExtractor={(item) => item}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={onMomentumScrollEnd}
+          // Optimization for initial render speed when swiping
+          initialNumToRender={1}
+          maxToRenderPerBatch={1}
+          windowSize={3}
+          renderItem={({ item: tab }) => (
+            <View style={{ width: SCREEN_WIDTH }}>
+              <FlatList
+                data={getFilteredBookings(tab)}
+                keyExtractor={(item) => item._id}
+                renderItem={renderItem}
+                contentContainerStyle={styles.listContainer}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={Colors.primary} />}
+                ListEmptyComponent={
+                  !isLoading && (
+                    <View style={styles.center}>
+                      <Icon name="ticket-confirmation-outline" size={64} color={Colors.textTertiary} />
+                      <Text style={styles.emptyTitle}>No {tab} Bookings</Text>
+                      <Text style={styles.emptySub}>You don't have any {tab.toLowerCase()} bookings at the moment.</Text>
+                    </View>
+                  )
+                }
+              />
+            </View>
+          )}
         />
       </View>
     </SafeAreaView>
