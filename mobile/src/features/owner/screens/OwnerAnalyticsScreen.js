@@ -118,9 +118,11 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
       <View style={[ss.header, { paddingTop: insets.top + 8 }]}>
         <View style={ss.headerRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8}>
-              <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
-            </TouchableOpacity>
+            {navigation.canGoBack() && (
+              <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8}>
+                <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            )}
             <Text style={ss.headerTitle}>Analytics</Text>
           </View>
           <TouchableOpacity style={ss.turfSelectorBtn} onPress={() => setTurfModalVisible(true)}>

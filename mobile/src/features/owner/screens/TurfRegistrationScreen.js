@@ -14,6 +14,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme'
 import { createTurf, updateTurf } from '../../turf/turfSlice';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
+import CustomTimePicker from '../../../components/CustomTimePicker';
 
 
 const AMENITIES_LIST = [
@@ -27,8 +28,27 @@ const AMENITIES_LIST = [
   { id: 'firstAid', label: 'First Aid', icon: 'medical-bag' },
 ];
 
-const SIZES = ['5v5', '6v6', '7v7', '8v8', '9v9', '11v11', 'Box Cricket'];
-const TYPES = ['Indoor', 'Outdoor', 'Both'];
+const SIZES = ['Box Cricket', '5v5', '6v6', '7v7', '8v8', '9v9', '11v11'];
+const TYPES = ['Indoor with Rooftop', 'Outdoor', 'Indoor without roof'];
+
+const DAYS_OF_WEEK = [
+  { id: 1, label: 'Mon' },
+  { id: 2, label: 'Tue' },
+  { id: 3, label: 'Wed' },
+  { id: 4, label: 'Thu' },
+  { id: 5, label: 'Fri' },
+  { id: 6, label: 'Sat' },
+  { id: 0, label: 'Sun' },
+];
+
+const formatTime12Hour = (time24) => {
+  if (!time24) return '';
+  const [hourStr, minute] = time24.split(':');
+  let hour = parseInt(hourStr, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12 || 12;
+  return `${hour}:${minute} ${ampm}`;
+};
 
 const TurfRegistrationScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -45,12 +65,19 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       city: editTurf?.city || '', 
       state: editTurf?.state || '', 
       pincode: editTurf?.pincode || '',
+      latitude: editTurf?.location?.coordinates?.[1]?.toString() || '',
+      longitude: editTurf?.location?.coordinates?.[0]?.toString() || '',
       size: editTurf?.size || '5v5', 
       type: editTurf?.type || 'Outdoor', 
       weekdayDayPrice: editTurf?.pricing?.weekdayDay?.toString() || '', 
       weekdayNightPrice: editTurf?.pricing?.weekdayNight?.toString() || '', 
       weekendDayPrice: editTurf?.pricing?.weekendDay?.toString() || '', 
       weekendNightPrice: editTurf?.pricing?.weekendNight?.toString() || '',
+      openTime: editTurf?.operatingHours?.openTime || '06:00',
+      closeTime: editTurf?.operatingHours?.closeTime || '23:00',
+      nightStartTime: editTurf?.operatingHours?.nightStartTime || '17:00',
+      nightEndTime: editTurf?.operatingHours?.nightEndTime || '06:00',
+      weekendDays: editTurf?.operatingHours?.weekendDays || [0, 6],
       amenities: editTurf?.amenities || {},
       googleMapsUrl: editTurf?.googleMapsUrl || ''
     }
@@ -60,6 +87,12 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
   const [gallery, setGallery] = useState(editTurf?.gallery ? editTurf.gallery.map(uri => ({ uri })) : []);
   const [removedGallery, setRemovedGallery] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showOpenTimePicker, setShowOpenTimePicker] = useState(false);
+  const [showCloseTimePicker, setShowCloseTimePicker] = useState(false);
+  const [showNightTimePicker, setShowNightTimePicker] = useState(false);
+  const [showNightEndTimePicker, setShowNightEndTimePicker] = useState(false);
+  const [customSize1, setCustomSize1] = useState(editTurf && !SIZES.includes(editTurf.size) ? editTurf.size.split('v')[0]?.trim() || '' : '');
+  const [customSize2, setCustomSize2] = useState(editTurf && !SIZES.includes(editTurf.size) ? editTurf.size.split('v')[1]?.trim() || '' : '');
 
   const loadingState = isLoading || isSubmitting;
 
@@ -123,8 +156,20 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
     setValue('amenities', { ...amenitiesState, [id]: !amenitiesState[id] });
   };
 
+  const toggleWeekendDay = (dayId) => {
+    const current = watch('weekendDays') || [];
+    if (current.includes(dayId)) {
+      setValue('weekendDays', current.filter(id => id !== dayId));
+    } else {
+      setValue('weekendDays', [...current, dayId]);
+    }
+  };
+
   const onSubmit = async (data) => {
     if (!coverImage) return showCustomAlert('Error', 'Please select a cover image for your turf.');
+    if (!data.weekendDays || data.weekendDays.length === 0) {
+      return showCustomAlert('Validation Error', 'Please select at least one weekend day.');
+    }
     
     setIsSubmitting(true);
     try {
@@ -133,8 +178,12 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       formData.append('description', data.description);
       formData.append('address', data.address);
       formData.append('city', data.city);
-      if (data.latitude) formData.append('latitude', data.latitude);
-      if (data.longitude) formData.append('longitude', data.longitude);
+      if (data.latitude !== undefined && data.latitude !== null && data.latitude !== '') {
+        formData.append('latitude', data.latitude);
+      }
+      if (data.longitude !== undefined && data.longitude !== null && data.longitude !== '') {
+        formData.append('longitude', data.longitude);
+      }
       formData.append('state', data.state);
       formData.append('pincode', data.pincode);
       formData.append('size', data.size);
@@ -145,13 +194,13 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       formData.append('weekendNightPrice', data.weekendNightPrice || 0);
       formData.append('googleMapsUrl', data.googleMapsUrl || '');
 
-      // Backend expects location as [lng, lat]. Defaulting to 0 for now.
-      formData.append('longitude', '0');
-      formData.append('latitude', '0');
 
-      // Default 24/7 Operating Hours
-      formData.append('openTime', '00:00');
-      formData.append('closeTime', '23:59');
+      // Operating Hours & Settings
+      formData.append('openTime', data.openTime);
+      formData.append('closeTime', data.closeTime);
+      formData.append('nightStartTime', data.nightStartTime);
+      formData.append('nightEndTime', data.nightEndTime);
+      formData.append('weekendDays', JSON.stringify(data.weekendDays));
 
       // Amenities
       Object.keys(amenitiesState).forEach(key => {
@@ -212,7 +261,22 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
   };
 
   const onError = (errors) => {
-    showCustomAlert('Validation Error', 'Please fill all required fields correctly.');
+    const errorFields = Object.keys(errors).map(key => {
+      let fieldLabel = key;
+      if (key === 'name') fieldLabel = 'Turf Name';
+      else if (key === 'address') fieldLabel = 'Street Address';
+      else if (key === 'city') fieldLabel = 'City';
+      else if (key === 'state') fieldLabel = 'State';
+      else if (key === 'location') fieldLabel = 'Map Location';
+      else if (key === 'landmark') fieldLabel = 'Landmark';
+      else if (key === 'pincode') fieldLabel = 'Pincode';
+      else if (key === 'size') fieldLabel = 'Size';
+      
+      const msg = errors[key]?.message || 'is invalid';
+      return `• ${fieldLabel}: ${msg}`;
+    }).join('\n');
+
+    showCustomAlert('Validation Error', errorFields || 'Please fill all required fields correctly.');
   };
 
   const renderInput = (name, placeholder, rules = {}, numeric = false, multiline = false) => (
@@ -288,9 +352,17 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
           {renderInput('description', 'Description', {}, false, true)}
           
           <View style={styles.row}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, marginTop: Spacing.sm }}>
               <Text style={styles.label}>Size</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                <TouchableOpacity 
+                  style={[styles.chip, !SIZES.includes(watch('size')) && styles.chipActive]}
+                  onPress={() => {
+                    if (SIZES.includes(watch('size'))) setValue('size', ''); 
+                  }}
+                >
+                  <Text style={[styles.chipText, !SIZES.includes(watch('size')) && styles.chipTextActive]}>Other</Text>
+                </TouchableOpacity>
                 {SIZES.map(s => (
                   <TouchableOpacity 
                     key={s} 
@@ -301,6 +373,33 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+              {!SIZES.includes(watch('size')) && (
+                <View style={[{ marginTop: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }]}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, textAlign: 'center' }]}
+                    placeholder="e.g. 50"
+                    placeholderTextColor={Colors.textSecondary}
+                    value={customSize1}
+                    onChangeText={(val) => {
+                      setCustomSize1(val);
+                      setValue('size', `${val} v ${customSize2}`);
+                    }}
+                    keyboardType="numeric"
+                  />
+                  <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>v</Text>
+                  <TextInput
+                    style={[styles.input, { flex: 1, textAlign: 'center' }]}
+                    placeholder="e.g. 50"
+                    placeholderTextColor={Colors.textSecondary}
+                    value={customSize2}
+                    onChangeText={(val) => {
+                      setCustomSize2(val);
+                      setValue('size', `${customSize1} v ${val}`);
+                    }}
+                    keyboardType="numeric"
+                  />
+                </View>
+              )}
             </View>
           </View>
 
@@ -458,8 +557,8 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                   <Icon name="google-maps" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
                   <TextInput
                     style={styles.inputField}
-                    placeholder="Paste Google Maps link (e.g. https://maps.google.com/...)"
-                    placeholderTextColor={Colors.textTertiary}
+                    placeholder="Paste Google Maps link"
+                    placeholderTextColor={Colors.textSecondary}
                     onChangeText={onChange}
                     onBlur={onBlur}
                     value={value}
@@ -473,6 +572,63 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
             <Text style={styles.helperText}>
               Open Google Maps → find your turf → Share → Copy link → paste it here.
             </Text>
+          </View>
+
+          {/* Operating Hours */}
+          <Text style={styles.sectionTitle}>Operating Hours & Pricing Rules</Text>
+          <View style={styles.rowInputs}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={styles.label}>Open Time</Text>
+              <TouchableOpacity style={[styles.input, { justifyContent: 'center' }]} onPress={() => setShowOpenTimePicker(true)}>
+                <Text style={{ color: watch('openTime') ? Colors.textPrimary : Colors.textSecondary, textAlign: 'center' }}>
+                  {watch('openTime') ? formatTime12Hour(watch('openTime')) : 'Select Time'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Text style={styles.label}>Close Time</Text>
+              <TouchableOpacity style={[styles.input, { justifyContent: 'center' }]} onPress={() => setShowCloseTimePicker(true)}>
+                <Text style={{ color: watch('closeTime') ? Colors.textPrimary : Colors.textSecondary, textAlign: 'center' }}>
+                  {watch('closeTime') ? formatTime12Hour(watch('closeTime')) : 'Select Time'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          <View style={[styles.rowInputs, { marginTop: Spacing.sm }]}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={styles.label}>Lights Provided</Text>
+              <TouchableOpacity style={[styles.input, { justifyContent: 'center' }]} onPress={() => setShowNightTimePicker(true)}>
+                <Text style={{ color: watch('nightStartTime') ? Colors.textPrimary : Colors.textSecondary, textAlign: 'center' }}>
+                  {watch('nightStartTime') ? formatTime12Hour(watch('nightStartTime')) : 'Select Time'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Text style={styles.label}>Lights Offed</Text>
+              <TouchableOpacity style={[styles.input, { justifyContent: 'center' }]} onPress={() => setShowNightEndTimePicker(true)}>
+                <Text style={{ color: watch('nightEndTime') ? Colors.textPrimary : Colors.textSecondary, textAlign: 'center' }}>
+                  {watch('nightEndTime') ? formatTime12Hour(watch('nightEndTime')) : 'Select Time'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={{ marginTop: Spacing.md, paddingHorizontal: Spacing.sm }}>
+            <Text style={styles.label}>Select Weekend Days</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+              {DAYS_OF_WEEK.map(day => (
+                <TouchableOpacity
+                  key={day.id}
+                  style={[styles.chip, (watch('weekendDays') || []).includes(day.id) && styles.chipActive]}
+                  onPress={() => toggleWeekendDay(day.id)}
+                >
+                  <Text style={[styles.chipText, (watch('weekendDays') || []).includes(day.id) && styles.chipTextActive]}>
+                    {day.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           {/* Detailed Pricing */}
@@ -516,8 +672,11 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
             })}
           </View>
 
+        </KeyboardAwareScrollView>
+
+        <View style={styles.bottomButtonContainer}>
           <TouchableOpacity 
-            style={[styles.submitButton, loadingState && styles.submitButtonDisabled]} 
+            style={[styles.submitButton, loadingState && styles.submitButtonDisabled, { marginTop: 0 }]} 
             onPress={handleSubmit(onSubmit, onError)}
             disabled={loadingState}
           >
@@ -527,9 +686,48 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
               <Text style={styles.submitButtonText}>{isEditing ? 'Update Turf' : 'Register Turf'}</Text>
             )}
           </TouchableOpacity>
-
-        </KeyboardAwareScrollView>
+        </View>
       </KeyboardAvoidingView>
+      
+      {showOpenTimePicker && (
+        <CustomTimePicker
+          visible={showOpenTimePicker}
+          title="Select Open Time"
+          initialTime={watch('openTime')}
+          onClose={() => setShowOpenTimePicker(false)}
+          onSelect={(time) => setValue('openTime', time)}
+        />
+      )}
+      
+      {showCloseTimePicker && (
+        <CustomTimePicker
+          visible={showCloseTimePicker}
+          title="Select Close Time"
+          initialTime={watch('closeTime')}
+          onClose={() => setShowCloseTimePicker(false)}
+          onSelect={(time) => setValue('closeTime', time)}
+        />
+      )}
+      
+      {showNightTimePicker && (
+        <CustomTimePicker
+          visible={showNightTimePicker}
+          title="Select Lights Provided Time"
+          initialTime={watch('nightStartTime')}
+          onClose={() => setShowNightTimePicker(false)}
+          onSelect={(time) => setValue('nightStartTime', time)}
+        />
+      )}
+      
+      {showNightEndTimePicker && (
+        <CustomTimePicker
+          visible={showNightEndTimePicker}
+          title="Select Lights Offed Time"
+          initialTime={watch('nightEndTime')}
+          onClose={() => setShowNightEndTimePicker(false)}
+          onSelect={(time) => setValue('nightEndTime', time)}
+        />
+      )}
     </View>
   );
 };
@@ -591,7 +789,7 @@ const styles = StyleSheet.create({
   inputWrapperError: { borderColor: Colors.error },
   inputIcon: { marginRight: 8 },
   inputField: {
-    flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14,
+    flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14, padding: 0,
   },
   textArea: { height: 100, textAlignVertical: 'top', paddingTop: Spacing.md },
   inputError: { borderColor: Colors.error },
@@ -648,6 +846,12 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: { opacity: 0.7 },
   submitButtonText: { color: '#000', fontSize: 16, fontFamily: Typography.fontFamily.bold },
+  bottomButtonContainer: {
+    padding: Spacing.md,
+    backgroundColor: Colors.background,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
 
   // Loading Overlay
   loadingOverlay: {

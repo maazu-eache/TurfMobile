@@ -17,6 +17,28 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.75;
 const OVERLAP_AMOUNT = SCREEN_WIDTH * 0.12; 
 
+const isTurfOpen = (operatingHours) => {
+  if (!operatingHours || !operatingHours.openTime || !operatingHours.closeTime) {
+    return true;
+  }
+  try {
+    const now = new Date();
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
+
+    const { openTime, closeTime } = operatingHours;
+
+    if (openTime < closeTime) {
+      return currentTimeStr >= openTime && currentTimeStr <= closeTime;
+    } else {
+      return currentTimeStr >= openTime || currentTimeStr <= closeTime;
+    }
+  } catch (e) {
+    return true;
+  }
+};
+
 export const PremiumTurfCarousel = ({ data, onTurfPress, onFavoriteToggle, favourites = [] }) => {
   const scrollX = useRef(new Animated.Value(0)).current;
 
@@ -31,6 +53,7 @@ export const PremiumTurfCarousel = ({ data, onTurfPress, onFavoriteToggle, favou
   const renderItem = ({ item, index }) => {
     const minPrice = getMinPrice(item.pricing);
     const isFav = favourites.includes(item._id);
+    const open = isTurfOpen(item.operatingHours);
 
     const inputRange = [
       (index - 1) * CARD_WIDTH,
@@ -58,7 +81,7 @@ export const PremiumTurfCarousel = ({ data, onTurfPress, onFavoriteToggle, favou
 
     const imageTranslateX = scrollX.interpolate({
       inputRange,
-      outputRange: [30, 0, -30],
+      outputRange: [-CARD_WIDTH * 0.1, 0, CARD_WIDTH * 0.1],
       extrapolate: 'clamp',
     });
 
@@ -98,8 +121,8 @@ export const PremiumTurfCarousel = ({ data, onTurfPress, onFavoriteToggle, favou
               
               <View style={styles.topOverlayRow}>
                 <View style={styles.openNowPill}>
-                  <View style={styles.openDot} />
-                  <Text style={styles.openNowText}>OPEN NOW</Text>
+                  <View style={[styles.openDot, { backgroundColor: open ? '#2ECC71' : '#E74C3C' }]} />
+                  <Text style={styles.openNowText}>{open ? 'OPEN NOW' : 'CLOSED'}</Text>
                 </View>
                 
                 {item.isTrending ? (

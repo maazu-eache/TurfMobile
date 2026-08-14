@@ -152,7 +152,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
     }
 
     if (isRescheduling) {
-      const totalPrice = selectedSlots.reduce((acc, s) => acc + s.price, 0);
+      const totalPrice = selectedSlots.reduce((acc, s) => acc + (s.discountPrice !== undefined && s.discountPrice !== null ? s.discountPrice : s.price), 0);
       if (totalPrice !== oldTotalPrice) {
         return showCustomAlert('Price Mismatch', 'The total price of new slots must match exactly the old booking. Please cancel and rebook instead.');
       }
@@ -237,7 +237,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
   const bookedCount = slots.filter(s => s.status === 'booked' || s.status === 'offline_booking').length;
   const pastCount = slots.filter(s => isPastSlot(selectedDate, s.startTime)).length;
 
-  const totalSelectedPrice = selectedSlots.reduce((acc, s) => acc + s.price, 0);
+  const totalSelectedPrice = selectedSlots.reduce((acc, s) => acc + (s.discountPrice !== undefined && s.discountPrice !== null ? s.discountPrice : s.price), 0);
 
   // Group slots by time blocks
   const groupedSlots = {
@@ -285,7 +285,14 @@ const SlotPickerScreen = ({ route, navigation }) => {
         <Text style={[styles.slotTime, textStyle, past && { textDecorationLine: 'line-through' }]}>
           {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
         </Text>
-        <Text style={[styles.slotPrice, textStyle]}>₹{slot.price}</Text>
+        {slot.discountPrice !== undefined && slot.discountPrice !== null ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Text style={[styles.slotPrice, textStyle, { textDecorationLine: 'line-through', opacity: 0.6, fontSize: 9 }]}>₹{slot.price}</Text>
+            <Text style={[styles.slotPrice, textStyle, { color: '#2ed573', fontWeight: 'bold' }]}>₹{slot.discountPrice}</Text>
+          </View>
+        ) : (
+          <Text style={[styles.slotPrice, textStyle]}>₹{slot.price}</Text>
+        )}
       </TouchableOpacity>
     );
   };

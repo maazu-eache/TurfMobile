@@ -158,6 +158,17 @@ const BookingHistoryScreen = ({ navigation }) => {
           initialNumToRender={1}
           maxToRenderPerBatch={1}
           windowSize={3}
+          getItemLayout={(data, index) => ({
+            length: SCREEN_WIDTH,
+            offset: SCREEN_WIDTH * index,
+            index,
+          })}
+          onScrollToIndexFailed={(info) => {
+            const wait = new Promise(resolve => setTimeout(resolve, 50));
+            wait.then(() => {
+              flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+            });
+          }}
           renderItem={({ item: tab }) => (
             <View style={{ width: SCREEN_WIDTH }}>
               <FlatList

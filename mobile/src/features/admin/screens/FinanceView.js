@@ -19,6 +19,7 @@ const TABS = [
   { id: 'pending_refunds', label: 'Refunds', icon: 'cash-refund' },
   { id: 'pending_withdrawals', label: 'Withdrawals', icon: 'bank-transfer-out' },
   { id: 'ledger', label: 'Ledger', icon: 'book-open-outline' },
+  { id: 'platform', label: 'Platform', icon: 'wallet-membership' },
   { id: 'audit', label: 'Audit', icon: 'shield-check-outline' },
 ];
 
@@ -50,6 +51,7 @@ const FinanceView = () => {
   const [outgoingRefunds, setOutgoingRefunds] = useState([]);
   const [outgoingWithdrawals, setOutgoingWithdrawals] = useState([]);
   const [ledger, setLedger] = useState([]);
+  const [platformLedger, setPlatformLedger] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [processingId, setProcessingId] = useState(null);
 
@@ -84,6 +86,9 @@ const FinanceView = () => {
       } else if (activeTab === 'ledger') {
         const res = await api.get('/admin/finance/transactions?limit=200');
         setLedger(res.data.data || []);
+      } else if (activeTab === 'platform') {
+        const res = await api.get('/admin/finance/platform?limit=200');
+        setPlatformLedger(res.data.data || []);
       } else if (activeTab === 'audit') {
         const res = await api.get('/admin/finance/audit?limit=200');
         setAuditLogs(res.data.data || []);
@@ -229,10 +234,34 @@ const FinanceView = () => {
       </View>
       <View style={styles.divider} />
       <InfoRow icon="account-outline" label="User" value={item.user?.name || 'Unknown'} />
-      <InfoRow icon="store-outline" label="Turf" value={item.owner?.businessName || 'N/A'} />
+      <InfoRow icon="store-outline" label="Turf" value={item.booking?.turf?.name || item.owner?.businessName || 'N/A'} />
       <InfoRow icon="credit-card-outline" label="Method" value={item.method || 'Online'} />
     </View>
   );
+
+  // ── Platform Revenue Row ──────────────────────────────────────────
+  const renderPlatformItem = ({ item }) => {
+    const isCommission = item.type === 'booking_commission';
+    const title = isCommission ? 'Booking Commission' : 'Cancellation Platform Fee';
+    const iconName = isCommission ? 'cash-multiple' : 'cash-refund';
+    
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeaderRow}>
+          <View style={[styles.cardIconWrap, { backgroundColor: isCommission ? 'rgba(255, 212, 0, 0.1)' : 'rgba(46, 213, 115, 0.1)' }]}>
+            <Icon name={iconName} size={18} color={isCommission ? Colors.primary : Colors.success} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
+            <Text style={styles.cardSubtitle}>Ref: {item.bookingRef || 'N/A'} · {formatDate(item.createdAt)}</Text>
+          </View>
+          <Text style={[styles.cardAmount, { color: Colors.success }]}>+{formatCurrency(item.amount)}</Text>
+        </View>
+        <View style={styles.divider} />
+        <InfoRow icon="account-outline" label="Customer" value={item.customerName || 'Unknown'} />
+      </View>
+    );
+  };
 
   // ── Outgoing (combined) ────────────────────────────────────────────
   const renderOutgoingItem = ({ item }) => {
@@ -419,6 +448,16 @@ const FinanceView = () => {
             />
           )}
 
+          {activeTab === 'platform' && (
+            <FlatList
+              data={platformLedger}
+              renderItem={renderPlatformItem}
+              keyExtractor={item => item._id}
+              contentContainerStyle={styles.list}
+              ListEmptyComponent={<EmptyState icon="wallet-membership" message="No platform revenue recorded yet." />}
+            />
+          )}
+
           {activeTab === 'audit' && (
             <FlatList
               data={auditLogs}
@@ -471,6 +510,13 @@ const FinanceView = () => {
             />
           )}
         </>
+      )}
+
+      {!!processingId && (
+        <View style={styles.overlayLoader}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.overlayText}>Processing transaction...</Text>
+        </View>
       )}
     </View>
   );
@@ -616,6 +662,21 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { color: Colors.textPrimary, fontSize: 16, fontFamily: 'Outfit-Bold' },
   emptyText: { color: Colors.textTertiary, fontSize: 13, fontFamily: 'Outfit-Regular', textAlign: 'center', paddingHorizontal: 32 },
+
+  overlayLoader: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+    gap: 12
+  },
+  overlayText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontFamily: 'Outfit-Bold',
+  },
 });
 
 export default FinanceView;

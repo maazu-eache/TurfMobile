@@ -118,6 +118,17 @@ const OnboardingScreen = () => {
         )}
         onViewableItemsChanged={onViewRef}
         viewabilityConfig={viewConfig}
+        getItemLayout={(data, index) => ({
+          length: width,
+          offset: width * index,
+          index,
+        })}
+        onScrollToIndexFailed={(info) => {
+          const wait = new Promise(resolve => setTimeout(resolve, 50));
+          wait.then(() => {
+            slidesRef.current?.scrollToIndex({ index: info.index, animated: true });
+          });
+        }}
         style={{ flex: 1 }}
       />
 

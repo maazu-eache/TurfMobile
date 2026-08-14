@@ -70,6 +70,13 @@ const SlotManagerScreen = ({ navigation }) => {
   const [actionType, setActionType] = useState('available');
   const [offlineDetails, setOfflineDetails] = useState({ customerName: '', customerMobile: '', amount: '', reason: 'walk_in' });
   
+  // Discount States
+  const [discountModalVisible, setDiscountModalVisible] = useState(false);
+  const [discountMode, setDiscountMode] = useState('single'); // 'single' or 'extend'
+  const [discountPrice, setDiscountPrice] = useState('');
+  const [discountStartDate, setDiscountStartDate] = useState(moment().format('YYYY-MM-DD'));
+  const [discountEndDate, setDiscountEndDate] = useState(moment().add(7, 'days').format('YYYY-MM-DD'));
+
   // Bulk Search / Update Modals
   const [bulkModalVisible, setBulkModalVisible] = useState(false);
   const [bulkData, setBulkData] = useState({
@@ -85,7 +92,67 @@ const SlotManagerScreen = ({ navigation }) => {
   const [calendarMonth, setCalendarMonth] = useState(moment().startOf('month'));
   const [activePicker, setActivePicker] = useState('none'); 
   
+  const getOriginalPriceText = () => {
+    if (selectedSlots.length === 0) return '';
+    const selectedSlotObjs = slots.filter(s => selectedSlots.includes(s._id));
+    if (selectedSlotObjs.length === 0) return '';
+    const prices = selectedSlotObjs.map(s => s.price);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    if (minPrice === maxPrice) return `₹${minPrice}`;
+    return `₹${minPrice} - ₹${maxPrice}`;
+  };
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const handleDiscountSubmit = async () => {
+    if (!discountPrice) {
+      return showCustomAlert('Missing Info', 'Please enter a discounted price.');
+    }
+    try {
+      setLoading(true);
+      await api.post('/slots/discount', {
+        turfId: selectedTurf,
+        slotIds: selectedSlots,
+        mode: discountMode,
+        discountPrice: Number(discountPrice),
+        startDate: discountMode === 'extend' ? discountStartDate : undefined,
+        endDate: discountMode === 'extend' ? discountEndDate : undefined,
+      });
+      setDiscountModalVisible(false);
+      setDiscountPrice('');
+      setSelectedSlots([]);
+      fetchSlots();
+      showCustomAlert('Success', 'Discount applied successfully.');
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to apply discount');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearDiscount = async () => {
+    try {
+      setLoading(true);
+      await api.post('/slots/discount', {
+        turfId: selectedTurf,
+        slotIds: selectedSlots,
+        mode: discountMode,
+        discountPrice: null,
+        startDate: discountMode === 'extend' ? discountStartDate : undefined,
+        endDate: discountMode === 'extend' ? discountEndDate : undefined,
+      });
+      setDiscountModalVisible(false);
+      setDiscountPrice('');
+      setSelectedSlots([]);
+      fetchSlots();
+      showCustomAlert('Success', 'Discount cleared successfully.');
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to clear discount');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
@@ -110,6 +177,19 @@ const SlotManagerScreen = ({ navigation }) => {
     }
   };
 
+  const handleUpdateOfflineSlot = async (slotId, status) => {
+    try {
+      setLoading(true);
+      await api.put(`/slots/${slotId}`, { status });
+      fetchSlots();
+      showCustomAlert('Success', `Slot status updated to ${status}.`);
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to update slot status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSlotPress = (slot) => {
     const isBooked = slot.status === 'booked' || slot.status === 'offline_booking';
     
@@ -122,7 +202,11 @@ const SlotManagerScreen = ({ navigation }) => {
         const refStr = b.bookingRef || b._id.substring(0, 8);
         return showCustomAlert('Booking Details', `Ref: ${refStr}\nUser: ${userName} ${userPhone ? `(${userPhone})` : ''}\nAmount: ₹${amt}\nStatus: ${b.status.toUpperCase()}`);
       } else if (slot.status === 'offline_booking') {
-        return showCustomAlert('Offline Booking', 'This slot was booked offline/walk-in.');
+        return showCustomAlert('Offline Booking', 'This slot was booked offline/walk-in. What would you like to do?', [
+          { text: 'Make Available', onPress: () => handleUpdateOfflineSlot(slot._id, 'available') },
+          { text: 'Mark Maintenance', onPress: () => handleUpdateOfflineSlot(slot._id, 'maintenance') },
+          { text: 'Cancel', style: 'cancel' }
+        ]);
       }
       return showCustomAlert('Booked', 'This slot is already booked and cannot be changed.');
     }
@@ -365,7 +449,14 @@ const SlotManagerScreen = ({ navigation }) => {
         <Text style={[styles.slotTime, textStyle, (past && !isSelected && !isMaintenance) && { textDecorationLine: 'line-through' }]}>
           {formatISTTime(slot.startTime)} - {formatISTTime(slot.endTime)}
         </Text>
-        <Text style={[styles.slotPrice, textStyle]}>₹{slot.price}</Text>
+        {slot.discountPrice !== undefined && slot.discountPrice !== null ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Text style={[styles.slotPrice, textStyle, { textDecorationLine: 'line-through', opacity: 0.6, fontSize: 9 }]}>₹{slot.price}</Text>
+            <Text style={[styles.slotPrice, textStyle, { color: '#2ed573', fontWeight: 'bold' }]}>₹{slot.discountPrice}</Text>
+          </View>
+        ) : (
+          <Text style={[styles.slotPrice, textStyle]}>₹{slot.price}</Text>
+        )}
       </TouchableOpacity>
     );
   };
@@ -522,25 +613,32 @@ const SlotManagerScreen = ({ navigation }) => {
 
       {/* ── Floating Action Bar for Selections ── */}
       {selectedSlots.length > 0 && (
-        <View style={styles.bottomBookingCard}>
-          <View style={styles.bookingLeft}>
+        <View style={[styles.bottomBookingCard, { height: 110, borderRadius: 24, flexDirection: 'column', paddingVertical: 12, gap: 8, paddingHorizontal: 16 }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <Text style={styles.selectedCountLabel}>Manage</Text>
             <Text style={styles.selectedCountText}>
               {selectedSlots.length} Slots Selected
             </Text>
           </View>
-          <View style={styles.fabBtnGroup}>
-            <TouchableOpacity style={[styles.fabBtn, { backgroundColor: 'rgba(255, 212, 0, 0.1)', borderColor: '#FFD400' }]} onPress={() => handleQuickAction('available')}>
-              <Icon name="check" size={12} color="#FFD400" />
-              <Text style={[styles.fabBtnText, { color: '#FFD400' }]}>Avail</Text>
-            </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'space-between', width: '100%' }}>
+            {slots.filter(s => selectedSlots.includes(s._id) && s.status !== 'available').length > 0 && (
+              <TouchableOpacity style={[styles.fabBtn, { flex: 1, backgroundColor: 'rgba(255, 212, 0, 0.1)', borderColor: '#FFD400' }]} onPress={() => handleQuickAction('available')}>
+                <Icon name="check" size={12} color="#FFD400" />
+                <Text style={[styles.fabBtnText, { color: '#FFD400' }]}>Avail</Text>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity style={[styles.fabBtn, { backgroundColor: 'rgba(156, 39, 176, 0.1)', borderColor: '#9C27B0' }]} onPress={() => handleQuickAction('offline_booking')}>
+            <TouchableOpacity style={[styles.fabBtn, { flex: 1, backgroundColor: 'rgba(156, 39, 176, 0.1)', borderColor: '#9C27B0' }]} onPress={() => handleQuickAction('offline_booking')}>
               <Icon name="account-cash" size={12} color="#9C27B0" />
               <Text style={[styles.fabBtnText, { color: '#9C27B0' }]}>Walk-in</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.fabBtn, { backgroundColor: 'rgba(255, 71, 87, 0.1)', borderColor: '#FF4757' }]} onPress={() => handleQuickAction('maintenance')}>
+            <TouchableOpacity style={[styles.fabBtn, { flex: 1, backgroundColor: 'rgba(46, 213, 115, 0.1)', borderColor: '#2ed573' }]} onPress={() => setDiscountModalVisible(true)}>
+              <Icon name="tag-outline" size={12} color="#2ed573" />
+              <Text style={[styles.fabBtnText, { color: '#2ed573' }]}>Discount</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.fabBtn, { flex: 1, backgroundColor: 'rgba(255, 71, 87, 0.1)', borderColor: '#FF4757' }]} onPress={() => handleQuickAction('maintenance')}>
               <Icon name="tools" size={12} color="#FF4757" />
               <Text style={[styles.fabBtnText, { color: '#FF4757' }]}>Maint</Text>
             </TouchableOpacity>
@@ -592,6 +690,96 @@ const SlotManagerScreen = ({ navigation }) => {
                  <Text style={styles.saveBtnTextPrimary}>Confirm Offline Booking</Text>
                </LinearGradient>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Discount Settings Modal */}
+      <Modal visible={discountModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeaderTitle}>
+              <Text style={styles.modalTitle}>Slot Promotion Discount</Text>
+              <TouchableOpacity onPress={() => setDiscountModalVisible(false)} style={styles.modalClose}>
+                <Icon name="close" size={18} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalSubtitle}>Mode</Text>
+              <View style={styles.actionButtons}>
+                <TouchableOpacity 
+                  style={[styles.actionBtn, discountMode === 'single' && styles.actionBtnActive]} 
+                  onPress={() => setDiscountMode('single')}
+                >
+                  <Text style={[styles.actionBtnText, discountMode === 'single' && { color: '#000' }]}>Only Today</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.actionBtn, discountMode === 'extend' && styles.actionBtnActive]} 
+                  onPress={() => setDiscountMode('extend')}
+                >
+                  <Text style={[styles.actionBtnText, discountMode === 'extend' && { color: '#000' }]}>Extend Dates</Text>
+                </TouchableOpacity>
+              </View>
+
+              {discountMode === 'extend' && (
+                <View style={{ marginTop: 14 }}>
+                  <Text style={styles.modalSubtitle}>Date Range</Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity 
+                      style={styles.pickerInput} 
+                      onPress={() => {
+                        setActivePicker('discountStart');
+                        setShowCalendar(true);
+                      }}
+                    >
+                      <Text style={styles.pickerText}>
+                        {discountStartDate ? moment(discountStartDate).format('DD MMM YYYY') : 'Start Date'}
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      style={styles.pickerInput} 
+                      onPress={() => {
+                        setActivePicker('discountEnd');
+                        setShowCalendar(true);
+                      }}
+                    >
+                      <Text style={styles.pickerText}>
+                        {discountEndDate ? moment(discountEndDate).format('DD MMM YYYY') : 'End Date'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              <Text style={styles.modalSubtitle}>Discounted Price (Original: {getOriginalPriceText()})</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Discounted Price (e.g. 800) *"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                keyboardType="numeric"
+                value={discountPrice}
+                onChangeText={setDiscountPrice}
+              />
+
+              <View style={{ gap: 10, marginTop: 14 }}>
+                <TouchableOpacity style={styles.saveBtn} onPress={handleDiscountSubmit}>
+                  <LinearGradient colors={['#FFD400', '#FFB700']} style={styles.saveBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                    <Text style={styles.saveBtnTextPrimary}>Apply Discount</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.saveBtn, { borderWidth: 1, borderColor: '#FF4757', borderRadius: 16 }]} 
+                  onPress={handleClearDiscount}
+                >
+                  <View style={[styles.saveBtnGrad, { backgroundColor: 'transparent' }]}>
+                    <Text style={[styles.saveBtnTextPrimary, { color: '#FF4757' }]}>Remove/Clear Discount</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -849,6 +1037,8 @@ const SlotManagerScreen = ({ navigation }) => {
                   const isSel = (activePicker === 'none' && selectedDate === dStr) ||
                     (activePicker === 'start' && bulkData.startDate === dStr) ||
                     (activePicker === 'end' && bulkData.endDate === dStr) ||
+                    (activePicker === 'discountStart' && discountStartDate === dStr) ||
+                    (activePicker === 'discountEnd' && discountEndDate === dStr) ||
                     (activePicker === 'singleDate' && selectedDate === dStr);
                   grid.push(
                     <TouchableOpacity
@@ -859,6 +1049,10 @@ const SlotManagerScreen = ({ navigation }) => {
                           setBulkData({ ...bulkData, startDate: dStr });
                         } else if (activePicker === 'end') {
                           setBulkData({ ...bulkData, endDate: dStr });
+                        } else if (activePicker === 'discountStart') {
+                          setDiscountStartDate(dStr);
+                        } else if (activePicker === 'discountEnd') {
+                          setDiscountEndDate(dStr);
                         } else {
                           setSelectedDate(dStr);
                           setDates(generateDates(d.toDate()));

@@ -85,6 +85,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [selectedVerificationPayment, setSelectedVerificationPayment] = useState(null);
+  const [processingRefundId, setProcessingRefundId] = useState(null);
 
   const dispatch = useDispatch();
 
@@ -445,12 +446,15 @@ const AdminDashboardScreen = ({ navigation }) => {
         {
           text: 'Process',
           onPress: async () => {
+            setProcessingRefundId(item._id);
             try {
               await api.post(`/admin/refunds/${item._id}/process`);
               showCustomAlert('Success', 'Refund processed successfully');
               fetchData();
             } catch (err) {
               showCustomAlert('Error', err.response?.data?.message || 'Failed to process refund');
+            } finally {
+              setProcessingRefundId(null);
             }
           }
         }
@@ -1234,6 +1238,13 @@ const AdminDashboardScreen = ({ navigation }) => {
           <SidebarItem tab="settlements_org" icon="account-tie-hat" label="Organizers" badge={0} />
         </ScrollView>
       </Animated.View>
+      {/* Processing overlay */}
+      {!!processingRefundId && (
+        <View style={styles.overlayLoader}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.overlayText}>Processing transaction...</Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -1412,6 +1423,21 @@ const styles = StyleSheet.create({
   bannerUploadBtn: { height: 120, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', overflow: 'hidden' },
   bannerPreview: { width: '100%', height: '100%' },
   bannerUploadText: { color: Colors.primary, fontFamily: Typography.fontFamily.medium, marginTop: 8 },
+
+  overlayLoader: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+    gap: 12
+  },
+  overlayText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+  },
 });
 
 export default AdminDashboardScreen;

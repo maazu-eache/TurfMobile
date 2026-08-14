@@ -35,6 +35,12 @@ import LocationAutocomplete from '../../../components/LocationAutocomplete';
 
 const openGoogleMaps = async (url) => {
   if (!url) return;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    Linking.openURL(url).catch(() => {
+      showCustomAlert('Error', 'Failed to open location link');
+    });
+    return;
+  }
   try {
     if (Platform.OS === 'ios') {
       const googleMapsAppUrl = `comgooglemaps://?q=${encodeURIComponent(url)}`;
@@ -54,7 +60,6 @@ const openGoogleMaps = async (url) => {
   } catch (err) {
     console.log('Error opening maps deep link:', err);
   }
-  // Fallback to browser
   Linking.openURL(url).catch(() => {
     showCustomAlert('Error', 'Failed to open location link');
   });

@@ -29,7 +29,25 @@ export const createTurf = createAsyncThunk('turf/createTurf', async (formData, {
     });
     return response.data.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Failed to create turf');
+    const resData = error.response?.data;
+    if (resData?.errors && Array.isArray(resData.errors)) {
+      const fieldErrors = resData.errors.map(err => {
+        let fieldLabel = err.field;
+        if (err.field === 'name') fieldLabel = 'Turf Name';
+        else if (err.field === 'address') fieldLabel = 'Street Address';
+        else if (err.field === 'city') fieldLabel = 'City';
+        else if (err.field === 'state') fieldLabel = 'State';
+        else if (err.field === 'location') fieldLabel = 'Map Location';
+        
+        let cleanMsg = err.message;
+        if (cleanMsg.includes('is required')) {
+          cleanMsg = 'is required';
+        }
+        return `• ${fieldLabel} ${cleanMsg}`;
+      }).join('\n');
+      return rejectWithValue(fieldErrors);
+    }
+    return rejectWithValue(resData?.message || 'Failed to create turf');
   }
 });
 
@@ -42,7 +60,25 @@ export const updateTurf = createAsyncThunk('turf/updateTurf', async ({ id, formD
     });
     return response.data.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data?.message || 'Failed to update turf');
+    const resData = error.response?.data;
+    if (resData?.errors && Array.isArray(resData.errors)) {
+      const fieldErrors = resData.errors.map(err => {
+        let fieldLabel = err.field;
+        if (err.field === 'name') fieldLabel = 'Turf Name';
+        else if (err.field === 'address') fieldLabel = 'Street Address';
+        else if (err.field === 'city') fieldLabel = 'City';
+        else if (err.field === 'state') fieldLabel = 'State';
+        else if (err.field === 'location') fieldLabel = 'Map Location';
+        
+        let cleanMsg = err.message;
+        if (cleanMsg.includes('is required')) {
+          cleanMsg = 'is required';
+        }
+        return `• ${fieldLabel} ${cleanMsg}`;
+      }).join('\n');
+      return rejectWithValue(fieldErrors);
+    }
+    return rejectWithValue(resData?.message || 'Failed to update turf');
   }
 });
 

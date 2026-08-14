@@ -31,6 +31,12 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const openGoogleMaps = async (url) => {
   if (!url) return;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    Linking.openURL(url).catch(() => {
+      showCustomAlert('Error', 'Failed to open location link');
+    });
+    return;
+  }
   try {
     if (Platform.OS === 'ios') {
       const googleMapsAppUrl = `comgooglemaps://?q=${encodeURIComponent(url)}`;
@@ -50,7 +56,6 @@ const openGoogleMaps = async (url) => {
   } catch (err) {
     console.log('Error opening maps deep link:', err);
   }
-  // Fallback to browser
   Linking.openURL(url).catch(() => {
     showCustomAlert('Error', 'Failed to open location link');
   });
@@ -273,18 +278,6 @@ const TurfDetailScreen = ({ route, navigation }) => {
   const renderQuickInfo = () => (
     <View style={styles.grid2x3}>
       <View style={styles.gridItem}>
-        <Icon name="soccer" size={18} color="#FFCC00" style={styles.gridIcon} />
-        <Text style={styles.gridLabel}>Sport</Text>
-        <Text style={styles.gridValue}>{selectedTurf.sports?.[0] || 'Multi-sport'}</Text>
-      </View>
-
-      <View style={styles.gridItem}>
-        <Icon name="account-group" size={18} color="#FFCC00" style={styles.gridIcon} />
-        <Text style={styles.gridLabel}>Capacity</Text>
-        <Text style={styles.gridValue}>{selectedTurf.size || '8v8'}</Text>
-      </View>
-
-      <View style={styles.gridItem}>
         <Icon name="soccer-field" size={18} color="#FFCC00" style={styles.gridIcon} />
         <Text style={styles.gridLabel}>Format</Text>
         <Text style={styles.gridValue}>{selectedTurf.type || 'Outdoor'}</Text>
@@ -294,7 +287,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
         <Icon name="clock-outline" size={18} color="#FFCC00" style={styles.gridIcon} />
         <Text style={styles.gridLabel}>Operating Hours</Text>
         <Text style={styles.gridValue} numberOfLines={1}>
-          {selectedTurf.operatingHours?.openTime || '00:00'} - {selectedTurf.operatingHours?.closeTime || '23:59'}
+          {selectedTurf.operatingHours?.openTime || '06:00'} - {selectedTurf.operatingHours?.closeTime || '23:00'}
         </Text>
       </View>
 
@@ -302,12 +295,6 @@ const TurfDetailScreen = ({ route, navigation }) => {
         <Icon name="ruler-square" size={18} color="#FFCC00" style={styles.gridIcon} />
         <Text style={styles.gridLabel}>Ground Size</Text>
         <Text style={styles.gridValue}>{selectedTurf.size || 'Standard'}</Text>
-      </View>
-
-      <View style={styles.gridItem}>
-        <Icon name="lightbulb-on" size={18} color="#FFCC00" style={styles.gridIcon} />
-        <Text style={styles.gridLabel}>Floodlights</Text>
-        <Text style={styles.gridValue}>{selectedTurf.amenities?.floodLights ? 'Yes' : 'No'}</Text>
       </View>
     </View>
   );

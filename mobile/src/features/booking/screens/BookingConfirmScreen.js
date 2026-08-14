@@ -57,7 +57,10 @@ const BookingConfirmScreen = ({ route, navigation }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   
-  const subtotal = slots.reduce((acc, s) => acc + s.price, 0);
+  const subtotal = slots.reduce((acc, s) => {
+    const activePrice = s.discountPrice !== undefined && s.discountPrice !== null ? s.discountPrice : s.price;
+    return acc + activePrice;
+  }, 0);
   const platformFee = Math.round(subtotal * (platformFeePercent / 100)); // Dynamic platform fee
   const total = subtotal + platformFee;
 
@@ -151,37 +154,44 @@ const BookingConfirmScreen = ({ route, navigation }) => {
             } else if (typeof error === 'string' && error !== 'undefined') {
               errorMsg = error;
             }
-          } catch (e) {}
-          showCustomAlert('Payment Failed', errorMsg);
+          } catch (pErr) {
+            console.log('Error parsing razorpay error description:', pErr);
+          }
+          showCustomAlert('Payment Cancelled', errorMsg);
         });
 
       } else {
         setIsProcessing(false);
-        showCustomAlert('Error', res.payload || 'Booking failed');
+        showCustomAlert('Booking Failed', res.payload || 'Failed to create booking.');
       }
     } catch (err) {
       setIsProcessing(false);
-      showCustomAlert('Error', 'Failed to initialize payment.');
+      showCustomAlert('Error', err.message || 'An unexpected error occurred');
     }
   };
 
   // Card Parallax depth calculations on scroll
   const getCardStyle = (index) => {
     const translateY = scrollY.interpolate({
-      inputRange: [0, 200],
-      outputRange: [0, index * 6],
+      inputRange: [-100, 0, 100 * (index + 1)],
+      outputRange: [0, 0, 15 * (index + 1)],
       extrapolate: 'clamp',
     });
-
     const scale = scrollY.interpolate({
-      inputRange: [0, 200],
-      outputRange: [1, 1 - index * 0.005],
+      inputRange: [-100, 0, 100 * (index + 1)],
+      outputRange: [1, 1, 0.98],
+      extrapolate: 'clamp',
+    });
+    const opacity = scrollY.interpolate({
+      inputRange: [-100, 0, 100 * (index + 1)],
+      outputRange: [1, 1, 0.9],
       extrapolate: 'clamp',
     });
 
     return {
       transform: [{ translateY }, { scale }],
-      zIndex: 10 + index * 10,
+      opacity,
+      zIndex: 20 + index,
     };
   };
 
@@ -294,7 +304,14 @@ const BookingConfirmScreen = ({ route, navigation }) => {
                         {formatISTTime(s.startTime)} - {formatISTTime(s.endTime)}
                       </Text>
                     </View>
-                    <Text style={styles.slotChipPrice}>₹{s.price}</Text>
+                    {s.discountPrice !== undefined && s.discountPrice !== null ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <Text style={[styles.slotChipPrice, { textDecorationLine: 'line-through', opacity: 0.5, fontSize: 11 }]}>₹{s.price}</Text>
+                        <Text style={[styles.slotChipPrice, { color: '#2ed573', fontWeight: 'bold' }]}>₹{s.discountPrice}</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.slotChipPrice}>₹{s.price}</Text>
+                    )}
                   </View>
                 ))}
               </View>

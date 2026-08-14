@@ -547,7 +547,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const isStateNewer = (currentState, newState) => {
     if (!currentState) return true;
-    if (newState.isUndo) return true;
+    if (newState.isUndo || newState.isDbUpdate) return true;
+    if (newState.match?.status && currentState.match?.status && newState.match.status !== currentState.match.status) return true;
+    if (newState.isMatchComplete && !currentState.isMatchComplete) return true;
     const currentInnings = currentState.inningsNumber || 1;
     const newInnings = newState.inningsNumber || 1;
     if (newInnings > currentInnings) return true;
