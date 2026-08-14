@@ -1,8 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Image, Modal, FlatList, Platform, ToastAndroid
+  ActivityIndicator, Image, Modal, FlatList, Platform, ToastAndroid, Dimensions,
+  RefreshControl
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -10,6 +12,8 @@ import {
   fetchPlayerById, followPlayer, fetchMyPlayer,
   fetchPlayerAchievements, fetchPlayerBallTypes, fetchMatchHistory,
 } from '../playerSlice';
+import SharePreviewModal from '../../tournament/components/SharePreviewModal';
+import { PlayerProfilePoster } from '../../tournament/components/PosterTemplates';
 import { Colors, Typography, BorderRadius, Shadows } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -18,6 +22,15 @@ import { getImageUrl } from '../../../api/axios';
 import api from '../../../api/axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getPlayerTags } from '../../../utils/playerTags';
+const SPORTVERSE_LOGO = require('../../../../Bat.png');
+const BallTypeImages = {
+  'Tennis': require('../../../../Tennis.jpeg'),
+  'Leather': require('../../../../Leather.jpeg'),
+  'Rubber': require('../../../../Others.jpeg'),
+  'Tape Ball': require('../../../../Others.jpeg'),
+  'Other': require('../../../../Others.jpeg'),
+  'Others': require('../../../../Others.jpeg'),
+};
 
 const TABS = [
   { key: 'stats',         label: 'Stats',        icon: 'stats-chart-outline' },
@@ -35,6 +48,15 @@ const ACH_CFG = {
   hat_trick:             { icon: 'flash',     color: '#F97316', label: 'Hat Trick'                 },
   tournament_winner:     { icon: 'medal',     color: '#EC4899', label: 'Tournament Winner'         },
   milestone_100_matches: { icon: 'diamond',   color: '#8B5CF6', label: '100 Matches'               },
+  milestone_100_runs:    { icon: 'trophy',    color: '#F59E0B', label: 'Runs'                      },
+  milestone_500_runs:    { icon: 'trophy',    color: '#F59E0B', label: 'Runs'                      },
+  milestone_1000_runs:   { icon: 'trophy',    color: '#F59E0B', label: 'Runs'                      },
+  milestone_2000_runs:   { icon: 'trophy',    color: '#F59E0B', label: 'Runs'                      },
+  milestone_3000_runs:   { icon: 'trophy',    color: '#F59E0B', label: 'Runs'                      },
+  milestone_4000_runs:   { icon: 'trophy',    color: '#F59E0B', label: 'Runs'                      },
+  milestone_5000_runs:   { icon: 'trophy',    color: '#F59E0B', label: 'Runs'                      },
+  milestone_10000_runs:  { icon: 'trophy',    color: '#F59E0B', label: 'Runs'                      },
+  milestone_50_wickets:  { icon: 'trophy',    color: '#EC4899', label: 'Wickets'                   },
 };
 
 const BallColors = { Tennis: '#10B981', 'Hard Tennis': '#F59E0B', Leather: '#EF4444', Other: '#8B5CF6' };
@@ -60,6 +82,30 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   const [localLoading, setLocalLoading] = useState(true);
   const [imgErrors, setImgErrors] = useState({});
   const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    if (!id) return;
+    setRefreshing(true);
+    try {
+      const promises = [
+        dispatch(fetchPlayerById({ id, trackView: false })),
+        dispatch(fetchPlayerAchievements(id)),
+        dispatch(fetchPlayerBallTypes(id))
+      ];
+      if (activeTab === 'matches') {
+        promises.push(dispatch(fetchMatchHistory({ playerId: id, ballType: ballTypeFilter !== 'Overall' ? ballTypeFilter : undefined })));
+      } else if (activeTab === 'teams') {
+        promises.push(api.get(`/players/${id}`).then(res => setPlayerTeams(res.data.data?.teams || [])));
+      }
+      await Promise.all(promises);
+    } catch (e) {
+      console.log(e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [id, activeTab, ballTypeFilter, dispatch]);
 
   useFocusEffect(
     useCallback(() => {
@@ -202,6 +248,10 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   const isFollowing = myProfile?.following?.includes(viewedPlayer._id);
   const photoUrl = viewedPlayer.photo || viewedPlayer.userId?.photo || null;
 
+  const handleSharePress = () => {
+    setShareModalVisible(true);
+  };
+
   let career = viewedPlayer.career || {};
   let batting = viewedPlayer.batting || {};
   let bowling = viewedPlayer.bowling || {};
@@ -259,17 +309,17 @@ const PlayerDetailScreen = ({ navigation, route }) => {
           <Text style={styles.filterHeaderText}>FILTER BY BALL TYPE</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
-          <TouchableOpacity style={[styles.filterPill, ballTypeFilter === 'Overall' && styles.filterPillActive]} onPress={() => setBallTypeFilter('Overall')} activeOpacity={0.75}>
-            <Icon name="globe-outline" size={13} color={ballTypeFilter === 'Overall' ? '#fff' : Colors.textSecondary} style={{ marginRight: 5 }} />
-            <Text style={[styles.filterPillText, ballTypeFilter === 'Overall' && styles.filterPillTextActive]}>All</Text>
+          <TouchableOpacity style={[styles.filterPillCircular, ballTypeFilter === 'Overall' && styles.filterPillCircularActive, { opacity: ballTypeFilter === 'Overall' ? 1 : 0.45 }]} onPress={() => setBallTypeFilter('Overall')} activeOpacity={0.75}>
+            <Icon name="globe-outline" size={20} color={ballTypeFilter === 'Overall' ? Colors.primary : Colors.textSecondary} />
           </TouchableOpacity>
           {availableBallTypes.map(bt => {
             const isActive = ballTypeFilter === bt;
-            const pillColor = BallColors[bt] || Colors.primary;
             return (
-              <TouchableOpacity key={bt} style={[styles.filterPill, isActive && { backgroundColor: pillColor, borderColor: pillColor }]} onPress={() => setBallTypeFilter(bt)} activeOpacity={0.75}>
-                <View style={[styles.filterPillDot, { backgroundColor: isActive ? '#fff' : pillColor }]} />
-                <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>{bt}</Text>
+              <TouchableOpacity key={bt} style={[styles.filterPillCircular, isActive && styles.filterPillCircularActive, { opacity: isActive ? 1 : 0.45 }]} onPress={() => setBallTypeFilter(bt)} activeOpacity={0.75}>
+                <Image 
+                  source={BallTypeImages[bt] || BallTypeImages['Other']} 
+                  style={styles.filterPillCircularImage} 
+                />
               </TouchableOpacity>
             );
           })}
@@ -314,7 +364,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
         <View style={[styles.statsGrid, { marginTop: 10 }]}>
           <StatPill value={bowling.overs || 0} label="Overs" />
           {/* <StatPill value={bowling.runs || 0} label="Runs" /> */}
-          <StatPill value={bowling.bestWickets || 0} label="Best" highlight />
+          <StatPill value={bowling.bestWickets ? `${bowling.bestWickets}/${bowling.bestRuns === 999 ? 0 : (bowling.bestRuns || 0)}` : '0/0'} label="Best" highlight />
           <StatPill value={bowling.threeWicketHauls || 0} label="3W" />
           <StatPill value={bowling.fiveWicketHauls || 0} label="5W" />
           <StatPill value={bowling.maidens || 0} label="Maidens" />
@@ -365,12 +415,35 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                 {/* Center row: Score/Stats + Live/Date Indicator */}
                 <View style={styles.matchCardBody}>
                   <View style={{ flex: 1 }}>
-                    {match.runs !== null ? (
-                      <>
+                    {/* Batting Stats */}
+                    {match.runs !== null && (
+                      <View>
                         <Text style={styles.matchRunsValue}>{match.runs}{match.isNotOut ? '*' : ''} <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular }}>runs</Text></Text>
                         <Text style={styles.matchRunsLabel}>{match.balls || 0} balls · {match.fours || 0}×4s · {match.sixes || 0}×6s</Text>
-                      </>
-                    ) : <Text style={styles.matchDNB}>Did Not Bat</Text>}
+                      </View>
+                    )}
+
+                    {/* Spacer if both are present */}
+                    {match.runs !== null && match.bowling && (
+                      <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: 8 }} />
+                    )}
+
+                    {/* Bowling Stats */}
+                    {match.bowling ? (
+                      <View>
+                        <Text style={styles.matchRunsValue}>
+                          {match.bowling.wickets}-{match.bowling.runs}{' '}
+                          <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular }}>
+                            ({match.bowling.overs}.{match.bowling.balls} ov)
+                          </Text>
+                        </Text>
+                        <Text style={styles.matchRunsLabel}>
+                          {match.bowling.maidens || 0} mdns · econ {(match.bowling.economy || 0).toFixed(2)}
+                        </Text>
+                      </View>
+                    ) : (
+                      match.runs === null && <Text style={styles.matchDNB}>Did Not Bat or Bowl</Text>
+                    )}
                   </View>
 
                   <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -467,105 +540,116 @@ const PlayerDetailScreen = ({ navigation, route }) => {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Icon name="arrow-back" size={22} color={Colors.textPrimary} />
           </TouchableOpacity>
-          {isOwnProfile && (
-            <TouchableOpacity style={styles.navEditBtn} onPress={() => navigation.navigate('PlayerProfile')}>
-              <MCIcon name="pencil-outline" size={18} color={Colors.primary} />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={styles.navShareBtn} onPress={handleSharePress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Icon name="share-social-outline" size={20} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* ── HERO BANNER ── */}
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} colors={[Colors.primary]} />
+        }
+      >
+        {/* ── HERO BANNER — full-bleed profile photo with gradient overlay ── */}
         <View style={styles.heroBanner}>
-          {/* Background pattern using app color */}
-          <View style={styles.heroBannerBg}>
-            <View style={styles.heroBannerCircle1} />
-            <View style={styles.heroBannerCircle2} />
-            <View style={styles.heroBannerLine} />
-          </View>
+          {/* Background image — fills entire banner */}
+          {photoUrl ? (
+            <Image
+              source={{ uri: getImageUrl(photoUrl) }}
+              style={styles.heroBgImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <Image
+              source={SPORTVERSE_LOGO}
+              style={styles.heroBgImage}
+              resizeMode="cover"
+            />
+          )}
 
-          {/* Avatar  — centered with glow ring */}
-          <TouchableOpacity
-            style={styles.avatarGlowWrap}
-            activeOpacity={0.9}
-            onPress={() => photoUrl && setImageModalVisible(true)}
+          {/* Gradient + overlay content sits on top via zIndex */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.15)', 'rgba(0,0,0,0.80)', 'rgba(0,0,0,0.97)']}
+            locations={[0, 0.3, 0.68, 1]}
+            style={styles.heroBannerGradient}
+            pointerEvents="box-none"
           >
-            <View style={styles.avatarOuterRing}>
-              <View style={styles.avatarInnerRing}>
-                {photoUrl ? (
-                  <Image source={{ uri: getImageUrl(photoUrl) }} style={styles.heroBannerAvatar} />
-                ) : (
-                  <View style={styles.heroBannerAvatarFallback}>
-                    <Text style={styles.heroBannerAvatarLetter}>
-                      {viewedPlayer.name ? viewedPlayer.name.charAt(0).toUpperCase() : '?'}
+
+            {/* ── bottom content block ── */}
+            <View style={styles.heroOverlayContent}>
+              {/* Name */}
+              <Text style={styles.heroName}>{viewedPlayer.name}</Text>
+
+              {/* Role pill + Tags row */}
+              <View style={styles.tagsRow}>
+                <View style={styles.rolePill}>
+                  <MCIcon name="cricket" size={12} color={Colors.primary} />
+                  <Text style={styles.roleText}>{viewedPlayer.playingRole || 'Cricket Player'}</Text>
+                </View>
+                {getPlayerTags(viewedPlayer).map((tag, tIdx) => (
+                  <TouchableOpacity
+                    key={tIdx}
+                    onPress={() => setSelectedTagDefinition(tag)}
+                    style={[
+                      styles.tagPill,
+                      tag.type === 'batting' ? styles.tagPillBatting : styles.tagPillBowling,
+                    ]}
+                  >
+                    <MCIcon
+                      name={tag.type === 'batting' ? 'cricket' : 'bowling'}
+                      size={10}
+                      color="#000"
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text
+                      style={[
+                        styles.tagPillText,
+                        tag.type === 'batting' ? styles.tagPillTextBatting : styles.tagPillTextBowling,
+                      ]}
+                    >
+                      {tag.name}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Location + Follow row */}
+              <View style={styles.heroBottomRow}>
+                {(() => {
+                  const city = viewedPlayer.city || viewedPlayer.userId?.city || viewedPlayer.location;
+                  const state = viewedPlayer.state || viewedPlayer.userId?.state;
+                  const locStr = [city, state].filter(Boolean).join(', ');
+                  return (
+                    <View style={styles.locationPill}>
+                      <MCIcon name="map-marker" size={13} color={Colors.primary} />
+                      <Text style={styles.locationText}>{locStr || 'Location not set'}</Text>
+                    </View>
+                  );
+                })()}
+
+                {!isOwnProfile && (
+                  <TouchableOpacity
+                    style={[styles.heroFollowBtn, isFollowing && styles.heroFollowingBtn]}
+                    onPress={handleFollowToggle}
+                    activeOpacity={0.8}
+                  >
+                    <Icon
+                      name={isFollowing ? 'checkmark-circle' : 'person-add-outline'}
+                      size={14}
+                      color={isFollowing ? Colors.primary : '#000'}
+                      style={{ marginRight: 5 }}
+                    />
+                    <Text style={[styles.heroFollowBtnText, isFollowing && styles.heroFollowingBtnText]}>
+                      {isFollowing ? 'Following' : 'Follow'}
+                    </Text>
+                  </TouchableOpacity>
                 )}
               </View>
             </View>
-            {/* Camera hint if own profile */}
-            {isOwnProfile && (
-              <View style={styles.avatarCameraHint}>
-                <MCIcon name="camera" size={11} color="#000" />
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* Name */}
-          <Text style={styles.heroName}>{viewedPlayer.name}</Text>
-
-          {/* Role pill */}
-          <View style={styles.rolePill}>
-            <MCIcon name="cricket" size={12} color="#000" />
-            <Text style={styles.roleText}>{viewedPlayer.playingRole || 'Cricket Player'}</Text>
-          </View>
-
-          {/* Tags row */}
-          {getPlayerTags(viewedPlayer).length > 0 && (
-            <View style={styles.tagsRow}>
-              {getPlayerTags(viewedPlayer).map((tag, tIdx) => (
-                <TouchableOpacity
-                  key={tIdx}
-                  onPress={() => setSelectedTagDefinition(tag)}
-                  style={[
-                    styles.tagPill,
-                    tag.type === 'batting'
-                      ? styles.tagPillBatting
-                      : styles.tagPillBowling,
-                  ]}
-                >
-                  <MCIcon
-                    name={tag.type === 'batting' ? 'cricket' : 'bowling'}
-                    size={10}
-                    color={tag.type === 'batting' ? Colors.primary : Colors.textPrimary}
-                    style={{ marginRight: 4 }}
-                  />
-                  <Text
-                    style={[
-                      styles.tagPillText,
-                      tag.type === 'batting' ? styles.tagPillTextBatting : styles.tagPillTextBowling,
-                    ]}
-                  >
-                    {tag.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {/* Location */}
-          {(() => {
-            const city = viewedPlayer.city || viewedPlayer.userId?.city || viewedPlayer.location;
-            const state = viewedPlayer.state || viewedPlayer.userId?.state;
-            const locStr = [city, state].filter(Boolean).join(', ');
-            return (
-              <View style={styles.locationPill}>
-                <MCIcon name="map-marker" size={13} color={Colors.primary} />
-                <Text style={styles.locationText}>{locStr || 'Location not set'}</Text>
-              </View>
-            );
-          })()}
+          </LinearGradient>
         </View>
 
         {/* ── CAREER STATS STRIP ── */}
@@ -595,27 +679,6 @@ const PlayerDetailScreen = ({ navigation, route }) => {
             <Text style={styles.statsStripLabel}>Following</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Follow Button — compact pill, not full width */}
-        {!isOwnProfile && (
-          <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, alignItems: 'center' }}>
-            <TouchableOpacity
-              style={[styles.followBtn, isFollowing && styles.followingBtn]}
-              onPress={handleFollowToggle}
-              activeOpacity={0.8}
-            >
-              <Icon
-                name={isFollowing ? 'checkmark-circle' : 'person-add-outline'}
-                size={15}
-                color={isFollowing ? Colors.primary : '#000'}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={[styles.followBtnText, isFollowing && styles.followingBtnText]}>
-                {isFollowing ? 'Following' : 'Follow'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         {/* Tab Bar */}
         <View style={styles.tabBar}>
@@ -736,6 +799,21 @@ const PlayerDetailScreen = ({ navigation, route }) => {
           />
         </View>
       </Modal>
+
+      {/* ── SHARE PREVIEW MODAL ── */}
+      <SharePreviewModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        title={viewedPlayer?.name}
+        shareUrl={`https://scoreverse.in/player/${viewedPlayer?._id}`}
+      >
+        <PlayerProfilePoster
+          player={viewedPlayer}
+          career={career}
+          batting={batting}
+          bowling={bowling}
+        />
+      </SharePreviewModal>
     </View>
   );
 };
@@ -752,127 +830,118 @@ const styles = StyleSheet.create({
   navBarAbsolute: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20 },
   navBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, height: 52 },
   navBackBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
-  navEditBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,204,0,0.15)', borderWidth: 1, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  navShareBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
 
   scrollContent: { paddingBottom: 20 },
 
-  // ── Hero Banner ──────────────────────────────────────────────────────────
+  // ── Hero Banner — full-bleed photo + gradient ─────────────────────────────
   heroBanner: {
-    alignItems: 'center',
-    paddingTop: 80, // space for floating nav
-    paddingBottom: 28,
-    paddingHorizontal: 20,
-    backgroundColor: Colors.backgroundCard,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    overflow: 'hidden',
+    width: '100%',
+    height: Dimensions.get('window').height * 0.35,
     position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#111',
   },
-  heroBannerBg: {
+  heroBgImage: {
     position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-  },
-  heroBannerCircle1: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: 'rgba(255,204,0,0.06)',
-    top: -60,
-    right: -60,
-  },
-  heroBannerCircle2: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255,204,0,0.04)',
-    top: 20,
-    left: -40,
-  },
-  heroBannerLine: {
-    position: 'absolute',
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
-    height: 2,
-    backgroundColor: 'rgba(255,204,0,0.15)',
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    zIndex: 0,
   },
-
-  // ── Avatar ────────────────────────────────────────────────────────────────
-  avatarGlowWrap: {
-    marginBottom: 16,
-    position: 'relative',
-    // glow shadow
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 18,
-    elevation: 12,
-  },
-  avatarOuterRing: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    backgroundColor: 'rgba(255,204,0,0.18)',
-    padding: 3,
+  heroBgFallback: {
+    backgroundColor: '#1A1A1A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarInnerRing: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    backgroundColor: Colors.backgroundElevated,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    overflow: 'hidden',
-  },
-  heroBannerAvatar: { width: '100%', height: '100%' },
-  heroBannerAvatarFallback: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundElevated,
-  },
-  heroBannerAvatarLetter: {
-    color: Colors.primary,
+  heroBgFallbackLetter: {
+    fontSize: 80,
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 42,
+    color: Colors.primary,
+    opacity: 0.4,
   },
-  avatarCameraHint: {
+  heroBannerGradient: {
     position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.backgroundCard,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
   },
+  heroOverlayContent: {
+    position: 'absolute',
+    bottom: 20,
+    left: 18,
+    right: 18,
+    zIndex: 2,
+  },
+  heroPoweredBy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+  },
+  heroPoweredByText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,204,0,0.6)',
+    letterSpacing: 0.5,
+  },
+  heroBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  heroFollowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+  },
+  heroFollowingBtn: {
+    backgroundColor: 'rgba(255,204,0,0.12)',
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  heroFollowBtnText: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#000',
+  },
+  heroFollowingBtnText: { color: Colors.primary },
 
   // ── Name / Role ───────────────────────────────────────────────────────────
   heroName: {
-    fontSize: 24,
+    fontSize: 26,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    fontWeight: '900',
+    color: '#fff',
     letterSpacing: 0.3,
-    textAlign: 'center',
+    textAlign: 'left',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   rolePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
+    gap: 5,
+    backgroundColor: '#000',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    height: 28,
     marginTop: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: Colors.primary,
   },
-  roleText: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: '#000' },
+  roleText: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
 
   // ── Tags ──────────────────────────────────────────────────────────────────
   tagsRow: {
@@ -880,27 +949,28 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
     marginTop: 10,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   tagPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    gap: 5,
+    paddingHorizontal: 12,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 1,
   },
   tagPillBatting: {
-    backgroundColor: 'rgba(255,204,0,0.12)',
-    borderColor: 'rgba(255,204,0,0.35)',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   tagPillBowling: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
-  tagPillText: { fontSize: 11, fontFamily: Typography.fontFamily.semiBold },
-  tagPillTextBatting: { color: Colors.primary },
-  tagPillTextBowling: { color: Colors.textPrimary },
+  tagPillText: { fontSize: 11, fontFamily: Typography.fontFamily.bold },
+  tagPillTextBatting: { color: '#000' },
+  tagPillTextBowling: { color: '#000' },
 
   // ── Location ─────────────────────────────────────────────────────────────
   locationPill: {
@@ -956,9 +1026,24 @@ const styles = StyleSheet.create({
   filterScrollContent: { paddingHorizontal: 12, paddingBottom: 12, gap: 8, alignItems: 'center' },
   filterPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 24, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.backgroundCard },
   filterPillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterPillDot: { width: 7, height: 7, borderRadius: 4, marginRight: 6 },
-  filterPillText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary },
-  filterPillTextActive: { color: '#000' },
+  filterPillCircular: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  filterPillCircularActive: {
+    borderColor: Colors.primary,
+  },
+  filterPillCircularImage: {
+    width: '100%',
+    height: '100%',
+  },
 
   // ── Section headers ───────────────────────────────────────────────────────
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginBottom: 10, marginTop: 16 },
@@ -1037,6 +1122,7 @@ const styles = StyleSheet.create({
   listRole: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 1 },
   listActionBtn: { borderRadius: 8, borderWidth: 1, borderColor: Colors.errorLight, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(244,67,54,0.06)' },
   listActionText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.error },
+
 });
 
 export default PlayerDetailScreen;

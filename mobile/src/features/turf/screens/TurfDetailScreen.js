@@ -19,7 +19,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchTurfById, clearSelectedTurf } from '../turfSlice';
 import { toggleUserFavourite, setUserFavouriteStatus } from '../../auth/authSlice';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
@@ -95,7 +94,8 @@ const TurfDetailScreen = ({ route, navigation }) => {
   const { id } = route.params;
   const dispatch = useDispatch();
   const { user, isAuthenticated } = useSelector((state) => state.auth);
-  const { selectedTurf, isLoading } = useSelector((state) => state.turf);
+  const [selectedTurf, setSelectedTurf] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const favourites = user?.favourites?.map(f => typeof f === 'string' ? f : f._id || f) || [];
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [reviews, setReviews] = useState([]);
@@ -115,12 +115,23 @@ const TurfDetailScreen = ({ route, navigation }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
 
+  const fetchTurfData = async () => {
+    try {
+      setIsLoading(true);
+      const res = await api.get(`/turfs/${id}`);
+      setSelectedTurf(res.data.data);
+    } catch (e) {
+      console.log('Failed to fetch turf details:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    dispatch(fetchTurfById(id));
+    fetchTurfData();
     fetchReviews();
     Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-    return () => dispatch(clearSelectedTurf());
-  }, [id, dispatch]);
+  }, [id]);
 
   useEffect(() => {
     if (selectedTurf) {
@@ -168,7 +179,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
       }
       setRatingModalVisible(false);
       fetchReviews();
-      dispatch(fetchTurfById(id));
+      fetchTurfData();
     } catch (e) {
       setErrorMsg(e.response?.data?.message || 'Failed to submit rating.');
     } finally {

@@ -14,6 +14,8 @@ import moment from 'moment';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
+const SPORTVERSE_LOGO = require('../../../../SportVerse.png');
+
 const TOP_TABS = ['Matches', 'Tournaments', 'Teams'];
 const MATCH_SUB_TABS = ['My', 'Played', 'Network', 'Near By'];
 const TEAM_SUB_TABS = ['My', 'Opponents', 'Following'];
@@ -309,13 +311,27 @@ const MyCricketScreen = ({ route }) => {
         <Text style={styles.cardSubText}>{item.stage ? `${item.stage} | ` : ''}{item.format === 'test' ? 'Test' : item.format === 't20' ? 'T20' : item.format === 'odi' ? 'ODI' : item.format || 'Custom'} | {moment(item.scheduledAt || item.createdAt).format('DD MMM YYYY, h:mm a')} | {item.overs} Ov.</Text>
         
         <View style={styles.teamScoreRow}>
-          <Text style={[styles.teamNameText, isFirstWinner && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{firstTeam?.name}</Text>
+          <View style={styles.matchTeamInfo}>
+            <Image 
+              source={firstTeam?.logo ? { uri: getImageUrl(firstTeam.logo) } : SPORTVERSE_LOGO} 
+              style={styles.matchTeamLogoSmall}
+              resizeMode="cover"
+            />
+            <Text style={[styles.teamNameText, isFirstWinner && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{firstTeam?.name}</Text>
+          </View>
           <Text style={styles.scoreText}>
             {firstScore?.runs || 0}/{firstScore?.wickets || 0} <Text style={styles.overText}>({firstScore?.overs || '0.0'} Ov)</Text>
           </Text>
         </View>
         <View style={styles.teamScoreRow}>
-          <Text style={[styles.teamNameText, isSecondWinner && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{secondTeam?.name}</Text>
+          <View style={styles.matchTeamInfo}>
+            <Image 
+              source={secondTeam?.logo ? { uri: getImageUrl(secondTeam.logo) } : SPORTVERSE_LOGO} 
+              style={styles.matchTeamLogoSmall}
+              resizeMode="cover"
+            />
+            <Text style={[styles.teamNameText, isSecondWinner && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{secondTeam?.name}</Text>
+          </View>
           <Text style={styles.scoreText}>
             {secondScore?.runs || 0}/{secondScore?.wickets || 0} <Text style={styles.overText}>({secondScore?.overs || '0.0'} Ov)</Text>
           </Text>
@@ -761,6 +777,35 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  matchTeamInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    marginRight: 16,
+  },
+  matchTeamLogoSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  matchTeamLogoFallbackSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  matchTeamLogoLetterSmall: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 10,
   },
   teamNameText: {
     fontSize: 15,

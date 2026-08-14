@@ -23,9 +23,19 @@ const isTurfOpen = (operatingHours) => {
   }
   try {
     const now = new Date();
-    const currentHours = now.getHours();
-    const currentMinutes = now.getMinutes();
-    const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
+    const utcHours = now.getUTCHours();
+    const utcMinutes = now.getUTCMinutes();
+    
+    // Convert to Indian Standard Time (IST) offset +05:30
+    let istHours = utcHours + 5;
+    let istMinutes = utcMinutes + 30;
+    if (istMinutes >= 60) {
+      istHours += 1;
+      istMinutes -= 60;
+    }
+    istHours = istHours % 24;
+    
+    const currentTimeStr = `${String(istHours).padStart(2, '0')}:${String(istMinutes).padStart(2, '0')}`;
 
     const { openTime, closeTime } = operatingHours;
 

@@ -1734,6 +1734,7 @@ export const MotmPoster = ({ liveState, mvp, theme }) => {
   const bgImage = STADIUM_BG;
   const { match } = liveState || {};
   const motm = mvp || match?.playerOfMatch;
+  const motmPhoto = motm?.photo || motm?.userId?.photo || null;
 
   return (
     <ImageBackground source={bgImage} style={getContainerStyle(t, 340)}>
@@ -1766,13 +1767,13 @@ export const MotmPoster = ({ liveState, mvp, theme }) => {
                 overflow: 'hidden'
             }}>
               <Image 
-                source={motm?.photo ? { uri: getImageUrl(motm.photo) } : SPORTVERSE_LOGO} 
+                source={motmPhoto ? { uri: getImageUrl(motmPhoto) } : SPORTVERSE_LOGO} 
                 style={{ 
-                  width: motm?.photo ? 100 : 70, 
-                  height: motm?.photo ? 100 : 70, 
-                  borderRadius: motm?.photo ? 50 : 0
+                  width: motmPhoto ? 100 : 70, 
+                  height: motmPhoto ? 100 : 70, 
+                  borderRadius: motmPhoto ? 50 : 0
                 }} 
-                resizeMode={motm?.photo ? "cover" : "contain"}
+                resizeMode={motmPhoto ? "cover" : "contain"}
               />
             </View>
             
@@ -1816,3 +1817,137 @@ export const MotmPoster = ({ liveState, mvp, theme }) => {
     </ImageBackground>
   );
 };
+
+export const PlayerProfilePoster = ({ player, achievements, career, batting, bowling, theme }) => {
+  const t = getThemeStyles(theme);
+  const bgImage = STADIUM_BG;
+  
+  const photoUrl = player?.photo || player?.userId?.photo || null;
+  const city = player?.city || player?.userId?.city || player?.location || "";
+  const state = player?.state || player?.userId?.state || "";
+  const loc = [city, state].filter(Boolean).join(", ");
+  
+  const matches = career?.matches || 0;
+  const runs = career?.batting?.runs || batting?.runs || 0;
+  const wickets = career?.bowling?.wickets || bowling?.wickets || 0;
+  const followersCount = player?.followers?.length || 0;
+
+  return (
+    <ImageBackground source={bgImage} style={getContainerStyle(t, 340)}>
+      <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
+        <View style={{ padding: Spacing.md }}>
+          {/* Header */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <Text style={{ color: t.textColor, fontSize: 13, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>
+              PLAYER CARD
+            </Text>
+            <View style={{ backgroundColor: t.accentColor + '20', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ color: t.accentColor, fontSize: 9, fontFamily: Typography.fontFamily.bold, textTransform: "uppercase" }}>
+                ScoreVerse
+              </Text>
+            </View>
+          </View>
+
+          {/* Profile Card Container */}
+          <View style={{ flexDirection: "row", alignItems: 'center', marginVertical: 12, gap: 14 }}>
+            <View style={{
+                width: 80,
+                height: 80,
+                borderRadius: 40,
+                borderWidth: 2.5,
+                borderColor: t.accentColor,
+                backgroundColor: '#111',
+                justifyContent: 'center',
+                alignItems: 'center',
+                overflow: 'hidden'
+            }}>
+              {photoUrl ? (
+                <Image 
+                  source={{ uri: getImageUrl(photoUrl) }} 
+                  style={{ width: 80, height: 80, borderRadius: 40 }} 
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={{ fontSize: 28, color: t.accentColor, fontFamily: Typography.fontFamily.bold }}>
+                  {(player?.name || "?").charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </View>
+            
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: t.textColor, fontSize: 18, fontFamily: Typography.fontFamily.bold, marginBottom: 4 }} numberOfLines={1}>
+                {player?.name || 'N/A'}
+              </Text>
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                backgroundColor: t.accentColor + '15',
+                borderRadius: 10,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                alignSelf: 'flex-start',
+                borderWidth: 1,
+                borderColor: t.accentColor + '30',
+              }}>
+                <Text style={{ color: t.accentColor, fontSize: 11, fontFamily: Typography.fontFamily.bold }}>
+                  {player?.playingRole || 'Player'}
+                </Text>
+              </View>
+              {loc ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                  <Text style={{ fontSize: 11, color: t.secTextColor, fontFamily: Typography.fontFamily.regular }}>
+                    📍 {loc}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          {/* Divider */}
+          <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 14 }} />
+
+          {/* Stats Grid */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
+            {[
+              { label: 'Matches',  value: matches },
+              { label: 'Runs',     value: runs },
+              { label: 'Wickets',  value: wickets },
+              { label: 'Followers',value: followersCount },
+            ].map((s, i) => (
+              <View key={i} style={{ alignItems: 'center', flex: 1 }}>
+                <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: t.accentColor }}>{s.value}</Text>
+                <Text style={{ fontSize: 10, fontFamily: Typography.fontFamily.medium, color: t.secTextColor, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Footer */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 12,
+              borderTopWidth: 1,
+              borderTopColor: "rgba(255,255,255,0.06)",
+              paddingTop: 12,
+            }}
+          >
+            <Text
+              style={{
+                color: "rgba(255,255,255,0.6)",
+                fontSize: 9,
+                fontFamily: Typography.fontFamily.bold,
+                letterSpacing: 2,
+              }}
+            >
+              POWERED BY SCOREVERSE
+            </Text>
+          </View>
+        </View>
+      </View>
+    </ImageBackground>
+  );
+};
+

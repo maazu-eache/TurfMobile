@@ -33,6 +33,8 @@ import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 
+const SPORTVERSE_LOGO = require('../../../../SportVerse.png');
+
 const openGoogleMaps = async (url) => {
   if (!url) return;
   if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -433,10 +435,32 @@ const SearchScreen = ({ navigation, route }) => {
     const isLive = ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status);
     const isDone = ['completed', 'abandoned', 'no_result'].includes(item.status);
     const isScheduled = item.status === 'scheduled';
+    const isCompleted = item.status === 'completed';
 
     const venue = item.turf
       ? `${item.turf.name}${item.turf.city ? `, ${item.turf.city}` : ''}`
       : `${item.ground || 'Ground'}${item.city ? `, ${item.city}` : ''}`;
+
+    // Batting order logic: Batting first team on top row, chasing on bottom row
+    let teamABattedFirst = true;
+    if (item.toss && item.toss.winner) {
+      const tossWinnerId = String(item.toss.winner._id || item.toss.winner || '').trim();
+      const teamAId = String(item.teamA?._id || item.teamA || '').trim();
+      const teamBId = String(item.teamB?._id || item.teamB || '').trim();
+      if (tossWinnerId === teamAId) {
+        teamABattedFirst = (item.toss.choice === 'bat');
+      } else if (tossWinnerId === teamBId) {
+        teamABattedFirst = (item.toss.choice === 'bowl');
+      }
+    }
+
+    const firstTeam = teamABattedFirst ? item.teamA : item.teamB;
+    const firstScore = teamABattedFirst ? item.teamAScore : item.teamBScore;
+    const isFirstWinner = isCompleted && (String(item.result?.winner?._id || item.result?.winner || '') === String(firstTeam?._id || ''));
+
+    const secondTeam = teamABattedFirst ? item.teamB : item.teamA;
+    const secondScore = teamABattedFirst ? item.teamBScore : item.teamAScore;
+    const isSecondWinner = isCompleted && (String(item.result?.winner?._id || item.result?.winner || '') === String(secondTeam?._id || ''));
 
     const handlePress = () => {
       navigation.navigate('MatchSummary', { matchId: item._id });
@@ -460,48 +484,69 @@ const SearchScreen = ({ navigation, route }) => {
         </View>
 
         {/* Teams & Score Section */}
-        <View style={styles.matchBodyRow}>
-          {/* Team A */}
-          <View style={styles.matchTeamSide}>
-            {item.teamA?.logo ? (
-              <Image source={{ uri: getImageUrl(item.teamA.logo) }} style={styles.matchTeamLogo} />
+        <View style={styles.matchBodyColumn}>
+          {/* Team 1: Batting First */}
+          <View style={styles.matchTeamRow}>
+            <View style={styles.matchTeamInfo}>
+              <Image 
+                source={firstTeam?.logo ? { uri: getImageUrl(firstTeam.logo) } : SPORTVERSE_LOGO} 
+                style={styles.matchTeamLogoSmall}
+                resizeMode="cover"
+              />
+              <Text 
+                style={[
+                  styles.matchTeamName, 
+                  isCompleted && { color: isFirstWinner ? '#FFFFFF' : 'rgba(255,255,255,0.45)' }
+                ]} 
+                numberOfLines={1}
+              >
+                {firstTeam?.name || 'Team A'}
+              </Text>
+            </View>
+            {firstScore ? (
+              <Text 
+                style={[
+                  styles.matchTeamScore, 
+                  isCompleted && { color: isFirstWinner ? Colors.primary : 'rgba(255,255,255,0.45)' }
+                ]}
+              >
+                {firstScore.runs}/{firstScore.wickets}
+              </Text>
             ) : (
-              <View style={styles.matchTeamLogoFallback}>
-                <Text style={styles.matchTeamLogoLetter}>{item.teamA?.name?.[0]?.toUpperCase() || 'A'}</Text>
-              </View>
+              <Text style={styles.matchTeamScorePlaceholder}>—</Text>
             )}
-            <Text style={styles.matchTeamName} numberOfLines={1}>{item.teamA?.name || 'Team A'}</Text>
           </View>
 
-          {/* Scores or VS */}
-          <View style={styles.matchCenterBox}>
-            {item.teamAScore || item.teamBScore ? (
-              <View style={styles.scoreBox}>
-                <Text style={styles.scoreTextMain}>
-                  {item.teamAScore?.runs || 0}/{item.teamAScore?.wickets || 0}
-                </Text>
-                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14, }}>VS</Text>
-                <Text style={styles.scoreTextMain}>
-                  {item.teamBScore?.runs || 0}/{item.teamBScore?.wickets || 0}
-                </Text>
-              </View>
+          {/* Team 2: Chasing */}
+          <View style={styles.matchTeamRow}>
+            <View style={styles.matchTeamInfo}>
+              <Image 
+                source={secondTeam?.logo ? { uri: getImageUrl(secondTeam.logo) } : SPORTVERSE_LOGO} 
+                style={styles.matchTeamLogoSmall}
+                resizeMode="cover"
+              />
+              <Text 
+                style={[
+                  styles.matchTeamName, 
+                  isCompleted && { color: isSecondWinner ? '#FFFFFF' : 'rgba(255,255,255,0.45)' }
+                ]} 
+                numberOfLines={1}
+              >
+                {secondTeam?.name || 'Team B'}
+              </Text>
+            </View>
+            {secondScore ? (
+              <Text 
+                style={[
+                  styles.matchTeamScore, 
+                  isCompleted && { color: isSecondWinner ? Colors.primary : 'rgba(255,255,255,0.45)' }
+                ]}
+              >
+                {secondScore.runs}/{secondScore.wickets}
+              </Text>
             ) : (
-              <View style={styles.vsBadge}>
-                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14, }}>VS</Text>
-              </View>
+              <Text style={styles.matchTeamScorePlaceholder}>—</Text>
             )}
-          </View>
-
-          {/* Team B */}
-          <View style={[styles.matchTeamSide, { alignItems: 'flex-end' }]}>
-            {item.teamB?.logo ? (
-              <Image source={{ uri: getImageUrl(item.teamB.logo) }} style={styles.matchTeamLogo} />
-            ) : (
-              <View style={styles.matchTeamLogoFallback}>
-                <Text style={styles.matchTeamLogoLetter}>{item.teamB?.name?.[0]?.toUpperCase() || 'B'}</Text>
-              </View>
-            )}
-            <Text style={[styles.matchTeamName, { textAlign: 'right' }]} numberOfLines={1}>{item.teamB?.name || 'Team B'}</Text>
           </View>
         </View>
 
@@ -521,18 +566,12 @@ const SearchScreen = ({ navigation, route }) => {
 
 
   const renderTournamentItem = ({ item }) => {
-    const statusLabel = item.status === 'draft' ? 'Upcoming' :
-      item.status === 'registration_open' ? 'Reg Open' :
-        item.status === 'registration_closed' ? 'Reg Closed' :
-          item.status === 'ongoing' ? 'Ongoing' :
-            item.status === 'completed' ? 'Finished' :
-              item.status === 'cancelled' ? 'Cancelled' : 'Upcoming';
-    const statusColor = item.status === 'draft' ? Colors.warning :
-      item.status === 'registration_open' ? Colors.success :
-        item.status === 'registration_closed' ? Colors.error :
-          item.status === 'ongoing' ? Colors.warning :
-            item.status === 'completed' ? Colors.textTertiary :
-              item.status === 'cancelled' ? Colors.error : Colors.textSecondary;
+    const statusLabel = item.status === 'ongoing' ? 'Live' :
+      item.status === 'completed' ? 'Completed' : 'Upcoming';
+      
+    const statusColor = item.status === 'ongoing' ? '#EF4444' :
+      item.status === 'completed' ? '#10B981' :
+      '#FFCC00';
 
     return (
       <TouchableOpacity style={styles.tCard} onPress={() => navigation.navigate('TournamentDetail', { tournamentId: item._id })} activeOpacity={0.92}>
@@ -543,10 +582,11 @@ const SearchScreen = ({ navigation, route }) => {
               <Icon name="trophy" size={44} color={Colors.primaryAlpha30} />
             </LinearGradient>
           }
-          {/* Status pill */}
-          <View style={[styles.tStatusPill, { borderColor: statusColor }]}>
-            <View style={[styles.tStatusDot, { backgroundColor: statusColor }]} />
-            <Text style={[styles.tStatusText, { color: statusColor }]}>{statusLabel}</Text>
+          {/* Status pill — solid filled badge */}
+          <View style={[styles.tStatusPill, { backgroundColor: statusColor, borderColor: statusColor, paddingHorizontal: 10, paddingVertical: 5 }]}>
+            <Text style={[styles.tStatusText, { color: statusColor === '#FFCC00' ? '#000000' : '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 10 }]}>
+              {statusLabel}
+            </Text>
           </View>
         </View>
 
@@ -556,7 +596,7 @@ const SearchScreen = ({ navigation, route }) => {
           <View style={styles.tFooter}>
             <View style={styles.tInfoRow}>
               <Icon name="account-group-outline" size={13} color={Colors.textSecondary} />
-              <Text style={styles.tVenue}>{item.teamCount || item.teams?.length || 0} Teams</Text>
+              <Text style={styles.tVenue}>{item.teamCount || item.registeredTeams?.length || item.teams?.length || 0} Teams</Text>
             </View>
             <View style={styles.tInfoRow}>
               <Icon name="map-marker-outline" size={13} color={Colors.textSecondary} />
@@ -687,11 +727,11 @@ const SearchScreen = ({ navigation, route }) => {
             {activeTab !== 'turfs'
               ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                 <Icon name="cricket" size={14} color="#000" />
-                <Text style={styles.mainTabTextActive}>Cricket</Text>
+                <Text style={styles.mainTabTextActive}>Players</Text>
               </LinearGradient>
               : <View style={styles.mainTabGrad}>
                 <Icon name="cricket" size={14} color={Colors.textTertiary} />
-                <Text style={styles.mainTabText}>Cricket</Text>
+                <Text style={styles.mainTabText}>Players</Text>
               </View>
             }
           </TouchableOpacity>
@@ -1475,63 +1515,64 @@ const styles = StyleSheet.create({
   },
   matchStatusTextLive: { color: '#EF4444' },
 
-  matchBodyRow: {
+  matchBodyColumn: {
+    gap: 8,
+    marginVertical: 4,
+  },
+  matchTeamRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  matchTeamSide: {
+  matchTeamInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     flex: 1,
-    alignItems: 'flex-start',
-    gap: 6,
+    marginRight: 16,
   },
-  matchTeamLogo: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  matchTeamLogoSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha30,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  matchTeamLogoFallback: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.primaryAlpha10,
-    borderWidth: 1,
-    borderColor: Colors.primaryAlpha30,
+  matchTeamLogoFallbackSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  matchTeamLogoLetter: {
+  matchTeamLogoLetterSmall: {
     color: Colors.primary,
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 14,
+    fontSize: 10,
   },
   matchTeamName: {
     color: '#FFFFFF',
     fontFamily: Typography.fontFamily.semiBold,
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 13,
   },
-  matchCenterBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  scoreBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreTextMain: {
-    color: Colors.primary,
+  matchTeamScore: {
+    color: '#FFFFFF',
     fontFamily: Typography.fontFamily.bold,
     fontSize: 13,
   },
-  vsBadgeText: {
+  matchTeamScorePlaceholder: {
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 13,
+  },
+  matchSummarySub: {
     color: Colors.primary,
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: 9,
-    lineHeight: 13,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 12,
+    marginVertical: 3,
   },
   matchVenueRow: {
     flexDirection: 'row',
