@@ -5,9 +5,7 @@ import { Platform } from 'react-native';
 
 export const PROD_URL = 'https://api.scoreverse.in';
 
-// export const PROD_URL = __DEV__
-//   ? (Platform.OS === 'ios' ? 'http://127.0.0.1:5002' : 'http://10.0.2.2:5002')
-//   : 'https://api.scoreverse.in';
+// export const PROD_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5002' : 'http://localhost:5002';
 
 
 export const BASE_URL = PROD_URL;

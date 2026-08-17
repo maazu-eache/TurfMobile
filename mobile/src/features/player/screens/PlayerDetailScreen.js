@@ -560,7 +560,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
             <Image
               source={{ uri: getImageUrl(photoUrl) }}
               style={styles.heroBgImage}
-              resizeMode="cover"
+              resizeMode="contain"
             />
           ) : (
             <Image

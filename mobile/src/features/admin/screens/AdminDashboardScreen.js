@@ -1231,6 +1231,8 @@ const AdminDashboardScreen = ({ navigation }) => {
           <Text style={styles.sidebarSectionLabel}>FINANCE</Text>
           <SidebarItem tab="finance" icon="finance" label="Finance Dashboard" badge={0} />
 
+
+
           <View style={styles.sidebarDivider} />
           <Text style={styles.sidebarSectionLabel}>SETTLEMENTS</Text>
           <SidebarItem tab="settlements_requests" icon="bank-transfer-out" label="Withdraw Req." badge={pendingSettlements} />

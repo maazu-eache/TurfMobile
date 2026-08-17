@@ -145,10 +145,12 @@ const SearchScreen = ({ navigation, route }) => {
   useEffect(() => {
     // Initial location setup if available
     if (hasInitializedLocation.current) return;
-    const city = myProfile?.city || user?.city || '';
+    const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
+    const lat = myProfile?.locationObj?.latitude || user?.latitude;
+    const lng = myProfile?.locationObj?.longitude || user?.longitude;
     if (city) {
       setSelectedLocation(prev => {
-        if (!prev) return { name: city, city: city };
+        if (!prev) return { name: city, city, latitude: lat, longitude: lng };
         return prev;
       });
       hasInitializedLocation.current = true;
@@ -157,9 +159,11 @@ const SearchScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('blur', () => {
-      const city = myProfile?.city || user?.city || '';
+      const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
+      const lat = myProfile?.locationObj?.latitude || user?.latitude;
+      const lng = myProfile?.locationObj?.longitude || user?.longitude;
       if (city) {
-        setSelectedLocation({ name: city, city: city });
+        setSelectedLocation({ name: city, city, latitude: lat, longitude: lng });
       } else {
         setSelectedLocation(null);
       }
@@ -167,7 +171,7 @@ const SearchScreen = ({ navigation, route }) => {
       setPage(1);
     });
     return unsubscribe;
-  }, [navigation, dispatch, myProfile?.city, user?.city]);
+  }, [navigation, dispatch, myProfile, user]);
 
   // Reset to page 1 whenever search criteria change (not when page increments)
   const [page, setPage] = useState(1);
@@ -701,76 +705,51 @@ const SearchScreen = ({ navigation, route }) => {
         )}
 
 
-        {/* ── MAIN TABS: Grounds | Cricket ── */}
+        {/* ── MAIN TABS: Grounds | Players | Matches | Tournaments ── */}
         <View style={styles.mainTabContainer}>
-          <TouchableOpacity
-            style={[styles.mainTab, activeTab === 'turfs' && styles.mainTabActive]}
-            onPress={() => setActiveTab('turfs')}
-            activeOpacity={0.85}
-          >
-            {activeTab === 'turfs'
-              ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                <Icon name="soccer-field" size={14} color="#000" />
-                <Text style={styles.mainTabTextActive}>Grounds</Text>
-              </LinearGradient>
-              : <View style={styles.mainTabGrad}>
-                <Icon name="soccer-field" size={14} color={Colors.textTertiary} />
-                <Text style={styles.mainTabText}>Grounds</Text>
-              </View>
-            }
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.mainTab, activeTab !== 'turfs' && styles.mainTabActive]}
-            onPress={() => setActiveTab('players')}
-            activeOpacity={0.85}
-          >
-            {activeTab !== 'turfs'
-              ? <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                <Icon name="cricket" size={14} color="#000" />
-                <Text style={styles.mainTabTextActive}>Players</Text>
-              </LinearGradient>
-              : <View style={styles.mainTabGrad}>
-                <Icon name="cricket" size={14} color={Colors.textTertiary} />
-                <Text style={styles.mainTabText}>Players</Text>
-              </View>
-            }
-          </TouchableOpacity>
+          {[
+            { id: 'turfs', label: 'Grounds', icon: 'soccer-field' },
+            { id: 'players', label: 'Players', icon: 'account-multiple' },
+            { id: 'matches', label: 'Matches', icon: 'cricket' },
+            { id: 'tournaments', label: 'Tournaments', icon: 'trophy' },
+          ].map(tab => {
+            const active = activeTab === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                style={[styles.mainTab, active && styles.mainTabActive]}
+                onPress={() => setActiveTab(tab.id)}
+                activeOpacity={0.85}
+              >
+                {active ? (
+                  <LinearGradient colors={Colors.primaryGradient} style={styles.mainTabGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                    <Icon name={tab.icon} size={12} color="#000" />
+                    <Text 
+                      style={[styles.mainTabTextActive, { fontSize: 10.5 }]} 
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
+                      {tab.label}
+                    </Text>
+                  </LinearGradient>
+                ) : (
+                  <View style={styles.mainTabGrad}>
+                    <Icon name={tab.icon} size={12} color={Colors.textTertiary} />
+                    <Text 
+                      style={[styles.mainTabText, { fontSize: 10.5 }]} 
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
+                      {tab.label}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
-
-        {/* ── SUB TABS — cricket sub-types ── */}
-        {activeTab !== 'turfs' && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabBarContent}
-            style={styles.tabBarScroll}
-            keyboardShouldPersistTaps="always"
-            decelerationRate="fast"
-          >
-            {TABS.filter(t => t.id !== 'turfs').map(tab => {
-              const active = activeTab === tab.id;
-              return (
-                <TouchableOpacity
-                  key={tab.id}
-                  onPress={() => setActiveTab(tab.id)}
-                  activeOpacity={0.75}
-                  style={[styles.tab, active && styles.tabActive]}
-                >
-                  {active
-                    ? <LinearGradient colors={Colors.primaryGradient} style={styles.tabInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                      <Icon name={tab.icon} size={12} color="#000" />
-                      <Text style={styles.tabTextActive}>{tab.label}</Text>
-                    </LinearGradient>
-                    : <View style={styles.tabInner}>
-                      <Icon name={tab.icon} size={12} color={Colors.textTertiary} />
-                      <Text style={styles.tabText}>{tab.label}</Text>
-                    </View>
-                  }
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
       </View>
 
       {/* ── CONTENT LIST ── */}

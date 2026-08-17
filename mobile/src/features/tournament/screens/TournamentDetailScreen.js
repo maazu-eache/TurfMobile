@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, FlatList, Share, Modal, TextInput, RefreshControl, StatusBar, ToastAndroid, Platform, Alert, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, FlatList, Share, Modal, TextInput, RefreshControl, StatusBar, ToastAndroid, Platform, Alert, Animated, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import  api, { getImageUrl, BASE_URL } from '../../../api/axios';
 import { useSelector } from 'react-redux';
 import socketService from '../../../services/socketService';
+import { WebView } from 'react-native-webview';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import GroupManagementModal from '../components/GroupManagementModal';
 import RoleManagementModal from '../components/RoleManagementModal';
@@ -77,7 +78,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [showTeamShareModal, setShowTeamShareModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [auctionDetails, setAuctionDetails] = useState(null);
+
   const [isAuctionRegistered, setIsAuctionRegistered] = useState(false);
+
   const [myRegistrationData, setMyRegistrationData] = useState(null);
   const [ownerData, setOwnerData] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -268,6 +271,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       console.log('Error fetching user teams', e);
     }
   };
+
+
 
   const fetchDashboard = async () => {
     try {
@@ -826,7 +831,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
     return (
       <View style={{ flex: 1 }}>
-        {isOrganizer && (
+        {isOrganizer && tournament.status !== 'completed' && (
           <View style={styles.actionGrid}>
             <TouchableOpacity
               style={[
@@ -943,7 +948,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.teamSub}>{item.team.city || 'Unknown City'}</Text>
                   </View>
                 </View>
-                {isMainOrganizer ? (
+                {isMainOrganizer && tournament.status !== 'completed' ? (
                   <TouchableOpacity
                     style={styles.removeTeamBtn}
                     onPress={() => handleRemoveTeam(item.team._id, item.team.name)}
@@ -986,6 +991,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           const hasRemainingMatches = hasMatches && tournament.matches.some(m => !['completed', 'abandoned', 'no_result'].includes(m.status));
           const isCompleted = tournament.status === 'completed';
           const isMatchStarted = hasMatches && tournament.matches.some(m => m.status !== 'scheduled');
+
+          if (isCompleted) return null;
 
           return (
             <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: 0, flexDirection: 'row', gap: 10 }}>
@@ -1510,6 +1517,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             </View>
           </View>
         </View>
+
+        {/* Live Broadcast / Replay / Start Telecast section removed */}
 
         {/* Date Info Cards */}
         <View style={auctionStyles.dateRow}>
@@ -2097,6 +2106,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         tournament={tournament}
         onRefresh={fetchDashboard}
       />
+
+
 
       {/* User Register Team Modal */}
       <Modal visible={showRegisterModal} animationType="slide" transparent>

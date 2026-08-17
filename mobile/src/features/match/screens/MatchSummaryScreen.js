@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl, Share, TextInput, BackHandler, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl, Share, TextInput, BackHandler, Pressable, Linking } from 'react-native';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchLiveState, setLiveState, addMatchScorer, updateLiveViewers } from '../matchSlice';
 import api, { BASE_URL, getImageUrl } from '../../../api/axios';
 import socketService from '../../../services/socketService';
+import { WebView } from 'react-native-webview';
 import { Colors, Typography, BorderRadius, Spacing, Shadows } from '../../../theme/theme';
 import moment from 'moment';
 import { getPlayerTags } from '../../../utils/playerTags';
@@ -167,6 +168,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   }, [matchData]);
 
   const [activeTab, setActiveTab] = useState('Summary');
+
   const [selectedPlayerPreview, setSelectedPlayerPreview] = useState(null);
   const [playerPreviewStats, setPlayerPreviewStats] = useState(null);
   const [playerPreviewLoading, setPlayerPreviewLoading] = useState(false);
@@ -349,6 +351,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
     return () => backHandler.remove();
   }, [handleBackPress]);
+
+
 
   const toggleBallExpand = (ballId) => {
     setExpandedBalls(prev => ({ ...prev, [ballId]: !prev[ballId] }));
@@ -630,9 +634,20 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         inningsNumber: data.inningsNumber !== undefined ? data.inningsNumber : prev.inningsNumber,
         result: data.result !== undefined ? data.result : prev.result,
         currentOverBalls: data.currentOverBalls || prev.currentOverBalls,
-        recentCommentary: data.recentCommentary && data.recentCommentary.length > 0
-          ? [...data.recentCommentary, ...(prev.recentCommentary || [])].slice(0, 10)
-          : prev.recentCommentary,
+        recentCommentary: (() => {
+          if (!data.recentCommentary || data.recentCommentary.length === 0) {
+            return prev.recentCommentary;
+          }
+          const merged = [...data.recentCommentary, ...(prev.recentCommentary || [])];
+          const seen = new Set();
+          return merged.filter(ball => {
+            if (!ball) return false;
+            const key = ball._id || `${ball.overNumber}-${ball.ballNumber}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }).slice(0, 10);
+        })(),
       } : data;
 
       matchDataRef.current = mergedData;
@@ -2001,6 +2016,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
     return (
       <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
+        {/* Live Broadcast / Replay / Start Telecast section removed */}
+
         {match.status === 'completed' ? (
           <View>
             {/* Header Section (Scores & Result) */}
@@ -2364,13 +2381,20 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         <View key={i} style={[
                           styles.msBallCircle,
                           { marginRight: 7 },
-                          isWicket && { backgroundColor: Colors.primary, borderColor: Colors.primary },
+                          isWicket && { backgroundColor: Colors.error, borderColor: Colors.error },
                           isFour && { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
                           isSix && { backgroundColor: Colors.primary, borderColor: Colors.primary },
                           isZero && { backgroundColor: Colors.backgroundElevated, borderColor: Colors.border },
                           isExtra && { backgroundColor: Colors.backgroundElevated, borderColor: Colors.primary },
                         ]}>
-                          <Text style={[styles.msBallText, (isWicket || isSix) && { color: '#000' }, isFour && { color: Colors.primary }, isZero && { color: Colors.textSecondary }, isExtra && { color: Colors.primary }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{ball.display}</Text>
+                          <Text style={[
+                            styles.msBallText,
+                            isWicket && { color: '#FFF' },
+                            isSix && { color: '#000' },
+                            isFour && { color: Colors.primary },
+                            isZero && { color: Colors.textSecondary },
+                            isExtra && { color: Colors.primary }
+                          ]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{ball.display}</Text>
                         </View>
                       );
                     })}
@@ -2500,8 +2524,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {/* Recent Commentary section at the bottom of the summary */}
             {liveState?.recentCommentary?.length > 0 && (
               <View style={[styles.section, { paddingBottom: 16, marginTop: 12 }]}>
-                <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Recent Deliveries</Text>
-                {liveState.recentCommentary.map((ball, index) => {
+                <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Recent Commentary</Text>
+                {liveState.recentCommentary.slice(0, 3).map((ball, index) => {
                   let display = `${ball.batsmanRuns}`;
                   let bgColor = Colors.borderLight;
                   let textColor = Colors.textPrimary;
@@ -4163,6 +4187,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
   };
 
+
+
   const submitMatchResult = async () => {
     if (resultType === 'walkover' && !winnerTeamId) {
       showCustomAlert('Error', 'Please select a winning team');
@@ -4651,6 +4677,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+
 
       {/* ── Declare Result Modal ── */}
       <Modal visible={showDeclareResultModal} animationType="fade" transparent>

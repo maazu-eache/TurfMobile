@@ -1,14 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, ActivityIndicator, StatusBar, RefreshControl, Platform } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  Dimensions, Animated, ActivityIndicator, StatusBar,
+  RefreshControl, Platform, Modal
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { fetchOwnerAnalytics } from '../ownerSlice';
 import { useDispatch, useSelector } from 'react-redux';
-import { Modal } from 'react-native';
 
-const { width: W } = Dimensions.get('window');
+const { width: SCREEN_W } = Dimensions.get('window');
+const H_PAD = 16;
+const KPI_GAP = 8;
+const KPI_W = Math.floor((SCREEN_W - H_PAD * 2 - KPI_GAP * 2) / 3);
 
 const fmtK = (num) => {
   if (num === undefined || num === null) return '₹0';
@@ -22,37 +28,49 @@ const formatDateIN = (d) => {
   return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
 };
 
-const SectionHeader = ({ icon, title, sub }) => (
-  <View style={ss.sectionHeader}>
-    <View style={ss.sectionIconWrap}>
-      <Icon name={icon} size={20} color={Colors.primary} />
+const Divider = () => <View style={ss.divider} />;
+
+const SectionLabel = ({ label, icon }) => (
+  <View style={ss.sectionLabel}>
+    <Icon name={icon} size={14} color={Colors.primary} />
+    <Text style={ss.sectionLabelTxt}>{label}</Text>
+  </View>
+);
+
+const Bar = ({ pct, color = Colors.primary, height = 4 }) => {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: Math.min(pct / 100, 1),
+      duration: 700,
+      useNativeDriver: false,
+    }).start();
+  }, [pct]);
+  return (
+    <View style={[ss.barTrack, { height }]}>
+      <Animated.View
+        style={[ss.barFill, {
+          backgroundColor: color,
+          width: anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] })
+        }]}
+      />
     </View>
-    <View style={{ flex: 1 }}>
-      <Text style={ss.sectionTitle}>{title}</Text>
-      {sub && <Text style={ss.sectionSub}>{sub}</Text>}
+  );
+};
+
+const StatRow = ({ label, value, sub, accent }) => (
+  <View style={ss.statRow}>
+    <Text style={ss.statLabel}>{label}</Text>
+    <View style={{ alignItems: 'flex-end' }}>
+      <Text style={[ss.statValue, accent && { color: Colors.primary }]}>{value}</Text>
+      {sub ? <Text style={ss.statSub}>{sub}</Text> : null}
     </View>
   </View>
 );
 
-const ProgressBar60FPS = ({ pct, color, height = 12 }) => {
-  const anim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.spring(anim, {
-      toValue: pct / 100,
-      useNativeDriver: true,
-      bounciness: 4
-    }).start();
-  }, [pct]);
-
-  return (
-    <View style={[ss.progressTrack, { height }]}>
-      <Animated.View style={[
-        StyleSheet.absoluteFill,
-        { backgroundColor: color, transform: [{ scaleX: anim }, { translateX: -W / 2 }], transformOrigin: 'left' }
-      ]} />
-    </View>
-  );
-};
+const Card = ({ children, style }) => (
+  <View style={[ss.card, style]}>{children}</View>
+);
 
 const OwnerAnalyticsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -76,21 +94,11 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
     dispatch(fetchOwnerAnalytics(params));
   };
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [dispatch, dateRange, selectedTurfId, customStart, customEnd]);
-
-  const onRefresh = () => {
-    fetchAnalytics();
-  };
-
-  const handleTurfSelect = (id) => {
-    setSelectedTurfId(id);
-    setTurfModalVisible(false);
-  };
+  useEffect(() => { fetchAnalytics(); }, [dispatch, dateRange, selectedTurfId, customStart, customEnd]);
+  const onRefresh = () => fetchAnalytics();
+  const handleTurfSelect = (id) => { setSelectedTurfId(id); setTurfModalVisible(false); };
 
   const hasData = analytics && Object.keys(analytics).length > 0;
-  
   const kpis = analytics?.kpis || {};
   const revenueTrend = analytics?.revenueTrend || [];
   const bookingSource = analytics?.bookingSource || {};
@@ -102,296 +110,287 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
   const utilization = analytics?.utilization || {};
   const insights = analytics?.insights || [];
 
-  const selectedTurfName = selectedTurfId === 'all' ? 'All Turfs' : ((turfs || []).find(t => t._id === selectedTurfId)?.name || 'Turf');
+  const selectedTurfName = selectedTurfId === 'all'
+    ? 'All Turfs'
+    : ((turfs || []).find(t => t._id === selectedTurfId)?.name || 'Turf');
 
-  // Chart max calc
-  let maxChartVal = 100;
-  if (revenueTrend && revenueTrend.length > 0) {
-    maxChartVal = Math.max(...revenueTrend.map(d => d.onlineRev + d.offlineRev), 100);
-  }
+  const FILTER_LABELS = { today: 'Today', week: 'Week', month: 'Month', year: 'Year', all: 'All', custom: 'Custom' };
 
   return (
     <View style={ss.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.backgroundCard} />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
-      {/* ── Header ────────────────────────────────────────── */}
-      <View style={[ss.header, { paddingTop: insets.top + 8 }]}>
-        <View style={ss.headerRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            {navigation.canGoBack() && (
-              <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8}>
-                <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
-              </TouchableOpacity>
-            )}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <View style={[ss.header, { paddingTop: insets.top + 12 }]}>
+        <View style={ss.headerInner}>
+          <View>
             <Text style={ss.headerTitle}>Analytics</Text>
+            <Text style={ss.headerSub}>Performance overview</Text>
           </View>
-          <TouchableOpacity style={ss.turfSelectorBtn} onPress={() => setTurfModalVisible(true)}>
-            <Text style={ss.turfSelectorTxt} numberOfLines={1}>{selectedTurfName}</Text>
-            <Icon name="chevron-down" size={16} color={Colors.primary} />
-          </TouchableOpacity>
+          {turfs && turfs.length > 1 ? (
+            <TouchableOpacity style={ss.turfBtn} onPress={() => setTurfModalVisible(true)}>
+              <Text style={ss.turfBtnTxt} numberOfLines={1}>{selectedTurfName}</Text>
+              <Icon name="chevron-down" size={14} color={Colors.primary} />
+            </TouchableOpacity>
+          ) : (
+            <Text style={ss.turfStaticName} numberOfLines={1}>
+              {turfs && turfs[0] ? turfs[0].name : ''}
+            </Text>
+          )}
         </View>
 
-        {/* Date Filter */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ss.dateFilterScroll}>
-          {['today', 'week', 'month', 'year', 'all', 'custom'].map(r => (
-            <TouchableOpacity key={r} style={[ss.dateFilterBtn, dateRange === r && ss.dateFilterBtnActive]} onPress={() => setDateRange(r)}>
-              <Text style={[ss.dateFilterTxt, dateRange === r && ss.dateFilterTxtActive]}>
-                {r.charAt(0).toUpperCase() + r.slice(1)}
-              </Text>
+        <View style={ss.filterRow}>
+          {Object.entries(FILTER_LABELS).map(([key, label]) => (
+            <TouchableOpacity
+              key={key}
+              style={[ss.filterBtn, dateRange === key && ss.filterBtnActive]}
+              onPress={() => setDateRange(key)}
+            >
+              <Text style={[ss.filterTxt, dateRange === key && ss.filterTxtActive]}>{label}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
+
         {dateRange === 'custom' && (
-          <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: Spacing.xl, paddingBottom: 16, alignItems: 'center' }}>
-            <TouchableOpacity style={[ss.dateFilterBtn, { flex: 1, alignItems: 'center' }]} onPress={() => setShowPicker('start')}>
-              <Text style={ss.dateFilterTxt}>{formatDateIN(customStart)}</Text>
+          <View style={ss.customDateRow}>
+            <TouchableOpacity style={ss.customDateBtn} onPress={() => setShowPicker('start')}>
+              <Icon name="calendar" size={13} color={Colors.textTertiary} />
+              <Text style={ss.customDateTxt}>{formatDateIN(customStart)}</Text>
             </TouchableOpacity>
-            <Text style={{ color: Colors.textSecondary }}>to</Text>
-            <TouchableOpacity style={[ss.dateFilterBtn, { flex: 1, alignItems: 'center' }]} onPress={() => setShowPicker('end')}>
-              <Text style={ss.dateFilterTxt}>{formatDateIN(customEnd)}</Text>
+            <Text style={ss.customDateSep}>→</Text>
+            <TouchableOpacity style={ss.customDateBtn} onPress={() => setShowPicker('end')}>
+              <Icon name="calendar" size={13} color={Colors.textTertiary} />
+              <Text style={ss.customDateTxt}>{formatDateIN(customEnd)}</Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
 
+      {/* ── Body ───────────────────────────────────────────────────────────── */}
       {isLoading && !hasData ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={ss.loadingWrap}>
           <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={ss.loadingTxt}>Loading analytics…</Text>
         </View>
       ) : (
-        <ScrollView 
-          contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 100 }}
+        <ScrollView
+          contentContainerStyle={ss.scrollContent}
           refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={Colors.primary} />}
+          showsVerticalScrollIndicator={false}
         >
-          
-          {/* 1. KPIs */}
+          {/* ── KPI Grid ─────────────────────────────────────────────────── */}
           <View style={ss.kpiGrid}>
-            <View style={ss.kpiCard}>
-              <Icon name="cash-multiple" size={20} color={Colors.primary} style={ss.kpiIcon} />
-              <Text style={ss.kpiVal}>{fmtK(kpis.totalRevenue || 0)}</Text>
-              <Text style={ss.kpiLabel}>Total Revenue</Text>
-            </View>
-            <View style={ss.kpiCard}>
-              <Icon name="calendar-check" size={20} color={Colors.info} style={ss.kpiIcon} />
-              <Text style={ss.kpiVal}>{kpis.totalBookings || 0}</Text>
-              <Text style={ss.kpiLabel}>Total Bookings</Text>
-            </View>
-            <View style={ss.kpiCard}>
-              <Icon name="cellphone-link" size={20} color={Colors.success} style={ss.kpiIcon} />
-              <Text style={ss.kpiVal}>{kpis.onlineBookings || 0}</Text>
-              <Text style={ss.kpiLabel}>Online Bookings</Text>
-            </View>
-            <View style={ss.kpiCard}>
-              <Icon name="store-outline" size={20} color={Colors.warning} style={ss.kpiIcon} />
-              <Text style={ss.kpiVal}>{kpis.offlineBookings || 0}</Text>
-              <Text style={ss.kpiLabel}>Offline Bookings</Text>
-            </View>
-            <View style={ss.kpiCard}>
-              <Icon name="clock-outline" size={20} color={Colors.textSecondary} style={ss.kpiIcon} />
-              <Text style={ss.kpiVal}>{kpis.hoursBooked || 0}h</Text>
-              <Text style={ss.kpiLabel}>Hours Booked</Text>
-            </View>
-            <View style={ss.kpiCard}>
-              <Icon name="percent" size={20} color={Colors.primary} style={ss.kpiIcon} />
-              <Text style={ss.kpiVal}>{kpis.occupancyRate || 0}%</Text>
-              <Text style={ss.kpiLabel}>Occupancy Rate</Text>
-            </View>
+            {[
+              { label: 'Revenue', value: fmtK(kpis.totalRevenue || 0), icon: 'cash-multiple' },
+              { label: 'Bookings', value: String(kpis.totalBookings || 0), icon: 'calendar-check' },
+              { label: 'Online', value: String(kpis.onlineBookings || 0), icon: 'cellphone-link' },
+              { label: 'Offline', value: String(kpis.offlineBookings || 0), icon: 'store-outline' },
+              { label: 'Hours', value: `${kpis.hoursBooked || 0}h`, icon: 'clock-outline' },
+              { label: 'Occupancy', value: `${kpis.occupancyRate || 0}%`, icon: 'percent' },
+            ].map((kpi, i) => (
+              <View key={i} style={[ss.kpiCard, { marginRight: i % 3 === 2 ? 0 : KPI_GAP, marginBottom: KPI_GAP }]}>
+                <View style={ss.kpiTop}>
+                  <Icon name={kpi.icon} size={13} color={Colors.primary} />
+                  <Text style={ss.kpiLabel}>{kpi.label}</Text>
+                </View>
+                <Text style={ss.kpiVal}>{kpi.value}</Text>
+              </View>
+            ))}
           </View>
 
           {(!kpis.totalBookings && !kpis.totalRevenue) ? (
-            <View style={{ marginTop: 60, alignItems: 'center' }}>
-              <Icon name="chart-box-outline" size={48} color={Colors.textTertiary} />
-              <Text style={{ marginTop: 12, fontSize: 16, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary }}>No data found for this period</Text>
+            <View style={ss.emptyState}>
+              <Icon name="chart-box-outline" size={40} color={Colors.textTertiary} />
+              <Text style={ss.emptyTxt}>No data for this period</Text>
             </View>
           ) : (
             <>
-
-
-          {/* 3. BOOKING SOURCE */}
-          <View style={ss.section}>
-            <SectionHeader icon="chart-pie" title="Booking Source" sub="Online vs Offline breakdown" />
-            <View style={ss.card}>
-              <View style={ss.sourceRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={ss.sourceLabel}>Online</Text>
-                  <Text style={ss.sourceVal}>{bookingSource.online || 0} Bookings</Text>
-                  <Text style={[ss.sourcePct, { color: Colors.primary }]}>{bookingSource.onlinePct || 0}%</Text>
-                </View>
-                <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                  <Text style={ss.sourceLabel}>Offline</Text>
-                  <Text style={ss.sourceVal}>{bookingSource.offline || 0} Bookings</Text>
-                  <Text style={[ss.sourcePct, { color: Colors.warning }]}>{bookingSource.offlinePct || 0}%</Text>
-                </View>
-              </View>
-              <View style={ss.sourceBarWrap}>
-                <View style={[ss.sourceBar, { backgroundColor: Colors.primary, flex: parseFloat(bookingSource.onlinePct || 0) || 1 }]} />
-                <View style={[ss.sourceBar, { backgroundColor: Colors.warning, flex: parseFloat(bookingSource.offlinePct || 0) || 0 }]} />
-              </View>
-            </View>
-          </View>
-
-          {/* 4 & 5. TURF PERFORMANCE */}
-          {turfPerformance.length > 0 && (
-            <View style={ss.section}>
-              <SectionHeader icon="stadium" title="Turf Performance" sub="Compare revenue and bookings" />
-              {turfPerformance.map((t, i) => (
-                <View key={i} style={[ss.card, { marginBottom: 12 }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <Text style={ss.turfName}>{t.turfName}</Text>
-                    <Text style={ss.turfRev}>{fmtK(t.revenue)}</Text>
+              {/* ── Booking Source ─────────────────────────────────────── */}
+              <Card style={{ marginBottom: 12 }}>
+                <SectionLabel label="Booking Source" icon="chart-pie" />
+                <View style={ss.splitRow}>
+                  <View>
+                    <Text style={ss.splitLabel}>Online</Text>
+                    <Text style={ss.splitVal}>{bookingSource.online || 0}</Text>
+                    <Text style={ss.splitPct}>{bookingSource.onlinePct || 0}%</Text>
                   </View>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-                    <View style={ss.turfStat}><Icon name="calendar-check" size={14} color={Colors.textTertiary}/><Text style={ss.turfStatTxt}>{t.bookings} Bkgs</Text></View>
-                    <View style={ss.turfStat}><Icon name="clock-outline" size={14} color={Colors.textTertiary}/><Text style={ss.turfStatTxt}>{t.hours} Hrs</Text></View>
-                    <View style={ss.turfStat}><Icon name="cellphone-link" size={14} color={Colors.primary}/><Text style={ss.turfStatTxt}>{t.online} On</Text></View>
-                    <View style={ss.turfStat}><Icon name="store-outline" size={14} color={Colors.warning}/><Text style={ss.turfStatTxt}>{t.offline} Off</Text></View>
+                  <View style={ss.splitCenter}>
+                    <Bar pct={bookingSource.onlinePct || 0} height={6} />
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={ss.splitLabel}>Offline</Text>
+                    <Text style={ss.splitVal}>{bookingSource.offline || 0}</Text>
+                    <Text style={ss.splitPct}>{bookingSource.offlinePct || 0}%</Text>
                   </View>
                 </View>
-              ))}
-            </View>
-          )}
+              </Card>
 
-          {/* 6. PEAK HOURS */}
-          <View style={ss.section}>
-            <SectionHeader icon="fire" title="Peak Hours" sub="Highest booking demand" />
-            <View style={ss.card}>
-              <Text style={ss.peakMainTxt}>Peak Day: <Text style={{ color: Colors.primary }}>{peakHours.peakDay}</Text></Text>
-              <Text style={ss.peakMainTxt}>Peak Time: <Text style={{ color: Colors.primary }}>{peakHours.peakTime}</Text></Text>
-              {peakHours.heatmap && peakHours.heatmap.length > 0 && (
-                <View style={{ marginTop: 16 }}>
-                  <Text style={ss.listHeader}>Top Time Slots</Text>
-                  {peakHours.heatmap.map((h, i) => (
-                    <View key={i} style={ss.listItemRow}>
-                      <Text style={ss.listItemLabel}>{h.day}, {h.hour}</Text>
-                      <Text style={ss.listItemVal}>{h.count} Bkgs</Text>
+              {/* ── Utilization ────────────────────────────────────────── */}
+              <Card style={{ marginBottom: 12 }}>
+                <SectionLabel label="Utilization" icon="chart-donut" />
+                <View style={ss.splitRow}>
+                  <View>
+                    <Text style={ss.splitLabel}>Booked</Text>
+                    <Text style={ss.splitVal}>{utilization.bookedHours || 0}h</Text>
+                    <Text style={ss.splitPct}>{utilization.occupancyRate || 0}%</Text>
+                  </View>
+                  <View style={ss.splitCenter}>
+                    <Bar pct={utilization.occupancyRate || 0} height={6} />
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={ss.splitLabel}>Unused</Text>
+                    <Text style={ss.splitVal}>{utilization.unusedHours || 0}h</Text>
+                    <Text style={ss.splitPct}>{100 - (utilization.occupancyRate || 0)}%</Text>
+                  </View>
+                </View>
+              </Card>
+
+              {/* ── Customer Analytics ─────────────────────────────────── */}
+              <Card style={{ marginBottom: 12 }}>
+                <SectionLabel label="Customers" icon="account-group" />
+                <View style={ss.custGrid}>
+                  {[
+                    { label: 'Total', val: customerAnalytics.total || 0 },
+                    { label: 'New', val: customerAnalytics.new || 0 },
+                    { label: 'Returning', val: customerAnalytics.returning || 0 },
+                    { label: 'Repeat %', val: `${customerAnalytics.repeatRate || 0}%` },
+                  ].map((c, i) => (
+                    <View key={i} style={ss.custCell}>
+                      <Text style={ss.custVal}>{c.val}</Text>
+                      <Text style={ss.custLabel}>{c.label}</Text>
                     </View>
                   ))}
                 </View>
+                {customerAnalytics.topCustomers && customerAnalytics.topCustomers.length > 0 && (
+                  <>
+                    <Divider />
+                    <Text style={ss.subHeader}>Top Customers</Text>
+                    {customerAnalytics.topCustomers.map((c, i) => (
+                      <StatRow key={i} label={c.name} value={fmtK(c.spent)} sub={`${c.bookings} bookings`} accent />
+                    ))}
+                  </>
+                )}
+              </Card>
+
+              {/* ── Turf Performance ───────────────────────────────────── */}
+              {turfPerformance.length > 0 && (
+                <Card style={{ marginBottom: 12 }}>
+                  <SectionLabel label="Turf Performance" icon="stadium" />
+                  {turfPerformance.map((t, i) => (
+                    <View key={i}>
+                      {i > 0 && <Divider />}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 }}>
+                        <Text style={ss.turfName}>{t.turfName}</Text>
+                        <Text style={ss.turfRev}>{fmtK(t.revenue)}</Text>
+                      </View>
+                      <View style={ss.turfStats}>
+                        {[
+                          { icon: 'calendar-check', label: `${t.bookings} bookings` },
+                          { icon: 'clock-outline', label: `${t.hours}h` },
+                          { icon: 'cellphone-link', label: `${t.online} online` },
+                          { icon: 'store-outline', label: `${t.offline} offline` },
+                        ].map((s, j) => (
+                          <View key={j} style={ss.turfStatItem}>
+                            <Icon name={s.icon} size={11} color={Colors.textTertiary} />
+                            <Text style={ss.turfStatTxt}>{s.label}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </Card>
               )}
-            </View>
-          </View>
 
-          {/* 7. BOOKING STATUS */}
-          <View style={ss.section}>
-            <SectionHeader icon="list-status" title="Booking Status" sub="Completed, pending, and cancelled" />
-            <View style={ss.card}>
-              {bookingStatus.map((s, i) => (
-                <View key={i} style={{ marginBottom: 12 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={ss.statusLabel}>{s.status.replace('_', ' ').toUpperCase()}</Text>
-                    <Text style={ss.statusVal}>{s.count} ({s.pct}%)</Text>
-                  </View>
-                  <ProgressBar60FPS pct={s.pct} color={s.status.includes('cancel') ? Colors.error : (s.status.includes('complete') ? Colors.success : Colors.warning)} height={6} />
-                </View>
-              ))}
-              <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12 }}>
-                <Text style={ss.cancellationTxt}>Overall Cancellation Rate: <Text style={{ color: Colors.error }}>{analytics?.cancellationRate || 0}%</Text></Text>
-              </View>
-            </View>
-          </View>
-
-          {/* 8. PAYMENT BREAKDOWN */}
-          <View style={ss.section}>
-            <SectionHeader icon="wallet-outline" title="Payment Breakdown" sub="Revenue by payment method" />
-            <View style={ss.card}>
-              {paymentBreakdown.map((p, i) => (
-                <View key={i} style={ss.listItemRow}>
-                  <Text style={[ss.listItemLabel, { textTransform: 'capitalize', color: Colors.textSecondary }]}>{p.method}</Text>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={ss.listItemVal}>{fmtK(p.revenue)}</Text>
-                    {/* <Text style={ss.listItemSub}>{p.count} {p.count === 1 ? 'txn' : 'txns'} ({p.pct}%)</Text> */}
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* 9. CUSTOMER ANALYTICS */}
-          <View style={ss.section}>
-            <SectionHeader icon="account-group" title="Customer Analytics" sub="New vs Returning" />
-            <View style={[ss.card, { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }]}>
-              <View style={{ alignItems: 'center' }}>
-                <Text style={ss.custVal}>{customerAnalytics.total || 0}</Text>
-                <Text style={ss.custLabel}>Total</Text>
-              </View>
-              <View style={{ alignItems: 'center' }}>
-                <Text style={[ss.custVal, { color: Colors.primary }]}>{customerAnalytics.new || 0}</Text>
-                <Text style={ss.custLabel}>New</Text>
-              </View>
-              <View style={{ alignItems: 'center' }}>
-                <Text style={[ss.custVal, { color: Colors.success }]}>{customerAnalytics.returning || 0}</Text>
-                <Text style={ss.custLabel}>Returning</Text>
-              </View>
-              <View style={{ alignItems: 'center' }}>
-                <Text style={ss.custVal}>{customerAnalytics.repeatRate || 0}%</Text>
-                <Text style={ss.custLabel}>Repeat %</Text>
-              </View>
-            </View>
-            {customerAnalytics.topCustomers && customerAnalytics.topCustomers.length > 0 && (
-              <View style={ss.card}>
-                <Text style={ss.listHeader}>Top Customers</Text>
-                {customerAnalytics.topCustomers.map((c, i) => (
-                  <View key={i} style={ss.listItemRow}>
-                    <Text style={ss.listItemLabel}>{c.name}</Text>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={ss.listItemVal}>{fmtK(c.spent)}</Text>
-                      <Text style={ss.listItemSub}>{c.bookings} bookings</Text>
+              {/* ── Peak Hours ─────────────────────────────────────────── */}
+              <Card style={{ marginBottom: 12 }}>
+                <SectionLabel label="Peak Hours" icon="fire" />
+                <View style={ss.peakRow}>
+                  <View style={ss.peakItem}>
+                    <Icon name="calendar-week" size={18} color={Colors.primary} />
+                    <View style={{ marginLeft: 10 }}>
+                      <Text style={ss.peakLabel}>Peak Day</Text>
+                      <Text style={ss.peakVal}>{peakHours.peakDay || '—'}</Text>
                     </View>
                   </View>
+                  <View style={ss.peakItem}>
+                    <Icon name="clock-time-four" size={18} color={Colors.primary} />
+                    <View style={{ marginLeft: 10 }}>
+                      <Text style={ss.peakLabel}>Peak Time</Text>
+                      <Text style={ss.peakVal}>{peakHours.peakTime || '—'}</Text>
+                    </View>
+                  </View>
+                </View>
+                {peakHours.heatmap && peakHours.heatmap.length > 0 && (
+                  <>
+                    <Divider />
+                    <Text style={ss.subHeader}>Top Slots</Text>
+                    {peakHours.heatmap.map((h, i) => (
+                      <StatRow key={i} label={`${h.day}, ${h.hour}`} value={`${h.count} bkgs`} />
+                    ))}
+                  </>
+                )}
+              </Card>
+
+              {/* ── Booking Status ─────────────────────────────────────── */}
+              <Card style={{ marginBottom: 12 }}>
+                <SectionLabel label="Booking Status" icon="list-status" />
+                {bookingStatus.map((s, i) => (
+                  <View key={i} style={{ marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <Text style={ss.statusLabel}>{s.status.replace(/_/g, ' ')}</Text>
+                      <Text style={ss.statusVal}>{s.count} · {s.pct}%</Text>
+                    </View>
+                    <Bar
+                      pct={s.pct}
+                      color={s.status.includes('cancel') ? Colors.error : s.status.includes('complete') ? Colors.primary : Colors.textTertiary}
+                      height={3}
+                    />
+                  </View>
                 ))}
-              </View>
-            )}
-          </View>
-
-          {/* 10. UTILIZATION */}
-          <View style={ss.section}>
-            <SectionHeader icon="chart-donut" title="Utilization" sub="Available vs Booked Hours" />
-            <View style={ss.card}>
-              <View style={ss.sourceRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={ss.sourceLabel}>Booked Hours</Text>
-                  <Text style={ss.sourceVal}>{utilization.bookedHours || 0}h</Text>
-                  <Text style={[ss.sourcePct, { color: Colors.primary }]}>{utilization.occupancyRate || 0}%</Text>
+                <Divider />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 4 }}>
+                  <Text style={ss.statusLabel}>Cancellation Rate</Text>
+                  <Text style={[ss.statusVal, { color: Colors.error }]}>{analytics?.cancellationRate || 0}%</Text>
                 </View>
-                <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                  <Text style={ss.sourceLabel}>Unused Hours</Text>
-                  <Text style={ss.sourceVal}>{utilization.unusedHours || 0}h</Text>
-                  <Text style={[ss.sourcePct, { color: Colors.textTertiary }]}>{100 - (utilization.occupancyRate || 0)}%</Text>
-                </View>
-              </View>
-              <View style={ss.sourceBarWrap}>
-                <View style={[ss.sourceBar, { backgroundColor: Colors.primary, flex: utilization.occupancyRate || 0 }]} />
-                <View style={[ss.sourceBar, { backgroundColor: Colors.backgroundElevated, flex: 100 - (utilization.occupancyRate || 0) }]} />
-              </View>
-            </View>
-          </View>
+              </Card>
 
-          {/* 11. BUSINESS INSIGHTS */}
-          {insights.length > 0 && (
-            <View style={ss.section}>
-              <SectionHeader icon="lightbulb-on" title="Business Insights" sub="AI Generated summaries" />
-              <View style={ss.card}>
-                {insights.map((insight, i) => (
-                  <View key={i} style={{ flexDirection: 'row', marginBottom: 12, gap: 10 }}>
-                    <Icon name="check-circle" size={16} color={Colors.primary} style={{ marginTop: 2 }} />
+              {/* ── Payment Breakdown ──────────────────────────────────── */}
+              {paymentBreakdown.length > 0 && (
+                <Card style={{ marginBottom: 12 }}>
+                  <SectionLabel label="Payment Breakdown" icon="wallet-outline" />
+                  {paymentBreakdown.map((p, i) => (
+                    <StatRow key={i} label={p.method} value={fmtK(p.revenue)} sub={`${p.count} txn${p.count !== 1 ? 's' : ''}`} />
+                  ))}
+                </Card>
+              )}
+
+              {/* ── AI Business Insights ───────────────────────────────── */}
+              {insights.length > 0 && (
+                <Card style={{ marginBottom: 12 }}>
+                  <View style={ss.insightHeader}>
+                    <View style={ss.insightIconWrap}>
+                      <Icon name="robot-outline" size={16} color={Colors.primary} />
+                    </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={ss.insightTxt}>{insight.text || insight}</Text>
-                      {insight.action && (
-                        <Text style={[ss.insightTxt, { color: Colors.textSecondary, marginTop: 4, fontSize: 13 }]}>
-                          <Text style={{ color: Colors.info, fontWeight: 'bold' }}>How to improve: </Text>
-                          {insight.action}
-                        </Text>
-                      )}
+                      <Text style={ss.sectionLabelTxt}>AI Business Insights</Text>
+                      <Text style={ss.insightSub}>Personalised for your turf</Text>
                     </View>
                   </View>
-                ))}
-              </View>
-            </View>
-          )}
-
+                  {insights.map((insight, i) => (
+                    <View key={i} style={ss.insightItem}>
+                      <View style={ss.insightDot} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={ss.insightTxt}>{insight.text || insight}</Text>
+                        {insight.action && (
+                          <Text style={ss.insightAction}>{insight.action}</Text>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </Card>
+              )}
             </>
           )}
-
         </ScrollView>
       )}
 
@@ -401,44 +400,42 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
           mode="date"
           display="default"
           onChange={(event, selectedDate) => {
-            const currentShowPicker = showPicker;
-            setShowPicker(Platform.OS === 'ios' ? currentShowPicker : null);
+            const current = showPicker;
+            setShowPicker(Platform.OS === 'ios' ? current : null);
             if (selectedDate) {
-              if (currentShowPicker === 'start') setCustomStart(selectedDate);
+              if (current === 'start') setCustomStart(selectedDate);
               else setCustomEnd(selectedDate);
             }
           }}
         />
       )}
 
-      {/* Turf Modal */}
       <Modal visible={turfModalVisible} transparent animationType="slide">
         <View style={ss.modalOverlay}>
-          <TouchableOpacity style={ss.modalBgClose} onPress={() => setTurfModalVisible(false)} />
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setTurfModalVisible(false)} />
           <View style={[ss.bottomSheet, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}>
             <View style={ss.sheetHandle} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={[ss.sheetTitle, { marginBottom: 0 }]}>Select Turf</Text>
-              <TouchableOpacity onPress={() => setTurfModalVisible(false)} style={{ padding: 4 }}>
-                <Icon name="close" size={24} color={Colors.textSecondary} />
+            <View style={ss.sheetTitleRow}>
+              <Text style={ss.sheetTitle}>Select Turf</Text>
+              <TouchableOpacity onPress={() => setTurfModalVisible(false)}>
+                <Icon name="close" size={22} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 300 }}>
               <TouchableOpacity style={ss.sheetItem} onPress={() => handleTurfSelect('all')}>
                 <Text style={[ss.sheetItemTxt, selectedTurfId === 'all' && ss.sheetItemTxtActive]}>All Turfs</Text>
-                {selectedTurfId === 'all' && <Icon name="check-circle" size={20} color={Colors.primary} />}
+                {selectedTurfId === 'all' && <Icon name="check" size={18} color={Colors.primary} />}
               </TouchableOpacity>
               {(turfs || []).map(t => (
                 <TouchableOpacity key={t._id} style={ss.sheetItem} onPress={() => handleTurfSelect(t._id)}>
                   <Text style={[ss.sheetItemTxt, selectedTurfId === t._id && ss.sheetItemTxtActive]}>{t.name}</Text>
-                  {selectedTurfId === t._id && <Icon name="check-circle" size={20} color={Colors.primary} />}
+                  {selectedTurfId === t._id && <Icon name="check" size={18} color={Colors.primary} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
         </View>
       </Modal>
-
     </View>
   );
 };
@@ -446,90 +443,165 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
 const ss = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
 
-  // Header
-  header: { backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border, zIndex: 10 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: Spacing.xl },
-  headerTitle: { fontSize: Typography.fontSize.xl, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
-  turfSelectorBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, paddingHorizontal: 12, paddingVertical: 6, borderRadius: BorderRadius.full, gap: 4, borderWidth: 1, borderColor: Colors.borderLight },
-  turfSelectorTxt: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.primary, maxWidth: 120 },
+  header: {
+    backgroundColor: Colors.background,
+    paddingHorizontal: H_PAD,
+    paddingBottom: 0,
+  },
+  headerInner: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'flex-start', marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 26, fontFamily: Typography.fontFamily.extraBold,
+    color: Colors.textPrimary, letterSpacing: -0.5,
+  },
+  headerSub: {
+    fontSize: 12, fontFamily: Typography.fontFamily.medium,
+    color: Colors.textTertiary, marginTop: 2,
+  },
+  turfBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderBottomWidth: 1.5, borderBottomColor: Colors.primary,
+    paddingBottom: 2,
+  },
+  turfBtnTxt: {
+    fontSize: 13, fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  turfStaticName: {
+    fontSize: 13, fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary, marginTop: 6,
+  },
 
-  // Date Filter
-  dateFilterScroll: { paddingHorizontal: Spacing.xl, paddingBottom: 16, gap: 8 },
-  dateFilterBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: BorderRadius.full, backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border },
-  dateFilterBtnActive: { backgroundColor: Colors.primaryAlpha10, borderColor: Colors.primary },
-  dateFilterTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
-  dateFilterTxtActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  filterRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginTop: 4,
+  },
+  filterBtn: {
+    flex: 1, alignItems: 'center', paddingVertical: 10,
+    borderBottomWidth: 2, borderBottomColor: 'transparent',
+    marginBottom: -1,
+  },
+  filterBtnActive: { borderBottomColor: Colors.primary },
+  filterTxt: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+  filterTxtActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
 
-  // Common Sections
-  section: { marginBottom: 32 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  sectionIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primaryAlpha10, justifyContent: 'center', alignItems: 'center' },
-  sectionTitle: { fontSize: Typography.fontSize.lg, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  sectionSub: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 2 },
-  card: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, padding: Spacing.xl, borderWidth: 1, borderColor: Colors.border },
+  customDateRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, paddingBottom: 10 },
+  customDateBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    paddingVertical: 8,
+  },
+  customDateTxt: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  customDateSep: { fontSize: 14, color: Colors.textTertiary },
 
-  // KPI Grid
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
-  kpiCard: { width: (W - Spacing.xl * 2 - 12) / 2, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.lg, padding: 16, borderWidth: 1, borderColor: Colors.border },
-  kpiIcon: { marginBottom: 8 },
-  kpiVal: { fontSize: Typography.fontSize.xl, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary, marginBottom: 4 },
-  kpiLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  scrollContent: { padding: H_PAD, paddingBottom: 110 },
+  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 10 },
+  emptyTxt: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
 
-  // Progress
-  progressTrack: { backgroundColor: Colors.backgroundElevated, borderRadius: 6, overflow: 'hidden' },
+  card: {
+    backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl,
+    padding: 16, borderWidth: 1, borderColor: Colors.border,
+  },
 
-  // Chart
-  chartRow: { flexDirection: 'row', alignItems: 'flex-end', height: 150, gap: 16, marginTop: 10 },
-  chartCol: { alignItems: 'center', width: 40 },
-  chartBars: { flex: 1, justifyContent: 'flex-end', width: 12 },
-  chartBar: { width: 12, borderRadius: 4 },
-  chartLabel: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 8 },
-  legend: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: Colors.borderLight },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendTxt: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 12 },
 
-  // Booking Source
-  sourceRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  sourceLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginBottom: 4 },
-  sourceVal: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 4 },
-  sourcePct: { fontSize: Typography.fontSize.xl, fontFamily: Typography.fontFamily.extraBold },
-  sourceBarWrap: { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', gap: 2 },
-  sourceBar: { height: '100%' },
+  sectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
+  sectionLabelTxt: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, letterSpacing: 0.2 },
 
-  // Turf Performance
-  turfName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  turfRev: { fontSize: 15, fontFamily: Typography.fontFamily.extraBold, color: Colors.primary },
-  turfStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  turfStatTxt: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  subHeader: {
+    fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary,
+    textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10,
+  },
 
-  // Peak Hours
-  peakMainTxt: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 6 },
-  listHeader: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, textTransform: 'uppercase', marginBottom: 12, letterSpacing: 0.5 },
-  listItemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  listItemLabel: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary },
-  listItemVal: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  listItemSub: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 2 },
+  kpiGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    marginBottom: 12,
+  },
+  kpiCard: {
+    width: KPI_W, backgroundColor: Colors.backgroundCard,
+    borderRadius: BorderRadius.lg, padding: 12,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  kpiTop: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  kpiVal: { fontSize: 16, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
+  kpiLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
 
-  // Status
-  statusLabel: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary },
+  splitRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  splitCenter: { flex: 1 },
+  splitLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginBottom: 2 },
+  splitVal: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
+  splitPct: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.primary, marginTop: 2 },
+
+  barTrack: { backgroundColor: Colors.backgroundElevated, borderRadius: 4, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 4 },
+
+  statRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+  },
+  statLabel: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  statValue: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  statSub: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 2, textAlign: 'right' },
+
+  custGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  custCell: { alignItems: 'center', flex: 1 },
+  custVal: { fontSize: 20, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary, marginBottom: 3 },
+  custLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+
+  turfName: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  turfRev: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: Colors.primary },
+  turfStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingBottom: 4 },
+  turfStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  turfStatTxt: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+
+  peakRow: { flexDirection: 'row', gap: 10 },
+  peakItem: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, padding: 12,
+  },
+  peakLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+  peakVal: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: 2 },
+
+  statusLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, textTransform: 'capitalize' },
   statusVal: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  cancellationTxt: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary },
 
-  // Customers
-  custVal: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary, marginBottom: 4 },
-  custLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+  insightHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  insightIconWrap: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: Colors.primaryAlpha10, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: Colors.primaryAlpha30,
+  },
+  insightSub: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 1 },
+  insightItem: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  insightDot: {
+    width: 5, height: 5, borderRadius: 3,
+    backgroundColor: Colors.primary, marginTop: 7, flexShrink: 0,
+  },
+  insightTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, lineHeight: 20 },
+  insightAction: {
+    fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary,
+    lineHeight: 18, marginTop: 4, fontStyle: 'italic',
+  },
 
-  // Insights
-  insightTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, flex: 1, lineHeight: 20 },
-
-  // Modals
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalBgClose: { ...StyleSheet.absoluteFillObject },
-  bottomSheet: { backgroundColor: Colors.backgroundCard, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, padding: Spacing.xl },
-  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 16 },
-  sheetTitle: { fontSize: Typography.fontSize.lg, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 16 },
-  sheetItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  bottomSheet: {
+    backgroundColor: Colors.backgroundCard,
+    borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl,
+    padding: 20,
+  },
+  sheetHandle: { width: 36, height: 3, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 18 },
+  sheetTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sheetTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  sheetItem: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+  },
   sheetItemTxt: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
   sheetItemTxtActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
 });

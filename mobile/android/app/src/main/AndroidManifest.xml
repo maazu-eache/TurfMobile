@@ -26,7 +26,7 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
 
-        <!-- Deep linking for HTTP/HTTPS -->
+        <!-- Deep linking for scoreverse.in -->
         <intent-filter android:autoVerify="true">
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.DEFAULT" />
@@ -34,9 +34,38 @@
             <data android:scheme="http" />
             <data android:scheme="https" />
             <data android:host="scoreverse.in" />
+            <data android:host="www.scoreverse.in" />
+        </intent-filter>
+
+        <!-- Deep linking for scoreverse.com -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+            <data android:scheme="https" />
             <data android:host="scoreverse.com" />
             <data android:host="www.scoreverse.com" />
+        </intent-filter>
+
+        <!-- Deep linking for roughturf.com -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+            <data android:scheme="https" />
             <data android:host="roughturf.com" />
+            <data android:host="www.roughturf.com" />
+        </intent-filter>
+
+        <!-- Deep linking for scoreverse.app -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+            <data android:scheme="https" />
             <data android:host="scoreverse.app" />
         </intent-filter>
 

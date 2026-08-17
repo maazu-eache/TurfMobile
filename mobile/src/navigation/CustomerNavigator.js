@@ -316,6 +316,7 @@ const MatchStack = () => (
     <Stack.Screen name="AuctionLivePublic" component={AuctionLivePublicScreen} />
 
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
+
   </Stack.Navigator>
 );
 

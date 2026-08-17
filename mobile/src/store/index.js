@@ -15,7 +15,6 @@ import tournamentReducer from '../features/tournament/tournamentSlice';
 import walletReducer from '../features/wallet/walletSlice';
 import notificationReducer from '../features/notification/notificationSlice';
 import ownerReducer from '../features/owner/ownerSlice';
-
 const rootReducer = combineReducers({
   auth: authReducer,
   user: userReducer,

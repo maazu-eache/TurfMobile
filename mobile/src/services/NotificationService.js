@@ -57,7 +57,7 @@ class NotificationService {
   stripEmojis(str) {
     if (!str || typeof str !== 'string') return str;
     return str
-      .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Emoji_Component}]/gu, '')
+      .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}]/gu, '')
       .replace(/\s+/g, ' ')
       .trim();
   }

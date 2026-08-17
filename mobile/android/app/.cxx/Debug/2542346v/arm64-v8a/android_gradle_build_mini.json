@@ -17,6 +17,7 @@
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-svg/android/src/main/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-vector-icons/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-view-shot/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-webview/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets-core/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt"
@@ -80,6 +81,11 @@
         "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
         "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so"
       ]
+    },
+    "react_codegen_RNCWebViewSpec::@eb48929f9f7453740a6c": {
+      "artifactName": "react_codegen_RNCWebViewSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
     },
     "react_codegen_rndocumentpickerCGen::@aac1846a245ca418eb66": {
       "artifactName": "react_codegen_rndocumentpickerCGen",

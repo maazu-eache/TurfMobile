@@ -634,7 +634,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
   const scoreBoardUI = useMemo(() => {
     const s = liveState?.score;
     const m = liveState?.match;
-    const rrr = liveState?.requiredRunRate;
+    const rawRrr = liveState?.requiredRunRate;
+    const rrr = (rawRrr !== undefined && rawRrr !== null && !isNaN(parseFloat(rawRrr)))
+      ? parseFloat(rawRrr).toFixed(2)
+      : '0.00';
     const tw = liveState?.toWin;
     const br = liveState?.ballsRemaining;
     const dls = liveState?.isDlsTarget;

@@ -125,9 +125,20 @@ const matchSlice = createSlice({
           inningsNumber: payload.inningsNumber !== undefined ? payload.inningsNumber : state.liveState.inningsNumber,
           result: payload.result !== undefined ? payload.result : state.liveState.result,
           currentOverBalls: payload.currentOverBalls || state.liveState.currentOverBalls,
-          recentCommentary: payload.recentCommentary && payload.recentCommentary.length > 0
-            ? [...payload.recentCommentary, ...(state.liveState.recentCommentary || [])].slice(0, 10)
-            : state.liveState.recentCommentary,
+          recentCommentary: (() => {
+            if (!payload.recentCommentary || payload.recentCommentary.length === 0) {
+              return state.liveState.recentCommentary;
+            }
+            const merged = [...payload.recentCommentary, ...(state.liveState.recentCommentary || [])];
+            const seen = new Set();
+            return merged.filter(ball => {
+              if (!ball) return false;
+              const key = ball._id || `${ball.overNumber}-${ball.ballNumber}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            }).slice(0, 10);
+          })(),
         };
         if (payload.ballEvent) {
           state.liveState.ballEvent = payload.ballEvent;
