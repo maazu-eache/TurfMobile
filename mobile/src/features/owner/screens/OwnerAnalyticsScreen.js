@@ -72,6 +72,106 @@ const Card = ({ children, style }) => (
   <View style={[ss.card, style]}>{children}</View>
 );
 
+const SkeletonRect = ({ width, height, style }) => {
+  const pulseAnim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.7,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.3,
+          duration: 800,
+          useNativeDriver: true,
+        })
+      ])
+    ).start();
+  }, [pulseAnim]);
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width,
+          height,
+          backgroundColor: '#333333',
+          borderRadius: 8,
+          opacity: pulseAnim,
+        },
+        style
+      ]}
+    />
+  );
+};
+
+const AnalyticsSkeleton = () => {
+  return (
+    <View style={{ flex: 1 }}>
+      {/* KPI Grid Skeleton */}
+      <View style={ss.kpiGrid}>
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <View key={i} style={[ss.kpiCard, { marginRight: i % 3 === 0 ? 0 : KPI_GAP, marginBottom: KPI_GAP, backgroundColor: Colors.backgroundCard }]}>
+            <View style={{ height: 60, padding: 10, justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <SkeletonRect width={14} height={14} />
+                <SkeletonRect width={60} height={10} />
+              </View>
+              <SkeletonRect width={50} height={20} style={{ marginTop: 8 }} />
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {/* Chart Placeholder Skeleton */}
+      <Card style={{ marginBottom: 12, padding: 15 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 15 }}>
+          <SkeletonRect width={16} height={16} />
+          <SkeletonRect width={100} height={12} />
+        </View>
+        <SkeletonRect width="100%" height={150} />
+      </Card>
+
+      {/* Booking Source Skeleton */}
+      <Card style={{ marginBottom: 12, padding: 15 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 15 }}>
+          <SkeletonRect width={16} height={16} />
+          <SkeletonRect width={120} height={12} />
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
+          <SkeletonRect width={80} height={80} style={{ borderRadius: 40 }} />
+          <View style={{ flex: 1, gap: 10 }}>
+            <SkeletonRect width="80%" height={10} />
+            <SkeletonRect width="60%" height={10} />
+          </View>
+        </View>
+      </Card>
+
+      {/* Top Customers Skeleton */}
+      <Card style={{ marginBottom: 12, padding: 15 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 15 }}>
+          <SkeletonRect width={16} height={16} />
+          <SkeletonRect width={110} height={12} />
+        </View>
+        <View style={{ gap: 12 }}>
+          {[1, 2, 3].map((i) => (
+            <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 }}>
+              <View style={{ gap: 6 }}>
+                <SkeletonRect width={70} height={12} />
+                <SkeletonRect width={90} height={8} />
+              </View>
+              <SkeletonRect width={40} height={14} />
+            </View>
+          ))}
+        </View>
+      </Card>
+    </View>
+  );
+};
+
 const OwnerAnalyticsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
@@ -167,11 +267,13 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
       </View>
 
       {/* ── Body ───────────────────────────────────────────────────────────── */}
-      {isLoading && !hasData ? (
-        <View style={ss.loadingWrap}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={ss.loadingTxt}>Loading analytics…</Text>
-        </View>
+      {isLoading ? (
+        <ScrollView
+          contentContainerStyle={ss.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <AnalyticsSkeleton />
+        </ScrollView>
       ) : (
         <ScrollView
           contentContainerStyle={ss.scrollContent}
@@ -225,25 +327,7 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
                 </View>
               </Card>
 
-              {/* ── Utilization ────────────────────────────────────────── */}
-              <Card style={{ marginBottom: 12 }}>
-                <SectionLabel label="Utilization" icon="chart-donut" />
-                <View style={ss.splitRow}>
-                  <View>
-                    <Text style={ss.splitLabel}>Booked</Text>
-                    <Text style={ss.splitVal}>{utilization.bookedHours || 0}h</Text>
-                    <Text style={ss.splitPct}>{utilization.occupancyRate || 0}%</Text>
-                  </View>
-                  <View style={ss.splitCenter}>
-                    <Bar pct={utilization.occupancyRate || 0} height={6} />
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={ss.splitLabel}>Unused</Text>
-                    <Text style={ss.splitVal}>{utilization.unusedHours || 0}h</Text>
-                    <Text style={ss.splitPct}>{100 - (utilization.occupancyRate || 0)}%</Text>
-                  </View>
-                </View>
-              </Card>
+
 
               {/* ── Customer Analytics ─────────────────────────────────── */}
               <Card style={{ marginBottom: 12 }}>
@@ -266,7 +350,7 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
                     <Divider />
                     <Text style={ss.subHeader}>Top Customers</Text>
                     {customerAnalytics.topCustomers.map((c, i) => (
-                      <StatRow key={i} label={c.name} value={fmtK(c.spent)} sub={`${c.bookings} bookings`} accent />
+                      <StatRow key={i} label={c.name} value={fmtK(c.spent)} sub={`${c.bookings} booking${c.bookings > 1 ? 's' : ''}${c.slots ? ` (${c.slots} slot${c.slots > 1 ? 's' : ''})` : ''}`} accent />
                     ))}
                   </>
                 )}
@@ -585,7 +669,7 @@ const ss = StyleSheet.create({
   },
   insightTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, lineHeight: 20 },
   insightAction: {
-    fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary,
+    fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.primary,
     lineHeight: 18, marginTop: 4, fontStyle: 'italic',
   },
 

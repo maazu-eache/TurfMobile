@@ -121,7 +121,7 @@ const SharePreviewModal = ({ visible, onClose, title, shareUrl, children }) => {
                     collapsable={false}
                     style={[styles.viewShotContainer, index > 0 && { marginTop: Spacing.xl }]}
                   >
-                    {React.cloneElement(child, { theme: activeTheme, key: activeTheme })}
+                    {React.cloneElement(child, { theme: activeTheme, key: activeTheme, shareUrl })}
                   </View>
                 );
               }
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontFamily: Typography.fontFamily.bold,
     fontSize: 16,
-  },
+  }
 });
 
 export default SharePreviewModal;

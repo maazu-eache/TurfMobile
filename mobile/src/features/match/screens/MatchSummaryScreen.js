@@ -18,6 +18,8 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 import SharePreviewModal from '../../tournament/components/SharePreviewModal';
 import { MatchSummaryPoster, MotmPoster, AiReportPoster } from '../../tournament/components/PosterTemplates';
 import PartnershipsView from '../components/PartnershipsView';
+import Tts from 'react-native-tts';
+import Video from 'react-native-video';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -130,6 +132,71 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const dispatch = useDispatch();
   const currentUser = useSelector((state) => state.auth.user);
+
+  const [activeAudioUrl, setActiveAudioUrl] = useState(null);
+
+  // Initialize TTS configuration and cleanup on unmount
+  useEffect(() => {
+    Tts.setDefaultLanguage('en-IN').catch(() => {
+      Tts.setDefaultLanguage('en-US').catch(() => {});
+    });
+    Tts.voices().then(voices => {
+      const enVoices = voices.filter(v => v.language.startsWith('en'));
+      console.log("🎤 Available English voices:", JSON.stringify(enVoices, null, 2));
+    }).catch(err => {
+      console.error("Failed to fetch voices:", err);
+    });
+    return () => {
+      Tts.stop();
+    };
+  }, []);
+
+  const handleVoiceSpeak = useCallback(async (ball) => {
+    if (!ball.commentary) return;
+
+    if (ball.audioUrl) {
+      console.log("🎙️ Streaming commentary from Cloudinary URL:", ball.audioUrl);
+      Tts.stop();
+      setActiveAudioUrl(ball.audioUrl);
+      return;
+    }
+
+    try {
+      Tts.stop();
+      setActiveAudioUrl(null); // Stop any playing network audio
+
+      const isShastri = /Shastri/i.test(ball.commentary);
+      const cleanText = ball.commentary.replace(/^(Shastri|Bhogle):\s*/i, '');
+
+      console.log(`🔊 Speaking [${isShastri ? 'Shastri' : 'Bhogle'}]: "${cleanText}"`);
+
+      // Query voices dynamically to select a male Indian English voice
+      const voices = await Tts.voices();
+      const enInVoices = voices.filter(v => (v.language === 'en-IN' || v.language === 'eng-IND') && !v.notInstalled);
+
+      let voiceToUse = null;
+      if (isShastri) {
+        // Shastri: Look for 'ene' (male Google TTS voice) or 'ahp' (male) or fallback to first en-IN
+        voiceToUse = enInVoices.find(v => v.id.includes('ene')) || enInVoices.find(v => v.id.includes('ahp')) || enInVoices[0];
+        Tts.setDefaultPitch(1.0); // Use natural pitch to avoid robotic distortion
+        Tts.setDefaultRate(0.5);  // Standard conversational rate
+      } else {
+        // Bhogle: Look for 'ene' or another en-IN voice
+        voiceToUse = enInVoices.find(v => v.id.includes('ene')) || enInVoices[0];
+        Tts.setDefaultPitch(1.0); // Use natural pitch to avoid robotic distortion
+        Tts.setDefaultRate(0.5);  // Standard conversational rate
+      }
+
+      if (voiceToUse) {
+        console.log(`🎤 Setting voice to: ${voiceToUse.id}`);
+        await Tts.setDefaultVoice(voiceToUse.id);
+      }
+
+      Tts.speak(cleanText);
+    } catch (e) {
+      console.error("Tts.speak failed:", e);
+    }
+  }, []);
 
   // Register Match View (Deduplicated via Backend)
   useEffect(() => {
@@ -2546,13 +2613,15 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     textColor = '#FFF';
                   }
 
-                  let text = `${ball.batsmanRuns} run(s)`;
-                  if (ball.isWicket) text = ball.wicket?.type ? ball.wicket.type.replace('_', ' ') : 'Wicket!';
-                  else if (ball.isWide) text = `${ball.totalRuns} Wide(s)`;
-                  else if (ball.isNoBall) text = `${ball.totalRuns} No Ball(s)`;
-                  else if (ball.batsmanRuns === 4) text = 'Four runs!';
-                  else if (ball.batsmanRuns === 6) text = 'Six runs!';
-                  else if (ball.batsmanRuns === 0) text = 'Dot ball';
+                  let text = ball.commentary ? ball.commentary.replace(/^(Shastri|Bhogle):\s*/i, '') : `${ball.batsmanRuns} run(s)`;
+                  if (!ball.commentary) {
+                    if (ball.isWicket) text = ball.wicket?.type ? ball.wicket.type.replace('_', ' ') : 'Wicket!';
+                    else if (ball.isWide) text = `${ball.totalRuns} Wide(s)`;
+                    else if (ball.isNoBall) text = `${ball.totalRuns} No Ball(s)`;
+                    else if (ball.batsmanRuns === 4) text = 'Four runs!';
+                    else if (ball.batsmanRuns === 6) text = 'Six runs!';
+                    else if (ball.batsmanRuns === 0) text = 'Dot ball';
+                  }
 
                   const bowlerName = ball.bowler?.name || 'Bowler';
                   const batsmanName = ball.batsman?.name || 'Batsman';
@@ -2566,10 +2635,19 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         <Text style={{ fontFamily: Typography.fontFamily.bold, color: textColor, fontSize: 12 }}>{display}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary, fontSize: 14 }}>
-                          {bowlerName} to {batsmanName}
-                        </Text>
-                        <Text style={{ fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, fontSize: 13, marginTop: 2 }}>{text}</Text>
+                        {!ball.isAICommentary && (
+                          <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary, fontSize: 14 }}>
+                            {bowlerName} to {batsmanName}
+                          </Text>
+                        )}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <Text style={{ flex: 1, fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 13, marginTop: ball.isAICommentary ? 4 : 2, lineHeight: 18 }}>{text}</Text>
+                          {ball.isAICommentary && (
+                            <TouchableOpacity onPress={() => handleVoiceSpeak(ball)} style={{ padding: 4 }}>
+                              <Icon name="volume-high" size={20} color={Colors.primary} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
                       </View>
                     </View>
                   );
@@ -3021,36 +3099,54 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             }}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, fontSize: 12 }}>
-                {ball.overNumber - 1}.{ball.ballNumber}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, fontSize: 12 }}>
+                  {ball.overNumber - 1}.{ball.ballNumber}
+                </Text>
+                {ball.isAICommentary && (
+                  <View style={{ backgroundColor: Colors.primaryAlpha20, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 0.5, borderColor: Colors.primary }}>
+                    <Text style={{ color: Colors.primary, fontSize: 8, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>AI LIVE</Text>
+                  </View>
+                )}
+              </View>
               <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: isExpanded ? Colors.primary : Colors.textSecondary, fontSize: 10, letterSpacing: 0.5 }}>
                 {title}
               </Text>
             </View>
 
-            <Text style={{ fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 14, marginTop: 8, lineHeight: 22 }}>
-              <Text
-                style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}
-                onPress={() => {
-                  const bowlerId = ball.bowler?._id || ball.bowler;
-                  if (bowlerId) navigation.navigate('PlayerDetail', { id: bowlerId.toString() });
-                }}
-              >
-                {ball.bowler?.name || 'Bowler'}
+            {ball.isAICommentary ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
+                <Text style={{ flex: 1, fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 14, lineHeight: 22 }}>
+                  {ball.commentary.replace(/^(Shastri|Bhogle):\s*/i, '')}
+                </Text>
+                <TouchableOpacity onPress={() => handleVoiceSpeak(ball)} style={{ padding: 4 }}>
+                  <Icon name="volume-high" size={20} color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Text style={{ fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 14, marginTop: 8, lineHeight: 22 }}>
+                <Text
+                  style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}
+                  onPress={() => {
+                    const bowlerId = ball.bowler?._id || ball.bowler;
+                    if (bowlerId) navigation.navigate('PlayerDetail', { id: bowlerId.toString() });
+                  }}
+                >
+                  {ball.bowler?.name || 'Bowler'}
+                </Text>
+                {' to '}
+                <Text
+                  style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}
+                  onPress={() => {
+                    const batsmanId = ball.batsman?._id || ball.batsman;
+                    if (batsmanId) navigation.navigate('PlayerDetail', { id: batsmanId.toString() });
+                  }}
+                >
+                  {ball.batsman?.name || 'Batter'}
+                </Text>
+                {`, ${textWithPos}`}
               </Text>
-              {' to '}
-              <Text
-                style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}
-                onPress={() => {
-                  const batsmanId = ball.batsman?._id || ball.batsman;
-                  if (batsmanId) navigation.navigate('PlayerDetail', { id: batsmanId.toString() });
-                }}
-              >
-                {ball.batsman?.name || 'Batter'}
-              </Text>
-              {`, ${textWithPos}`}
-            </Text>
+            )}
 
             {isExpanded && (
               <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: Colors.borderLight }}>
@@ -4989,6 +5085,24 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             )}
           </View>
         </View>
+      )}
+      {activeAudioUrl && (
+        <Video
+          source={{ uri: activeAudioUrl }}
+          paused={false}
+          playInBackground={true}
+          ignoreSilentSwitch="ignore"
+          audioOnly={true}
+          style={{ width: 0, height: 0, position: 'absolute' }}
+          onEnd={() => {
+            console.log("🎙️ Commentary playback finished");
+            setActiveAudioUrl(null);
+          }}
+          onError={(e) => {
+            console.error("❌ Cloudinary Audio playback error:", e);
+            setActiveAudioUrl(null);
+          }}
+        />
       )}
 
     </SafeAreaView>

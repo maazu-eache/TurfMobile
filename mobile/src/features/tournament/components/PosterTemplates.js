@@ -9,6 +9,7 @@ import {
 } from "../../../theme/theme";
 import { getImageUrl } from "../../../api/axios";
 import LinearGradient from "react-native-linear-gradient";
+import QRCode from "react-native-qrcode-svg";
 
 const SPORTVERSE_LOGO = require("../../../../SportVerse.png");
 const STADIUM_BG = {
@@ -324,7 +325,7 @@ export const TournamentSummaryPoster = ({ tournament, theme }) => {
   );
 };
 
-export const TurfPoster = ({ turf, theme }) => {
+export const TurfPoster = ({ turf, theme, shareUrl }) => {
   const t = getThemeStyles(theme);
   const bgImage = turf?.coverImage
     ? { uri: getImageUrl(turf.coverImage) }
@@ -358,11 +359,11 @@ export const TurfPoster = ({ turf, theme }) => {
               </Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={[styles.statValue, { color: t.textColor }]}>
-                {turf?.sports?.[0] || "Multi"}
+              <Text style={[styles.statValue, { color: t.textColor }]} numberOfLines={1}>
+                {turf?.city || "Ambur"}
               </Text>
               <Text style={[styles.statLabel, { color: t.secTextColor }]}>
-                Sport
+                Location
               </Text>
             </View>
           </View>
@@ -371,11 +372,44 @@ export const TurfPoster = ({ turf, theme }) => {
           style={[
             styles.footer,
             t.type === "liquid_metal" && { borderTopColor: t.borderColor },
+            {
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingVertical: Spacing.sm,
+              paddingHorizontal: Spacing.md,
+            },
           ]}
         >
-          <Text style={[styles.footerText, { color: t.secTextColor }]}>
-            POWERED BY DECOLZ X OCA
-          </Text>
+          <View style={{ flex: 1, justifyContent: "center" }}>
+            <Text style={[styles.footerText, { color: t.secTextColor, fontSize: 8 }]}>
+              POWERED BY DECOLZ X OCA
+            </Text>
+            {shareUrl ? (
+              <Text
+                style={{
+                  fontSize: 7,
+                  color: t.secTextColor,
+                  marginTop: 2,
+                  fontFamily: Typography.fontFamily.medium,
+                  opacity: 0.8,
+                }}
+                numberOfLines={1}
+              >
+                {shareUrl}
+              </Text>
+            ) : null}
+          </View>
+          {shareUrl ? (
+            <View style={{ padding: 2, backgroundColor: "#FFFFFF", borderRadius: 4, marginLeft: Spacing.sm }}>
+              <QRCode
+                value={shareUrl}
+                size={32}
+                color="#000000"
+                backgroundColor="#FFFFFF"
+              />
+            </View>
+          ) : null}
         </View>
       </View>
     </ImageBackground>

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
-  ActivityIndicator, Modal, TextInput, Animated, StatusBar 
+  ActivityIndicator, Modal, TextInput, Animated, StatusBar,
+  Platform, KeyboardAvoidingView 
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -14,6 +15,7 @@ import api from '../../../api/axios';
 import { formatISTTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import moment from 'moment';
+import Tts from 'react-native-tts';
 
 const isPastSlot = (selectedDate, startTime) => {
   const slotStart = moment(`${selectedDate} ${startTime}`, 'YYYY-MM-DD HH:mm').utcOffset("+05:30", true);
@@ -57,9 +59,36 @@ const SlotManagerScreen = ({ navigation }) => {
   const [selectedDate, setSelectedDate] = useState(moment().format('YYYY-MM-DD'));
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Voice Assistant states
+  const [voiceAssistantVisible, setVoiceAssistantVisible] = useState(false);
+  const [voiceState, setVoiceState] = useState('IDLE');
+  const [voiceDraft, setVoiceDraft] = useState(null);
+  const [voiceText, setVoiceText] = useState('');
+  const [assistantMessages, setAssistantMessages] = useState([]);
+  const scrollRef = useRef(null);
   
   const [dates, setDates] = useState(generateDates());
   const [selectedSlots, setSelectedSlots] = useState([]);
+  
+  // Audio Mute State
+  const [isMuted, setIsMuted] = useState(false);
+  const isMutedRef = useRef(false);
+
+  const toggleMute = () => {
+    const newVal = !isMuted;
+    setIsMuted(newVal);
+    isMutedRef.current = newVal;
+    if (newVal) {
+      Tts.stop();
+    }
+  };
+
+  const speakTts = (text) => {
+    if (isMutedRef.current) return;
+    Tts.stop();
+    Tts.speak(text);
+  };
 
   // Time Groups State
   const [expandedGroup, setExpandedGroup] = useState(getCurrentTimeGroup());
@@ -159,6 +188,77 @@ const SlotManagerScreen = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
+    Tts.setDefaultLanguage('en-IN').catch(() => {
+      Tts.setDefaultLanguage('en-US').catch(() => {});
+    });
+    Tts.setDefaultRate(0.55);
+    Tts.setDefaultPitch(1.1);
+
+    // Query and set system male voice
+    Tts.voices().then(voices => {
+      let maleVoice = voices.find(v => 
+        (v.language.startsWith('en-IN') || v.language.startsWith('en-US')) && 
+        (String(v.gender).toLowerCase() === 'male' ||
+         v.name.toLowerCase().includes('male') || 
+         v.name.toLowerCase().includes('guy') ||
+         v.id.toLowerCase().includes('male') ||
+         v.id.toLowerCase().includes('guy'))
+      );
+      
+      if (!maleVoice) {
+        // Fallback search for common Google TTS male voices on Android
+        maleVoice = voices.find(v => 
+          (v.id.includes('en-in-x-ene') || 
+           v.id.includes('en-us-x-iom') || 
+           v.id.includes('en-us-x-iol') || 
+           v.id.includes('en-us-x-tgf') || 
+           v.id.includes('en-us-x-jot'))
+        );
+      }
+
+      if (maleVoice) {
+        Tts.setDefaultVoice(maleVoice.id).catch(() => {});
+      }
+    }).catch(() => {});
+  }, []);
+
+  const sendVoiceMessage = async (text) => {
+    if (!text.trim()) return;
+    const newMsg = { sender: 'owner', text };
+    setAssistantMessages(prev => [...prev, newMsg]);
+    setVoiceText('');
+    
+    setLoading(true);
+    try {
+      const res = await api.post('/bookings/voice-dialogue', {
+        turfId: selectedTurf,
+        voiceText: text,
+        currentState: voiceState,
+        currentDraft: voiceDraft
+      });
+      
+      const data = res.data.data;
+      
+      setAssistantMessages(prev => [...prev, { sender: 'assistant', text: data.speechText }]);
+      setVoiceState(data.nextState);
+      setVoiceDraft(data.draft);
+      
+      speakTts(data.speechText);
+      
+      if (data.success && data.nextState === 'IDLE') {
+        fetchSlots();
+        showCustomAlert('Success', 'Offline booking created successfully.');
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Failed to process voice command';
+      setAssistantMessages(prev => [...prev, { sender: 'assistant', text: errMsg }]);
+      speakTts(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (selectedTurf) {
       fetchSlots();
       setSelectedSlots([]); // Clear selections on date/turf change
@@ -202,7 +302,16 @@ const SlotManagerScreen = ({ navigation }) => {
         const refStr = b.bookingRef || b._id.substring(0, 8);
         return showCustomAlert('Booking Details', `Ref: ${refStr}\nUser: ${userName} ${userPhone ? `(${userPhone})` : ''}\nAmount: ₹${amt}\nStatus: ${b.status.toUpperCase()}`);
       } else if (slot.status === 'offline_booking') {
-        return showCustomAlert('Offline Booking', 'This slot was booked offline/walk-in. What would you like to do?', [
+        const ob = slot.offlineBooking;
+        let detailsStr = 'This slot was booked offline/walk-in.';
+        if (ob) {
+          const custName = ob.customerName || 'Unknown Customer';
+          const custPhone = ob.customerMobile || '-';
+          const amt = ob.amount || 0;
+          const notes = ob.notes || ob.reason || '-';
+          detailsStr = `Customer: ${custName}\nPhone: ${custPhone}\nAmount: ₹${amt}\nNotes/Reason: ${notes}`;
+        }
+        return showCustomAlert('Offline Booking Details', detailsStr, [
           { text: 'Make Available', onPress: () => handleUpdateOfflineSlot(slot._id, 'available') },
           { text: 'Mark Maintenance', onPress: () => handleUpdateOfflineSlot(slot._id, 'maintenance') },
           { text: 'Cancel', style: 'cancel' }
@@ -471,12 +580,20 @@ const SlotManagerScreen = ({ navigation }) => {
           <Icon name="arrow-left" size={20} color="#FFF" />
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.headerDropdown} onPress={() => setTurfModalVisible(true)}>
-          <Text style={styles.headerDropdownText} numberOfLines={1}>
-            {turfs.find(t => t._id === selectedTurf)?.name || 'Select Ground'}
-          </Text>
-          <Icon name="chevron-down" size={18} color="#FFD400" style={{marginLeft: 4}} />
-        </TouchableOpacity>
+        {turfs.length > 1 ? (
+          <TouchableOpacity style={styles.headerDropdown} onPress={() => setTurfModalVisible(true)}>
+            <Text style={styles.headerDropdownText} numberOfLines={1}>
+              {turfs.find(t => t._id === selectedTurf)?.name || 'Select Ground'}
+            </Text>
+            <Icon name="chevron-down" size={18} color="#FFD400" style={{marginLeft: 4}} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ alignItems: 'center', justifyContent: 'center', maxWidth: 220 }}>
+            <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: '#FFF' }} numberOfLines={1}>
+              {turfs[0]?.name || 'Select Ground'}
+            </Text>
+          </View>
+        )}
 
         <View style={{ width: 44 }} />
       </View>
@@ -492,6 +609,7 @@ const SlotManagerScreen = ({ navigation }) => {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.dateScroll}
+            style={{ overflow: 'visible' }}
           >
             <TouchableOpacity
               style={styles.calendarBtn}
@@ -1076,6 +1194,191 @@ const SlotManagerScreen = ({ navigation }) => {
         </View>
       </Modal>
 
+      {/* Voice Assistant Floating Action Button */}
+      <TouchableOpacity 
+        style={styles.voiceAssistantFab}
+        onPress={() => {
+          setVoiceAssistantVisible(true);
+          setVoiceState('IDLE');
+          setVoiceDraft(null);
+          const greetingText = "Pluto here. I check and book single slots. Don't try bulk range bookings or status changes unless you enjoy wasting both our times. What do you want?";
+          setAssistantMessages([
+            { sender: 'assistant', text: greetingText }
+          ]);
+          speakTts(greetingText);
+        }}
+        activeOpacity={0.85}
+      >
+        <Icon name="microphone" size={28} color="#000" />
+      </TouchableOpacity>
+
+      {/* Voice Assistant Panel Modal */}
+      <Modal
+        visible={voiceAssistantVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setVoiceAssistantVisible(false);
+          Tts.stop();
+        }}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+          style={{ flex: 1 }}
+        >
+          <View style={styles.assistantOverlay}>
+            <View style={styles.assistantContainer}>
+              
+              {/* Header */}
+              <View style={styles.assistantHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Icon name="robot" size={22} color="#FFD400" style={{ marginRight: 8 }} />
+                  <Text style={styles.assistantTitle}>Voice Booking Assistant</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TouchableOpacity onPress={toggleMute} style={{ marginRight: 16 }}>
+                    <Icon name={isMuted ? "volume-off" : "volume-high"} size={22} color="#FFF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => {
+                    setVoiceAssistantVisible(false);
+                    Tts.stop();
+                  }}>
+                    <Icon name="close" size={22} color="#FFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              {/* Messages ScrollView */}
+              <ScrollView 
+                style={styles.messagesList}
+                contentContainerStyle={{ paddingVertical: 10 }}
+                ref={scrollRef}
+                onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+              >
+                {assistantMessages.map((msg, index) => (
+                  <View 
+                    key={index} 
+                    style={[
+                      styles.messageBubble, 
+                      msg.sender === 'owner' ? styles.ownerBubble : styles.assistantBubble
+                    ]}
+                  >
+                    <Text style={msg.sender === 'owner' ? styles.ownerText : styles.assistantText}>
+                      {msg.text}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+
+              {/* Booking Status Card */}
+              {voiceDraft && (
+                <View style={styles.statusCard}>
+                  <Text style={styles.statusCardTitle}>Booking Draft Details</Text>
+                  <View style={styles.statusGrid}>
+                    <Text style={styles.statusLabel}>Court:</Text>
+                    <Text style={styles.statusVal}>{voiceDraft.courtName || '-'}</Text>
+                    
+                    <Text style={styles.statusLabel}>Date:</Text>
+                    <Text style={styles.statusVal}>
+                      {voiceDraft.date 
+                        ? (voiceDraft.endDate && voiceDraft.endDate !== voiceDraft.date
+                          ? `${moment(voiceDraft.date).format('DD-MM-YYYY')} to ${moment(voiceDraft.endDate).format('DD-MM-YYYY')}`
+                          : moment(voiceDraft.date).format('DD-MM-YYYY'))
+                        : '-'}
+                    </Text>
+                    
+                    <Text style={styles.statusLabel}>Time:</Text>
+                    <Text style={styles.statusVal}>
+                      {voiceDraft.startTime ? `${formatISTTime(voiceDraft.startTime)} - ${voiceDraft.endTime ? formatISTTime(voiceDraft.endTime) : ''}` : '-'}
+                    </Text>
+                    
+                    <Text style={styles.statusLabel}>Slots Count:</Text>
+                    <Text style={styles.statusVal}>
+                      {(() => {
+                        if (!voiceDraft.startTime || !voiceDraft.endTime) return '-';
+                        const startParts = voiceDraft.startTime.split(':').map(Number);
+                        const endParts = voiceDraft.endTime.split(':').map(Number);
+                        const diffMinutes = (endParts[0] * 60 + endParts[1]) - (startParts[0] * 60 + startParts[1]);
+                        const dailyHours = Math.max(0, Math.round(diffMinutes / 60));
+                        
+                        if (voiceDraft.endDate && voiceDraft.endDate !== voiceDraft.date) {
+                          const start = moment(voiceDraft.date);
+                          const end = moment(voiceDraft.endDate);
+                          const daysCount = Math.max(1, end.diff(start, 'days') + 1);
+                          const totalSlots = dailyHours * daysCount;
+                          return `${totalSlots} slots (${dailyHours} slots/day x ${daysCount} days)`;
+                        }
+                        
+                        return `${dailyHours} slot${dailyHours !== 1 ? 's' : ''}`;
+                      })()}
+                    </Text>
+                    
+                    <Text style={styles.statusLabel}>Name:</Text>
+                    <Text style={styles.statusVal}>{voiceDraft.customerName || '-'}</Text>
+                    
+                    <Text style={styles.statusLabel}>Phone:</Text>
+                    <Text style={styles.statusVal}>{voiceDraft.phoneNumber || '-'}</Text>
+                    
+                    <Text style={styles.statusLabel}>Amount:</Text>
+                    <Text style={styles.statusVal}>
+                      {voiceDraft.amount 
+                        ? (() => {
+                            let label = `₹${voiceDraft.amount}`;
+                            const breakdown = [];
+                            
+                            if (voiceDraft.weekdaySlotsCount > 0) {
+                              const weekdayRate = Math.round(voiceDraft.weekdayAmount / voiceDraft.weekdaySlotsCount);
+                              breakdown.push(`Weekdays: ${voiceDraft.weekdaySlotsCount} slots @ ₹${weekdayRate}/slot`);
+                            }
+                            if (voiceDraft.weekendSlotsCount > 0) {
+                              const weekendRate = Math.round(voiceDraft.weekendAmount / voiceDraft.weekendSlotsCount);
+                              breakdown.push(`Weekends: ${voiceDraft.weekendSlotsCount} slots @ ₹${weekendRate}/slot`);
+                            }
+                            
+                            if (breakdown.length > 0) {
+                              return `${label}\n(${breakdown.join('\n')})`;
+                            }
+                            return label;
+                          })()
+                        : '-'}
+                    </Text>
+                  </View>
+                  
+                  {/* Hybrid Confirmation Button */}
+                  {voiceState === 'CONFIRMATION' && (
+                    <TouchableOpacity 
+                      style={styles.confirmBtn}
+                      onPress={() => sendVoiceMessage("Yes")}
+                    >
+                      <Text style={styles.confirmBtnText}>Confirm Booking</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* Input Bar (Keyboard Debug Mode Fallback) */}
+              <View style={styles.inputBar}>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Type command (e.g. Sunday 6 PM)..."
+                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  value={voiceText}
+                  onChangeText={setVoiceText}
+                  onSubmitEditing={() => sendVoiceMessage(voiceText)}
+                />
+                <TouchableOpacity 
+                  style={styles.sendBtn}
+                  onPress={() => sendVoiceMessage(voiceText)}
+                >
+                  <Icon name="send" size={20} color="#000" />
+                </TouchableOpacity>
+              </View>
+              
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
     </View>
   );
 };
@@ -1107,8 +1410,8 @@ const styles = StyleSheet.create({
   headerDropdownText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
 
   /* ── Horizontal Date Selector ── */
-  datePickerContainer: { marginTop: 14, paddingTop: 24, paddingBottom: 14, backgroundColor: '#000' },
-  dateScroll: { paddingHorizontal: 16, gap: 10 },
+  datePickerContainer: { marginTop: 14, paddingVertical: 8, backgroundColor: '#000', overflow: 'visible' },
+  dateScroll: { paddingHorizontal: 16, paddingVertical: 10, gap: 10, overflow: 'visible' },
   calendarBtn: {
     width: 64, height: 86, borderRadius: 20,
     backgroundColor: '#0F0F0F',
@@ -1122,21 +1425,20 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4,
   },
   dateBoxInactive: {
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#121212',
     borderWidth: 1, borderColor: '#2A2A2A',
-    borderBottomWidth: 3, borderBottomColor: '#171717',
-    transform: [{ perspective: 1000 }, { rotateX: '6deg' }, { rotateY: '-4deg' }],
+    borderBottomWidth: 3, borderBottomColor: '#1A1A1A',
   },
   dateBoxSelected: {
-    backgroundColor: '#171717',
+    backgroundColor: '#1E1E1E',
     borderWidth: 1, borderColor: '#FFD400',
     borderBottomWidth: 4, borderBottomColor: '#BCA100',
-    transform: [{ scale: 1.02 }],
-    shadowColor: '#FFD400', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 8,
+    transform: [{ scale: 1.05 }],
+    shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
   },
-  dateDay: { fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
+  dateDay: { fontSize: 10, color: 'rgba(255,255,255,0.5)', fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
   dateNum: { fontSize: 20, color: '#FFF', fontFamily: Typography.fontFamily.bold, marginVertical: 1 },
-  dateMonth: { fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: Typography.fontFamily.medium },
+  dateMonth: { fontSize: 10, color: 'rgba(255,255,255,0.5)', fontFamily: Typography.fontFamily.medium },
   dateTextSelected: { color: '#FFD400' },
 
   /* ── Availability Summary Card ── */
@@ -1301,7 +1603,157 @@ const styles = StyleSheet.create({
   calDaySel: { backgroundColor: '#FFD400', borderRadius: 20 },
   calDayText: { color: '#FFF', fontSize: 13, fontFamily: Typography.fontFamily.medium },
   closeModalBtn: { backgroundColor: '#2A2A2A', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  closeModalText: { color: '#FFF', fontSize: 13, fontFamily: Typography.fontFamily.bold }
+  closeModalText: { color: '#FFF', fontSize: 13, fontFamily: Typography.fontFamily.bold },
+
+  /* ── Voice Assistant Styles ── */
+  voiceAssistantFab: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFD400',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FFD400',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6,
+    zIndex: 99
+  },
+  assistantOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'flex-end'
+  },
+  assistantContainer: {
+    backgroundColor: '#121212',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    height: '80%',
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    padding: 20,
+    flexDirection: 'column'
+  },
+  assistantHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderColor: '#2A2A2A',
+    paddingBottom: 16
+  },
+  assistantTitle: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF'
+  },
+  messagesList: {
+    flex: 1,
+    marginVertical: 12
+  },
+  messageBubble: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+    marginVertical: 6,
+    maxWidth: '80%'
+  },
+  ownerBubble: {
+    backgroundColor: '#FFD400',
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: 4
+  },
+  assistantBubble: {
+    backgroundColor: '#1E1E1E',
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: '#2A2A2A'
+  },
+  ownerText: {
+    color: '#000',
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium
+  },
+  assistantText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium
+  },
+  statusCard: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    marginBottom: 12
+  },
+  statusCardTitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFD400',
+    marginBottom: 10,
+    textTransform: 'uppercase'
+  },
+  statusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 8
+  },
+  statusLabel: {
+    width: '30%',
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium
+  },
+  statusVal: {
+    width: '70%',
+    color: '#FFF',
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold
+  },
+  confirmBtn: {
+    backgroundColor: '#FFD400',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 14
+  },
+  confirmBtnText: {
+    color: '#000',
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold
+  },
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20
+  },
+  textInput: {
+    flex: 1,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    color: '#FFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium
+  },
+  sendBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFD400',
+    alignItems: 'center',
+    justifyContent: 'center'
+  }
 });
 
 export default SlotManagerScreen;

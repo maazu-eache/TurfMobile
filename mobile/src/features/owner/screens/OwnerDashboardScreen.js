@@ -3,9 +3,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, Image, Dimensions,
+  RefreshControl, Image, Dimensions, ImageBackground,
 } from 'react-native';
 import Modal from 'react-native-modal';
+import NativeLinearGradient from 'react-native-linear-gradient';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -14,9 +15,12 @@ import { logout } from '../../auth/authSlice';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import api from '../../../api/axios';
+import { getImageUrl } from '../../../api/axios';
 import NotificationBell from '../../../components/NotificationBell';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import AppUpdateBanner from '../../../components/common/AppUpdateBanner';
+import SharePreviewModal from '../../tournament/components/SharePreviewModal';
+import { TurfPoster } from '../../tournament/components/PosterTemplates';
 
 const { width: W } = Dimensions.get('window');
 
@@ -77,6 +81,8 @@ const OwnerDashboardScreen = ({ navigation }) => {
   const { dashboard, isLoading } = useSelector((s) => s.owner);
   const { user } = useSelector((s) => s.auth);
   const [revenueTab, setRevenueTab] = useState('revenue');
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [selectedShareTurf, setSelectedShareTurf] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -212,48 +218,123 @@ const OwnerDashboardScreen = ({ navigation }) => {
           </TouchableOpacity>
         ) : (
           <>
-            {turfs.slice(0, 3).map((turf) => (
-              <TouchableOpacity
-                key={turf._id}
-                style={styles.turfCard}
-                onPress={() => navigation.navigate('TurfRegistration', { editTurf: turf })}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.turfBar, { backgroundColor: TURF_STATUS[turf.status]?.color || Colors.textTertiary }]} />
-                <View style={styles.turfInfo}>
-                  <View style={styles.turfTopRow}>
-                    <Text style={styles.turfName} numberOfLines={1}>{turf.name}</Text>
-                    <StatusPill status={turf.status} />
-                  </View>
-                  <View style={styles.turfMetaRow}>
-                    <Icon name="map-marker-outline" size={11} color={Colors.textTertiary} />
-                    <Text style={styles.turfMetaTxt}>{turf.city}</Text>
-                    <View style={styles.dot} />
-                    <Icon name="tag-outline" size={11} color={Colors.textTertiary} />
-                    <Text style={styles.turfMetaTxt}>{turf.type}</Text>
-                    {turf.pendingActionsCount > 0 && (
-                      <>
-                        <View style={styles.dot} />
-                        <Icon name="alert-circle" size={11} color={Colors.warning} />
-                        <Text style={[styles.turfMetaTxt, { color: Colors.warning }]}>{turf.pendingActionsCount} pending</Text>
-                      </>
-                    )}
-                  </View>
-                  <View style={styles.turfRatingRow}>
-                    <Icon name="star" size={11} color={Colors.primary} />
-                    <Text style={styles.turfRatingTxt}>{turf.rating > 0 ? turf.rating.toFixed(1) : 'New'}</Text>
-                  </View>
-                </View>
-                {/* Manage Slots — bigger right column */}
+            {turfs.slice(0, 3).map((turf) => {
+              const coverImg = turf.coverImage
+                ? { uri: getImageUrl(turf.coverImage) }
+                : null;
+              const statusColor = TURF_STATUS[turf.status]?.color || Colors.textTertiary;
+              return (
                 <TouchableOpacity
-                  style={styles.slotsBtn}
-                  onPress={() => navigation.navigate('SlotManager', { turfId: turf._id })}
+                  key={turf._id}
+                  style={styles.turfCard}
+                  onPress={() => navigation.navigate('TurfRegistration', { editTurf: turf })}
+                  activeOpacity={0.88}
                 >
-                  <Icon name="clock-edit-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.slotsBtnTxt}>Slots</Text>
+                  {/* Left — image thumbnail */}
+                  <View style={styles.turfThumbWrap}>
+                    {coverImg ? (
+                      <Image source={coverImg} style={styles.turfThumb} />
+                    ) : (
+                      <View style={styles.turfThumbPlaceholder}>
+                        <Icon name="image-off-outline" size={26} color="rgba(255,255,255,0.2)" />
+                      </View>
+                    )}
+                    {/* Right-edge fade */}
+                    <NativeLinearGradient
+                      colors={['transparent', Colors.backgroundCard]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.turfThumbFade}
+                    />
+                    {/* Status dot on thumbnail */}
+                    <View style={[styles.turfThumbStatus, { backgroundColor: statusColor }]} />
+                  </View>
+
+                  {/* Right — content */}
+                  <View style={styles.turfContent}>
+                    {/* Top row: name + status pill */}
+                    <View style={styles.turfContentTopRow}>
+                      <Text
+                        style={styles.turfContentName}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {turf.name}
+                      </Text>
+                      <View style={[styles.turfStatusPill, { backgroundColor: statusColor + '22', borderColor: statusColor + '55' }]}>
+                        <View style={[styles.turfStatusDot, { backgroundColor: statusColor }]} />
+                        <Text style={[styles.turfStatusTxt, { color: statusColor }]} numberOfLines={1}>{TURF_STATUS[turf.status]?.label || 'Inactive'}</Text>
+                      </View>
+                    </View>
+
+                    {/* Meta row */}
+                    <View style={styles.turfContentMeta}>
+                      <Icon name="map-marker" size={11} color={Colors.textTertiary} />
+                      <Text style={styles.turfContentMetaTxt}>{turf.city}</Text>
+                      {turf.type ? (
+                        <>
+                          <View style={styles.turfContentDot} />
+                          <Text style={styles.turfContentMetaTxt}>{turf.type}</Text>
+                        </>
+                      ) : null}
+                      {turf.size ? (
+                        <>
+                          <View style={styles.turfContentDot} />
+                          <Icon name="resize" size={11} color={Colors.textTertiary} />
+                          <Text style={styles.turfContentMetaTxt}>{turf.size}</Text>
+                        </>
+                      ) : null}
+                    </View>
+
+                    {/* Rating + pending */}
+                    <View style={styles.turfContentRatingRow}>
+                      <Icon name="star" size={11} color={Colors.primary} />
+                      <Text style={styles.turfContentRatingTxt}>
+                        {turf.rating > 0 ? turf.rating.toFixed(1) : 'New'}
+                      </Text>
+                      {turf.pendingActionsCount > 0 && (
+                        <View style={styles.turfPendingBadge}>
+                          <Icon name="alert" size={9} color={Colors.warning} />
+                          <Text style={styles.turfPendingTxt}>{turf.pendingActionsCount} pending</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Action buttons */}
+                    <View style={styles.turfActionRow}>
+                      <TouchableOpacity
+                        style={styles.turfActionBtn}
+                        onPress={() => navigation.navigate('SlotManager', { turfId: turf._id })}
+                        activeOpacity={0.8}
+                      >
+                        <Icon name="clock-edit-outline" size={13} color="#000000" />
+                        <Text style={styles.turfActionBtnTxt}>Slots</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.turfActionBtnOutline}
+                        onPress={() => {
+                          setSelectedShareTurf(turf);
+                          setShareModalVisible(true);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Icon name="share-variant" size={13} color={Colors.primary} />
+                        <Text style={styles.turfActionBtnOutlineTxt}>Share</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.turfActionBtnIcon}
+                        onPress={() => navigation.navigate('TurfRegistration', { editTurf: turf })}
+                        activeOpacity={0.8}
+                      >
+                        <Icon name="pencil" size={13} color="rgba(255,255,255,0.6)" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </TouchableOpacity>
-              </TouchableOpacity>
-            ))}
+              );
+            })}
 
             {/* Add another turf — solid professional button */}
             <TouchableOpacity
@@ -425,6 +506,15 @@ const OwnerDashboardScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      <SharePreviewModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        title={selectedShareTurf?.name}
+        shareUrl={`https://scoreverse.in/turf/${selectedShareTurf?._id}`}
+      >
+        {selectedShareTurf ? <TurfPoster turf={selectedShareTurf} /> : <View />}
+      </SharePreviewModal>
     </View>
   );
 };
@@ -462,35 +552,131 @@ const styles = StyleSheet.create({
   secTitle:   { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, letterSpacing: 0.3 },
   seeAll:     { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.primary },
 
-  // Turf cards
+  // Turf cards — horizontal image-left layout
   turfCard: {
-    marginHorizontal: 16, marginBottom: 8,
-    backgroundColor: Colors.backgroundCard, borderRadius: 16,
-    flexDirection: 'row', alignItems: 'stretch',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', overflow: 'hidden',
+    marginHorizontal: 16, marginBottom: 10,
+    backgroundColor: Colors.backgroundCard,
+    borderRadius: 16, overflow: 'hidden',
+    flexDirection: 'row',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    elevation: 4,
+    height: 116,
   },
-  turfBar:       { width: 3 },
-  turfInfo:      { flex: 1, padding: 14 },
-  turfTopRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 },
-  turfName:      { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, flex: 1, marginRight: 10 },
-  turfMetaRow:   { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
-  turfMetaTxt:   { fontSize: 11, color: Colors.textTertiary },
-  dot:           { width: 3, height: 3, borderRadius: 2, backgroundColor: Colors.textTertiary },
-  turfRatingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  turfRatingTxt: { fontSize: 11, fontFamily: Typography.fontFamily.semiBold, color: Colors.primary },
-  // Manage Slots button — full-height right column
-  slotsBtn: {
-    width: 60,
+
+  // Left image column
+  turfThumbWrap: {
+    width: 106,
+    flexShrink: 0,
+    position: 'relative',
+  },
+  turfThumb: {
+    width: 106,
+    height: 116,
+    resizeMode: 'cover',
+  },
+  turfThumbPlaceholder: {
+    width: 106,
+    height: 116,
+    backgroundColor: '#1C1C1C',
     justifyContent: 'center', alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.primaryAlpha10,
-    borderLeftWidth: 1, borderLeftColor: Colors.borderLight,
   },
-  slotsBtnTxt: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: Colors.primary, letterSpacing: 0.5 },
+  turfThumbFade: {
+    position: 'absolute',
+    top: 0, right: 0, bottom: 0,
+    width: 32,
+  },
+  turfThumbStatus: {
+    position: 'absolute',
+    top: 8, left: 8,
+    width: 8, height: 8, borderRadius: 4,
+    borderWidth: 1.5, borderColor: Colors.backgroundCard,
+  },
+
+  // Right content column
+  turfContent: {
+    flex: 1,
+    padding: 12,
+    paddingLeft: 10,
+    justifyContent: 'space-between',
+  },
+  turfContentTopRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 8, marginBottom: 4,
+  },
+  turfContentName: {
+    flex: 1,
+    fontSize: 14, fontFamily: Typography.fontFamily.extraBold,
+    color: Colors.textPrimary, letterSpacing: -0.2,
+  },
+  turfContentMeta: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 4, flexWrap: 'wrap', marginBottom: 3,
+  },
+  turfContentMetaTxt: {
+    fontSize: 10, color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  turfContentDot: {
+    width: 3, height: 3, borderRadius: 2,
+    backgroundColor: Colors.textTertiary,
+  },
+  turfContentRatingRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 4, marginBottom: 8,
+  },
+  turfContentRatingTxt: {
+    fontSize: 11, fontFamily: Typography.fontFamily.semiBold, color: Colors.primary,
+  },
+
+  turfStatusPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: 20, borderWidth: 1,
+    flexShrink: 0,
+    maxWidth: 80,
+  },
+  turfStatusDot: { width: 5, height: 5, borderRadius: 3 },
+  turfStatusTxt: { fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.2 },
+
+  turfPendingBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: 'rgba(245,158,11,0.15)',
+    paddingHorizontal: 5, paddingVertical: 2, borderRadius: 8,
+    borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)',
+  },
+  turfPendingTxt: { fontSize: 8, color: Colors.warning, fontFamily: Typography.fontFamily.bold },
+
+  turfActionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+  },
+  turfActionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    backgroundColor: Colors.primary,
+    paddingVertical: 7, borderRadius: 10,
+  },
+  turfActionBtnTxt: {
+    fontSize: 11, fontFamily: Typography.fontFamily.bold, color: '#000000',
+  },
+  turfActionBtnOutline: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    backgroundColor: 'transparent',
+    paddingVertical: 7, borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(255,204,0,0.4)',
+  },
+  turfActionBtnOutlineTxt: {
+    fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.primary,
+  },
+  turfActionBtnIcon: {
+    width: 30, height: 30, borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
 
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
   statusDot:  { width: 5, height: 5, borderRadius: 3 },
   statusTxt:  { fontSize: 10, fontFamily: Typography.fontFamily.bold },
+  dot:        { width: 3, height: 3, borderRadius: 2, backgroundColor: Colors.textTertiary },
 
   // Add Another Turf button (solid)
   addTurfBtn: {

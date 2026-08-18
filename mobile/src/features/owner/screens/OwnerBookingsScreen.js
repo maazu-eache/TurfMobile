@@ -344,13 +344,19 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Text style={styles.headerTitle}>All Bookings</Text>
-        {turfs.length > 0 && (
+        {turfs.length > 1 ? (
           <TouchableOpacity style={styles.headerDropdown} onPress={() => setTurfModalVisible(true)}>
             <Text style={styles.headerDropdownText} numberOfLines={1}>
               {selectedTurf === 'all' ? 'All Turfs' : (turfs.find(t => t._id === selectedTurf)?.name || 'Select Ground')}
             </Text>
             <Icon name="chevron-down" size={20} color={Colors.primary} style={{marginLeft: 4}} />
           </TouchableOpacity>
+        ) : (
+          turfs.length === 1 && (
+            <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary }}>
+              {turfs[0].name}
+            </Text>
+          )
         )}
       </View>
 

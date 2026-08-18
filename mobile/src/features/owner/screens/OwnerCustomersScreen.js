@@ -61,9 +61,10 @@ const OwnerCustomersScreen = ({ navigation }) => {
           <Text style={styles.revenueLabel}>Revenue</Text>
           <Text style={styles.revenueValue}>₹{item.totalRevenue.toLocaleString()}</Text>
         </View>
-        <View style={styles.bookingsBox}>
-          <Text style={styles.bookingsText}>{item.totalBookings} Booking{item.totalBookings > 1 ? 's' : ''}</Text>
-        </View>
+          <Text style={styles.bookingsText}>
+            {item.totalBookings} Booking{item.totalBookings > 1 ? 's' : ''}
+            {item.totalSlots ? ` (${item.totalSlots} Slot${item.totalSlots > 1 ? 's' : ''})` : ''}
+          </Text>
       </View>
     </View>
   );
