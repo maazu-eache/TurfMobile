@@ -26,7 +26,7 @@ const RootNavigator = () => {
       }
     }).catch(() => {});
 
-    const timer = setTimeout(() => setShowSplash(false), 7000); // Wait for the 7s video to finish
+    const timer = setTimeout(() => setShowSplash(false), 7000); // Wait for the 16s video to finish
     return () => clearTimeout(timer);
   }, []);
 

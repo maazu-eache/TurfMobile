@@ -243,6 +243,10 @@
 		},
 		{
 			"isExternal" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-voice/voice/android/build/generated/source/codegen/jni/CMakeLists.txt"
+		},
+		{
+			"isExternal" : true,
 			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-gesture-handler/android/CMakeLists.txt"
 		},
 		{

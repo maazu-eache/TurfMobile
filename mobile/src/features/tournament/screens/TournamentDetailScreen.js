@@ -1174,8 +1174,20 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 <View style={styles.vsContainer}>
                   <View style={styles.teamScoreRow}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                      {isFirstWinner && <MCIcon name="crown" size={14} color={Colors.primary} style={{ marginRight: 4 }} />}
-                      <Text style={[styles.teamNameText, isFirstWinner && styles.winnerTeamText]} numberOfLines={1}>{firstTeam?.name || 'TBD'}</Text>
+                      {firstTeam?.logo ? (
+                        <Image
+                          source={{ uri: getImageUrl(firstTeam.logo) }}
+                          style={{ width: 22, height: 22, borderRadius: 11, marginRight: 8 }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                          <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
+                            {firstTeam?.name?.charAt(0).toUpperCase() || 'T'}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={[styles.teamNameText, isFirstWinner && styles.winnerTeamText, { flex: 1 }]} numberOfLines={1}>{firstTeam?.name || 'TBD'}</Text>
                     </View>
                     <Text style={[styles.scoreText, isFirstWinner && { color: Colors.primary }]}>
                       {firstScore?.runs || 0}/{firstScore?.wickets || 0} <Text style={styles.overText}>({firstScore?.overs || '0.0'})</Text>
@@ -1184,8 +1196,20 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   <View style={styles.vsDivider} />
                   <View style={styles.teamScoreRow}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                      {isSecondWinner && <MCIcon name="crown" size={14} color={Colors.primary} style={{ marginRight: 4 }} />}
-                      <Text style={[styles.teamNameText, isSecondWinner && styles.winnerTeamText]} numberOfLines={1}>{secondTeam?.name || 'TBD'}</Text>
+                      {secondTeam?.logo ? (
+                        <Image
+                          source={{ uri: getImageUrl(secondTeam.logo) }}
+                          style={{ width: 22, height: 22, borderRadius: 11, marginRight: 8 }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                          <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
+                            {secondTeam?.name?.charAt(0).toUpperCase() || 'T'}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={[styles.teamNameText, isSecondWinner && styles.winnerTeamText, { flex: 1 }]} numberOfLines={1}>{secondTeam?.name || 'TBD'}</Text>
                     </View>
                     <Text style={[styles.scoreText, isSecondWinner && { color: Colors.primary }]}>
                       {secondScore?.runs || 0}/{secondScore?.wickets || 0} <Text style={styles.overText}>({secondScore?.overs || '0.0'})</Text>
@@ -2421,7 +2445,56 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         {shareData?.type === 'leaderboard' && (() => {
           const chunkSize = 10;
           const chunks = [];
-          const players = shareData.data.data || [];
+          const type = shareData.data.type;
+          const getValueKey = () => {
+            switch (type) {
+              case "runs": return "runs";
+              case "wickets": return "wickets";
+              case "sixes": return "sixes";
+              case "fours": return "fours";
+              case "strikeRate": return "strikeRate";
+              case "economy": return "economy";
+              case "catches": return "dismissals";
+              case "mvp": return "totalMvp";
+              default: return "value";
+            }
+          };
+
+          let players = shareData.data.data || [];
+          if (type === 'mvp') {
+            const key = getValueKey();
+            players = players.filter(player => {
+              const val = parseFloat(player[key] || player.totalMvp || player.value || 0);
+              return val > 1;
+            });
+          } else if (type === 'runs') {
+            players = players.filter(player => {
+              const val = parseFloat(player.runs || player.value || 0);
+              return val > 0;
+            });
+          } else if (type === 'wickets') {
+            players = players.filter(player => {
+              const wkts = parseFloat(player.wickets || player.value || 0);
+              const overs = parseFloat(player.overs || player.oversBowled || player.bowling?.overs || 0);
+              return wkts > 0 || (wkts === 0 && overs > 0);
+            });
+          } else if (type === 'catches') {
+            players = players.filter(player => {
+              const val = parseFloat(player.dismissals || player.catches || player.value || 0);
+              return val > 0;
+            });
+          } else if (type === 'sixes') {
+            players = players.filter(player => {
+              const val = parseFloat(player.sixes || player.value || 0);
+              return val > 0;
+            });
+          } else if (type === 'fours') {
+            players = players.filter(player => {
+              const val = parseFloat(player.fours || player.value || 0);
+              return val > 0;
+            });
+          }
+
           for (let i = 0; i < players.length; i += chunkSize) {
             chunks.push(players.slice(i, i + chunkSize));
           }

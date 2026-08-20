@@ -4,6 +4,7 @@
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-community/datetimepicker/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-community/netinfo/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-documents/picker/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-voice/voice/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-gesture-handler/android/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-image-picker/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-maps/android/src/main/jni/CMakeLists.txt",
@@ -160,6 +161,11 @@
         "/Users/apple/.gradle/caches/9.3.1/transforms/25ce1d28774cbcb2fe14ad81f3c11f40/transformed/jetified-react-android-0.86.0-release/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
         "/Users/apple/.gradle/caches/9.3.1/transforms/ed58bc8a633de13e3e2325d5f38fa465/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
       ]
+    },
+    "react_codegen_RNVoiceSpec::@1709dfcdf84ac6ba7908": {
+      "artifactName": "react_codegen_RNVoiceSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
     },
     "react_codegen_AsyncStorageSpec::@15af80695a6281ecf900": {
       "artifactName": "react_codegen_AsyncStorageSpec",

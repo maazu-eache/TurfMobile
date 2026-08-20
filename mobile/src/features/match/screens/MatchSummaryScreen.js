@@ -3011,10 +3011,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
       if (ball.isWicket) {
         outcome = 'W';
-        bgColor = Colors.primary;
-        borderColor = Colors.primary;
-        textColor = '#000';
-        glow = Colors.primary;
+        bgColor = Colors.error;
+        borderColor = Colors.error;
+        textColor = '#FFF';
+        glow = Colors.error;
       } else if (ball.isWide) { outcome = `${ball.totalRuns}Wd`; }
       else if (ball.isNoBall) { outcome = `${ball.totalRuns}Nb`; }
       else if (ball.isLegBye) { outcome = `${ball.totalRuns}Lb`; }
@@ -3205,7 +3205,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         else if (b.batsmanRuns === 0) outcome = '•';
 
         let clr = Colors.textSecondary;
-        if (b.isWicket || b.batsmanRuns === 4 || b.batsmanRuns === 6) clr = Colors.primary;
+        if (b.isWicket) clr = Colors.error;
+        else if (b.batsmanRuns === 4 || b.batsmanRuns === 6) clr = Colors.primary;
         else if (b.batsmanRuns > 0) clr = Colors.textPrimary;
 
         return (
@@ -3237,7 +3238,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
             <View style={{ flexDirection: 'row', backgroundColor: Colors.surface, padding: 12, borderRadius: 12, alignItems: 'center', marginBottom: 12 }}>
               <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12, marginRight: 8 }}>Over:</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
                 {sequenceWithDots}
               </View>
             </View>

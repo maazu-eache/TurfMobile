@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
     elevation: 4,
-    height: 116,
+    minHeight: 124,
   },
 
   // Left image column
@@ -568,15 +568,20 @@ const styles = StyleSheet.create({
     width: 106,
     flexShrink: 0,
     position: 'relative',
+    alignSelf: 'stretch',
   },
   turfThumb: {
-    width: 106,
-    height: 116,
+    position: 'absolute',
+    top: 0, left: 0, bottom: 0, right: 0,
+    width: '100%',
+    height: '100%',
     resizeMode: 'cover',
   },
   turfThumbPlaceholder: {
-    width: 106,
-    height: 116,
+    position: 'absolute',
+    top: 0, left: 0, bottom: 0, right: 0,
+    width: '100%',
+    height: '100%',
     backgroundColor: '#1C1C1C',
     justifyContent: 'center', alignItems: 'center',
   },
@@ -595,9 +600,9 @@ const styles = StyleSheet.create({
   // Right content column
   turfContent: {
     flex: 1,
-    padding: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     paddingLeft: 10,
-    justifyContent: 'space-between',
   },
   turfContentTopRow: {
     flexDirection: 'row', alignItems: 'center',
@@ -648,6 +653,7 @@ const styles = StyleSheet.create({
 
   turfActionRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 10,
   },
   turfActionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,

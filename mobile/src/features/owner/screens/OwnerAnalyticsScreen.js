@@ -267,7 +267,7 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
       </View>
 
       {/* ── Body ───────────────────────────────────────────────────────────── */}
-      {isLoading ? (
+      {isLoading && !hasData ? (
         <ScrollView
           contentContainerStyle={ss.scrollContent}
           showsVerticalScrollIndicator={false}

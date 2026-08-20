@@ -49,5 +49,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Voice Booking Assistant uses the microphone to take slot bookings by voice.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Voice Booking Assistant uses speech recognition to convert your spoken commands into booking actions.</string>
 </dict>
 </plist>

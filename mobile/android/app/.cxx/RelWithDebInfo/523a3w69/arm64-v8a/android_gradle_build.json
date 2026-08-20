@@ -4,6 +4,7 @@
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-community/datetimepicker/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-community/netinfo/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-documents/picker/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-voice/voice/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-gesture-handler/android/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-image-picker/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-maps/android/src/main/jni/CMakeLists.txt",
@@ -106,6 +107,11 @@
       "toolchain": "toolchain",
       "abi": "arm64-v8a",
       "artifactName": "react_codegen_RNVectorIconsSpec"
+    },
+    "react_codegen_RNVoiceSpec::@1709dfcdf84ac6ba7908": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_RNVoiceSpec"
     },
     "react_codegen_RNWorkletsSpec::@c787b30dd2b0f948dced": {
       "toolchain": "toolchain",

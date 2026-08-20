@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Platform, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Platform, StatusBar, Image, RefreshControl } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import api from '../../../api/axios';
+import api, { getImageUrl } from '../../../api/axios';
 import { Colors, Typography, Spacing } from '../../../theme/theme';
+import { useEffect, useState } from 'react';
 
 const OwnerCustomersScreen = ({ navigation }) => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -27,6 +28,20 @@ const OwnerCustomersScreen = ({ navigation }) => {
     }
   };
 
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      const res = await api.get('/bookings/owner/customers?limit=100');
+      if (res.data.data) {
+        setCustomers(res.data.data);
+      }
+    } catch (err) {
+      console.error('Error refreshing owner customers:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const filteredCustomers = customers.filter(c => {
     const q = searchQuery.toLowerCase();
     return (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q) || (c.email || '').toLowerCase().includes(q);
@@ -35,9 +50,17 @@ const OwnerCustomersScreen = ({ navigation }) => {
   const renderCustomerItem = ({ item }) => (
     <View style={styles.customerCard}>
       <View style={styles.customerAvatar}>
-        <Text style={styles.avatarText}>
-          {item.name ? item.name.charAt(0).toUpperCase() : '?'}
-        </Text>
+        {item.photo ? (
+          <Image
+            source={{ uri: getImageUrl(item.photo) }}
+            style={styles.avatarImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text style={styles.avatarText}>
+            {item.name ? item.name.charAt(0).toUpperCase() : '?'}
+          </Text>
+        )}
       </View>
       <View style={styles.customerInfo}>
         <Text style={styles.customerName}>{item.name}</Text>
@@ -45,13 +68,13 @@ const OwnerCustomersScreen = ({ navigation }) => {
           {!!item.phone && (
             <View style={styles.contactItem}>
               <Icon name="phone" size={12} color={Colors.textTertiary} />
-              <Text style={styles.contactText}>{item.phone}</Text>
+              <Text style={styles.contactText} numberOfLines={1} ellipsizeMode="tail">{item.phone}</Text>
             </View>
           )}
           {!!item.email && (
             <View style={styles.contactItem}>
               <Icon name="email" size={12} color={Colors.textTertiary} />
-              <Text style={styles.contactText}>{item.email}</Text>
+              <Text style={styles.contactText} numberOfLines={1} ellipsizeMode="tail">{item.email}</Text>
             </View>
           )}
         </View>
@@ -61,10 +84,10 @@ const OwnerCustomersScreen = ({ navigation }) => {
           <Text style={styles.revenueLabel}>Revenue</Text>
           <Text style={styles.revenueValue}>₹{item.totalRevenue.toLocaleString()}</Text>
         </View>
-          <Text style={styles.bookingsText}>
-            {item.totalBookings} Booking{item.totalBookings > 1 ? 's' : ''}
-            {item.totalSlots ? ` (${item.totalSlots} Slot${item.totalSlots > 1 ? 's' : ''})` : ''}
-          </Text>
+        <Text style={styles.bookingsText}>
+          {item.totalBookings} Booking{item.totalBookings > 1 ? 's' : ''}
+          {item.totalSlots ? ` (${item.totalSlots} Slot${item.totalSlots > 1 ? 's' : ''})` : ''}
+        </Text>
       </View>
     </View>
   );
@@ -108,6 +131,14 @@ const OwnerCustomersScreen = ({ navigation }) => {
           keyExtractor={(item, index) => `${item.phone || item.email || item.name}-${index}`}
           renderItem={renderCustomerItem}
           contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+            />
+          }
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
               <Icon name="account-search" size={48} color={Colors.border} />
@@ -202,6 +233,11 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
     color: Colors.primary,
   },
+  avatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
   customerInfo: {
     flex: 1,
   },
@@ -212,19 +248,19 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   contactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 12,
+    gap: 4,
+    marginTop: 4,
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 1,
   },
   contactText: {
     fontSize: 12,
     color: Colors.textSecondary,
     marginLeft: 4,
+    flexShrink: 1,
   },
   statsContainer: {
     alignItems: 'flex-end',

@@ -27,7 +27,7 @@ const SplashScreen = ({ navigation, onFinished }) => {
     <View style={styles.backgroundImage}>
       <Video 
         ref={videoRef}
-        source={require('../../../../Launch_screen.mp4')} 
+        source={require('../../../../Launch_Screen.mp4')} 
         style={StyleSheet.absoluteFill}
         resizeMode="cover"
         repeat={false}

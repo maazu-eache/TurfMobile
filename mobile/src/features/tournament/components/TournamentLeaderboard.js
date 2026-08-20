@@ -70,11 +70,20 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
 
   const getActiveData = () => {
     switch (activeTab) {
-      case 'Batters': return tournament.leaderboard.mostRuns || [];
-      case 'Bowlers': return tournament.leaderboard.mostWickets || [];
-      case 'Fielders': return tournament.leaderboard.bestFielders || [];
-      case 'MVP': return tournament.mvpLeaderboard || [];
-      default: return [];
+      case 'Batters':
+        return (tournament.leaderboard.mostRuns || []).filter(item => parseFloat(item.runs || 0) > 0);
+      case 'Bowlers':
+        return (tournament.leaderboard.mostWickets || []).filter(item => {
+          const wkts = parseFloat(item.wickets || 0);
+          const overs = parseFloat(item.overs || item.oversBowled || item.bowling?.overs || 0);
+          return wkts > 0 || (wkts === 0 && overs > 0);
+        });
+      case 'Fielders':
+        return (tournament.leaderboard.bestFielders || []).filter(item => parseFloat(item.dismissals || 0) > 0);
+      case 'MVP':
+        return (tournament.mvpLeaderboard || []).filter(item => parseFloat(item.totalMvp || 0) > 1);
+      default:
+        return [];
     }
   };
 

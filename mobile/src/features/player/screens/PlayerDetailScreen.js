@@ -560,12 +560,12 @@ const PlayerDetailScreen = ({ navigation, route }) => {
             <Image
               source={{ uri: getImageUrl(photoUrl) }}
               style={styles.heroBgImage}
-              resizeMode="contain"
+              resizeMode="cover"
             />
           ) : (
             <Image
               source={SPORTVERSE_LOGO}
-              style={styles.heroBgImage}
+              style={styles.heroBgImageFallback}
               resizeMode="cover"
             />
           )}
@@ -850,6 +850,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '100%',
     height: '100%',
+    zIndex: 0,
+  },
+  // Fallback image: anchor to top so the bottom is cropped by overflow:hidden
+  heroBgImageFallback: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    // Intentionally taller than the banner so the bottom gets cropped
+    height: '140%',
+    width: '100%',
     zIndex: 0,
   },
   heroBgFallback: {

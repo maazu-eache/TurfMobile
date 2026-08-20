@@ -7,12 +7,12 @@ import MaterialIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, BorderRadius, Spacing } from '../../../theme/theme';
 
 const THEMES = [
-  { key: 'Aesthetic', label: 'Glass',    icon: 'layers',         iconSet: 'feather',   color: '#A8B5D1' },
-  { key: 'Hype',      label: 'Liquid',   icon: 'droplet',        iconSet: 'feather',   color: '#00F2FE' },
-  { key: 'Aura',      label: 'Aura',     icon: 'star',           iconSet: 'feather',   color: '#A855F7' },
-  { key: 'Chrome',    label: 'Metal',    icon: 'cpu',            iconSet: 'feather',   color: '#C0C0C0' },
-  { key: 'Cyber',     label: 'Cyber',    icon: 'zap',            iconSet: 'feather',   color: '#FF0055' },
-  { key: 'Drip',      label: 'Premium',  icon: 'award',          iconSet: 'feather',   color: '#F5A623' },
+  { key: 'Aesthetic', label: 'Golden',  icon: 'sun',      iconSet: 'feather', color: '#E8C468' },
+  { key: 'Hype',      label: 'Neon',    icon: 'zap',      iconSet: 'feather', color: '#38F2E0' },
+  { key: 'Aura',      label: 'Royal',   icon: 'star',     iconSet: 'feather', color: '#C9A24B' },
+  { key: 'Chrome',    label: 'Silver',  icon: 'film',     iconSet: 'feather', color: '#E4E4E4' },
+  { key: 'Cyber',     label: 'Crimson', icon: 'target',   iconSet: 'feather', color: '#E8384F' },
+  { key: 'Drip',      label: 'Amber',   icon: 'award',    iconSet: 'feather', color: '#D98A3D' },
 ];
 
 const SharePreviewModal = ({ visible, onClose, title, shareUrl, children }) => {
@@ -27,12 +27,15 @@ const SharePreviewModal = ({ visible, onClose, title, shareUrl, children }) => {
       const uris = [];
       const keys = Object.keys(viewShotRefs.current || {}).sort((a,b) => parseInt(a) - parseInt(b));
       
+      const safeTitle = title ? title.replace(/[^a-zA-Z0-9]/g, '_') : 'poster';
+      
       for (const key of keys) {
         const ref = viewShotRefs.current[key];
         if (ref) {
           const uri = await captureRef(ref, {
             format: 'png',
             quality: 1,
+            fileName: `${safeTitle}_poster`,
           });
           uris.push(uri);
         }
@@ -77,7 +80,11 @@ const SharePreviewModal = ({ visible, onClose, title, shareUrl, children }) => {
 
           {/* Theme Selector */}
           <View style={styles.themeSelectorWrapper}>
-            <View style={styles.themeRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.themeScrollContainer}
+            >
               {THEMES.map(theme => {
                 const isActive = activeTheme === theme.key;
                 return (
@@ -100,8 +107,9 @@ const SharePreviewModal = ({ visible, onClose, title, shareUrl, children }) => {
                   </TouchableOpacity>
                 );
               })}
-            </View>
+            </ScrollView>
           </View>
+
 
           {/* Preview Area */}
           <ScrollView
@@ -185,17 +193,17 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.08)',
     backgroundColor: 'rgba(255,255,255,0.01)',
   },
-  themeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  themeScrollContainer: {
+    paddingHorizontal: 8,
   },
   themeItem: {
-    flex: 1,
     alignItems: 'center',
     paddingVertical: 10,
+    paddingHorizontal: 16,
     borderBottomWidth: 2.5,
     borderBottomColor: 'transparent',
     gap: 4,
+    minWidth: 80,
   },
   themeIconBg: {
     width: 32,
@@ -217,7 +225,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   previewContainer: {
-    padding: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.sm,
     alignItems: 'center',
   },
   viewShotContainer: {

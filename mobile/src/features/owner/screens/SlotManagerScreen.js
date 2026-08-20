@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
   ActivityIndicator, Modal, TextInput, Animated, StatusBar,
-  Platform, KeyboardAvoidingView 
+  Platform, KeyboardAvoidingView, PermissionsAndroid, NativeModules
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -16,6 +16,7 @@ import { formatISTTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import moment from 'moment';
 import Tts from 'react-native-tts';
+import Voice from '@react-native-voice/voice';
 
 const isPastSlot = (selectedDate, startTime) => {
   const slotStart = moment(`${selectedDate} ${startTime}`, 'YYYY-MM-DD HH:mm').utcOffset("+05:30", true);
@@ -67,6 +68,11 @@ const SlotManagerScreen = ({ navigation }) => {
   const [voiceText, setVoiceText] = useState('');
   const [assistantMessages, setAssistantMessages] = useState([]);
   const scrollRef = useRef(null);
+
+  // STT states
+  const [isListening, setIsListening] = useState(false);
+  const [partialText, setPartialText] = useState('');
+  const micPulse = useRef(new Animated.Value(1)).current;
   
   const [dates, setDates] = useState(generateDates());
   const [selectedSlots, setSelectedSlots] = useState([]);
@@ -191,8 +197,8 @@ const SlotManagerScreen = ({ navigation }) => {
     Tts.setDefaultLanguage('en-IN').catch(() => {
       Tts.setDefaultLanguage('en-US').catch(() => {});
     });
-    Tts.setDefaultRate(0.55);
-    Tts.setDefaultPitch(1.1);
+    Tts.setDefaultRate(0.46);
+    Tts.setDefaultPitch(0.85);
 
     // Query and set system male voice
     Tts.voices().then(voices => {
@@ -221,6 +227,121 @@ const SlotManagerScreen = ({ navigation }) => {
       }
     }).catch(() => {});
   }, []);
+
+  // ── Voice Recognition (STT) Setup ─────────────────────────────
+  useEffect(() => {
+    Voice.onSpeechStart = () => {
+      setIsListening(true);
+      setPartialText('');
+    };
+
+    Voice.onSpeechPartialResults = (e) => {
+      const partial = e.value?.[0] || '';
+      setPartialText(partial);
+      setVoiceText(partial);
+    };
+
+    Voice.onSpeechResults = (e) => {
+      const recognized = e.value?.[0] || '';
+      setIsListening(false);
+      setPartialText('');
+      if (recognized.trim()) {
+        setVoiceText(recognized);
+        // Auto-send after a brief delay so the user can see the text
+        setTimeout(() => sendVoiceMessage(recognized), 300);
+      }
+    };
+
+    Voice.onSpeechError = (e) => {
+      setIsListening(false);
+      setPartialText('');
+      const errCode = e.error?.code;
+      // 7 = no match, 5 = client error — don't alert on these, just stop
+      if (errCode !== '7' && errCode !== '5') {
+        showCustomAlert('Mic Error', e.error?.message || 'Speech recognition failed. Try typing instead.');
+      }
+    };
+
+    Voice.onSpeechEnd = () => {
+      setIsListening(false);
+    };
+
+    return () => {
+      Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
+    };
+  }, []);
+
+  // Pulse animation for the mic button while listening
+  useEffect(() => {
+    if (isListening) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(micPulse, { toValue: 1.25, duration: 600, useNativeDriver: true }),
+          Animated.timing(micPulse, { toValue: 1.0, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      micPulse.stopAnimation();
+      Animated.timing(micPulse, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    }
+  }, [isListening]);
+
+  const requestMicPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          {
+            title: 'Microphone Permission',
+            message: 'Voice Booking Assistant needs access to your microphone to take bookings by voice.',
+            buttonPositive: 'Allow',
+            buttonNegative: 'Deny',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch {
+        return false;
+      }
+    }
+    return true; // iOS permission handled via Info.plist
+  };
+
+  const startListening = async () => {
+    if (isListening) {
+      try { await Voice.stop(); } catch { /* ignore */ }
+      setIsListening(false);
+      return;
+    }
+    // Stop TTS so it doesn't interfere with recognition
+    Tts.stop();
+
+    if (!NativeModules.Voice) {
+      showCustomAlert('Mic Error', 'Voice module is not compiled in this build. Please run "npm run android" inside the mobile directory to compile the native modules.');
+      return;
+    }
+
+    const hasPermission = await requestMicPermission();
+    if (!hasPermission) {
+      showCustomAlert('Permission Denied', 'Microphone access is required. Enable it in Settings.');
+      return;
+    }
+    try {
+      setVoiceText('');
+      setPartialText('');
+      await Voice.start('en-IN');
+    } catch (e) {
+      setIsListening(false);
+      console.log('Voice start error:', e);
+      showCustomAlert('Mic Error', e.message ? `Could not start voice recognition: ${e.message}. Try typing instead.` : 'Could not start voice recognition. Try typing instead.');
+    }
+  };
+
+  const stopListening = async () => {
+    try {
+      await Voice.stop();
+    } catch { /* ignore */ }
+    setIsListening(false);
+  };
 
   const sendVoiceMessage = async (text) => {
     if (!text.trim()) return;
@@ -1197,7 +1318,9 @@ const SlotManagerScreen = ({ navigation }) => {
       {/* Voice Assistant Floating Action Button */}
       <TouchableOpacity 
         style={styles.voiceAssistantFab}
-        onPress={() => {
+        onPress={async () => {
+          // Request permission before opening so the modal is ready to listen immediately
+          await requestMicPermission();
           setVoiceAssistantVisible(true);
           setVoiceState('IDLE');
           setVoiceDraft(null);
@@ -1356,19 +1479,44 @@ const SlotManagerScreen = ({ navigation }) => {
                 </View>
               )}
 
-              {/* Input Bar (Keyboard Debug Mode Fallback) */}
+              {/* Input Bar — mic + text + send */}
               <View style={styles.inputBar}>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Type command (e.g. Sunday 6 PM)..."
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  value={voiceText}
-                  onChangeText={setVoiceText}
-                  onSubmitEditing={() => sendVoiceMessage(voiceText)}
-                />
+                {/* Pulsing mic button */}
+                <Animated.View style={{ transform: [{ scale: micPulse }] }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.micBtn,
+                      isListening && styles.micBtnActive,
+                    ]}
+                    onPress={startListening}
+                    activeOpacity={0.8}
+                  >
+                    <Icon
+                      name={isListening ? 'microphone' : 'microphone-outline'}
+                      size={22}
+                      color={isListening ? '#000' : '#FFD400'}
+                    />
+                  </TouchableOpacity>
+                </Animated.View>
+
+                <View style={{ flex: 1 }}>
+                  {isListening && (
+                    <Text style={styles.listeningLabel}>Listening…</Text>
+                  )}
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder={isListening ? '' : 'Speak or type (e.g. Sunday 6 PM)...'}
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    value={voiceText}
+                    onChangeText={setVoiceText}
+                    onSubmitEditing={() => { stopListening(); sendVoiceMessage(voiceText); }}
+                    editable={!isListening}
+                  />
+                </View>
+
                 <TouchableOpacity 
                   style={styles.sendBtn}
-                  onPress={() => sendVoiceMessage(voiceText)}
+                  onPress={() => { stopListening(); sendVoiceMessage(voiceText); }}
                 >
                   <Icon name="send" size={20} color="#000" />
                 </TouchableOpacity>
@@ -1735,14 +1883,13 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   textInput: {
-    flex: 1,
     backgroundColor: '#1E1E1E',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#2A2A2A',
     color: '#FFF',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium
   },
@@ -1753,7 +1900,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFD400',
     alignItems: 'center',
     justifyContent: 'center'
-  }
+  },
+  micBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#1E1E1E',
+    borderWidth: 1.5,
+    borderColor: '#FFD400',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  micBtnActive: {
+    backgroundColor: '#FFD400',
+    borderColor: '#FFD400',
+  },
+  listeningLabel: {
+    color: '#FFD400',
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    marginBottom: 2,
+    marginLeft: 4,
+    letterSpacing: 0.5,
+  },
 });
 
 export default SlotManagerScreen;
