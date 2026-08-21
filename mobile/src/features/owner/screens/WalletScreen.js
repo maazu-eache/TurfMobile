@@ -326,6 +326,18 @@ const WalletScreen = ({ navigation }) => {
             >
               <Text style={styles.withdrawBtnText}>Request Withdrawal</Text>
             </TouchableOpacity>
+
+            {!bankDetails?.accountNumber && (
+              <Text style={{ 
+                color: Colors.warning, 
+                fontSize: 12, 
+                fontFamily: Typography.fontFamily.medium, 
+                textAlign: 'center', 
+                marginTop: 8 
+              }}>
+                Add bank details to request withdrawal
+              </Text>
+            )}
           </View>
 
           {/* Bank Details Section (Hidden behind button) */}

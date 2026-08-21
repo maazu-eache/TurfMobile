@@ -51,6 +51,8 @@ const generateDates = (startDate = new Date()) => {
   return dates;
 };
 
+const VOICE_ASSISTANT_ENABLED = false;
+
 const SlotManagerScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { dashboard } = useSelector((state) => state.owner);
@@ -1316,24 +1318,26 @@ const SlotManagerScreen = ({ navigation }) => {
       </Modal>
 
       {/* Voice Assistant Floating Action Button */}
-      <TouchableOpacity 
-        style={styles.voiceAssistantFab}
-        onPress={async () => {
-          // Request permission before opening so the modal is ready to listen immediately
-          await requestMicPermission();
-          setVoiceAssistantVisible(true);
-          setVoiceState('IDLE');
-          setVoiceDraft(null);
-          const greetingText = "Pluto here. I check and book single slots. Don't try bulk range bookings or status changes unless you enjoy wasting both our times. What do you want?";
-          setAssistantMessages([
-            { sender: 'assistant', text: greetingText }
-          ]);
-          speakTts(greetingText);
-        }}
-        activeOpacity={0.85}
-      >
-        <Icon name="microphone" size={28} color="#000" />
-      </TouchableOpacity>
+      {VOICE_ASSISTANT_ENABLED && (
+        <TouchableOpacity 
+          style={styles.voiceAssistantFab}
+          onPress={async () => {
+            // Request permission before opening so the modal is ready to listen immediately
+            await requestMicPermission();
+            setVoiceAssistantVisible(true);
+            setVoiceState('IDLE');
+            setVoiceDraft(null);
+            const greetingText = "Pluto here. I check and book single slots. Don't try bulk range bookings or status changes unless you enjoy wasting both our times. What do you want?";
+            setAssistantMessages([
+              { sender: 'assistant', text: greetingText }
+            ]);
+            speakTts(greetingText);
+          }}
+          activeOpacity={0.85}
+        >
+          <Icon name="microphone" size={28} color="#000" />
+        </TouchableOpacity>
+      )}
 
       {/* Voice Assistant Panel Modal */}
       <Modal
@@ -1487,14 +1491,16 @@ const SlotManagerScreen = ({ navigation }) => {
                     style={[
                       styles.micBtn,
                       isListening && styles.micBtnActive,
+                      !VOICE_ASSISTANT_ENABLED && { backgroundColor: '#333' }
                     ]}
+                    disabled={!VOICE_ASSISTANT_ENABLED}
                     onPress={startListening}
                     activeOpacity={0.8}
                   >
                     <Icon
                       name={isListening ? 'microphone' : 'microphone-outline'}
                       size={22}
-                      color={isListening ? '#000' : '#FFD400'}
+                      color={isListening ? '#000' : (VOICE_ASSISTANT_ENABLED ? '#FFD400' : '#888')}
                     />
                   </TouchableOpacity>
                 </Animated.View>

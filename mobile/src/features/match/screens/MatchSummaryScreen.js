@@ -2642,7 +2642,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         )}
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                           <Text style={{ flex: 1, fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 13, marginTop: ball.isAICommentary ? 4 : 2, lineHeight: 18 }}>{text}</Text>
-                          {ball.isAICommentary && (
+                          {ball.isAICommentary && (ball.batsmanRuns === 4 || ball.batsmanRuns === 6 || ball.isWicket) && (
                             <TouchableOpacity onPress={() => handleVoiceSpeak(ball)} style={{ padding: 4 }}>
                               <Icon name="volume-high" size={20} color={Colors.primary} />
                             </TouchableOpacity>
@@ -3103,7 +3103,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, fontSize: 12 }}>
                   {ball.overNumber - 1}.{ball.ballNumber}
                 </Text>
-                {ball.isAICommentary && (
+                {ball.isAICommentary && (ball.batsmanRuns === 4 || ball.batsmanRuns === 6 || ball.isWicket) && (
                   <View style={{ backgroundColor: Colors.primaryAlpha20, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 0.5, borderColor: Colors.primary }}>
                     <Text style={{ color: Colors.primary, fontSize: 8, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>AI LIVE</Text>
                   </View>
@@ -3119,9 +3119,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 <Text style={{ flex: 1, fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 14, lineHeight: 22 }}>
                   {ball.commentary.replace(/^(Shastri|Bhogle):\s*/i, '')}
                 </Text>
-                <TouchableOpacity onPress={() => handleVoiceSpeak(ball)} style={{ padding: 4 }}>
-                  <Icon name="volume-high" size={20} color={Colors.primary} />
-                </TouchableOpacity>
+                {(ball.batsmanRuns === 4 || ball.batsmanRuns === 6 || ball.isWicket) && (
+                  <TouchableOpacity onPress={() => handleVoiceSpeak(ball)} style={{ padding: 4 }}>
+                    <Icon name="volume-high" size={20} color={Colors.primary} />
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <Text style={{ fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 14, marginTop: 8, lineHeight: 22 }}>

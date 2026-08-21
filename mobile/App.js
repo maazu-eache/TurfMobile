@@ -22,11 +22,7 @@ const App = () => {
     let cleanPath = url
       .replace('scoreverse://', '')
       .replace('roughturf://', '')
-      .replace('https://scoreverse.com/', '')
-      .replace('https://www.scoreverse.com/', '')
-      .replace('https://scoreverse.in/', '')
-      .replace('https://roughturf.com/', '')
-      .replace('https://scoreverse.app/', '');
+      .replace('https://scoreverse.in/', '');
 
     let queryParams = {};
     if (cleanPath.includes('?')) {
@@ -136,11 +132,7 @@ const App = () => {
     prefixes: [
       'scoreverse://',
       'roughturf://', 
-      'https://scoreverse.com',
-      'https://www.scoreverse.com',
-      'https://scoreverse.in',
-      'https://roughturf.com', 
-      'https://scoreverse.app'
+      'https://scoreverse.in'
     ],
     config: {
       screens: {
