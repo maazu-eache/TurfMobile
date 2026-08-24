@@ -2,6 +2,7 @@
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-community/datetimepicker/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-community/netinfo/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-documents/picker/android/build/generated/source/codegen/jni/CMakeLists.txt
+/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-voice/voice/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-gesture-handler/android/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-image-picker/android/build/generated/source/codegen/jni/CMakeLists.txt

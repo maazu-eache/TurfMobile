@@ -7,7 +7,8 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { loginWithPassword, registerWithPassword, clearError } from '../authSlice';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { loginWithPassword, registerWithPassword, loginWithGoogle, clearError } from '../authSlice';
 import { Colors, Typography } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
@@ -29,6 +30,17 @@ const LoginScreen = ({ navigation }) => {
   const [locationObj, setLocationObj] = useState(null);
   const [focusedInput, setFocusedInput] = useState(null);
   const [activeModal, setActiveModal] = useState(null); // 'terms' | 'privacy' | null
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Google OAuth States
+  const [showGoogleSignupModal, setShowGoogleSignupModal] = useState(false);
+  const [googleIdToken, setGoogleIdToken] = useState('');
+  const [googleEmail, setGoogleEmail] = useState('');
+  const [googleName, setGoogleName] = useState('');
+  const [googleMobile, setGoogleMobile] = useState('');
+  const [googleCity, setGoogleCity] = useState('');
+  const [googleLocationObj, setGoogleLocationObj] = useState(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const dispatch = useDispatch();
   const { isLoading, error } = useSelector((state) => state.auth);
@@ -77,6 +89,13 @@ const LoginScreen = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: '569117113912-ipv2e2rmqtcijfcm5qf8gml3us9us659.apps.googleusercontent.com', 
+      offlineAccess: true,
+    });
+  }, []);
+
+  useEffect(() => {
     Animated.spring(segmentSlide, {
       toValue: registerRole === 'customer' ? 0 : 1,
       friction: 6,
@@ -93,6 +112,91 @@ const LoginScreen = ({ navigation }) => {
       return () => clearTimeout(timer);
     }
   }, [error, dispatch]);
+
+  const handleGoogleSignIn = async () => {
+    if (!isLogin && !termsAccepted) {
+      showCustomAlert('Terms & Conditions', 'Please accept the Terms of Service and Privacy Policy to register.');
+      return;
+    }
+    try {
+      setGoogleLoading(true);
+      await GoogleSignin.hasPlayServices();
+      try {
+        // Force account picker by signing out first
+        await GoogleSignin.signOut();
+      } catch (e) {
+        // Ignore errors if already signed out
+      }
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken || userInfo.idToken;
+
+      if (!idToken) {
+        showCustomAlert('Error', 'Google ID token not found');
+        setGoogleLoading(false);
+        return;
+      }
+
+      setGoogleIdToken(idToken);
+      const fcmToken = await NotificationService.getFCMToken().catch(() => null);
+
+      const result = await dispatch(loginWithGoogle({
+        idToken,
+        fcmToken,
+        role: isLogin ? undefined : registerRole
+      }));
+
+      if (loginWithGoogle.fulfilled.match(result)) {
+        const payload = result.payload;
+        if (payload.signUpRequired) {
+          setGoogleEmail(payload.email);
+          setGoogleName(payload.name);
+          setShowGoogleSignupModal(true);
+        }
+      } else {
+        showCustomAlert('Error', result.payload || 'Google Login failed');
+      }
+    } catch (err) {
+      if (err.code === statusCodes.SIGN_IN_CANCELLED) {
+        // User cancelled flow
+      } else if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        showCustomAlert('Error', 'Google Play services not available');
+      } else {
+        showCustomAlert('Error', err.message || 'Google Login failed');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleSignupSubmit = async () => {
+    if (!googleMobile.trim() || googleMobile.trim().length !== 10 || !/^\d+$/.test(googleMobile.trim())) {
+      return showCustomAlert('Error', 'Please enter a valid 10-digit phone number');
+    }
+    if (!googleLocationObj || !googleCity) {
+      return showCustomAlert('Error', 'Please select your location');
+    }
+
+    setGoogleLoading(true);
+    const fcmToken = await NotificationService.getFCMToken().catch(() => null);
+
+    const result = await dispatch(loginWithGoogle({
+      idToken: googleIdToken,
+      mobile: googleMobile.trim(),
+      city: googleCity,
+      locationObj: googleLocationObj,
+      state: googleLocationObj?.state || '',
+      fcmToken,
+      role: registerRole
+    }));
+
+    setGoogleLoading(false);
+
+    if (loginWithGoogle.fulfilled.match(result)) {
+      setShowGoogleSignupModal(false);
+    } else {
+      showCustomAlert('Error', result.payload || 'Google Registration failed');
+    }
+  };
 
   const handleSubmit = async () => {
     Keyboard.dismiss();
@@ -114,6 +218,7 @@ const LoginScreen = ({ navigation }) => {
         showCustomAlert('Error', result.payload || 'Login failed');
       }
     } else {
+      if (!termsAccepted) return showCustomAlert('Terms & Conditions', 'Please accept the Terms of Service and Privacy Policy to register.');
       if (!name.trim()) return showCustomAlert('Error', 'Please enter your full name');
       if (!email.trim()) return showCustomAlert('Error', 'Please enter your email');
       if (!mobile.trim() || mobile.trim().length !== 10 || !/^\d+$/.test(mobile.trim())) {
@@ -231,28 +336,59 @@ const LoginScreen = ({ navigation }) => {
             </View>
           )}
 
-          <View style={[styles.headerTextContainer, !isLogin && { marginBottom: 16, marginTop: -10 }]}>
-            {isLogin && <Text style={styles.title}>SCORE <Text style={styles.titleYellow}>VERSE</Text></Text>}
-            <Text style={styles.subtitle}>
-              {isLogin ? 'Log in to your account' : 'Join ScoreVerse today'}
-            </Text>
+          <View style={[styles.headerTextContainer, !isLogin && { marginBottom: 12, marginTop: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+            <View>
+              {isLogin && <Text style={styles.title}>SCORE <Text style={styles.titleYellow}>VERSE</Text></Text>}
+              {!isLogin && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                  <Text style={[styles.title, { fontSize: 22 }]}>Registering as </Text>
+                  <View style={{ backgroundColor: 'rgba(255,212,0,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 4, borderWidth: 1, borderColor: '#FFD400' }}>
+                    <Text style={{ color: '#FFD400', fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase' }}>
+                      {registerRole === 'owner' ? 'Turf Owner' : 'Player'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              <Text style={[styles.subtitle, !isLogin && { fontSize: 13, marginTop: 4, textAlign: 'left' }]}>
+                {isLogin ? 'Log in to your account' : 'Please fill in the details below'}
+              </Text>
+            </View>
+            {!isLogin && (
+              <TouchableOpacity onPress={() => setRegisterRole(registerRole === 'owner' ? 'customer' : 'owner')}>
+                 <Text style={{ color: '#FFD400', fontFamily: Typography.fontFamily.semiBold, fontSize: 13, textDecorationLine: 'underline' }}>
+                   {registerRole === 'owner' ? 'I\'m a Player' : 'Own a turf?'}
+                 </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.authCard}>
-            
+
+            {/* If Sign Up: Show Google Sign-Up at the TOP */}
             {!isLogin && (
-              <View style={styles.segmentContainer}>
-                <Animated.View style={[
-                  styles.segmentHighlight,
-                  { transform: [{ translateX: segmentSlide.interpolate({ inputRange: [0, 1], outputRange: [0, 150] }) }] }
-                ]} />
-                <TouchableOpacity style={styles.segmentTab} onPress={() => setRegisterRole('customer')} activeOpacity={1}>
-                  <Text style={[styles.segmentText, registerRole === 'customer' && styles.segmentTextActive]}>Player</Text>
+              <>
+                <TouchableOpacity 
+                  style={[styles.googleBtn, { marginBottom: 16 }, googleLoading && styles.googleBtnDisabled]}
+                  onPress={handleGoogleSignIn}
+                  disabled={googleLoading || isLoading}
+                  activeOpacity={0.8}
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator color="#FFD400" size="small" />
+                  ) : (
+                    <View style={styles.googleContent}>
+                      <Icon name="google" size={20} color="#FFD400" style={{ marginRight: 10 }} />
+                      <Text style={styles.googleBtnText}>Register with Google</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.segmentTab} onPress={() => setRegisterRole('owner')} activeOpacity={1}>
-                  <Text style={[styles.segmentText, registerRole === 'owner' && styles.segmentTextActive]}>Turf Owner</Text>
-                </TouchableOpacity>
-              </View>
+
+                <View style={[styles.dividerContainer, { marginTop: 4, marginBottom: 16 }]}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR SIGN UP WITH EMAIL</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+              </>
             )}
 
             {isLogin ? (
@@ -264,11 +400,11 @@ const LoginScreen = ({ navigation }) => {
             ) : (
               <>
                 {renderInput('name', 'account-outline', 'Full Name', name, setName, { autoCapitalize: 'words' })}
-                <View style={{ height: 12 }} />
+                <View style={{ height: 8 }} />
                 {renderInput('email', 'email-outline', 'Email Address', email, setEmail, { keyboardType: 'email-address', autoCapitalize: 'none', autoCorrect: false })}
-                <View style={{ height: 12 }} />
+                <View style={{ height: 8 }} />
                 {renderInput('phone', 'phone-outline', 'Phone Number', mobile, setMobile, { keyboardType: 'phone-pad', maxLength: 10 })}
-                <View style={{ height: 12 }} />
+                <View style={{ height: 8 }} />
                 
                 <View style={[styles.inputContainer, { zIndex: 1000 }]}>
                   {/* <Icon name="map-marker-outline" size={22} color="rgba(255,255,255,0.4)" style={styles.inputIcon} /> */}
@@ -284,11 +420,25 @@ const LoginScreen = ({ navigation }) => {
                     style={styles.input}
                   />
                 </View>
-                <View style={{ height: 12 }} />
+                <View style={{ height: 8 }} />
                 
                 {renderInput('password', 'lock-outline', 'Password', password, setPassword)}
-                <View style={{ height: 12 }} />
+                <View style={{ height: 8 }} />
                 {renderInput('confirmPassword', 'lock-check-outline', 'Confirm Password', confirmPassword, setConfirmPassword)}
+                <View style={{ height: 12 }} />
+                
+                <TouchableOpacity 
+                  style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }} 
+                  onPress={() => setTermsAccepted(!termsAccepted)}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: termsAccepted ? '#FFD400' : 'rgba(255,255,255,0.4)', backgroundColor: termsAccepted ? '#FFD400' : 'transparent', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                    {termsAccepted && <Icon name="check" size={14} color="#000" />}
+                  </View>
+                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: Typography.fontFamily.regular, flex: 1 }}>
+                    I agree to the <Text style={{ color: '#FFD400', textDecorationLine: 'underline' }} onPress={() => setActiveModal('terms')}>Terms of Service</Text> and <Text style={{ color: '#FFD400', textDecorationLine: 'underline' }} onPress={() => setActiveModal('privacy')}>Privacy Policy</Text>
+                  </Text>
+                </TouchableOpacity>
               </>
             )}
 
@@ -323,6 +473,35 @@ const LoginScreen = ({ navigation }) => {
               </TouchableOpacity>
             </Animated.View>
 
+            {/* If Log In: Show Google Login at the BOTTOM */}
+            {isLogin && (
+              <>
+                {/* Divider */}
+                <View style={styles.dividerContainer}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {/* Google Login Button */}
+                <TouchableOpacity 
+                  style={[styles.googleBtn, googleLoading && styles.googleBtnDisabled]}
+                  onPress={handleGoogleSignIn}
+                  disabled={googleLoading || isLoading}
+                  activeOpacity={0.8}
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator color="#FFD400" size="small" />
+                  ) : (
+                    <View style={styles.googleContent}>
+                      <Icon name="google" size={20} color="#FFD400" style={{ marginRight: 10 }} />
+                      <Text style={styles.googleBtnText}>Continue with Google</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+
             <TouchableOpacity 
               style={styles.toggleButton} 
               onPress={() => {
@@ -340,18 +519,20 @@ const LoginScreen = ({ navigation }) => {
 
           </View>
 
-          <View style={[styles.termsFooter, { marginBottom: Platform.OS === 'android' ? 80 : Math.max(insets.bottom + 40, 60) }]}>
-            <Text style={styles.termsText}>By continuing, you agree to our</Text>
-            <View style={styles.termsLinkContainer}>
-              <TouchableOpacity onPress={() => setActiveModal('terms')} activeOpacity={0.7} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-                <Text style={styles.termsLink}>Terms of Service</Text>
-              </TouchableOpacity>
-              <Text style={styles.termsText}> and </Text>
-              <TouchableOpacity onPress={() => setActiveModal('privacy')} activeOpacity={0.7} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-                <Text style={styles.termsLink}>Privacy Policy</Text>
-              </TouchableOpacity>
+          {isLogin && (
+            <View style={[styles.termsFooter, { marginBottom: Platform.OS === 'android' ? 80 : Math.max(insets.bottom + 40, 60) }]}>
+              <Text style={styles.termsText}>By continuing, you agree to our</Text>
+              <View style={styles.termsLinkContainer}>
+                <TouchableOpacity onPress={() => setActiveModal('terms')} activeOpacity={0.7} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                  <Text style={styles.termsLink}>Terms of Service</Text>
+                </TouchableOpacity>
+                <Text style={styles.termsText}> and </Text>
+                <TouchableOpacity onPress={() => setActiveModal('privacy')} activeOpacity={0.7} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                  <Text style={styles.termsLink}>Privacy Policy</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
 
         </Animated.View>
       </KeyboardAwareScrollView>
@@ -377,6 +558,76 @@ const LoginScreen = ({ navigation }) => {
         </View>
       </Modal>
 
+      {/* Google Complete Profile Modal */}
+      <Modal visible={showGoogleSignupModal} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Complete Profile</Text>
+              <TouchableOpacity onPress={() => setShowGoogleSignupModal(false)} style={styles.modalCloseBtn}>
+                <Icon name="close" size={24} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={styles.modalScroll}>
+              <Text style={styles.modalContent}>
+                We authenticated your Google account. Please enter your mobile number and city to finalize registration and sync your player profile.
+              </Text>
+              
+              <View style={styles.googleProfileCard}>
+                <Text style={styles.googleProfileName}>{googleName}</Text>
+                <Text style={styles.googleProfileEmail}>{googleEmail}</Text>
+              </View>
+
+              <Text style={styles.googleInputLabel}>Mobile Number</Text>
+              <View style={styles.inputContainer}>
+                <Icon name="phone-outline" size={22} color="rgba(255,255,255,0.4)" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="10-digit mobile number..."
+                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  value={googleMobile}
+                  onChangeText={(val) => setGoogleMobile(val.replace(/\D/g, ''))}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  selectionColor="#FFD400"
+                />
+              </View>
+              
+              <View style={{ height: 16 }} />
+
+              <Text style={styles.googleInputLabel}>Select City</Text>
+              <View style={[styles.inputContainer, { zIndex: 1000 }]}>
+                <LocationAutocomplete
+                  value={googleCity}
+                  onChangeText={setGoogleCity}
+                  onSelectLocation={(loc) => {
+                    setGoogleCity(loc ? loc.name : '');
+                    setGoogleLocationObj(loc ? { name: loc.name, latitude: loc.latitude, longitude: loc.longitude, state: loc.state } : null);
+                  }}
+                  placeholder="Search city location..."
+                  variant="none"
+                  style={styles.input}
+                />
+              </View>
+
+              <View style={{ height: 24 }} />
+
+              <TouchableOpacity 
+                style={[styles.verifyBtn, googleLoading && styles.verifyBtnDisabled]}
+                onPress={handleGoogleSignupSubmit}
+                disabled={googleLoading}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator color="#000" size="small" />
+                ) : (
+                  <Text style={styles.verifyBtnText}>Save & Log In</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 };
@@ -392,7 +643,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 40 },
   
-  topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 30 },
+  topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   backBtn: { 
     width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(23, 23, 23, 0.8)', 
     justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)',
@@ -442,7 +693,7 @@ const styles = StyleSheet.create({
   segmentTextActive: { color: '#000000', opacity: 1, fontFamily: Typography.fontFamily.bold },
 
   inputContainer: {
-    flexDirection: 'row', alignItems: 'center', height: 60, borderRadius: 20,
+    flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 14,
     backgroundColor: 'rgba(0, 0, 0, 0.4)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)',
     paddingHorizontal: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 2,
@@ -463,7 +714,7 @@ const styles = StyleSheet.create({
   error: { color: Colors.error, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginTop: 12, textAlign: 'center' },
 
   verifyBtn: {
-    height: 60, borderRadius: 20, backgroundColor: '#FFD400', justifyContent: 'center', alignItems: 'center', flexDirection: 'row',
+    height: 52, borderRadius: 14, backgroundColor: '#FFD400', justifyContent: 'center', alignItems: 'center', flexDirection: 'row',
     shadowColor: '#FFD400', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 8,
   },
   verifyBtnDisabled: { backgroundColor: '#333', shadowOpacity: 0 },
@@ -485,6 +736,26 @@ const styles = StyleSheet.create({
   modalCloseBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20 },
   modalScroll: { padding: 24, paddingBottom: 60 },
   modalContent: { fontSize: 14, fontFamily: Typography.fontFamily.regular, color: '#A0A0A0', lineHeight: 24 },
+
+  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 18 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
+  dividerText: { color: 'rgba(255,255,255,0.4)', paddingHorizontal: 12, fontSize: 13, fontFamily: Typography.fontFamily.semiBold },
+
+  googleBtn: {
+    height: 52, borderRadius: 14, backgroundColor: '#000000', borderWidth: 1, borderColor: 'rgba(255, 212, 0, 0.3)', justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#000000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3,
+  },
+  googleBtnDisabled: { opacity: 0.6 },
+  googleContent: { flexDirection: 'row', alignItems: 'center' },
+  googleBtnText: { fontSize: 16, fontFamily: Typography.fontFamily.semiBold, color: '#FFD400' },
+
+  googleProfileCard: {
+    backgroundColor: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 16, borderHeight: 1, borderColor: 'rgba(255,255,255,0.06)',
+    marginBottom: 20, marginTop: 10,
+  },
+  googleProfileName: { color: '#FFFFFF', fontSize: 15, fontFamily: Typography.fontFamily.bold },
+  googleProfileEmail: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 },
+  googleInputLabel: { color: '#FFFFFF', fontSize: 13, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8, marginLeft: 4 },
 });
 
 export default LoginScreen;

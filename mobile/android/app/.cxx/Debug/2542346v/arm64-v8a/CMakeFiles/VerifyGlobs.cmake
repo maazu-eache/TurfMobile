@@ -108,6 +108,30 @@ if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
   file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/cmake.verify_globs")
 endif()
 
+# react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/*.cpp")
+set(OLD_GLOB
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/RNGoogleSignInCGen-generated.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/cmake.verify_globs")
+endif()
+
+# react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/react/renderer/components/RNGoogleSignInCGen/*.cpp")
+set(OLD_GLOB
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/react/renderer/components/RNGoogleSignInCGen/ComponentDescriptors.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/react/renderer/components/RNGoogleSignInCGen/EventEmitters.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/react/renderer/components/RNGoogleSignInCGen/Props.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/react/renderer/components/RNGoogleSignInCGen/ShadowNodes.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/react/renderer/components/RNGoogleSignInCGen/States.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/cmake.verify_globs")
+endif()
+
 # react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-voice/voice/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
 file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-voice/voice/android/build/generated/source/codegen/jni/*.cpp")
 set(OLD_GLOB

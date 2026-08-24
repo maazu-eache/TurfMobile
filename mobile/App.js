@@ -76,6 +76,14 @@ const App = () => {
               params: { matchId: id, ...queryParams }
             }
           });
+        } else if (route === 'player') {
+          navigate('Customer', {
+            screen: 'Home',
+            params: {
+              screen: 'PlayerDetail',
+              params: { id, ...queryParams }
+            }
+          });
         }
       } else {
         if (retries < 15) {
@@ -141,6 +149,7 @@ const App = () => {
             Home: {
               screens: {
                 TurfDetail: 'turf/:id',
+                PlayerDetail: 'player/:id',
               }
             },
             'My Cricket': {
@@ -154,6 +163,7 @@ const App = () => {
         },
         Player: {
           screens: {
+            PlayerDetail: 'player/:id',
             'My Cricket': {
               screens: {
                 TournamentDetail: 'tournament/:tournamentId',

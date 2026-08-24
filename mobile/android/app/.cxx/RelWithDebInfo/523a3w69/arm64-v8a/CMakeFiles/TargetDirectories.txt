@@ -13,6 +13,9 @@
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/rndocumentpickerCGen_autolinked_build/CMakeFiles/react_codegen_rndocumentpickerCGen.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/rndocumentpickerCGen_autolinked_build/CMakeFiles/edit_cache.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/rndocumentpickerCGen_autolinked_build/CMakeFiles/rebuild_cache.dir
+/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNGoogleSignInCGen_autolinked_build/CMakeFiles/react_codegen_RNGoogleSignInCGen.dir
+/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNGoogleSignInCGen_autolinked_build/CMakeFiles/edit_cache.dir
+/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNGoogleSignInCGen_autolinked_build/CMakeFiles/rebuild_cache.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNVoiceSpec_autolinked_build/CMakeFiles/react_codegen_RNVoiceSpec.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNVoiceSpec_autolinked_build/CMakeFiles/edit_cache.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNVoiceSpec_autolinked_build/CMakeFiles/rebuild_cache.dir

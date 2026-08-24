@@ -1213,7 +1213,7 @@ const AdminDashboardScreen = ({ navigation }) => {
         </View>
         <ScrollView showsVerticalScrollIndicator={false}>
           <SidebarItem tab="turfs" icon="soccer-field" label="Turfs"
-            badge={turfs.filter(t => t.pendingPlatformFee > 0 && t.pendingPaymentId).length} />
+            badge={turfs.filter(t => (t.pendingPlatformFee > 0 && t.pendingPaymentId) || t.deletionRequested).length} />
           <SidebarItem tab="owners" icon="briefcase-account" label="Owners" badge={0} />
           <SidebarItem tab="users" icon="account-group" label="Users" badge={0} />
           <SidebarItem tab="user_manager" icon="account-remove-outline" label="Deletion Requests" badge={deletionRequestsCount} />

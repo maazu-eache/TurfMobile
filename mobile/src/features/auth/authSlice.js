@@ -19,6 +19,15 @@ export const loginWithPassword = createAsyncThunk('auth/login', async ({ identif
   }
 });
 
+export const loginWithGoogle = createAsyncThunk('auth/loginWithGoogle', async ({ idToken, mobile, city, locationObj, state, fcmToken, role }, { rejectWithValue }) => {
+  try {
+    const res = await api.post('/auth/google', { idToken, mobile, city, locationObj, state, fcmToken, role });
+    return res.data.data || res.data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Google login failed');
+  }
+});
+
 export const forgotPassword = createAsyncThunk('auth/forgotPassword', async (email, { rejectWithValue }) => {
   try {
     const res = await api.post('/auth/forgot-password', { email });
@@ -173,6 +182,22 @@ const authSlice = createSlice({
         state.refreshToken = action.payload.refreshToken;
       })
       .addCase(loginWithPassword.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      // Google Login
+      .addCase(loginWithGoogle.pending, (state) => { state.isLoading = true; state.error = null; })
+      .addCase(loginWithGoogle.fulfilled, (state, action) => {
+        state.isLoading = false;
+        if (action.payload?.signUpRequired) {
+          return;
+        }
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.accessToken;
+        state.refreshToken = action.payload.refreshToken;
+      })
+      .addCase(loginWithGoogle.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })

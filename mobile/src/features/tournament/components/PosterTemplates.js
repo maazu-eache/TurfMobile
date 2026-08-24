@@ -760,30 +760,30 @@ export const LeaderboardPoster = ({ type, data, tournamentName, theme, startInde
                   borderRadius: CARD_RADIUS_MAP[t.type] ?? 10,
                   borderWidth: 1,
                   borderColor: rank === 1 ? t.accentColor + "80" : t.borderColor,
-                  padding: 11,
-                  marginBottom: 7,
+                  padding: 7,
+                  marginBottom: 5,
                 }}
               >
                 <RankMedallion rank={rank} accentColor={t.accentColor} />
                 {teamLogoUrl ? (
-                  <Image source={{ uri: teamLogoUrl }} style={{ width: 20, height: 20, borderRadius: 10, marginRight: 8, marginLeft: 6 }} resizeMode="cover" />
+                  <Image source={{ uri: teamLogoUrl }} style={{ width: 16, height: 16, borderRadius: 8, marginRight: 6, marginLeft: 4 }} resizeMode="cover" />
                 ) : (
-                  <View style={{ width: 20, height: 20, borderRadius: 10, marginRight: 8, marginLeft: 6, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ color: t.secTextColor, fontSize: 8, fontFamily: Typography.fontFamily.bold }}>T</Text>
+                  <View style={{ width: 16, height: 16, borderRadius: 8, marginRight: 6, marginLeft: 4, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color: t.secTextColor, fontSize: 7, fontFamily: Typography.fontFamily.bold }}>T</Text>
                   </View>
                 )}
                 {photoUrl ? (
-                  <Image source={{ uri: getImageUrl(photoUrl) }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10 }} />
+                  <Image source={{ uri: getImageUrl(photoUrl) }} style={{ width: 26, height: 26, borderRadius: 13, marginRight: 8 }} />
                 ) : null}
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: t.textColor, fontFamily: Typography.fontFamily.bold, fontSize: 14 }}>{player.player?.name || "Player"}</Text>
-                  <Text style={{ color: t.secTextColor, fontFamily: Typography.fontFamily.medium, fontSize: 11, marginTop: 1 }}>{player.team?.name || player.teamName || "—"}</Text>
+                  <Text style={{ color: t.textColor, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>{player.player?.name || "Player"}</Text>
+                  <Text style={{ color: t.secTextColor, fontFamily: Typography.fontFamily.medium, fontSize: 9, marginTop: 1 }}>{player.team?.name || player.teamName || "—"}</Text>
                 </View>
                 <View style={{ alignItems: "flex-end" }}>
-                  <Text style={{ color: rank === 1 ? t.accentColor : t.textColor, fontFamily: Typography.fontFamily.extraBold, fontSize: rank === 1 ? 22 : 18 }}>
+                  <Text style={{ color: rank === 1 ? t.accentColor : t.textColor, fontFamily: Typography.fontFamily.extraBold, fontSize: rank === 1 ? 18 : 14 }}>
                     {type === "economy" || type === "strikeRate" ? parseFloat(player[getValueKey()]).toFixed(2) : player[getValueKey()]}
                   </Text>
-                  <Text style={{ color: t.secTextColor, fontFamily: Typography.fontFamily.regular, fontSize: 10 }}>{unitLabel}</Text>
+                  <Text style={{ color: t.secTextColor, fontFamily: Typography.fontFamily.regular, fontSize: 8 }}>{unitLabel}</Text>
                 </View>
               </View>
             );
@@ -910,10 +910,10 @@ const styles = StyleSheet.create({
   vsChipText: { fontSize: 13, fontFamily: Typography.fontFamily.extraBold, fontStyle: "italic", letterSpacing: 1 },
   tableHeadCell: { fontFamily: Typography.fontFamily.semiBold, fontSize: 11, textAlign: "center", textTransform: "uppercase", letterSpacing: 0.5 },
   tableCell: { fontFamily: Typography.fontFamily.regular, fontSize: 12, textAlign: "center" },
-  rankMedal: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", marginRight: 4 },
-  rankMedalText: { color: "#0C0C0C", fontSize: 13, fontFamily: Typography.fontFamily.extraBold },
-  rankPlain: { width: 34, alignItems: "center" },
-  rankPlainText: { fontSize: 14, fontFamily: Typography.fontFamily.bold },
+  rankMedal: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", marginRight: 4 },
+  rankMedalText: { color: "#0C0C0C", fontSize: 10, fontFamily: Typography.fontFamily.extraBold },
+  rankPlain: { width: 26, alignItems: "center" },
+  rankPlainText: { fontSize: 11, fontFamily: Typography.fontFamily.bold },
 });
 
 // ---------------------------------------------------------------------------

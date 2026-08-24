@@ -293,7 +293,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
               if (activeTab === 'Bowlers') shareType = 'wickets';
               if (activeTab === 'Fielders') shareType = 'catches';
               if (activeTab === 'MVP') shareType = 'mvp';
-              const resolvedData = getActiveData().map(item => {
+              const resolvedData = getActiveData().slice(0, 10).map(item => {
                 const player = item.player || {};
                 const team = getPlayerTeam(player, item);
                 return { ...item, team };
