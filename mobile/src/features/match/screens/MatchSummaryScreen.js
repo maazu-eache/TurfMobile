@@ -138,7 +138,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   // Initialize TTS configuration and cleanup on unmount
   useEffect(() => {
     Tts.setDefaultLanguage('en-IN').catch(() => {
-      Tts.setDefaultLanguage('en-US').catch(() => {});
+      Tts.setDefaultLanguage('en-US').catch(() => { });
     });
     Tts.voices().then(voices => {
       const enVoices = voices.filter(v => v.language.startsWith('en'));
@@ -213,7 +213,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             await AsyncStorage.setItem('scoreverse_viewer_id', viewerId);
           }
         }
-        
+
         // Only registers a view if it passes backend deduplication
         await api.post(`/matches/${cleanMatchId}/view`, { viewerId });
       } catch (err) {
@@ -229,7 +229,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const matchDataRef = useRef(null);
   const [matchNotFound, setMatchNotFound] = useState(false);
   const liveState = matchData || (reduxLiveState && String(reduxLiveState.match?._id || reduxLiveState.matchId || '').trim() === String(cleanMatchId).trim() ? reduxLiveState : null);
-  
+
   useEffect(() => {
     matchDataRef.current = matchData;
   }, [matchData]);
@@ -306,7 +306,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           });
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => { if (!cancelled) setPlayerPreviewLoading(false); });
     return () => { cancelled = true; };
   }, [selectedPlayerPreview?._id]);
@@ -357,11 +357,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const resolvedMvp = useMemo(() => {
     const match = liveState?.match;
     if (!match || !match.playerOfMatch) return null;
-    
+
     if (typeof match.playerOfMatch === 'object' && match.playerOfMatch.name) {
       return match.playerOfMatch;
     }
-    
+
     const mvpId = String(match.playerOfMatch);
     const allXI = [...(match.playingXI?.teamA || []), ...(match.playingXI?.teamB || [])];
     let mvpObj = allXI.find(p => String(p._id || p) === mvpId);
@@ -628,10 +628,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
     const currentOvers = currentState.score?.overs || '0.0';
     const newOvers = newState.score?.overs || '0.0';
-    
+
     const currentBalls = getOversTotalBalls(currentOvers);
     const newBalls = getOversTotalBalls(newOvers);
-    
+
     if (newBalls > currentBalls) return true;
     if (newBalls < currentBalls) return false;
 
@@ -664,7 +664,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
       let prev = matchDataRef.current;
       let isNew = false;
-      
+
       if (!prev) {
         isNew = true;
       } else if (!isStateNewer(prev, data)) {
@@ -1050,7 +1050,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       // Fallback
       try {
         await Share.share({ message: aiReport.summary });
-      } catch (err) {}
+      } catch (err) { }
     }
   };
 
@@ -1220,8 +1220,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {((aiPlayerReport.strengths && aiPlayerReport.strengths.length > 0) ||
               (aiPlayerReport.drawbacks && aiPlayerReport.drawbacks.length > 0) ||
               (aiPlayerReport.improvementSteps && aiPlayerReport.improvementSteps.length > 0)) && (
-              <View style={{ height: 1, backgroundColor: Colors.borderLight, marginVertical: 16 }} />
-            )}
+                <View style={{ height: 1, backgroundColor: Colors.borderLight, marginVertical: 16 }} />
+              )}
 
             {/* Key Strengths */}
             {aiPlayerReport.strengths && aiPlayerReport.strengths.length > 0 && (
@@ -1676,9 +1676,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     return (
       <ScrollView ref={headerScrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
         {dynamicTabs.map(tab => (
-          <TouchableOpacity 
-            key={tab} 
-            onPress={() => handleTabPress(tab)} 
+          <TouchableOpacity
+            key={tab}
+            onPress={() => handleTabPress(tab)}
             style={styles.tabItem}
           >
             {activeTab === tab && <View style={styles.tabActivePill} />}
@@ -1891,7 +1891,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
               {/* Match Summary text */}
               <View style={{ width: '80%', height: 16, borderRadius: 4, marginTop: 8 }} />
-              
+
               {/* Views Row */}
               <View style={{ flexDirection: 'row', marginTop: 12, borderTopWidth: 0.5, borderTopColor: Colors.border, paddingTop: 12, gap: 12 }}>
                 <View style={{ width: 60, height: 14, borderRadius: 4 }} />
@@ -1905,10 +1905,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {/* Heroes of the Match Section */}
             <View style={{ paddingHorizontal: Spacing.md, marginBottom: 14 }}>
               <View style={{ width: 150, height: 18, borderRadius: 4, marginBottom: 16 }} />
-              
+
               {/* MVP Big Card */}
               <View style={{ width: '100%', height: 200, borderRadius: 16, marginBottom: 16 }} />
-              
+
               {/* Other Heroes (2 Col) */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <View style={{ width: '48.5%', height: 120, borderRadius: 16 }} />
@@ -2428,11 +2428,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               {liveState?.currentOverBalls?.length > 0 && (
                 <View style={styles.msOverTimeline}>
                   <Text style={styles.msOverTimelineLabel}>This Over:</Text>
-                  <ScrollView 
+                  <ScrollView
                     ref={msOverTimelineScrollRef}
-                    horizontal 
+                    horizontal
                     nestedScrollEnabled={true}
-                    showsHorizontalScrollIndicator={false} 
+                    showsHorizontalScrollIndicator={false}
                     contentContainerStyle={{ paddingRight: 16 }}
                     onContentSizeChange={() => {
                       msOverTimelineScrollRef.current?.scrollToEnd({ animated: true });
@@ -4372,6 +4372,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 <Icon name="cog" size={20} color="#fff" />
               </TouchableOpacity>
             )}
+            <TouchableOpacity style={{ padding: 8 }} onPress={() => navigation.navigate('CreateTicketScreen', { matchId: match._id, category: 'Match Dispute' })}>
+              <Icon name="alert-circle-outline" size={20} color="#FF3B30" />
+            </TouchableOpacity>
             <TouchableOpacity style={{ padding: 8 }} onPress={handleShare}>
               <Icon name="share-variant" size={20} color="#fff" />
             </TouchableOpacity>
@@ -4695,7 +4698,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               const aName = typeof aScorer === 'object'
                 ? (aScorer?.name || aScorer?.mobile)
                 : (match.scorers?.find(s => String(s.userId?._id || s.userId) === String(aScorer))?.userId?.name ||
-                   match.scorers?.find(s => String(s.userId?._id || s.userId) === String(aScorer))?.userId?.mobile);
+                  match.scorers?.find(s => String(s.userId?._id || s.userId) === String(aScorer))?.userId?.mobile);
               const displayName = aName || (typeof match.organizerId === 'object' ? match.organizerId?.name : null) || 'Not Assigned';
               return (
                 <View style={{ marginBottom: 18 }}>
@@ -4952,7 +4955,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           onRequestClose={() => setSelectedPlayerPreview(null)}
         >
           <Pressable style={styles.ppModalOverlay} onPress={() => setSelectedPlayerPreview(null)}>
-            <Pressable style={styles.ppCard} onPress={() => {}}>
+            <Pressable style={styles.ppCard} onPress={() => { }}>
               {/* Full-width cover image */}
               <View style={styles.ppCoverContainer}>
                 {(selectedPlayerPreview.photo || selectedPlayerPreview.userId?.photo) ? (
@@ -5034,8 +5037,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           activePosterType === 'motm'
             ? 'Player of the Match'
             : activePosterType === 'aiReport'
-            ? 'AI Match Report'
-            : `${liveState?.match?.teamA?.name || 'Team A'} vs ${liveState?.match?.teamB?.name || 'Team B'}`
+              ? 'AI Match Report'
+              : `${liveState?.match?.teamA?.name || 'Team A'} vs ${liveState?.match?.teamB?.name || 'Team B'}`
         }
         shareUrl={`https://scoreverse.in/match/${cleanMatchId}`}
       >

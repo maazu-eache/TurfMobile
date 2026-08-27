@@ -44,7 +44,7 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string/>
+	<string>ScoreVerse needs your location to show you sports turfs and arenas available in your immediate vicinity.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -65,5 +65,9 @@
 	<string>Voice Booking Assistant uses the microphone to take slot bookings by voice.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Voice Booking Assistant uses speech recognition to convert your spoken commands into booking actions.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>ScoreVerse needs access to your photos to allow you to upload team logos, tournament pictures, and player profile avatars.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>ScoreVerse needs permission to save scorecards and posters to your photo library.</string>
 </dict>
 </plist>

@@ -13,7 +13,7 @@ const TurfListScreen = ({ navigation }) => {
   const turfs = dashboard?.owner?.turfs || [];
   const dispatch = useDispatch();
   
-  const [requestingDelete, setRequestingDelete] = useState(null);
+  const [deletingTurf, setDeletingTurf] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -21,26 +21,26 @@ const TurfListScreen = ({ navigation }) => {
     }, [dispatch])
   );
 
-  const handleRequestDelete = (turf) => {
+  const handleDelete = (turf) => {
     showCustomAlert(
-      'Request Deletion',
-      `Are you sure you want to request deletion for "${turf.name}"? The admin will review and permanently delete it along with all its bookings and slots.`,
+      'Delete Turf',
+      `Are you sure you want to permanently delete "${turf.name}"? This will instantly remove all its availability slots and past bookings. This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
-          text: 'Request Delete', 
+          text: 'Delete Turf', 
           style: 'destructive',
           onPress: async () => {
-            setRequestingDelete(turf._id);
+            setDeletingTurf(turf._id);
             try {
-              await api.post(`/turfs/${turf._id}/request-delete`);
-              showCustomAlert('Success', 'Deletion request sent to admin.');
+              await api.delete(`/turfs/${turf._id}`);
+              showCustomAlert('Success', 'Turf deleted successfully.');
               dispatch(fetchOwnerDashboard());
             } catch (err) {
-              const msg = err.response?.data?.message || 'Failed to send deletion request';
+              const msg = err.response?.data?.message || 'Failed to delete turf';
               showCustomAlert('Error', msg);
             } finally {
-              setRequestingDelete(null);
+              setDeletingTurf(null);
             }
           }
         }
@@ -99,19 +99,17 @@ const TurfListScreen = ({ navigation }) => {
             <Icon name="pencil-outline" size={18} color={Colors.primary} />
           </TouchableOpacity>
 
-          {!item.deletionRequested && (
-            <TouchableOpacity 
-              style={[styles.actionBtn, styles.iconBtn, styles.deleteBtn]} 
-              onPress={() => handleRequestDelete(item)}
-              disabled={requestingDelete === item._id}
-            >
-              {requestingDelete === item._id ? (
-                <ActivityIndicator size="small" color={Colors.error} />
-              ) : (
-                <Icon name="trash-can-outline" size={18} color={Colors.error} />
-              )}
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity 
+            style={[styles.actionBtn, styles.iconBtn, styles.deleteBtn]} 
+            onPress={() => handleDelete(item)}
+            disabled={deletingTurf === item._id}
+          >
+            {deletingTurf === item._id ? (
+              <ActivityIndicator size="small" color={Colors.error} />
+            ) : (
+              <Icon name="trash-can-outline" size={18} color={Colors.error} />
+            )}
+          </TouchableOpacity>
         </View>
       </View>
     );

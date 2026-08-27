@@ -369,10 +369,10 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
                       </View>
                       <View style={ss.turfStats}>
                         {[
-                          { icon: 'calendar-check', label: `${t.bookings} bookings` },
-                          { icon: 'clock-outline', label: `${t.hours}h` },
-                          { icon: 'cellphone-link', label: `${t.online} online` },
-                          { icon: 'store-outline', label: `${t.offline} offline` },
+                          // { icon: 'calendar-check', label: `${t.bookings} bookings` },
+                          // { icon: 'clock-outline', label: `${t.hours}h` },
+                          { icon: 'cellphone-link', label: `${t.online}(slots) online` },
+                          { icon: 'store-outline', label: `${t.offline}(slots) offline` },
                         ].map((s, j) => (
                           <View key={j} style={ss.turfStatItem}>
                             <Icon name={s.icon} size={11} color={Colors.textTertiary} />
@@ -384,36 +384,6 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
                   ))}
                 </Card>
               )}
-
-              {/* ── Peak Hours ─────────────────────────────────────────── */}
-              <Card style={{ marginBottom: 12 }}>
-                <SectionLabel label="Peak Hours" icon="fire" />
-                <View style={ss.peakRow}>
-                  <View style={ss.peakItem}>
-                    <Icon name="calendar-week" size={18} color={Colors.primary} />
-                    <View style={{ marginLeft: 10 }}>
-                      <Text style={ss.peakLabel}>Peak Day</Text>
-                      <Text style={ss.peakVal}>{peakHours.peakDay || '—'}</Text>
-                    </View>
-                  </View>
-                  <View style={ss.peakItem}>
-                    <Icon name="clock-time-four" size={18} color={Colors.primary} />
-                    <View style={{ marginLeft: 10 }}>
-                      <Text style={ss.peakLabel}>Peak Time</Text>
-                      <Text style={ss.peakVal}>{peakHours.peakTime || '—'}</Text>
-                    </View>
-                  </View>
-                </View>
-                {peakHours.heatmap && peakHours.heatmap.length > 0 && (
-                  <>
-                    <Divider />
-                    <Text style={ss.subHeader}>Top Slots</Text>
-                    {peakHours.heatmap.map((h, i) => (
-                      <StatRow key={i} label={`${h.day}, ${h.hour}`} value={`${h.count} bkgs`} />
-                    ))}
-                  </>
-                )}
-              </Card>
 
               {/* ── Booking Status ─────────────────────────────────────── */}
               <Card style={{ marginBottom: 12 }}>
@@ -443,7 +413,7 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
                 <Card style={{ marginBottom: 12 }}>
                   <SectionLabel label="Payment Breakdown" icon="wallet-outline" />
                   {paymentBreakdown.map((p, i) => (
-                    <StatRow key={i} label={p.method} value={fmtK(p.revenue)} sub={`${p.count} txn${p.count !== 1 ? 's' : ''}`} />
+                    <StatRow key={i} label={p.method} value={fmtK(p.revenue)} />
                   ))}
                 </Card>
               )}

@@ -6,7 +6,7 @@ import {
   Dimensions, Modal, TextInput, ToastAndroid, Platform, RefreshControl,
   KeyboardAvoidingView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
@@ -57,6 +57,7 @@ const ACHIEVEMENTS = [
 const TeamDetailScreen = ({ navigation, route }) => {
   const { id } = route.params || {};
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
   const { selectedTeam, teamStats, isLoading, statsLoading } = useSelector(s => s.team);
   const { user } = useSelector(s => s.auth);
 
@@ -88,6 +89,35 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const [updatingTeam, setUpdatingTeam] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [activeLeaderboardTab, setActiveLeaderboardTab] = useState('batters');
+
+  // UGC Report States
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('inappropriate_name');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
+
+  const handleReportTeam = async () => {
+    if (!reportReason) {
+      showCustomAlert("Error", "Please select a reason for reporting");
+      return;
+    }
+    setReportLoading(true);
+    try {
+      await api.post('/ugc/report', {
+        contentType: 'team',
+        contentId: selectedTeam._id,
+        reason: reportReason,
+        details: reportDetails
+      });
+      setReportLoading(false);
+      setShowReportModal(false);
+      setReportDetails('');
+      showCustomAlert("Report Submitted", "Thank you for reporting. Our team will review this team profile within 24 hours.");
+    } catch (err) {
+      setReportLoading(false);
+      showCustomAlert("Error", err.response?.data?.message || "Failed to submit report");
+    }
+  };
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -802,7 +832,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 <Icon name="logout" size={20} color={Colors.error} />
               </TouchableOpacity>
             )}
-            {isManager && (
+            {isManager ? (
               <>
                 <TouchableOpacity style={styles.navBtn} onPress={openEditModal}>
                   <Icon name="pencil" size={20} color={Colors.textSecondary} />
@@ -811,6 +841,10 @@ const TeamDetailScreen = ({ navigation, route }) => {
                   <Icon name="delete-outline" size={20} color={Colors.error} />
                 </TouchableOpacity> */}
               </>
+            ) : (
+              <TouchableOpacity style={styles.navBtn} onPress={() => setShowReportModal(true)}>
+                <Icon name="flag-outline" size={20} color={Colors.primary} />
+              </TouchableOpacity>
             )}
           </View>
         </View>
@@ -1047,6 +1081,95 @@ const TeamDetailScreen = ({ navigation, route }) => {
               </LinearGradient>
             </TouchableOpacity>
             <View style={{ height: 24 }} />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Report Modal */}
+      <Modal visible={showReportModal} animationType="slide" transparent onRequestClose={() => setShowReportModal(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalSheet, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <View style={styles.modalHandle} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={styles.modalTitle}>Report Team</Text>
+              <TouchableOpacity onPress={() => setShowReportModal(false)} style={{ padding: 4 }}>
+                <Icon name="close" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={{ fontSize: 14, color: Colors.textSecondary, fontFamily: 'Outfit-Regular', marginBottom: 16, lineHeight: 22 }}>
+                Please select a reason for reporting this team profile. Our team will review the team logo, name, and squad details and take appropriate action.
+              </Text>
+              
+              <View style={{ gap: 8, marginBottom: 20 }}>
+                {[
+                  { key: 'inappropriate_name', label: 'Inappropriate Team Name' },
+                  { key: 'offensive_photo', label: 'Offensive Team Logo' },
+                  { key: 'harassment', label: 'Harassment or Abuse' },
+                  { key: 'spam', label: 'Spam or Fake Team' },
+                  { key: 'other', label: 'Other Reason' }
+                ].map(item => {
+                  const isSelected = reportReason === item.key;
+                  return (
+                    <TouchableOpacity 
+                      key={item.key}
+                      style={{ 
+                        flexDirection: 'row', alignItems: 'center', padding: 14, 
+                        backgroundColor: isSelected ? 'rgba(255,204,0,0.1)' : Colors.surface,
+                        borderRadius: 12, borderWidth: 1, borderColor: isSelected ? Colors.primary : Colors.border
+                      }}
+                      onPress={() => setReportReason(item.key)}
+                    >
+                      <View style={{ 
+                        width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: isSelected ? Colors.primary : Colors.textTertiary,
+                        justifyContent: 'center', alignItems: 'center', marginRight: 12
+                      }}>
+                        {isSelected && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                      </View>
+                      <Text style={{ fontSize: 15, color: Colors.textPrimary, fontFamily: isSelected ? 'Outfit-SemiBold' : 'Outfit-Regular' }}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Outfit-SemiBold', marginBottom: 8, marginLeft: 4 }}>
+                Additional Details (Optional)
+              </Text>
+              <View style={{ 
+                height: 80, backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
+                paddingHorizontal: 12, marginBottom: 24
+              }}>
+                <TextInput
+                  style={{ flex: 1, color: '#FFF', fontSize: 14, textAlignVertical: 'top', paddingTop: 8 }}
+                  placeholder="Explain why you are flagging this team..."
+                  placeholderTextColor={Colors.textTertiary}
+                  value={reportDetails}
+                  onChangeText={setReportDetails}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+
+              <TouchableOpacity 
+                style={{ 
+                  height: 48, borderRadius: 12, backgroundColor: Colors.primary, 
+                  justifyContent: 'center', alignItems: 'center', flexDirection: 'row'
+                }}
+                onPress={handleReportTeam}
+                disabled={reportLoading}
+              >
+                {reportLoading ? (
+                  <ActivityIndicator color={Colors.background} size="small" />
+                ) : (
+                  <Text style={{ color: Colors.background, fontSize: 16, fontFamily: 'Outfit-Bold' }}>Submit Report</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>

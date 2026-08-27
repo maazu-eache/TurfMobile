@@ -2,9 +2,11 @@ import React, { useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Image, ScrollView, Animated, Dimensions, Platform, Switch } from 'react-native';
 import FinanceView from './FinanceView';
 import SupportAdminView from './SupportAdminView';
+import UgcReportsAdminView from './UgcReportsAdminView';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SIDEBAR_WIDTH = 110;
+const SIDEBAR_WIDTH = 220;
+
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -71,7 +73,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [refunds, setRefunds] = useState([]);
   const [settlements, setSettlements] = useState([]);
   const [openTickets, setOpenTickets] = useState(0);
-  const [deletionRequestsCount, setDeletionRequestsCount] = useState(0);
+  const [pendingUgcReports, setPendingUgcReports] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
@@ -196,7 +198,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [ownersRes, usersRes, turfsRes, waitlistRes, refundsRes, settlementsRes, ticketsRes, deletionReqsRes] = await Promise.allSettled([
+      const [ownersRes, usersRes, turfsRes, waitlistRes, refundsRes, settlementsRes, ticketsRes, ugcReportsRes] = await Promise.allSettled([
         api.get('/admin/owners?limit=100'),
         api.get('/admin/users?limit=100'),
         api.get('/admin/turfs?limit=100'),
@@ -204,7 +206,7 @@ const AdminDashboardScreen = ({ navigation }) => {
         api.get('/admin/refunds?limit=100'),
         api.get('/admin/settlements?limit=100'),
         api.get('/admin/support?status=open'),
-        api.get('/admin/deletion-requests')
+        api.get('/admin/ugc-reports')
       ]);
 
       if (ownersRes.status === 'fulfilled') setOwners(ownersRes.value.data.data || []);
@@ -234,8 +236,10 @@ const AdminDashboardScreen = ({ navigation }) => {
         setOpenTickets(ticketsRes.value.data?.data?.length || 0);
       }
 
-      if (deletionReqsRes && deletionReqsRes.status === 'fulfilled') {
-        setDeletionRequestsCount(deletionReqsRes.value.data?.data?.length || 0);
+
+      if (ugcReportsRes && ugcReportsRes.status === 'fulfilled') {
+        const reps = ugcReportsRes.value.data?.data || [];
+        setPendingUgcReports(reps.filter(r => r.status === 'pending').length);
       }
     } catch (err) {
       console.error('Failed to fetch admin data', err);
@@ -357,77 +361,212 @@ const AdminDashboardScreen = ({ navigation }) => {
   };
 
   const renderTurfCard = ({ item }) => {
-    const statusColor = item.status === 'active' ? Colors.primary : item.status === 'suspended' ? Colors.error : '#FF9800';
-    const statusBg = item.status === 'active' ? Colors.primaryAlpha20 : item.status === 'suspended' ? 'rgba(244,67,54,0.15)' : 'rgba(255,152,0,0.15)';
+    const isActive   = item.status === 'active';
+    const isSuspend  = item.status === 'suspended';
+    const isPending  = item.status === 'pending';
+    const statusColor = isActive ? Colors.primary : isSuspend ? Colors.error : '#FF9800';
+    const statusBg    = isActive ? Colors.primaryAlpha20 : isSuspend ? 'rgba(244,67,54,0.15)' : 'rgba(255,152,0,0.15)';
+    const statusIcon  = isActive ? 'check-circle' : isSuspend ? 'alert-circle' : 'clock-outline';
+    const statusLabel = item.status.toUpperCase();
+
+    const priceStr = item.pricing?.weekdayDay > 0 ? `₹${item.pricing.weekdayDay}/hr` : null;
+    const ownerName = item.owner?.businessName || item.owner?.userId?.name || 'Owner';
+    const amenities = item.amenities || {};
+    const amenityList = [
+      amenities.parking       && { icon: 'car-outline',    label: 'Parking' },
+      amenities.floodLights   && { icon: 'lightning-bolt', label: 'Flood Lights' },
+      amenities.washroom      && { icon: 'shower',         label: 'Washroom' },
+      amenities.drinkingWater && { icon: 'water-outline',  label: 'Water' },
+      amenities.changingRoom  && { icon: 'door-closed',    label: 'Change Room' },
+      amenities.foodAvailable && { icon: 'food-outline',   label: 'Food' },
+      amenities.seating       && { icon: 'seat',           label: 'Seating' },
+      amenities.firstAid      && { icon: 'medical-bag',    label: 'First Aid' },
+    ].filter(Boolean);
+
     return (
-      <View style={styles.card}>
-        <View style={[styles.turfStatusAccent, { backgroundColor: statusColor }]} />
-        <View style={styles.cardHeader}>
-          <View style={styles.avatarWrap}>
-            <View style={[styles.avatar, { backgroundColor: Colors.surfaceVariant }]}>
-              <Icon name="soccer-field" size={22} color={Colors.primary} />
+      <View style={styles.turfCard}>
+        {/* ── Cover image or placeholder ── */}
+        {item.coverImage ? (
+          <View style={styles.turfCoverWrap}>
+            <Image
+              source={{ uri: item.coverImage }}
+              style={styles.turfCoverImage}
+              resizeMode="cover"
+            />
+            <View style={styles.turfCoverOverlay} />
+            {/* Status badge pinned top-right on image */}
+            <View style={[styles.turfStatusPin, { backgroundColor: statusBg, borderColor: statusColor }]}>
+              <Icon name={statusIcon} size={10} color={statusColor} />
+              <Text style={[styles.turfStatusPinText, { color: statusColor }]}>{statusLabel}</Text>
+            </View>
+            {/* Turf name + price over image */}
+            <View style={styles.turfCoverInfo}>
+              <Text style={styles.turfCoverName} numberOfLines={1}>{item.name}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                <Icon name="map-marker-outline" size={11} color="rgba(255,255,255,0.75)" />
+                <Text style={styles.turfCoverCity}>{item.city}, {item.state}</Text>
+                {priceStr && (
+                  <>
+                    <View style={styles.turfCoverDot} />
+                    <Text style={styles.turfCoverPrice}>{priceStr}</Text>
+                  </>
+                )}
+              </View>
             </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>{item.name}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-              <Icon name="map-marker-outline" size={12} color={Colors.textTertiary} />
-              <Text style={styles.cardSubtitle}>{item.city}</Text>
-              {item.pricing?.weekdayDay > 0 && (
-                <>
-                  <Text style={{ color: Colors.border }}>·</Text>
-                  <Text style={[styles.cardSubtitle, { color: Colors.primary }]}>₹{item.pricing.weekdayDay}/hr</Text>
-                </>
+        ) : (
+          <View style={[styles.turfCoverWrap, styles.turfImagePlaceholder]}>
+            <Icon name="soccer-field" size={40} color={Colors.primary} style={{ opacity: 0.35 }} />
+            <View style={[styles.turfStatusPin, { backgroundColor: statusBg, borderColor: statusColor }]}>
+              <Icon name={statusIcon} size={10} color={statusColor} />
+              <Text style={[styles.turfStatusPinText, { color: statusColor }]}>{statusLabel}</Text>
+            </View>
+            <View style={styles.turfCoverInfo}>
+              <Text style={styles.turfCoverName} numberOfLines={1}>{item.name}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                <Icon name="map-marker-outline" size={11} color="rgba(255,255,255,0.75)" />
+                <Text style={styles.turfCoverCity}>{item.city}, {item.state}</Text>
+                {priceStr && (
+                  <>
+                    <View style={styles.turfCoverDot} />
+                    <Text style={styles.turfCoverPrice}>{priceStr}</Text>
+                  </>
+                )}
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ── Body ── */}
+        <View style={styles.turfBody}>
+          {/* Owner row */}
+          <View style={styles.turfInfoRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Icon name="account-tie" size={13} color={Colors.textTertiary} />
+              <Text style={styles.turfOwnerText}>{ownerName}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {item.type && (
+                <View style={styles.turfTypeChip}>
+                  <Icon name="home-outline" size={10} color={Colors.textSecondary} />
+                  <Text style={styles.turfTypeText}>{item.type}</Text>
+                </View>
+              )}
+              {item.size && (
+                <View style={styles.turfTypeChip}>
+                  <Icon name="resize" size={10} color={Colors.textSecondary} />
+                  <Text style={styles.turfTypeText}>{item.size}</Text>
+                </View>
               )}
             </View>
           </View>
-          <View style={[styles.roleBadge, { backgroundColor: statusBg }]}>
-            <Icon name={item.status === 'active' ? 'check-circle' : item.status === 'suspended' ? 'alert-circle' : 'clock-outline'} size={10} color={statusColor} />
-            <Text style={[styles.roleText, { color: statusColor }]}>{item.status.toUpperCase()}</Text>
-          </View>
-        </View>
 
-        <View style={styles.turfMeta}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Icon name="account-tie" size={12} color={Colors.textTertiary} />
-            <Text style={styles.turfMetaText}>{item.owner?.businessName || item.owner?.userId?.name || 'Owner'}</Text>
+          {/* Stats row */}
+          <View style={styles.turfStatsRow}>
+            <View style={styles.turfStatItem}>
+              <Text style={styles.turfStatVal}>{item.totalBookings ?? 0}</Text>
+              <Text style={styles.turfStatLabel}>Bookings</Text>
+            </View>
+            <View style={styles.turfStatDivider} />
+            <View style={styles.turfStatItem}>
+              <Text style={styles.turfStatVal}>{item.rating?.toFixed(1) ?? '—'}</Text>
+              <Text style={styles.turfStatLabel}>Rating</Text>
+            </View>
+            <View style={styles.turfStatDivider} />
+            <View style={styles.turfStatItem}>
+              <Text style={styles.turfStatVal}>{item.reviewCount ?? 0}</Text>
+              <Text style={styles.turfStatLabel}>Reviews</Text>
+            </View>
+            {item.pendingPlatformFee > 0 && (
+              <>
+                <View style={styles.turfStatDivider} />
+                <View style={styles.turfStatItem}>
+                  <Text style={[styles.turfStatVal, { color: Colors.error }]}>₹{item.pendingPlatformFee}</Text>
+                  <Text style={styles.turfStatLabel}>Fee Due</Text>
+                </View>
+              </>
+            )}
           </View>
-        </View>
 
-        <View style={[styles.cardFooter, { paddingTop: 0 }]}>
-          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          {/* Amenities */}
+          {amenityList.length > 0 && (
+            <View style={styles.turfAmenitiesRow}>
+              {amenityList.map((a, i) => (
+                <View key={i} style={styles.turfAmenityChip}>
+                  <Icon name={a.icon} size={10} color={Colors.primary} />
+                  <Text style={styles.turfAmenityText}>{a.label}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Deletion request banner */}
+          {item.deletionRequested && (
+            <View style={styles.turfDeletionBanner}>
+              <Icon name="alert-decagram-outline" size={13} color={Colors.error} />
+              <Text style={styles.turfDeletionText}>Deletion Requested by Owner</Text>
+            </View>
+          )}
+
+          {/* Action buttons */}
+          <View style={styles.turfActionsRow}>
             {item.deletionRequested && (
               <>
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.surfaceVariant }]} onPress={() => {
-                  showCustomAlert('Reject Deletion', 'Reject the deletion request for this turf?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Reject', onPress: () => handleRejectDeletion(item._id) }
-                  ]);
-                }}>
-                  <Icon name="cancel" size={12} color={Colors.textPrimary} />
-                  <Text style={[styles.actionBtnText, { color: Colors.textPrimary }]}>Reject Del.</Text>
+                <TouchableOpacity
+                  style={[styles.turfActionBtn, styles.turfActionBtnGhost]}
+                  onPress={() => showCustomAlert(
+                    'Reject Deletion',
+                    'Reject the deletion request for this turf?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Reject', onPress: () => handleRejectDeletion(item._id) }
+                    ]
+                  )}
+                >
+                  <Icon name="cancel" size={13} color={Colors.textPrimary} />
+                  <Text style={[styles.turfActionBtnText, { color: Colors.textPrimary }]}>Reject Del.</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(244,67,54,0.15)', borderColor: Colors.error }]} onPress={() => {
-                  showCustomAlert('Approve Deletion', 'Permanently delete this turf, its slots, and bookings?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => handleDeleteTurf(item._id) }
-                  ]);
-                }}>
-                  <Icon name="trash-can-outline" size={12} color={Colors.error} />
-                  <Text style={[styles.actionBtnText, { color: Colors.error }]}>Approve Del.</Text>
+                <TouchableOpacity
+                  style={[styles.turfActionBtn, styles.turfActionBtnDanger]}
+                  onPress={() => showCustomAlert(
+                    'Approve Deletion',
+                    'Permanently delete this turf, its slots, and bookings?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Delete', style: 'destructive', onPress: () => handleDeleteTurf(item._id) }
+                    ]
+                  )}
+                >
+                  <Icon name="trash-can-outline" size={13} color={Colors.error} />
+                  <Text style={[styles.turfActionBtnText, { color: Colors.error }]}>Approve Del.</Text>
                 </TouchableOpacity>
               </>
             )}
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: item.status === 'active' ? 'rgba(255,71,87,0.12)' : Colors.primaryAlpha20, borderColor: item.status === 'active' ? '#FF4757' : Colors.primary }]} onPress={() => {
-              const actionName = item.status === 'active' ? 'Suspend' : 'Activate';
-              showCustomAlert(`Confirm ${actionName}`, `Are you sure you want to ${actionName.toLowerCase()} this turf?`, [
-                { text: 'Cancel', style: 'cancel' },
-                { text: actionName, onPress: () => handleToggleStatus(item._id) }
-              ]);
-            }}>
-              <Icon name={item.status === 'active' ? 'pause-circle-outline' : 'play-circle-outline'} size={12} color={item.status === 'active' ? '#FF4757' : Colors.primary} />
-              <Text style={[styles.actionBtnText, { color: item.status === 'active' ? '#FF4757' : Colors.primary }]}>
-                {item.status === 'active' ? 'Suspend' : 'Activate'}
+
+            <TouchableOpacity
+              style={[
+                styles.turfActionBtn,
+                isActive ? styles.turfActionBtnDanger : styles.turfActionBtnPrimary,
+              ]}
+              onPress={() => {
+                const actionName = isActive ? 'Suspend' : 'Activate';
+                showCustomAlert(
+                  `Confirm ${actionName}`,
+                  `Are you sure you want to ${actionName.toLowerCase()} this turf?`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: actionName, onPress: () => handleToggleStatus(item._id) }
+                  ]
+                );
+              }}
+            >
+              <Icon
+                name={isActive ? 'pause-circle-outline' : 'play-circle-outline'}
+                size={13}
+                color={isActive ? Colors.error : Colors.primary}
+              />
+              <Text style={[styles.turfActionBtnText, { color: isActive ? Colors.error : Colors.primary }]}>
+                {isActive ? 'Suspend' : 'Activate'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -729,7 +868,7 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   const pendingRefunds = refunds.filter(r => r.status === 'pending').length;
   const pendingSettlements = settlements.filter(s => s.status === 'pending').length;
-  const totalAlerts = pendingRefunds + pendingSettlements + openTickets + deletionRequestsCount;
+  const totalAlerts = pendingRefunds + pendingSettlements + openTickets;
 
   // Search filter helpers
   const q = searchQuery.toLowerCase().trim();
@@ -799,12 +938,29 @@ const AdminDashboardScreen = ({ navigation }) => {
       <TouchableOpacity
         style={[styles.sidebarItem, isActive && styles.sidebarItemActive]}
         onPress={() => handleTabSelect(tab)}
-        activeOpacity={0.75}
+        activeOpacity={0.7}
       >
-        <Icon name={icon} size={21} color={isActive ? Colors.primary : Colors.textTertiary} />
-        <Text style={[styles.sidebarText, isActive && styles.sidebarTextActive]} numberOfLines={1}>{label}</Text>
+        {/* Active indicator bar */}
+        <View style={[styles.sidebarActiveBar, isActive && styles.sidebarActiveBarVisible]} />
+
+        {/* Icon */}
+        <View style={[styles.sidebarIconWrap, isActive && styles.sidebarIconWrapActive]}>
+          <Icon name={icon} size={18} color={isActive ? Colors.primary : Colors.textTertiary} />
+        </View>
+
+        {/* Label */}
+        <Text
+          style={[styles.sidebarText, isActive && styles.sidebarTextActive]}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
+
+        {/* Badge */}
         {badge > 0 && (
-          <View style={styles.sidebarBadge}><Text style={styles.sidebarBadgeText}>{badge}</Text></View>
+          <View style={styles.sidebarBadge}>
+            <Text style={styles.sidebarBadgeText}>{badge > 99 ? '99+' : badge}</Text>
+          </View>
         )}
       </TouchableOpacity>
     );
@@ -874,9 +1030,6 @@ const AdminDashboardScreen = ({ navigation }) => {
             <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Icon name="account-group" size={20} color={Colors.primary} />
-                {deletionRequestsCount > 0 && (
-                  <View style={{ backgroundColor: Colors.error, width: 8, height: 8, borderRadius: 4 }} />
-                )}
               </View>
               <Text style={styles.statValue}>{owners.length + users.length}</Text>
               <Text style={styles.statLabel}>Total Users</Text>
@@ -1195,6 +1348,8 @@ const AdminDashboardScreen = ({ navigation }) => {
           <FinanceView navigation={navigation} />
         ) : activeTab === 'support' ? (
           <SupportAdminView navigation={navigation} onStatusChanged={fetchData} />
+        ) : activeTab === 'ugc_reports' ? (
+          <UgcReportsAdminView />
         ) : null}
       </View>
 
@@ -1207,37 +1362,54 @@ const AdminDashboardScreen = ({ navigation }) => {
 
       {/* Slide-in Sidebar Drawer */}
       <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
-        <View style={styles.sidebarHeader}>
-          <Icon name="shield-crown" size={18} color={Colors.primary} />
-          <Text style={styles.sidebarHeaderText}>Menu</Text>
+
+        {/* Admin identity block */}
+        <View style={styles.sidebarIdentity}>
+          <View style={styles.sidebarAvatarRing}>
+            <Icon name="shield-crown" size={22} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sidebarIdentityTitle}>ScoreVerse</Text>
+            <Text style={styles.sidebarIdentityRole}>Admin Panel</Text>
+          </View>
+          <TouchableOpacity onPress={closeSidebar} style={styles.sidebarCloseBtn}>
+            <Icon name="close" size={16} color={Colors.textTertiary} />
+          </TouchableOpacity>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false}>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+
+          {/* ── MANAGEMENT ── */}
+          <Text style={styles.sidebarSectionLabel}>MANAGEMENT</Text>
           <SidebarItem tab="turfs" icon="soccer-field" label="Turfs"
             badge={turfs.filter(t => (t.pendingPlatformFee > 0 && t.pendingPaymentId) || t.deletionRequested).length} />
           <SidebarItem tab="owners" icon="briefcase-account" label="Owners" badge={0} />
           <SidebarItem tab="users" icon="account-group" label="Users" badge={0} />
-          <SidebarItem tab="user_manager" icon="account-remove-outline" label="Deletion Requests" badge={deletionRequestsCount} />
           <SidebarItem tab="waitlist" icon="clipboard-list-outline" label="Waitlist" badge={0} />
 
+          {/* ── REFUNDS ── */}
           <View style={styles.sidebarDivider} />
           <Text style={styles.sidebarSectionLabel}>REFUNDS</Text>
-          <SidebarItem tab="refunds" icon="cash-refund" label="Refunds" badge={pendingRefunds} />
+          <SidebarItem tab="refunds" icon="cash-refund" label="Pending Refunds" badge={pendingRefunds} />
 
+          {/* ── SUPPORT ── */}
           <View style={styles.sidebarDivider} />
           <Text style={styles.sidebarSectionLabel}>SUPPORT</Text>
           <SidebarItem tab="support" icon="ticket-account" label="Support Tickets" badge={openTickets} />
-          
+          <SidebarItem tab="ugc_reports" icon="shield-alert-outline" label="UGC Reports" badge={pendingUgcReports} />
+
+          {/* ── FINANCE ── */}
           <View style={styles.sidebarDivider} />
           <Text style={styles.sidebarSectionLabel}>FINANCE</Text>
           <SidebarItem tab="finance" icon="finance" label="Finance Dashboard" badge={0} />
 
-
-
+          {/* ── SETTLEMENTS ── */}
           <View style={styles.sidebarDivider} />
           <Text style={styles.sidebarSectionLabel}>SETTLEMENTS</Text>
-          <SidebarItem tab="settlements_requests" icon="bank-transfer-out" label="Withdraw Req." badge={pendingSettlements} />
+          <SidebarItem tab="settlements_requests" icon="bank-transfer-out" label="Withdraw Requests" badge={pendingSettlements} />
           <SidebarItem tab="settlements_turf" icon="stadium-variant" label="Turf Wallets" badge={0} />
           <SidebarItem tab="settlements_org" icon="account-tie-hat" label="Organizers" badge={0} />
+
         </ScrollView>
       </Animated.View>
       {/* Processing overlay */}
@@ -1317,45 +1489,100 @@ const styles = StyleSheet.create({
   },
   sidebarOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.55)', zIndex: 99,
+    backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 99,
   },
   sidebar: {
     position: 'absolute', top: 0, bottom: 0, left: 0,
     width: SIDEBAR_WIDTH,
-    backgroundColor: Colors.backgroundCard,
-    borderRightWidth: 1, borderRightColor: Colors.border,
+    backgroundColor: '#0A0A0A',
+    borderRightWidth: 1, borderRightColor: 'rgba(255,204,0,0.12)',
     zIndex: 100,
-    paddingTop: 52,
-    elevation: 16,
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 4, height: 0 },
+    elevation: 20,
+    shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 20, shadowOffset: { width: 6, height: 0 },
   },
-  sidebarHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-    marginBottom: 6,
+
+  // ── Sidebar identity block ──────────────────────────────────────────────
+  sidebarIdentity: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingTop: 54, paddingHorizontal: 16, paddingBottom: 16,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  sidebarHeaderText: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  sidebarAvatarRing: {
+    width: 40, height: 40, borderRadius: 14,
+    backgroundColor: 'rgba(255,204,0,0.1)',
+    borderWidth: 1, borderColor: 'rgba(255,204,0,0.25)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  sidebarIdentityTitle: {
+    fontSize: 14, fontFamily: Typography.fontFamily.extraBold,
+    color: Colors.textPrimary, letterSpacing: 0.3,
+  },
+  sidebarIdentityRole: {
+    fontSize: 10, fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary, letterSpacing: 0.8, textTransform: 'uppercase',
+    marginTop: 1,
+  },
+  sidebarCloseBtn: {
+    width: 30, height: 30, borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+
+  // ── Sidebar items ────────────────────────────────────────────────────────
   sidebarItem: {
-    alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 13, paddingHorizontal: 6,
-    borderLeftWidth: 3, borderLeftColor: 'transparent',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
     position: 'relative',
+    marginHorizontal: 8,
+    marginVertical: 1,
+    borderRadius: 10,
   },
-  sidebarItemActive: { borderLeftColor: Colors.primary, backgroundColor: Colors.primaryAlpha20 },
-  sidebarText: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 4, textAlign: 'center' },
-  sidebarTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  sidebarItemActive: {
+    backgroundColor: 'rgba(255,204,0,0.08)',
+  },
+  sidebarActiveBar: {
+    position: 'absolute',
+    left: 0, top: 8, bottom: 8,
+    width: 3, borderRadius: 2,
+    backgroundColor: 'transparent',
+  },
+  sidebarActiveBarVisible: {
+    backgroundColor: Colors.primary,
+  },
+  sidebarIconWrap: {
+    width: 32, height: 32, borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  sidebarIconWrapActive: {
+    backgroundColor: 'rgba(255,204,0,0.12)',
+  },
+  sidebarText: {
+    flex: 1,
+    fontSize: 13, fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  sidebarTextActive: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+  },
   sidebarBadge: {
-    position: 'absolute', top: 6, right: 10,
     backgroundColor: Colors.error, borderRadius: 10,
-    paddingHorizontal: 4, paddingVertical: 1, minWidth: 18, alignItems: 'center',
+    paddingHorizontal: 6, paddingVertical: 2,
+    minWidth: 20, alignItems: 'center',
   },
-  sidebarBadgeText: { color: '#FFF', fontSize: 8, fontFamily: Typography.fontFamily.bold },
-  sidebarDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 6, marginHorizontal: 10 },
+  sidebarBadgeText: { color: '#FFF', fontSize: 9, fontFamily: Typography.fontFamily.bold },
+  sidebarDivider: {
+    height: 1, backgroundColor: 'rgba(255,255,255,0.05)',
+    marginVertical: 6, marginHorizontal: 16,
+  },
   sidebarSectionLabel: {
-    fontSize: 8, fontFamily: Typography.fontFamily.bold,
-    color: Colors.textTertiary, letterSpacing: 0.8,
-    paddingHorizontal: 14, paddingVertical: 4,
+    fontSize: 9, fontFamily: Typography.fontFamily.bold,
+    color: Colors.textTertiary, letterSpacing: 1.2,
+    paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4,
     textTransform: 'uppercase',
   },
 
@@ -1398,13 +1625,140 @@ const styles = StyleSheet.create({
   },
   deleteUserText: { color: '#FF4757', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
-  turfsList: { backgroundColor: Colors.backgroundElevated, paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
-  sectionHeader: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
-  turfItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, paddingHorizontal: Spacing.sm, paddingVertical: 8, borderRadius: BorderRadius.md, marginBottom: 4, gap: 8, borderWidth: 1, borderColor: Colors.border },
-  turfName: { flex: 1, fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
-  turfMeta: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm },
-  turfMetaText: { fontSize: 12, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular },
-  turfPrice: { fontSize: 14, color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  // ── Turf Card (premium redesign) ──────────────────────────────────────
+  turfCard: {
+    backgroundColor: Colors.backgroundCard,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.md,
+    overflow: 'hidden',
+  },
+  turfCoverWrap: {
+    width: '100%',
+    height: 160,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0e1111',
+  },
+  turfCoverImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  turfCoverOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  turfImagePlaceholder: {
+    backgroundColor: 'rgba(255,204,0,0.04)',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  turfStatusPin: {
+    position: 'absolute',
+    top: 10, right: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 20, borderWidth: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  turfStatusPinText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
+  turfCoverInfo: {
+    position: 'absolute',
+    bottom: 10, left: 12, right: 80,
+  },
+  turfCoverName: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.extraBold,
+    color: '#ffffff',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  turfCoverCity: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  turfCoverDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.4)' },
+  turfCoverPrice: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  turfBody: { padding: Spacing.md },
+  turfInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  turfOwnerText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  turfTypeChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: Colors.surface, paddingHorizontal: 6, paddingVertical: 3,
+    borderRadius: 6, borderWidth: 1, borderColor: Colors.border,
+  },
+  turfTypeText: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  turfStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingVertical: 8,
+    marginBottom: Spacing.sm,
+  },
+  turfStatItem: { flex: 1, alignItems: 'center', gap: 2 },
+  turfStatVal: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
+  turfStatLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.3 },
+  turfStatDivider: { width: 1, height: 28, backgroundColor: Colors.border },
+  turfAmenitiesRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 5,
+    marginBottom: Spacing.sm,
+  },
+  turfAmenityChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: Colors.primaryAlpha20,
+    borderRadius: 20, paddingHorizontal: 7, paddingVertical: 3,
+  },
+  turfAmenityText: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  turfDeletionBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(244,67,54,0.08)',
+    borderRadius: 8, borderWidth: 1, borderColor: 'rgba(244,67,54,0.2)',
+    paddingHorizontal: 10, paddingVertical: 6,
+    marginBottom: Spacing.sm,
+  },
+  turfDeletionText: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.error },
+  turfActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  turfActionBtn: {
+    flex: 1,
+    minWidth: 90,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  turfActionBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  turfActionBtnPrimary: { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
+  turfActionBtnDanger: { backgroundColor: 'rgba(255,71,87,0.1)', borderColor: 'rgba(255,71,87,0.3)' },
+  turfActionBtnGhost: { backgroundColor: Colors.surfaceVariant, borderColor: Colors.border },
 
   noTurfs: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
   noTurfsText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 12, fontStyle: 'italic' },

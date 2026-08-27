@@ -8,7 +8,19 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../api/axios';
 import { Colors, Typography } from '../../../theme/theme';
 
-const formatCurrency = (val) => `₹${(val || 0).toLocaleString('en-IN')}`;
+// Full currency — used in list cards, modals
+const formatCurrency = (val) => `\u20b9${(val || 0).toLocaleString('en-IN')}`;
+
+// Compact currency — used in small tiles to prevent layout collapse
+// ₹1.2Cr  ₹5.4L  ₹12.3K  ₹850
+const formatCurrencyShort = (val) => {
+  const n = val || 0;
+  if (n >= 1_00_00_000) return `\u20b9${(n / 1_00_00_000).toFixed(1)}Cr`;
+  if (n >= 1_00_000)    return `\u20b9${(n / 1_00_000).toFixed(1)}L`;
+  if (n >= 1_000)       return `\u20b9${(n / 1_000).toFixed(1)}K`;
+  return `\u20b9${n.toLocaleString('en-IN')}`;
+};
+
 const formatDate = (val) => val ? new Date(val).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
 const formatTime = (val) => val ? new Date(val).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
 
@@ -174,50 +186,127 @@ const FinanceView = () => {
     </ScrollView>
   );
 
-  // ── Summary ────────────────────────────────────────────────────────
+  // ── Summary ────────────────────────────────────────────
   const renderSummary = () => {
     if (!summaryData) return <EmptyState icon="chart-line" message="Could not load summary data." />;
-    const cards = [
-      { label: "Today's Collection", value: summaryData.todayCollection, icon: 'calendar-today', color: Colors.primary },
-      { label: 'Month Collection', value: summaryData.monthCollection, icon: 'calendar-month', color: Colors.info },
-      { label: 'Total Incoming', value: summaryData.totalIncoming, icon: 'arrow-down-circle', color: Colors.success },
-      { label: 'Total Outgoing', value: summaryData.totalOutgoing, icon: 'arrow-up-circle', color: Colors.error },
-      { label: 'Platform Revenue', value: summaryData.totalPlatformRevenue, icon: 'chart-bar', color: Colors.warning },
-      { label: 'Pending Refunds', value: summaryData.pendingRefundAmount, icon: 'cash-refund', color: Colors.error },
-      { label: 'Pending Withdrawals', value: summaryData.pendingWithdrawalAmount, icon: 'bank-transfer-out', color: Colors.error },
-      { label: 'Customer Refunds', value: summaryData.totalCustomerRefunds, icon: 'account-arrow-left', color: Colors.textSecondary },
-      { label: 'Owner Withdrawals', value: summaryData.totalOwnerWithdrawals, icon: 'store-outline', color: Colors.textSecondary },
+    const d = summaryData;
+
+    const platformTiles = [
+      { label: "Today",  value: d.todayPlatformRevenue,  icon: 'weather-sunny' },
+      { label: "Week",   value: d.weekPlatformRevenue,   icon: 'calendar-week' },
+      { label: "Month",  value: d.monthPlatformRevenue,  icon: 'calendar-month-outline' },
+      { label: "Year",   value: d.yearPlatformRevenue,   icon: 'calendar-blank-outline' },
+    ];
+
+    const revenueTiles = [
+      { label: "Today",  value: d.todayCollection,  icon: 'weather-sunny' },
+      { label: "Week",   value: d.weekCollection,   icon: 'calendar-week' },
+      { label: "Month",  value: d.monthCollection,  icon: 'calendar-month-outline' },
+      { label: "Year",   value: d.yearCollection,   icon: 'calendar-blank-outline' },
     ];
 
     return (
       <ScrollView contentContainerStyle={styles.summaryContent}>
-        {/* Hero card */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <Icon name="finance" size={22} color={Colors.primary} />
-            <Text style={styles.heroLabel}>Year Collection</Text>
+
+        {/* ── Platform Revenue Section ──────────────────────────────── */}
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionIconWrap}>
+              <Icon name="wallet-membership" size={16} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Platform Revenue</Text>
+              <Text style={styles.sectionSub}>Platform commission earned</Text>
+            </View>
+            <View style={styles.sectionTotal}>
+              <Text style={styles.sectionTotalLabel}>All-time</Text>
+              <Text style={styles.sectionTotalValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{formatCurrencyShort(d.totalPlatformRevenue)}</Text>
+            </View>
           </View>
-          <Text style={styles.heroValue}>{formatCurrency(summaryData.yearCollection)}</Text>
-          <Text style={styles.heroSub}>Total revenue collected this year</Text>
+
+          <View style={styles.tilesRow}>
+            {platformTiles.map((t, i) => (
+              <View key={i} style={[styles.tile, i === 0 && styles.tileHighlight]}>
+                <Icon name={t.icon} size={13} color={i === 0 ? Colors.primary : Colors.textTertiary} />
+                <Text
+                  style={[styles.tileValue, i === 0 && styles.tileValueHighlight]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
+                >
+                  {formatCurrencyShort(t.value)}
+                </Text>
+                <Text style={[styles.tileLabel, i === 0 && { color: Colors.primary }]}>{t.label}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
-        {/* Metric grid */}
-        <View style={styles.metricGrid}>
-          {cards.map((c, i) => (
-            <View key={i} style={styles.metricCard}>
-              <View style={[styles.metricIconBg, { backgroundColor: c.color + '18' }]}>
-                <Icon name={c.icon} size={18} color={c.color} />
-              </View>
-              <Text style={styles.metricValue} numberOfLines={1}>{formatCurrency(c.value)}</Text>
-              <Text style={styles.metricLabel}>{c.label}</Text>
+        {/* ── Total Revenue Section ─────────────────────────────────── */}
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIconWrap, { backgroundColor: 'rgba(46,213,115,0.12)' }]}>
+              <Icon name="trending-up" size={16} color={Colors.success} />
             </View>
-          ))}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Total Revenue</Text>
+              <Text style={styles.sectionSub}>Gross collections</Text>
+            </View>
+            <View style={styles.sectionTotal}>
+              <Text style={styles.sectionTotalLabel}>All-time</Text>
+              <Text style={[styles.sectionTotalValue, { color: Colors.success }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{formatCurrencyShort(d.totalIncoming)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.tilesRow}>
+            {revenueTiles.map((t, i) => (
+              <View key={i} style={[styles.tile, i === 0 && styles.tileHighlightGreen]}>
+                <Icon name={t.icon} size={13} color={i === 0 ? Colors.success : Colors.textTertiary} />
+                <Text
+                  style={[styles.tileValue, i === 0 && { color: Colors.success }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
+                >
+                  {formatCurrencyShort(t.value)}
+                </Text>
+                <Text style={[styles.tileLabel, i === 0 && { color: Colors.success }]}>{t.label}</Text>
+              </View>
+            ))}
+          </View>
         </View>
+
+        {/* ── Cashflow Strip ────────────────────────────────────────── */}
+        <View style={styles.cashflowStrip}>
+          <View style={styles.cashflowItem}>
+            <Icon name="arrow-down-circle" size={18} color={Colors.success} />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={styles.cashflowValue}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.6}
+              >
+                {formatCurrencyShort(d.totalIncoming)}
+              </Text>
+              <Text style={styles.cashflowLabel}>Total Incoming</Text>
+            </View>
+          </View>
+          <View style={styles.cashflowDivider} />
+          <View style={styles.cashflowItem}>
+            <Icon name="arrow-up-circle" size={18} color={Colors.error} />
+            <View>
+              <Text style={[styles.cashflowValue, { color: Colors.error }]}>{formatCurrency(d.totalOutgoing)}</Text>
+              <Text style={styles.cashflowLabel}>Total Outgoing</Text>
+            </View>
+          </View>
+        </View>
+
       </ScrollView>
     );
   };
 
-  // ── Incoming payments ──────────────────────────────────────────────
+  // ── Incoming payments ────────────────────────────────────────────
   const renderIncomingItem = ({ item }) => (
     <View style={[styles.card, styles.cardGreenAccent]}>
       <View style={styles.cardHeaderRow}>
@@ -553,34 +642,94 @@ const styles = StyleSheet.create({
   loadingText: { color: Colors.textSecondary, fontSize: 14, fontFamily: 'Outfit-Regular' },
 
   // ── Summary ──────────────────────────────────────────────────────
-  summaryContent: { padding: 16, gap: 16 },
-  heroCard: {
+  summaryContent: { padding: 16, gap: 14, paddingBottom: 32 },
+
+  // Section block (wraps header + tiles)
+  sectionBlock: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: Colors.primaryAlpha30,
-  },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  heroLabel: { color: Colors.primary, fontSize: 13, fontFamily: 'Outfit-Bold' },
-  heroValue: { color: Colors.textPrimary, fontSize: 34, fontFamily: 'Outfit-ExtraBold', letterSpacing: -0.5 },
-  heroSub: { color: Colors.textTertiary, fontSize: 12, fontFamily: 'Outfit-Regular', marginTop: 4 },
-  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  metricCard: {
-    width: '47.5%',
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 14,
     borderWidth: 1,
     borderColor: Colors.border,
-    gap: 8,
+    overflow: 'hidden',
   },
-  metricIconBg: {
-    width: 36, height: 36, borderRadius: 10,
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  sectionIconWrap: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: 'rgba(255,204,0,0.12)',
     justifyContent: 'center', alignItems: 'center',
   },
-  metricValue: { color: Colors.textPrimary, fontSize: 17, fontFamily: 'Outfit-ExtraBold' },
-  metricLabel: { color: Colors.textTertiary, fontSize: 11, fontFamily: 'Outfit-Medium' },
+  sectionTitle: { fontSize: 14, fontFamily: 'Outfit-Bold', color: Colors.textPrimary },
+  sectionSub: { fontSize: 11, fontFamily: 'Outfit-Regular', color: Colors.textTertiary, marginTop: 1 },
+  sectionTotal: { alignItems: 'flex-end' },
+  sectionTotalLabel: { fontSize: 9, fontFamily: 'Outfit-Bold', color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTotalValue: { fontSize: 15, fontFamily: 'Outfit-ExtraBold', color: Colors.primary, marginTop: 2 },
+
+  // 4-tile row inside a section
+  tilesRow: { flexDirection: 'row' },
+  tile: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 4,
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
+  },
+  tileHighlight: {
+    backgroundColor: 'rgba(255,204,0,0.06)',
+  },
+  tileHighlightGreen: {
+    backgroundColor: 'rgba(46,213,115,0.06)',
+  },
+  tileValue: {
+    fontSize: 13,
+    fontFamily: 'Outfit-ExtraBold',
+    color: Colors.textPrimary,
+  },
+  tileValueHighlight: { color: Colors.primary },
+  tileLabel: {
+    fontSize: 9,
+    fontFamily: 'Outfit-Bold',
+    color: Colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+
+  // Cashflow strip
+  cashflowStrip: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  cashflowItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+  },
+  cashflowDivider: { width: 1, backgroundColor: Colors.border },
+  cashflowValue: {
+    fontSize: 14,
+    fontFamily: 'Outfit-ExtraBold',
+    color: Colors.success,
+  },
+  cashflowLabel: {
+    fontSize: 10,
+    fontFamily: 'Outfit-Medium',
+    color: Colors.textTertiary,
+    marginTop: 2,
+  },
+
 
   // ── List / Cards ─────────────────────────────────────────────────
   list: { padding: 16, gap: 12 },

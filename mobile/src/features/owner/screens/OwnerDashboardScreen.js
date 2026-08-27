@@ -92,6 +92,36 @@ const OwnerDashboardScreen = ({ navigation }) => {
 
   const onRefresh = () => dispatch(fetchOwnerDashboard());
 
+  
+  const handleDeleteAccount = () => {
+    setSidebarVisible(false);
+    setTimeout(() => {
+      showCustomAlert(
+        "Delete Account",
+        "⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nAre you absolutely sure you want to delete your account? All your turfs, slots, and transaction history will be permanently erased. You cannot delete your account if you have upcoming bookings.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Delete My Account", 
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await api.delete('/users/delete-account');
+                showCustomAlert(
+                  "Account Deleted", 
+                  "Your account has been permanently deleted.", 
+                  [{ text: "OK", onPress: () => dispatch(logout()) }]
+                );
+              } catch (err) {
+                showCustomAlert("Error", err.response?.data?.message || "Failed to delete account");
+              }
+            }
+          }
+        ]
+      );
+    }, 300);
+  };
+
   const handleLogout = () => {
     setSidebarVisible(false);
     setTimeout(() => {
@@ -383,7 +413,7 @@ const OwnerDashboardScreen = ({ navigation }) => {
             {[
               { label: 'ONLINE',   value: `\u20b9${onlineAmt.toLocaleString()}`,  color: Colors.primary },
               { label: 'OFFLINE',  value: `\u20b9${offlineAmt.toLocaleString()}`, color: '#FF9800' },
-              { label: 'BOOKINGS', value: String(s.todayTotalBookings || 0),       color: '#5B8DEF' },
+              { label: 'BOOKINGS',    value: `${s.todayTotalBookings || 0} (${s.todayTotalSlots || 0} Slots)`,      color: '#5B8DEF' },
             ].map((chip, i) => (
               <React.Fragment key={chip.label}>
                 {i > 0 && <View style={styles.revChipSep} />}
@@ -406,9 +436,9 @@ const OwnerDashboardScreen = ({ navigation }) => {
               {'This month: '}
               <Text style={styles.revMonthVal}>&#8377;{(s.monthTotalRevenue || 0).toLocaleString()}</Text>
               {'  \u00b7  '}
-              <Text style={{ color: Colors.primary }}>{s.monthOnlineBookings || 0} online</Text>
+              <Text style={{ color: Colors.primary }}>{s.monthOnlineBookings || 0} online ({s.monthOnlineSlots || 0} slots)</Text>
               {'  \u00b7  '}
-              <Text style={{ color: '#FF9800' }}>{s.monthOfflineBookings || 0} offline</Text>
+              <Text style={{ color: '#FF9800' }}>{s.monthOfflineBookings || 0} offline ({s.monthOfflineSlots || 0} slots)</Text>
             </Text>
           </View>
         </View>
@@ -497,6 +527,14 @@ const OwnerDashboardScreen = ({ navigation }) => {
           </ScrollView>
 
           <View style={styles.sidebarFooter}>
+            
+            <TouchableOpacity style={[styles.sidebarItem, { marginHorizontal: 0 }]} onPress={handleDeleteAccount}>
+              <View style={[styles.sidebarIconBox, { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+                <Icon name="account-remove" size={19} color="#EF4444" />
+              </View>
+              <Text style={[styles.sidebarItemTxt, { color: Colors.error }]}>Delete Account</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={[styles.sidebarItem, { marginHorizontal: 0 }]} onPress={handleLogout}>
               <View style={[styles.sidebarIconBox, { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
                 <Icon name="logout" size={19} color="#EF4444" />

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -18,6 +18,44 @@ const ProfileScreen = ({ navigation }) => {
   const isOwner = user?.roles?.includes('owner');
 
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [infoModalVisible, setInfoModalVisible] = useState(false);
+
+  const handleDeleteAccount = () => {
+    showCustomAlert(
+      "Delete Account",
+      "⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nAre you absolutely sure you want to delete your account? All your details, score stats, wallets, and transaction history will be permanently erased.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete My Account", 
+          style: "destructive",
+          onPress: async () => {
+            setDeletingAccount(true);
+            try {
+              await api.delete('/users/delete-account');
+              showCustomAlert(
+                "Account Deleted", 
+                "Your account has been permanently deleted.", 
+                [{
+                  text: "OK",
+                  onPress: async () => {
+                    await dispatch(logout());
+                    reset('Customer');
+                  }
+                }]
+              );
+            } catch (err) {
+              setDeletingAccount(false);
+              showCustomAlert("Error", err.response?.data?.message || "Failed to delete account");
+            }
+          }
+        }
+      ]
+    );
+  };
+
 
   const handleLogout = () => {
     showCustomAlert(
@@ -61,8 +99,11 @@ const ProfileScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
           <Text style={styles.headerTitle}>Profile</Text>
+          <TouchableOpacity onPress={() => setInfoModalVisible(true)}>
+            <Icon name="dots-vertical" size={26} color={Colors.textSecondary} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -112,6 +153,7 @@ const ProfileScreen = ({ navigation }) => {
             {!isOwner && renderOption('heart', 'Favourites', 'View your favourite turfs', () => navigation.navigate('Favourites'))}
             {renderOption('lock-reset', 'Change Password', 'Update your password', () => navigation.navigate('ChangePassword'))}
             {renderOption('bell', 'Notifications', 'Manage alert preferences', () => navigation.navigate('Notifications'))}
+            {renderOption('shield-lock-outline', 'Blocked Users', 'Manage blocked accounts', () => navigation.navigate('BlockedUsers'))}
           </View>
 
           <View style={styles.section}>
@@ -119,11 +161,50 @@ const ProfileScreen = ({ navigation }) => {
             {renderOption('headset', 'Help & Support', 'Get help with your bookings', () => navigation.navigate('TicketListScreen'))}
             {renderOption('shield-check', 'Privacy Policy', 'Your data and privacy rights', () => navigation.navigate('PrivacyPolicy'))}
             {renderOption('logout', 'Logout', 'Sign out of your account', handleLogout, true, loggingOut)}
+
           </View>
           
           <Text style={styles.version}>Version 1.0.0</Text>
         </ScrollView>
       </View>
+
+      <Modal visible={infoModalVisible} transparent animationType="fade" onRequestClose={() => setInfoModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Account Options</Text>
+              <TouchableOpacity onPress={() => setInfoModalVisible(false)}>
+                <Icon name="close" size={24} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, marginBottom: 12, lineHeight: 20 }}>
+                Here you can view and manage your account status. Your account contains all your career statistics, wallet balances, and booking history.
+              </Text>
+              <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, marginBottom: 12, lineHeight: 20 }}>
+                If you wish to leave the platform, you can permanently delete your account. This action will purge all data associated with you and cannot be undone.
+              </Text>
+            </View>
+            <TouchableOpacity 
+              style={{ backgroundColor: 'rgba(244,67,54,0.1)', paddingVertical: 14, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}
+              onPress={() => {
+                setInfoModalVisible(false);
+                setTimeout(handleDeleteAccount, 300);
+              }}
+              disabled={deletingAccount}
+            >
+              {deletingAccount ? (
+                <ActivityIndicator size="small" color={Colors.error} />
+              ) : (
+                <>
+                  <Icon name="delete-forever" size={22} color={Colors.error} style={{ marginRight: 8 }} />
+                  <Text style={{ color: Colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Delete Account</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -157,7 +238,11 @@ const styles = StyleSheet.create({
   optionTextContainer: { flex: 1 },
   optionTitle: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 2 },
   optionSubtitle: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
-  version: { textAlign: 'center', color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginVertical: Spacing.xl },
+  version: { textAlign: 'center', color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 12, marginVertical: Spacing.xl },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { backgroundColor: Colors.backgroundElevated, width: '100%', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: Colors.border },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18 },
 });
 
 export default ProfileScreen;

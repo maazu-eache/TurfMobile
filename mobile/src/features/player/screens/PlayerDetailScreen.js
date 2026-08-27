@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Image, Modal, FlatList, Platform, ToastAndroid, Dimensions,
-  RefreshControl
+  RefreshControl, TextInput, KeyboardAvoidingView
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -64,6 +64,7 @@ const BallColors = { Tennis: '#10B981', 'Hard Tennis': '#F59E0B', Leather: '#EF4
 const PlayerDetailScreen = ({ navigation, route }) => {
   const { id } = route.params || {};
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
 
   const { viewedPlayer, myProfile, achievements, availableBallTypes, matchHistory, isLoading } =
     useSelector(state => state.player);
@@ -84,6 +85,69 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // UGC Block & Report States
+  const [showMenuModal, setShowMenuModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('inappropriate_name');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
+
+  const viewedUserId = viewedPlayer?.userId?._id || viewedPlayer?.userId;
+  const currentUserId = user?._id;
+  const isSelf = currentUserId && viewedUserId && currentUserId.toString() === viewedUserId.toString();
+
+  const handleBlockUser = () => {
+    setShowMenuModal(false);
+    showCustomAlert(
+      "Block Player",
+      `Are you sure you want to block ${viewedPlayer.name}? You will no longer see their stats, matches, or teams.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Block", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const targetUserId = viewedPlayer.userId?._id || viewedPlayer.userId;
+              await api.post(`/users/block/${targetUserId}`);
+              showCustomAlert(
+                "Success", 
+                "User blocked successfully", 
+                [{ text: "OK", onPress: () => navigation.goBack() }]
+              );
+            } catch (err) {
+              showCustomAlert("Error", err.response?.data?.message || "Failed to block user");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleReportUser = async () => {
+    if (!reportReason) {
+      showCustomAlert("Error", "Please select a reason for reporting");
+      return;
+    }
+    setReportLoading(true);
+    try {
+      const targetUserId = viewedPlayer.userId?._id || viewedPlayer.userId;
+      await api.post('/ugc/report', {
+        contentType: 'player',
+        contentId: viewedPlayer._id,
+        reason: reportReason,
+        details: reportDetails
+      });
+      setReportLoading(false);
+      setShowReportModal(false);
+      setReportDetails('');
+      showCustomAlert("Report Submitted", "Thank you for reporting. Our team will review this profile within 24 hours.");
+    } catch (err) {
+      setReportLoading(false);
+      showCustomAlert("Error", err.response?.data?.message || "Failed to submit report");
+    }
+  };
 
   const handleRefresh = useCallback(async () => {
     if (!id) return;
@@ -535,16 +599,23 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       {/* Transparent back nav overlaid on banner */}
-      <SafeAreaView edges={['top']} style={styles.navBarAbsolute} pointerEvents="box-none">
+      <View style={[styles.navBarAbsolute, { paddingTop: insets.top }]} pointerEvents="box-none">
         <View style={styles.navBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Icon name="arrow-back" size={22} color={Colors.textPrimary} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navShareBtn} onPress={handleSharePress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Icon name="share-social-outline" size={20} color={Colors.primary} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <TouchableOpacity style={styles.navShareBtn} onPress={handleSharePress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="share-social-outline" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+            {!isOwnProfile && (
+              <TouchableOpacity style={styles.navShareBtn} onPress={() => setShowMenuModal(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="ellipsis-vertical" size={20} color={Colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </SafeAreaView>
+      </View>
 
       <ScrollView 
         contentContainerStyle={styles.scrollContent} 
@@ -798,6 +869,123 @@ const PlayerDetailScreen = ({ navigation, route }) => {
             }} 
           />
         </View>
+      </Modal>
+
+      {/* Menu Modal (Block/Report options) */}
+      <Modal visible={showMenuModal} animationType="slide" transparent onRequestClose={() => setShowMenuModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowMenuModal(false)}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Actions</Text>
+              <TouchableOpacity onPress={() => setShowMenuModal(false)} style={styles.modalCloseBtn}><Icon name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity>
+            </View>
+            <View style={{ paddingVertical: 12, gap: 12 }}>
+              <TouchableOpacity 
+                style={{ flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border }} 
+                onPress={() => { setShowMenuModal(false); setShowReportModal(true); }}
+              >
+                <Icon name="flag-outline" size={20} color={Colors.primary} style={{ marginRight: 12 }} />
+                <Text style={{ fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold }}>Report Player</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{ flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: 'rgba(244,67,54,0.06)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(244,67,54,0.15)' }} 
+                onPress={handleBlockUser}
+              >
+                <Icon name="ban" size={20} color={Colors.error} style={{ marginRight: 12 }} />
+                <Text style={{ fontSize: 16, color: Colors.error, fontFamily: Typography.fontFamily.semiBold }}>Block Player</Text>
+              </TouchableOpacity>
+            </View>
+            <SafeAreaView edges={['bottom']} />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Report Modal */}
+      <Modal visible={showReportModal} animationType="slide" transparent onRequestClose={() => setShowReportModal(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalSheet, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Report Profile</Text>
+              <TouchableOpacity onPress={() => setShowReportModal(false)} style={styles.modalCloseBtn}><Icon name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={{ fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginBottom: 16, lineHeight: 22 }}>
+                Please select a reason for reporting this profile. Our team will review the account and take appropriate action.
+              </Text>
+              
+              <View style={{ gap: 8, marginBottom: 20 }}>
+                {[
+                  { key: 'inappropriate_name', label: 'Inappropriate Profile Name' },
+                  { key: 'offensive_photo', label: 'Offensive Profile Photo' },
+                  { key: 'harassment', label: 'Harassment or Abuse' },
+                  { key: 'spam', label: 'Spam or Fake Profile' },
+                  { key: 'other', label: 'Other Reason' }
+                ].map(item => {
+                  const isSelected = reportReason === item.key;
+                  return (
+                    <TouchableOpacity 
+                      key={item.key}
+                      style={{ 
+                        flexDirection: 'row', alignItems: 'center', padding: 14, 
+                        backgroundColor: isSelected ? 'rgba(255,204,0,0.1)' : Colors.surface,
+                        borderRadius: 12, borderWidth: 1, borderColor: isSelected ? Colors.primary : Colors.border
+                      }}
+                      onPress={() => setReportReason(item.key)}
+                    >
+                      <View style={{ 
+                        width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: isSelected ? Colors.primary : Colors.textTertiary,
+                        justifyContent: 'center', alignItems: 'center', marginRight: 12
+                      }}>
+                        {isSelected && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                      </View>
+                      <Text style={{ fontSize: 15, color: Colors.textPrimary, fontFamily: isSelected ? Typography.fontFamily.semiBold : Typography.fontFamily.regular }}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8, marginLeft: 4 }}>
+                Additional Details (Optional)
+              </Text>
+              <View style={{ 
+                height: 80, backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
+                paddingHorizontal: 12, marginBottom: 24
+              }}>
+                <TextInput
+                  style={{ flex: 1, color: '#FFF', fontSize: 14, textAlignVertical: 'top', paddingTop: 8 }}
+                  placeholder="Explain why you are flagging this profile..."
+                  placeholderTextColor={Colors.textTertiary}
+                  value={reportDetails}
+                  onChangeText={setReportDetails}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+
+              <TouchableOpacity 
+                style={{ 
+                  height: 48, borderRadius: 12, backgroundColor: Colors.primary, 
+                  justifyContent: 'center', alignItems: 'center', flexDirection: 'row'
+                }}
+                onPress={handleReportUser}
+                disabled={reportLoading}
+              >
+                {reportLoading ? (
+                  <ActivityIndicator color={Colors.background} size="small" />
+                ) : (
+                  <Text style={{ color: Colors.background, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>Submit Report</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── SHARE PREVIEW MODAL ── */}

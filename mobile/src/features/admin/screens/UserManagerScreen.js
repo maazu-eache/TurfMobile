@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator, RefreshControl, TextInput, Alert
+  ActivityIndicator, RefreshControl, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -9,59 +9,64 @@ import api from '../../../api/axios';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
+const roleColor = (role) => {
+  switch (role) {
+    case 'admin':    return '#FF4757';
+    case 'owner':    return '#5B8DEF';
+    case 'player':   return Colors.primary;
+    default:         return Colors.textTertiary;
+  }
+};
+
 const UserManagerScreen = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState('requests'); // 'requests' | 'all'
-  const [deletionRequests, setDeletionRequests] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
-      const [requestsRes, usersRes] = await Promise.all([
-        api.get('/admin/deletion-requests'),
-        api.get('/admin/users?limit=100')
-      ]);
-
-      setDeletionRequests(requestsRes.data?.data || []);
-      setUsers(usersRes.data?.data?.items || usersRes.data?.data || []);
+      const res = await api.get('/admin/users?limit=200');
+      setUsers(res.data?.data?.items || res.data?.data || []);
     } catch (err) {
-      showCustomAlert('Error', err.response?.data?.message || 'Failed to fetch user management data');
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to fetch users');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    fetchData();
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchData();
   };
 
-  const handleHardDelete = (user) => {
+  const handleToggleActive = (user) => {
+    const isSuspended = user.isDeleted || user.isSuspended || user.isDeactivated;
+    const action = isSuspended ? 'Reactivate' : 'Suspend';
+    const endpoint = isSuspended
+      ? `/admin/users/${user._id}/reactivate`
+      : `/admin/users/${user._id}/suspend`;
+
     showCustomAlert(
-      "CONFIRM PERMANENT DELETION",
-      `⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nAre you sure you want to PERMANENTLY delete user "${user.name}" (${user.email || user.mobile})?\n\nThis will purge ALL bookings, wallet balance, stats, player profile, owner turfs, slots, and team captaincy. ZERO data will remain.`,
+      `${action} Account`,
+      `Are you sure you want to ${action.toLowerCase()} the account of "${user.name || user.email}"?\n\nThe user's data and match history will remain intact.`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "DELETE",
-          style: "destructive",
+          text: action,
+          style: isSuspended ? 'default' : 'destructive',
           onPress: async () => {
+            setActionLoadingId(user._id);
             try {
-              setActionLoadingId(user._id);
-              await api.delete(`/admin/users/${user._id}/hard-delete`);
-              showCustomAlert("Success", `User "${user.name}" and all associated data have been permanently deleted.`);
+              await api.put(endpoint);
+              showCustomAlert('Done', `User "${user.name}" has been ${action.toLowerCase()}d.`);
               fetchData();
             } catch (err) {
-              showCustomAlert("Error", err.response?.data?.message || "Failed to delete user");
+              showCustomAlert('Error', err.response?.data?.message || `Failed to ${action.toLowerCase()} user`);
             } finally {
               setActionLoadingId(null);
             }
@@ -71,193 +76,135 @@ const UserManagerScreen = ({ navigation }) => {
     );
   };
 
-  const handleRejectDeletion = (user) => {
-    showCustomAlert(
-      "Reject Deletion Request",
-      `Are you sure you want to reject the deletion request for "${user.name}"?\n\nThe user will be sent a push notification and email, allowing them to log back in.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject Request",
-          onPress: async () => {
-            try {
-              setActionLoadingId(user._id);
-              await api.post(`/admin/users/${user._id}/reject-deletion`, { reason: 'Admin rejected account deletion request' });
-              showCustomAlert("Success", `Deletion request rejected. Notification sent to ${user.name}.`);
-              fetchData();
-            } catch (err) {
-              showCustomAlert("Error", err.response?.data?.message || "Failed to reject request");
-            } finally {
-              setActionLoadingId(null);
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const filteredUsers = users.filter(u => {
+  const filtered = users.filter(u => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
-      (u.name && u.name.toLowerCase().includes(q)) ||
+      (u.name  && u.name.toLowerCase().includes(q)) ||
       (u.email && u.email.toLowerCase().includes(q)) ||
       (u.mobile && u.mobile.toLowerCase().includes(q))
     );
   });
 
-  const renderRequestCard = ({ item }) => (
-    <View style={styles.requestCard}>
-      <View style={styles.cardHeader}>
-        <View style={styles.userInfoBlock}>
-          <Text style={styles.userName}>{item.name || 'Unknown User'}</Text>
-          <Text style={styles.userSubText}>{item.email || item.mobile}</Text>
-        </View>
-        <View style={styles.roleBadge}>
-          <Text style={styles.roleBadgeText}>{item.role?.toUpperCase() || 'USER'}</Text>
-        </View>
-      </View>
+  const renderUserCard = ({ item }) => {
+    const isSuspended = item.isDeleted || item.isSuspended || item.isDeactivated;
+    const joined = item.createdAt
+      ? new Date(item.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+      : 'N/A';
+    const isLoading = actionLoadingId === item._id;
 
-      <View style={styles.reasonBlock}>
-        <Text style={styles.reasonLabel}>Reason for deletion:</Text>
-        <Text style={styles.reasonText}>"{item.deletionReason || 'User requested account deletion'}"</Text>
-        <Text style={styles.dateText}>
-          Requested: {item.deletionRequestedAt ? new Date(item.deletionRequestedAt).toLocaleString() : 'Recently'}
-        </Text>
-      </View>
+    return (
+      <View style={[styles.card, isSuspended && styles.cardSuspended]}>
+        {/* Avatar + info */}
+        <View style={styles.cardLeft}>
+          <View style={[styles.avatar, { backgroundColor: roleColor(item.role) + '20' }]}>
+            <Text style={[styles.avatarText, { color: roleColor(item.role) }]}>
+              {(item.name || item.email || '?').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={styles.nameRow}>
+              <Text style={[styles.userName, isSuspended && styles.userNameSuspended]} numberOfLines={1}>
+                {item.name || 'Unknown User'}
+              </Text>
+              <View style={[styles.rolePill, { backgroundColor: roleColor(item.role) + '18', borderColor: roleColor(item.role) + '40' }]}>
+                <Text style={[styles.roleText, { color: roleColor(item.role) }]}>
+                  {(item.role || 'user').toUpperCase()}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.userEmail} numberOfLines={1}>{item.email || item.mobile || '—'}</Text>
+            <View style={styles.metaRow}>
+              <Icon name="calendar-outline" size={10} color={Colors.textTertiary} />
+              <Text style={styles.metaText}>Joined {joined}</Text>
+              {isSuspended && (
+                <>
+                  <View style={styles.metaDot} />
+                  <Icon name="account-off-outline" size={10} color={Colors.error} />
+                  <Text style={[styles.metaText, { color: Colors.error }]}>Suspended</Text>
+                </>
+              )}
+            </View>
+          </View>
+        </View>
 
-      <View style={styles.cardActions}>
+        {/* Action */}
         <TouchableOpacity
-          style={[styles.btn, styles.rejectBtn]}
-          onPress={() => handleRejectDeletion(item)}
-          disabled={actionLoadingId === item._id}
+          style={[styles.actionBtn, isSuspended ? styles.actionBtnActivate : styles.actionBtnSuspend]}
+          onPress={() => handleToggleActive(item)}
+          disabled={isLoading}
         >
-          {actionLoadingId === item._id ? (
-            <ActivityIndicator size="small" color="#FFF" />
+          {isLoading ? (
+            <ActivityIndicator size="small" color={isSuspended ? Colors.success : Colors.error} />
           ) : (
-            <>
-              <Icon name="close-circle-outline" size={18} color="#FFF" />
-              <Text style={styles.btnText}>Reject</Text>
-            </>
+            <Icon
+              name={isSuspended ? 'account-check-outline' : 'account-off-outline'}
+              size={18}
+              color={isSuspended ? Colors.success : Colors.error}
+            />
           )}
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.btn, styles.deleteBtn]}
-          onPress={() => handleHardDelete(item)}
-          disabled={actionLoadingId === item._id}
-        >
-          {actionLoadingId === item._id ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <>
-              <Icon name="trash-can-outline" size={18} color="#FFF" />
-              <Text style={styles.btnText}>Approve & Delete</Text>
-            </>
-          )}
-        </TouchableOpacity>
       </View>
-    </View>
-  );
-
-  const renderUserCard = ({ item }) => (
-    <View style={styles.userCard}>
-      <View style={styles.userInfoBlock}>
-        <Text style={styles.userName}>{item.name || 'User'}</Text>
-        <Text style={styles.userSubText}>{item.email || item.mobile}</Text>
-        <Text style={styles.userRoleText}>Role: {item.role}</Text>
-      </View>
-      <TouchableOpacity
-        style={styles.smallDeleteBtn}
-        onPress={() => handleHardDelete(item)}
-        disabled={actionLoadingId === item._id}
-      >
-        <Icon name="trash-can-outline" size={20} color={Colors.error} />
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.container}>
+
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+            <Icon name="arrow-left" size={22} color={Colors.textPrimary} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>User Management</Text>
-            <Text style={styles.headerSubtitle}>Account Deletion Requests & Purge</Text>
+            <Text style={styles.headerSubtitle}>View and manage platform accounts</Text>
+          </View>
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{users.length}</Text>
           </View>
         </View>
 
-        {/* Tab Toggle */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'requests' && styles.activeTab]}
-            onPress={() => setActiveTab('requests')}
-          >
-            <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>
-              Deletion Requests ({deletionRequests.length})
-            </Text>
-            {deletionRequests.length > 0 && <View style={styles.redDot} />}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'all' && styles.activeTab]}
-            onPress={() => setActiveTab('all')}
-          >
-            <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
-              All Users ({users.length})
-            </Text>
-          </TouchableOpacity>
+        {/* Search */}
+        <View style={styles.searchBox}>
+          <Icon name="magnify" size={18} color={Colors.textTertiary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name, email or mobile..."
+            placeholderTextColor={Colors.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Icon name="close-circle" size={16} color={Colors.textTertiary} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Body */}
+        {/* List */}
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={Colors.primary} />
           </View>
-        ) : activeTab === 'requests' ? (
+        ) : (
           <FlatList
-            data={deletionRequests}
+            data={filtered}
             keyExtractor={item => item._id}
-            renderItem={renderRequestCard}
+            renderItem={renderUserCard}
             contentContainerStyle={styles.listContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Icon name="shield-check-outline" size={60} color={Colors.success} />
-                <Text style={styles.emptyTitle}>No Pending Requests</Text>
-                <Text style={styles.emptySubtitle}>There are currently no account deletion requests pending admin action.</Text>
+                <Icon name="account-search-outline" size={52} color={Colors.textTertiary} />
+                <Text style={styles.emptyTitle}>No Users Found</Text>
+                <Text style={styles.emptySubtitle}>
+                  {searchQuery ? `No results for "${searchQuery}"` : 'No users have registered yet.'}
+                </Text>
               </View>
             }
           />
-        ) : (
-          <View style={{ flex: 1 }}>
-            <View style={styles.searchBox}>
-              <Icon name="magnify" size={20} color={Colors.textTertiary} style={{ marginRight: 8 }} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search users by name, email, or mobile..."
-                placeholderTextColor={Colors.textTertiary}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-            <FlatList
-              data={filteredUsers}
-              keyExtractor={item => item._id}
-              renderItem={renderUserCard}
-              contentContainerStyle={styles.listContent}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyTitle}>No Users Found</Text>
-                </View>
-              }
-            />
-          </View>
         )}
       </View>
     </SafeAreaView>
@@ -267,85 +214,77 @@ const UserManagerScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.backgroundElevated },
   container: { flex: 1, backgroundColor: Colors.background },
+
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
     backgroundColor: Colors.backgroundElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 12,
   },
-  backBtn: { marginRight: Spacing.md, padding: 4 },
-  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  headerSubtitle: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
-  
-  tabContainer: { flexDirection: 'row', backgroundColor: Colors.surface, padding: 4, margin: Spacing.lg, borderRadius: BorderRadius.md },
-  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: BorderRadius.sm, flexDirection: 'row', justifyContent: 'center' },
-  activeTab: { backgroundColor: Colors.surfaceVariant },
-  tabText: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
-  activeTabText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
-  redDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.error, marginLeft: 6 },
-
-  listContent: { padding: Spacing.lg, paddingBottom: 60 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-  requestCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(244,67,54,0.3)',
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
+  headerSubtitle: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 1 },
+  countBadge: {
+    backgroundColor: Colors.primaryAlpha20,
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: Colors.primaryAlpha30,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  userInfoBlock: { flex: 1, marginRight: 8 },
-  userName: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  userSubText: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
-  roleBadge: { backgroundColor: 'rgba(255,152,0,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  roleBadgeText: { color: '#FF9800', fontFamily: Typography.fontFamily.bold, fontSize: 10 },
-
-  reasonBlock: { backgroundColor: 'rgba(244,67,54,0.08)', padding: 12, borderRadius: 8, marginBottom: 16 },
-  reasonLabel: { fontSize: 11, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  reasonText: { fontSize: 14, color: Colors.error, fontFamily: Typography.fontFamily.bold, marginVertical: 4 },
-  dateText: { fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular },
-
-  cardActions: { flexDirection: 'row', gap: 12 },
-  btn: { flex: 1, paddingVertical: 12, borderRadius: BorderRadius.md, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
-  rejectBtn: { backgroundColor: '#3A3A3C' },
-  deleteBtn: { backgroundColor: Colors.error },
-  btnText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
-
-  userCard: {
-    flexDirection: 'row',
-    justify: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  userRoleText: { fontSize: 12, color: Colors.primary, fontFamily: Typography.fontFamily.medium, marginTop: 2 },
-  smallDeleteBtn: { padding: 8, backgroundColor: 'rgba(244,67,54,0.1)', borderRadius: 8 },
+  countBadgeText: { fontSize: 13, fontFamily: Typography.fontFamily.extraBold, color: Colors.primary },
 
   searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.surface,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    marginHorizontal: Spacing.lg, marginVertical: Spacing.md,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border,
   },
-  searchInput: { flex: 1, height: 44, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14 },
+  searchInput: { flex: 1, fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, padding: 0 },
 
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 60, paddingHorizontal: 40 },
-  emptyTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: 16, marginBottom: 8 },
-  emptySubtitle: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, textAlign: 'center' },
+  listContent: { paddingHorizontal: Spacing.lg, paddingBottom: 60 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+  card: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg, padding: Spacing.md,
+    marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border,
+  },
+  cardSuspended: {
+    borderColor: 'rgba(244,67,54,0.2)',
+    backgroundColor: 'rgba(244,67,54,0.03)',
+  },
+  cardLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+
+  avatar: {
+    width: 42, height: 42, borderRadius: 13,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  avatarText: { fontSize: 17, fontFamily: Typography.fontFamily.extraBold },
+
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  userName: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, flexShrink: 1 },
+  userNameSuspended: { color: Colors.textTertiary, textDecorationLine: 'line-through' },
+  rolePill: {
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: 6, borderWidth: 1,
+  },
+  roleText: { fontSize: 8, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+
+  userEmail: { fontSize: 11, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  metaDot: { width: 2, height: 2, borderRadius: 1, backgroundColor: Colors.textTertiary },
+  metaText: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+
+  actionBtn: {
+    width: 38, height: 38, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  actionBtnSuspend: { backgroundColor: 'rgba(244,67,54,0.1)' },
+  actionBtnActivate: { backgroundColor: 'rgba(46,213,115,0.1)' },
+
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 10 },
+  emptyTitle: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  emptySubtitle: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, textAlign: 'center' },
 });
 
 export default UserManagerScreen;

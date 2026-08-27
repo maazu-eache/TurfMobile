@@ -9,6 +9,7 @@ import PlayerDetailScreen from '../features/player/screens/PlayerDetailScreen';
 import TeamDetailScreen from '../features/team/screens/TeamDetailScreen';
 import TournamentDetailScreen from '../features/tournament/screens/TournamentDetailScreen';
 import MatchSummaryScreen from '../features/match/screens/MatchSummaryScreen';
+import CreateTicketScreen from '../features/support/screens/CreateTicketScreen';
 import ScorecardScreen from '../features/match/screens/ScorecardScreen';
 import SpectatorScreen from '../features/match/screens/SpectatorScreen';
 
@@ -26,6 +27,7 @@ const PlayerNavigator = () => (
     <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
     <Stack.Screen name="Spectator" component={SpectatorScreen} />
+    <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
   </Stack.Navigator>
 );
 

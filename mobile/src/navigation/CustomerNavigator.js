@@ -30,6 +30,7 @@ import SpectatorScreen from '../features/match/screens/SpectatorScreen';
 import EditProfileScreen from '../features/user/screens/EditProfileScreen';
 import HelpSupportScreen from '../features/user/screens/HelpSupportScreen';
 import PrivacyPolicyScreen from '../features/user/screens/PrivacyPolicyScreen';
+import BlockedUsersScreen from '../features/user/screens/BlockedUsersScreen';
 
 // Support Screens
 import TicketListScreen from '../features/support/screens/TicketListScreen';
@@ -247,6 +248,7 @@ const HomeStack = () => (
     <Stack.Screen name="TeamDetail" component={TeamDetailScreen} />
     <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
     <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
+    <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
     <Stack.Screen name="Spectator" component={SpectatorScreen} />
   </Stack.Navigator>
@@ -263,6 +265,7 @@ const SearchStack = () => (
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
     <Stack.Screen name="TeamDetail" component={TeamDetailScreen} />
     <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
+    <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
     <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
     <Stack.Screen name="Spectator" component={SpectatorScreen} />
@@ -316,6 +319,7 @@ const MatchStack = () => (
     <Stack.Screen name="AuctionLivePublic" component={AuctionLivePublicScreen} />
 
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
+    <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
 
   </Stack.Navigator>
 );
@@ -337,6 +341,7 @@ const ProfileStack = () => (
     <Stack.Screen name="TeamCreate" component={TeamCreateScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+    <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
     
     {/* Support */}
     <Stack.Screen name="TicketListScreen" component={TicketListScreen} />

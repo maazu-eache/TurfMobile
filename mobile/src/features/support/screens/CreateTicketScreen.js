@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -11,18 +11,23 @@ import { useSelector } from 'react-redux';
 export default function CreateTicketScreen({ navigation, route }) {
   const { user } = useSelector((state) => state.auth);
   const initialBookingId = route.params?.bookingId || '';
+  const initialMatchId = route.params?.matchId || '';
+  const initialTournamentId = route.params?.tournamentId || '';
+  const initialCategory = route.params?.category || 'Booking Dispute';
   
   const [email, setEmail] = useState(user?.email || '');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Booking Dispute');
+  const [category, setCategory] = useState(initialCategory);
   const [bookingId, setBookingId] = useState(initialBookingId);
+  const [matchId, setMatchId] = useState(initialMatchId);
+  const [tournamentId, setTournamentId] = useState(initialTournamentId);
   const [imageUri, setImageUri] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const categories = ['Booking Dispute', 'Payment Issue', 'Account Issue', 'General'];
+  const categories = ['Booking Dispute', 'Payment Issue', 'Account Issue', 'Match Dispute', 'Tournament Dispute', 'General'];
 
   const handleSelectImage = async () => {
     try {
@@ -82,7 +87,9 @@ export default function CreateTicketScreen({ navigation, route }) {
         subject,
         description,
         category,
-        bookingId: bookingId || undefined,
+        bookingId: (category === 'Booking Dispute' || (category !== 'Match Dispute' && category !== 'Tournament Dispute')) ? (bookingId || undefined) : undefined,
+        matchId: category === 'Match Dispute' ? (matchId || undefined) : undefined,
+        tournamentId: category === 'Tournament Dispute' ? (tournamentId || undefined) : undefined,
         attachments
       };
 
@@ -99,7 +106,10 @@ export default function CreateTicketScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.container}
+      >
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
@@ -143,15 +153,47 @@ export default function CreateTicketScreen({ navigation, route }) {
             onChangeText={setSubject}
           />
 
-          <Text style={styles.label}>Booking ID (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter booking reference if applicable"
-            placeholderTextColor={Colors.textSecondary}
-            value={bookingId}
-            onChangeText={setBookingId}
-            editable={!initialBookingId}
-          />
+          { (category === 'Booking Dispute' || (category !== 'Match Dispute' && category !== 'Tournament Dispute')) && (
+            <>
+              <Text style={styles.label}>Booking ID (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter booking reference if applicable"
+                placeholderTextColor={Colors.textSecondary}
+                value={bookingId}
+                onChangeText={setBookingId}
+                editable={!initialBookingId}
+              />
+            </>
+          )}
+
+          { category === 'Match Dispute' && (
+            <>
+              <Text style={styles.label}>Match ID (Required)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter match reference ID"
+                placeholderTextColor={Colors.textSecondary}
+                value={matchId}
+                onChangeText={setMatchId}
+                editable={!initialMatchId}
+              />
+            </>
+          )}
+
+          { category === 'Tournament Dispute' && (
+            <>
+              <Text style={styles.label}>Tournament ID (Required)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter tournament reference ID"
+                placeholderTextColor={Colors.textSecondary}
+                value={tournamentId}
+                onChangeText={setTournamentId}
+                editable={!initialTournamentId}
+              />
+            </>
+          )}
 
           <Text style={styles.label}>Description</Text>
           <TextInput
@@ -194,7 +236,7 @@ export default function CreateTicketScreen({ navigation, route }) {
             )}
           </TouchableOpacity>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -5,7 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, Spacing } from '../../../theme/theme';
 
 const HelpSupportScreen = ({ navigation }) => {
-  const supportEmail = 'maazibrahimoo0@gmail.com';
+  const supportEmail = 'supportatscoreverse@gmail.com';
   const supportPhone = '+91 8428676150';
 
   return (
@@ -21,9 +21,9 @@ const HelpSupportScreen = ({ navigation }) => {
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Contact Us</Text>
-            
-            <TouchableOpacity 
-              style={styles.contactCard} 
+
+            <TouchableOpacity
+              style={styles.contactCard}
               onPress={() => Linking.openURL(`mailto:${supportEmail}`)}
             >
               <View style={styles.iconBox}>
@@ -35,8 +35,8 @@ const HelpSupportScreen = ({ navigation }) => {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.contactCard} 
+            <TouchableOpacity
+              style={styles.contactCard}
               onPress={() => Linking.openURL(`tel:${supportPhone}`)}
             >
               <View style={styles.iconBox}>
@@ -51,12 +51,12 @@ const HelpSupportScreen = ({ navigation }) => {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
-            
+
             <View style={styles.faqCard}>
               <Text style={styles.faqQuestion}>How do I register a new turf?</Text>
               <Text style={styles.faqAnswer}>You can easily register a new turf from your Dashboard by navigating to 'My Turfs' and clicking the '+' icon.</Text>
             </View>
-            
+
             <View style={styles.faqCard}>
               <Text style={styles.faqQuestion}>How can I manage slot pricing?</Text>
               <Text style={styles.faqAnswer}>Go to 'My Turfs', select 'Manage Slots' for your turf, and you can edit time slots, pricing, and availability in real-time.</Text>
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.xl, paddingBottom: 100 },
   section: { marginBottom: Spacing.xl },
   sectionTitle: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.lg },
-  
+
   contactCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, padding: Spacing.lg, borderRadius: 12, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border },
   iconBox: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.surfaceVariant, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.md },
   contactInfo: { flex: 1 },

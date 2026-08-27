@@ -33,7 +33,6 @@
     "react": "19.2.7",
     "react-hook-form": "^7.80.0",
     "react-native": "0.86.0",
-    "react-native-camera": "^4.2.1",
     "react-native-chart-kit": "^7.0.1",
     "react-native-confetti-cannon": "^1.5.2",
     "react-native-fast-image": "^8.6.3",

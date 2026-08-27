@@ -40,7 +40,7 @@ const PrivacyPolicyScreen = ({ navigation }) => {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>5. Contact Us</Text>
-            <Text style={styles.paragraph}>If you have any questions about this Privacy Policy, please contact us at maazibrahimoo0@gmail.com.</Text>
+            <Text style={styles.paragraph}>If you have any questions about this Privacy Policy, please contact us at supportatscoreverse@gmail.com.</Text>
           </View>
         </ScrollView>
       </View>
