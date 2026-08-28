@@ -12,7 +12,12 @@
           "package_name": "com.scoreverse.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "569117113912-ipv2e2rmqtcijfcm5qf8gml3us9us659.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAOdwJtynYWKtRTY0CsREQswMXGg6ZeP8U"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "569117113912-ipv2e2rmqtcijfcm5qf8gml3us9us659.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
@@ -31,7 +41,28 @@
           "package_name": "com.scoreverse.sports"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "569117113912-56jntqrpg7uhijj8e5tujrfbvqua4k5a.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.scoreverse.sports",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "569117113912-shm06nc4gcub65ado2mtl8o5g0nl6uh4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.scoreverse.sports",
+            "certificate_hash": "cb8d9e5385cb4e0c428903217d3040d4f98f0bad"
+          }
+        },
+        {
+          "client_id": "569117113912-ipv2e2rmqtcijfcm5qf8gml3us9us659.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAOdwJtynYWKtRTY0CsREQswMXGg6ZeP8U"
@@ -39,7 +70,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "569117113912-ipv2e2rmqtcijfcm5qf8gml3us9us659.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

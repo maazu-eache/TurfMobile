@@ -12,7 +12,9 @@ import {
   Animated,
   StatusBar,
   Dimensions,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Svg, { Circle } from 'react-native-svg';
 import LinearGradient from '../../../components/SolidGradient';
@@ -52,11 +54,40 @@ const getCurrentTimeGroup = () => {
   return 'night';
 };
 
+const TIME_OPTIONS = [];
+for (let h = 0; h < 24; h++) {
+  const hr = h.toString().padStart(2, '0');
+  TIME_OPTIONS.push(`${hr}:00`);
+  TIME_OPTIONS.push(`${hr}:30`);
+}
+
 const SlotPickerScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   const { turf, isRescheduling, reschedulingBookingId, oldTotalPrice } = route.params;
   const dispatch = useDispatch();
   const { slots, isLoading } = useSelector((state) => state.slot);
+  const [selectedIntervalMode, setSelectedIntervalMode] = useState(
+    turf.bookingMode === 'both' ? '60' : (turf.bookingMode === '30_min' ? '30' : '60')
+  );
+  const [filterFromTime, setFilterFromTime] = useState('');
+  const [filterToTime, setFilterToTime] = useState('');
+  const [showNativeFromPicker, setShowNativeFromPicker] = useState(false);
+  const [showNativeToPicker, setShowNativeToPicker] = useState(false);
+  
+  const databaseHas30MinSlots = React.useMemo(() => {
+    if (!slots || slots.length === 0) return false;
+    return slots.some(s => {
+      const diff = moment(s.endTime, 'HH:mm').diff(moment(s.startTime, 'HH:mm'), 'minutes');
+      return diff === 30;
+    });
+  }, [slots]);
+
+  useEffect(() => {
+    if (slots && slots.length > 0 && !databaseHas30MinSlots) {
+      setSelectedIntervalMode('60');
+    }
+  }, [slots, databaseHas30MinSlots]);
+
   const { isAuthenticated } = useSelector((state) => state.auth);
 
   const today = moment();
@@ -70,6 +101,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
   const [activePicker, setActivePicker] = useState('none');
   const [expandedGroup, setExpandedGroup] = useState(getCurrentTimeGroup());
   const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [showFilteredSlotsModal, setShowFilteredSlotsModal] = useState(false);
 
   // Bulk Mode State
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -129,11 +161,25 @@ const SlotPickerScreen = ({ route, navigation }) => {
   const toggleSlot = (slot) => {
     if (slot.status !== 'available') return;
     if (isPastSlot(selectedDate, slot.startTime)) return;
-    const exists = selectedSlots.find(s => s._id === slot._id);
-    if (exists) {
-      setSelectedSlots(selectedSlots.filter(s => s._id !== slot._id));
+
+    if (slot.isMerged) {
+      const allSelected = slot.originalSlots.every(os => selectedSlots.some(s => s._id === os._id));
+      if (allSelected) {
+        // Deselect all original slots of this merged slot
+        const idsToRemove = slot.originalSlots.map(os => os._id);
+        setSelectedSlots(prev => prev.filter(s => !idsToRemove.includes(s._id)));
+      } else {
+        // Select all original slots
+        const toAdd = slot.originalSlots.filter(os => !selectedSlots.some(s => s._id === os._id));
+        setSelectedSlots(prev => [...prev, ...toAdd]);
+      }
     } else {
-      setSelectedSlots([...selectedSlots, slot]);
+      const exists = selectedSlots.find(s => s._id === slot._id);
+      if (exists) {
+        setSelectedSlots(prev => prev.filter(s => s._id !== slot._id));
+      } else {
+        setSelectedSlots(prev => [...prev, slot]);
+      }
     }
   };
 
@@ -233,23 +279,77 @@ const SlotPickerScreen = ({ route, navigation }) => {
     );
   };
 
-  const availableCount = slots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).length;
-  const bookedCount = slots.filter(s => s.status === 'booked' || s.status === 'offline_booking').length;
-  const pastCount = slots.filter(s => isPastSlot(selectedDate, s.startTime)).length;
+  const processedSlots = React.useMemo(() => {
+    if (!slots) return [];
+    
+    let finalSlots = slots;
+    
+    if (selectedIntervalMode === '60' && databaseHas30MinSlots) {
+      const merged = [];
+      const sorted = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+      
+      let i = 0;
+      while (i < sorted.length) {
+        const slot1 = sorted[i];
+        const slot2 = sorted[i + 1];
+        
+        if (slot2 && slot1.endTime === slot2.startTime) {
+          // Calculate discount price if any
+          let discountPrice = null;
+          if (slot1.discountPrice !== undefined && slot1.discountPrice !== null || 
+              slot2.discountPrice !== undefined && slot2.discountPrice !== null) {
+            const p1 = slot1.discountPrice !== undefined && slot1.discountPrice !== null ? slot1.discountPrice : slot1.price;
+            const p2 = slot2.discountPrice !== undefined && slot2.discountPrice !== null ? slot2.discountPrice : slot2.price;
+            discountPrice = p1 + p2;
+          }
+
+          merged.push({
+            _id: `${slot1._id}_${slot2._id}`,
+            isMerged: true,
+            originalSlots: [slot1, slot2],
+            startTime: slot1.startTime,
+            endTime: slot2.endTime,
+            price: slot1.price + slot2.price,
+            discountPrice,
+            status: (slot1.status === 'available' && slot2.status === 'available') ? 'available' : 'booked',
+          });
+          i += 2;
+        } else {
+          i++;
+        }
+      }
+      finalSlots = merged;
+    }
+    
+    if (filterFromTime) {
+      finalSlots = finalSlots.filter(s => s.startTime >= filterFromTime);
+    }
+    if (filterToTime) {
+      finalSlots = finalSlots.filter(s => s.endTime <= filterToTime);
+    }
+    
+    return finalSlots;
+  }, [slots, selectedIntervalMode, turf, filterFromTime, filterToTime]);
+
+  const availableCount = processedSlots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).length;
+  const bookedCount = processedSlots.filter(s => s.status === 'booked' || s.status === 'offline_booking').length;
+  const pastCount = processedSlots.filter(s => isPastSlot(selectedDate, s.startTime)).length;
 
   const totalSelectedPrice = selectedSlots.reduce((acc, s) => acc + (s.discountPrice !== undefined && s.discountPrice !== null ? s.discountPrice : s.price), 0);
 
   // Group slots by time blocks
   const groupedSlots = {
-    early_morning: slots.filter(s => getTimeGroup(s.startTime) === 'early_morning'),
-    morning: slots.filter(s => getTimeGroup(s.startTime) === 'morning'),
-    afternoon: slots.filter(s => getTimeGroup(s.startTime) === 'afternoon'),
-    evening: slots.filter(s => getTimeGroup(s.startTime) === 'evening'),
-    night: slots.filter(s => getTimeGroup(s.startTime) === 'night'),
+    early_morning: processedSlots.filter(s => getTimeGroup(s.startTime) === 'early_morning'),
+    morning: processedSlots.filter(s => getTimeGroup(s.startTime) === 'morning'),
+    afternoon: processedSlots.filter(s => getTimeGroup(s.startTime) === 'afternoon'),
+    evening: processedSlots.filter(s => getTimeGroup(s.startTime) === 'evening'),
+    night: processedSlots.filter(s => getTimeGroup(s.startTime) === 'night'),
   };
 
   const renderSlotCard = (slot) => {
-    const isSelected = selectedSlots.find(s => s._id === slot._id);
+    const isSelected = slot.isMerged
+      ? slot.originalSlots.every(os => selectedSlots.some(s => s._id === os._id))
+      : selectedSlots.some(s => s._id === slot._id);
     const past = isPastSlot(selectedDate, slot.startTime);
     const isBooked = slot.status === 'booked' || slot.status === 'offline_booking' || slot.status === 'offline';
     
@@ -384,9 +484,83 @@ const SlotPickerScreen = ({ route, navigation }) => {
                 rotation="-90" origin="30, 30" strokeLinecap="round"
               />
             </Svg>
-            <Text style={styles.progressText}>{availableCount}</Text>
+             <Text style={styles.progressText}>{availableCount}</Text>
             <Text style={styles.progressSubText}>Slots</Text>
           </View>
+        </View>
+
+        {/* ── Booking Mode Toggle (only if both are supported) ── */}
+        {turf.bookingMode === 'both' && databaseHas30MinSlots && (
+          <View style={styles.toggleContainer}>
+            <TouchableOpacity 
+              style={[styles.toggleBtn, selectedIntervalMode === '60' && styles.toggleBtnActive]}
+              onPress={() => {
+                setSelectedIntervalMode('60');
+                setSelectedSlots([]); // Clear selections when mode toggles
+              }}
+            >
+              <Text style={[styles.toggleBtnText, selectedIntervalMode === '60' && styles.toggleBtnTextActive]}>
+                1 Hour
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.toggleBtn, selectedIntervalMode === '30' && styles.toggleBtnActive]}
+              onPress={() => {
+                setSelectedIntervalMode('30');
+                setSelectedSlots([]); // Clear selections when mode toggles
+              }}
+            >
+              <Text style={[styles.toggleBtnText, selectedIntervalMode === '30' && styles.toggleBtnTextActive]}>
+                30 Mins
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Time Filter Row ── */}
+        <View style={styles.filterContainer}>
+          <Text style={styles.filterHeaderLabel}>Filter By Time</Text>
+          <View style={styles.filterRow}>
+            <TouchableOpacity style={styles.filterInput} onPress={() => setShowNativeFromPicker(true)}>
+              <Icon name="clock-outline" size={14} color="#FFD400" style={{ marginRight: 6 }} />
+              <Text style={styles.filterText}>
+                {filterFromTime ? formatTime(filterFromTime) : 'From Time'}
+              </Text>
+            </TouchableOpacity>
+            
+            <Text style={{ color: 'rgba(255,255,255,0.4)', marginHorizontal: 8 }}>to</Text>
+            
+            <TouchableOpacity style={styles.filterInput} onPress={() => setShowNativeToPicker(true)}>
+              <Icon name="clock-outline" size={14} color="#FFD400" style={{ marginRight: 6 }} />
+              <Text style={styles.filterText}>
+                {filterToTime ? formatTime(filterToTime) : 'To Time'}
+              </Text>
+            </TouchableOpacity>
+
+            {(filterFromTime || filterToTime) && (
+              <TouchableOpacity 
+                style={styles.filterResetBtn} 
+                onPress={() => {
+                  setFilterFromTime('');
+                  setFilterToTime('');
+                }}
+              >
+                <Icon name="close-circle" size={18} color="#FF4757" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Display Slots Button (Always visible) */}
+          <TouchableOpacity
+            style={styles.displaySlotsBtn}
+            onPress={() => setShowFilteredSlotsModal(true)}
+            activeOpacity={0.85}
+          >
+            <Icon name="view-grid-outline" size={16} color="#000" style={{ marginRight: 6 }} />
+            <Text style={styles.displaySlotsBtnText}>
+              {filterFromTime || filterToTime ? 'Display Filtered Slots' : 'Display All Slots'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Expandable Time Groups ── */}
@@ -447,7 +621,10 @@ const SlotPickerScreen = ({ route, navigation }) => {
       <View style={styles.bottomBookingCard}>
         <View style={styles.bookingLeft}>
           <Text style={styles.selectedCountLabel}>
-            {selectedSlots.length} {selectedSlots.length === 1 ? 'Slot' : 'Slots'} Selected
+            {selectedIntervalMode === '60'
+              ? `${selectedSlots.length / 2} Hour${selectedSlots.length / 2 === 1 ? '' : 's'}`
+              : `${selectedSlots.length} Slot${selectedSlots.length === 1 ? '' : 's'}`
+            } Selected
           </Text>
           <Text style={styles.selectedPrice}>₹{totalSelectedPrice}</Text>
         </View>
@@ -470,6 +647,197 @@ const SlotPickerScreen = ({ route, navigation }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* ── Filtered Slots Center Modal ── */}
+      {showFilteredSlotsModal && (
+        <Modal visible={showFilteredSlotsModal} transparent={true} animationType="fade" statusBarTranslucent>
+          <View style={styles.fsModalBackdrop}>
+            <View style={styles.fsModalCard}>
+              {/* Header */}
+              <View style={styles.fsModalHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fsModalTitle}>Available Slots</Text>
+                  <Text style={styles.fsModalSubtitle}>
+                    {filterFromTime ? formatTime(filterFromTime) : 'Start'} → {filterToTime ? formatTime(filterToTime) : 'End'}
+                  </Text>
+                </View>
+
+                {/* Select All Toggle for available slots */}
+                {processedSlots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).length > 0 && (
+                  <TouchableOpacity
+                    style={styles.fsSelectAllBtn}
+                    onPress={() => {
+                      const availSlots = processedSlots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime));
+                      const allSelected = availSlots.every(s => {
+                        if (s.isMerged) return s.originalSlots.every(os => selectedSlots.some(sel => sel._id === os._id));
+                        return selectedSlots.some(sel => sel._id === s._id);
+                      });
+
+                      if (allSelected) {
+                        const idsToRemove = [];
+                        availSlots.forEach(s => {
+                          if (s.isMerged) idsToRemove.push(...s.originalSlots.map(os => os._id));
+                          else idsToRemove.push(s._id);
+                        });
+                        setSelectedSlots(prev => prev.filter(s => !idsToRemove.includes(s._id)));
+                      } else {
+                        const toAdd = [];
+                        availSlots.forEach(s => {
+                          if (s.isMerged) {
+                            s.originalSlots.forEach(os => {
+                              if (!selectedSlots.some(sel => sel._id === os._id) && !toAdd.some(ta => ta._id === os._id)) {
+                                toAdd.push(os);
+                              }
+                            });
+                          } else {
+                            if (!selectedSlots.some(sel => sel._id === s._id) && !toAdd.some(ta => ta._id === s._id)) {
+                              toAdd.push(s);
+                            }
+                          }
+                        });
+                        setSelectedSlots(prev => [...prev, ...toAdd]);
+                      }
+                    }}
+                  >
+                    <Icon
+                      name={
+                        processedSlots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).length > 0 &&
+                        processedSlots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).every(s => {
+                          if (s.isMerged) return s.originalSlots.every(os => selectedSlots.some(sel => sel._id === os._id));
+                          return selectedSlots.some(sel => sel._id === s._id);
+                        })
+                          ? 'checkbox-marked'
+                          : 'checkbox-blank-outline'
+                      }
+                      size={16}
+                      color="#FFD400"
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text style={styles.fsSelectAllText}>
+                      {processedSlots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).every(s => {
+                        if (s.isMerged) return s.originalSlots.every(os => selectedSlots.some(sel => sel._id === os._id));
+                        return selectedSlots.some(sel => sel._id === s._id);
+                      })
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity onPress={() => setShowFilteredSlotsModal(false)} style={styles.fsModalCloseBtn}>
+                  <Icon name="close" size={18} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Slot list */}
+              <ScrollView
+                showsVerticalScrollIndicator={true}
+                style={{ maxHeight: 360, marginVertical: 8 }}
+                contentContainerStyle={{ paddingVertical: 4 }}
+              >
+                {processedSlots.length === 0 ? (
+                  <Text style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginVertical: 24, fontFamily: Typography.fontFamily.medium }}>
+                    No slots found in this time range.
+                  </Text>
+                ) : processedSlots.map((slot) => {
+                  const isBooked = slot.status === 'booked' || slot.status === 'offline_booking' || slot.status === 'offline';
+                  const past = isPastSlot(selectedDate, slot.startTime);
+                  const isSelected = slot.isMerged
+                    ? slot.originalSlots.every(os => selectedSlots.some(sel => sel._id === os._id))
+                    : selectedSlots.some(sel => sel._id === slot._id);
+
+                  const borderColor = isSelected ? '#FFD400'
+                    : isBooked ? '#2196F3'
+                    : past ? '#333'
+                    : '#2A2A2A';
+
+                  const badgeLabel = isBooked ? 'Booked'
+                    : past ? 'Past'
+                    : 'Available';
+
+                  const badgeBg = isBooked ? 'rgba(33, 150, 243, 0.15)'
+                    : past ? 'rgba(255, 255, 255, 0.08)'
+                    : 'rgba(46, 213, 115, 0.15)';
+
+                  const badgeText = isBooked ? '#2196F3'
+                    : past ? 'rgba(255, 255, 255, 0.5)'
+                    : '#2ed573';
+
+                  const priceVal = slot.discountPrice !== undefined && slot.discountPrice !== null ? slot.discountPrice : slot.price;
+
+                  return (
+                    <TouchableOpacity
+                      key={slot._id}
+                      activeOpacity={0.75}
+                      disabled={isBooked || past}
+                      onPress={() => toggleSlot(slot)}
+                      style={[
+                        styles.fsSlotRow,
+                        {
+                          borderColor,
+                          backgroundColor: isSelected ? 'rgba(255, 212, 0, 0.08)' : '#1B1B1B',
+                          opacity: (isBooked || past) ? 0.6 : 1,
+                        }
+                      ]}
+                    >
+                      <View style={styles.fsSlotCheckbox}>
+                        {isBooked ? (
+                          <Icon name="lock" size={15} color="#2196F3" />
+                        ) : past ? (
+                          <Icon name="clock-remove-outline" size={15} color="rgba(255,255,255,0.4)" />
+                        ) : isSelected ? (
+                          <Icon name="check-circle" size={16} color="#FFD400" />
+                        ) : (
+                          <Icon name="circle-outline" size={16} color="rgba(255,255,255,0.3)" />
+                        )}
+                      </View>
+
+                      <Text style={[styles.fsSlotTime, isSelected && { color: '#FFD400', fontFamily: Typography.fontFamily.bold }]}>
+                        {formatTime(slot.startTime)} – {formatTime(slot.endTime)}
+                      </Text>
+
+                      <View style={[styles.fsSlotBadge, { backgroundColor: badgeBg, borderColor: badgeText }]}>
+                        <Text style={[styles.fsSlotBadgeText, { color: badgeText }]}>{badgeLabel}</Text>
+                      </View>
+
+                      <Text style={[styles.fsSlotPrice, isSelected && { color: '#FFD400' }]}>
+                        ₹{priceVal}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Modal Footer with Book Now Button */}
+              <View style={styles.fsModalFooter}>
+                <View style={styles.fsFooterSummaryRow}>
+                  <Text style={styles.fsFooterLabel}>
+                    {selectedSlots.length} slot{selectedSlots.length === 1 ? '' : 's'} selected
+                  </Text>
+                  <Text style={styles.fsFooterPriceLabel}>
+                    Total: <Text style={{ color: '#FFD400', fontFamily: Typography.fontFamily.bold }}>₹{totalSelectedPrice}</Text>
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.fsBookNowBtn, selectedSlots.length === 0 && styles.fsBookNowBtnDisabled]}
+                  disabled={selectedSlots.length === 0}
+                  onPress={() => {
+                    setShowFilteredSlotsModal(false);
+                    setShowPolicyModal(true);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.fsBookNowBtnText}>
+                    {isRescheduling ? 'Reschedule Now' : 'Book Now'}
+                  </Text>
+                  <Icon name="arrow-right" size={16} color="#000" style={{ marginLeft: 6 }} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {/* Bulk Booking Modal */}
       {showBulkModal && (
@@ -574,7 +942,46 @@ const SlotPickerScreen = ({ route, navigation }) => {
         </View>
       )}
 
-      {/* Time Picker Modal */}
+      {/* Native Platform Time Pickers */}
+      {showNativeFromPicker && (
+        <DateTimePicker
+          value={filterFromTime ? moment(filterFromTime, 'HH:mm').toDate() : new Date()}
+          mode="time"
+          is24Hour={false}
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(event, date) => {
+            setShowNativeFromPicker(false);
+            if (event.type === 'set' && date) {
+              const formattedTime = moment(date).format('HH:mm');
+              setFilterFromTime(formattedTime);
+              if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
+                setSelectedIntervalMode('30');
+              }
+            }
+          }}
+        />
+      )}
+
+      {showNativeToPicker && (
+        <DateTimePicker
+          value={filterToTime ? moment(filterToTime, 'HH:mm').toDate() : new Date()}
+          mode="time"
+          is24Hour={false}
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(event, date) => {
+            setShowNativeToPicker(false);
+            if (event.type === 'set' && date) {
+              const formattedTime = moment(date).format('HH:mm');
+              setFilterToTime(formattedTime);
+              if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
+                setSelectedIntervalMode('30');
+              }
+            }
+          }}
+        />
+      )}
+
+      {/* Bulk Booking Time Selection Modal */}
       {(activePicker === 'startTime' || activePicker === 'endTime') && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -601,7 +1008,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                   >
                     <Text style={[styles.timeText, isSelected && { color: '#000' }]}>{formatTime(timeStr)}</Text>
                   </TouchableOpacity>
-                )
+                );
               })}
             </ScrollView>
           </View>
@@ -610,64 +1017,66 @@ const SlotPickerScreen = ({ route, navigation }) => {
 
       {/* Calendar Modal */}
       {showCalendar && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).subtract(1, 'month'))}>
-                <Icon name="chevron-left" size={24} color="#FFF" />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>{calendarMonth.format('MMMM YYYY')}</Text>
-              <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).add(1, 'month'))}>
-                <Icon name="chevron-right" size={24} color="#FFF" />
+        <Modal visible={showCalendar} transparent={true} animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).subtract(1, 'month'))}>
+                  <Icon name="chevron-left" size={24} color="#FFF" />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>{calendarMonth.format('MMMM YYYY')}</Text>
+                <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).add(1, 'month'))}>
+                  <Icon name="chevron-right" size={24} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.calendarGrid}>
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                  <Text key={i} style={styles.dayOfWeek}>{d}</Text>
+                ))}
+                {(() => {
+                  const startDay = moment(calendarMonth).startOf('month').day();
+                  const daysInMonth = moment(calendarMonth).daysInMonth();
+                  const grid = [];
+                  for (let i = 0; i < startDay; i++) grid.push(<View key={`empty-${i}`} style={styles.calDay} />);
+                  for (let i = 1; i <= daysInMonth; i++) {
+                    const d = moment(calendarMonth).date(i);
+                    const dStr = d.format('YYYY-MM-DD');
+                    const isPast = d.isBefore(moment(), 'day');
+                    const isSel = (activePicker === 'none' && selectedDate === dStr) ||
+                      (activePicker === 'start' && bulkParams.startDate === dStr) ||
+                      (activePicker === 'end' && bulkParams.endDate === dStr);
+                    grid.push(
+                      <TouchableOpacity
+                        key={`day-${i}`}
+                        style={[styles.calDay, isSel && styles.calDaySel]}
+                        disabled={isPast}
+                        onPress={() => {
+                          if (activePicker === 'start') {
+                            setBulkParams({ ...bulkParams, startDate: dStr });
+                          } else if (activePicker === 'end') {
+                            setBulkParams({ ...bulkParams, endDate: dStr });
+                          } else {
+                            setSelectedDate(dStr);
+                          }
+                          setShowCalendar(false);
+                          setActivePicker('none');
+                        }}
+                      >
+                        <Text style={[styles.calDayText, isPast && { color: 'rgba(255,255,255,0.2)' }, isSel && { color: '#000' }]}>{i}</Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                  return grid;
+                })()}
+              </View>
+
+              <TouchableOpacity style={styles.closeModalBtn} onPress={() => { setShowCalendar(false); setActivePicker('none'); }}>
+                <Text style={styles.closeModalText}>Close</Text>
               </TouchableOpacity>
             </View>
-
-            <View style={styles.calendarGrid}>
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                <Text key={i} style={styles.dayOfWeek}>{d}</Text>
-              ))}
-              {(() => {
-                const startDay = moment(calendarMonth).startOf('month').day();
-                const daysInMonth = moment(calendarMonth).daysInMonth();
-                const grid = [];
-                for (let i = 0; i < startDay; i++) grid.push(<View key={`empty-${i}`} style={styles.calDay} />);
-                for (let i = 1; i <= daysInMonth; i++) {
-                  const d = moment(calendarMonth).date(i);
-                  const dStr = d.format('YYYY-MM-DD');
-                  const isPast = d.isBefore(moment(), 'day');
-                  const isSel = (activePicker === 'none' && selectedDate === dStr) ||
-                    (activePicker === 'start' && bulkParams.startDate === dStr) ||
-                    (activePicker === 'end' && bulkParams.endDate === dStr);
-                  grid.push(
-                    <TouchableOpacity
-                      key={`day-${i}`}
-                      style={[styles.calDay, isSel && styles.calDaySel]}
-                      disabled={isPast}
-                      onPress={() => {
-                        if (activePicker === 'start') {
-                          setBulkParams({ ...bulkParams, startDate: dStr });
-                        } else if (activePicker === 'end') {
-                          setBulkParams({ ...bulkParams, endDate: dStr });
-                        } else {
-                          setSelectedDate(dStr);
-                        }
-                        setShowCalendar(false);
-                        setActivePicker('none');
-                      }}
-                    >
-                      <Text style={[styles.calDayText, isPast && { color: 'rgba(255,255,255,0.2)' }, isSel && { color: '#000' }]}>{i}</Text>
-                    </TouchableOpacity>
-                  );
-                }
-                return grid;
-              })()}
-            </View>
-
-            <TouchableOpacity style={styles.closeModalBtn} onPress={() => { setShowCalendar(false); setActivePicker('none'); }}>
-              <Text style={styles.closeModalText}>Close</Text>
-            </TouchableOpacity>
           </View>
-        </View>
+        </Modal>
       )}
     {/* ── Cancellation Policy Bottom Sheet ── */}
     <Modal
@@ -787,7 +1196,8 @@ const styles = StyleSheet.create({
   /* ── Availability Summary Card ── */
   summaryCard: {
     marginHorizontal: 16,
-    marginTop: 4, marginBottom: 16,
+    marginTop: 8,
+    marginBottom: 16,
     borderRadius: 22,
     backgroundColor: '#0F0F0F',
     borderWidth: 1, borderColor: '#2A2A2A',
@@ -813,7 +1223,7 @@ const styles = StyleSheet.create({
   progressSubText: { fontSize: 7, fontFamily: Typography.fontFamily.bold, color: '#FFD400', textTransform: 'uppercase', marginTop: -2 },
 
   /* ── Expandable Time Groups ── */
-  groupsContainer: { marginHorizontal: 16, gap: 12 },
+  groupsContainer: { marginHorizontal: 16, marginTop: 6, gap: 14 },
   groupTile: {
     backgroundColor: '#0F0F0F',
     borderRadius: 20,
@@ -823,6 +1233,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8,
     elevation: 5,
+    marginBottom: 4,
   },
   groupHeader: {
     padding: 16,
@@ -998,6 +1409,233 @@ const styles = StyleSheet.create({
   policyModalCancelText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
   policyModalConfirmBtn: { flex: 2, padding: 16, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center' },
   policyModalConfirmText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+
+  /* ── Toggle Switch Styles ── */
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#171717',
+    borderRadius: 24,
+    padding: 4,
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toggleBtnActive: {
+    backgroundColor: '#FFD400',
+  },
+  toggleBtnText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  toggleBtnTextActive: {
+    color: '#000',
+  },
+
+  /* ── Time Filter Styles ── */
+  filterContainer: {
+    marginHorizontal: 16,
+    marginTop: 0,
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#171717',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  filterHeaderLabel: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  filterInput: {
+    flex: 1,
+    height: 38,
+    backgroundColor: '#0F0F0F',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  filterText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  filterResetBtn: {
+    marginLeft: 10,
+    padding: 4,
+  },
+  displaySlotsBtn: {
+    height: 38,
+    backgroundColor: '#FFD400',
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  displaySlotsBtnText: {
+    color: '#000',
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+  },
+
+  /* ── Filtered Slots Center Modal ── */
+  fsModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  fsModalCard: {
+    width: '100%',
+    maxHeight: '85%',
+    backgroundColor: '#161616',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    padding: 16,
+  },
+  fsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#222',
+  },
+  fsModalTitle: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF',
+  },
+  fsModalSubtitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: '#FFD400',
+    marginTop: 2,
+  },
+  fsSelectAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 212, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 212, 0, 0.3)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginRight: 10,
+  },
+  fsSelectAllText: {
+    color: '#FFD400',
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  fsModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#222',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsSlotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    marginBottom: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+  },
+  fsSlotCheckbox: {
+    width: 22,
+    alignItems: 'center',
+  },
+  fsSlotTime: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: '#FFF',
+    marginLeft: 8,
+  },
+  fsSlotBadge: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginHorizontal: 8,
+  },
+  fsSlotBadgeText: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  fsSlotPrice: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF',
+    minWidth: 44,
+    textAlign: 'right',
+  },
+  fsModalFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#222',
+    paddingTop: 12,
+  },
+  fsFooterSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  fsFooterLabel: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  fsFooterPriceLabel: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: '#FFF',
+  },
+  fsBookNowBtn: {
+    height: 44,
+    backgroundColor: '#FFD400',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsBookNowBtnDisabled: {
+    opacity: 0.4,
+  },
+  fsBookNowBtnText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#000',
+  },
 });
 
 export default SlotPickerScreen;

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  Image, KeyboardAvoidingView, Platform, ActivityIndicator
+  Image, KeyboardAvoidingView, Platform, ActivityIndicator, Modal
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -15,6 +15,8 @@ import { createTurf, updateTurf } from '../../turf/turfSlice';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import CustomTimePicker from '../../../components/CustomTimePicker';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import moment from 'moment';
 
 
 const AMENITIES_LIST = [
@@ -78,6 +80,8 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       nightStartTime: editTurf?.operatingHours?.nightStartTime || '17:00',
       nightEndTime: editTurf?.operatingHours?.nightEndTime || '06:00',
       weekendDays: editTurf?.operatingHours?.weekendDays || [0, 6],
+      bookingMode: editTurf?.bookingMode || 'both',
+      specialDays: editTurf?.specialDays || [],
       amenities: editTurf?.amenities || {},
       googleMapsUrl: editTurf?.googleMapsUrl || ''
     }
@@ -91,6 +95,13 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
   const [showCloseTimePicker, setShowCloseTimePicker] = useState(false);
   const [showNightTimePicker, setShowNightTimePicker] = useState(false);
   const [showNightEndTimePicker, setShowNightEndTimePicker] = useState(false);
+  const [showOccasionModal, setShowOccasionModal] = useState(false);
+  const [tempOccasionDate, setTempOccasionDate] = useState('');
+  const [occasionName, setOccasionName] = useState('');
+  const [calendarMonth, setCalendarMonth] = useState(moment().startOf('month'));
+  const [showSpecialDaysModal, setShowSpecialDaysModal] = useState(false);
+  const [showSpecialDayDetailModal, setShowSpecialDayDetailModal] = useState(false);
+  const [selectedSpecialDayDetail, setSelectedSpecialDayDetail] = useState(null);
   const [customSize1, setCustomSize1] = useState(editTurf && !SIZES.includes(editTurf.size) ? editTurf.size.split('v')[0]?.trim() || '' : '');
   const [customSize2, setCustomSize2] = useState(editTurf && !SIZES.includes(editTurf.size) ? editTurf.size.split('v')[1]?.trim() || '' : '');
 
@@ -201,6 +212,8 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       formData.append('nightStartTime', data.nightStartTime);
       formData.append('nightEndTime', data.nightEndTime);
       formData.append('weekendDays', JSON.stringify(data.weekendDays));
+      formData.append('bookingMode', data.bookingMode);
+      formData.append('specialDays', JSON.stringify(data.specialDays || []));
 
       // Amenities
       Object.keys(amenitiesState).forEach(key => {
@@ -631,6 +644,78 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
             </View>
           </View>
 
+          {/* Booking Mode */}
+          <View style={{ marginTop: Spacing.md, paddingHorizontal: Spacing.sm }}>
+            <Text style={styles.label}>Supported Booking Mode</Text>
+            <View style={styles.bookingModeGrid}>
+              {[
+                { id: '60_min', title: '1 Hour', subtitle: '60 Mins Only', icon: 'clock-outline' },
+                { id: '30_min', title: '30 Mins', subtitle: '30 Mins Only', icon: 'timer-sand' },
+                { id: 'both', title: 'Both Modes', subtitle: '30m & 1 Hour', icon: 'star-circle-outline', defaultTag: true },
+              ].map(mode => {
+                const isSelected = watch('bookingMode') === mode.id;
+                return (
+                  <TouchableOpacity
+                    key={mode.id}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.bookingModeCard,
+                      isSelected && styles.bookingModeCardActive
+                    ]}
+                    onPress={() => setValue('bookingMode', mode.id)}
+                  >
+                    {mode.defaultTag && (
+                      <View style={styles.defaultModeBadge}>
+                        <Text style={styles.defaultModeBadgeText}>DEFAULT</Text>
+                      </View>
+                    )}
+                    <Icon
+                      name={mode.icon}
+                      size={20}
+                      color={isSelected ? '#FFD400' : 'rgba(255,255,255,0.4)'}
+                      style={{ marginBottom: 6, marginTop: mode.defaultTag ? 2 : 0 }}
+                    />
+                    <Text style={[styles.bookingModeTitle, isSelected && styles.bookingModeTitleActive]}>
+                      {mode.title}
+                    </Text>
+                    <Text style={[styles.bookingModeSub, isSelected && styles.bookingModeSubActive]}>
+                      {mode.subtitle}
+                    </Text>
+
+                    <View style={[styles.bookingModeRadio, isSelected && styles.bookingModeRadioActive]}>
+                      {isSelected && <View style={styles.bookingModeRadioInner} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Special Days Trigger Button */}
+          <View style={{ marginTop: Spacing.md, paddingHorizontal: Spacing.sm }}>
+            <Text style={styles.label}>Special Days (Always Weekend Price)</Text>
+            <TouchableOpacity
+              style={styles.specialDaysTriggerBtn}
+              activeOpacity={0.8}
+              onPress={() => setShowSpecialDaysModal(true)}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <View style={styles.specialDaysIconWrap}>
+                  <Icon name="calendar-star" size={22} color="#FFD400" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.specialDaysTriggerTitle}>Manage Special Days</Text>
+                  <Text style={styles.specialDaysTriggerSubtitle}>
+                    {watch('specialDays')?.length > 0
+                      ? `${watch('specialDays').length} date(s) marked for weekend pricing`
+                      : 'Tap to select festival & holiday dates'}
+                  </Text>
+                </View>
+              </View>
+              <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.4)" />
+            </TouchableOpacity>
+          </View>
+
           {/* Detailed Pricing */}
           <Text style={styles.sectionTitle}>Detailed Pricing (₹/hr)</Text>
           <View style={styles.rowInputs}>
@@ -697,6 +782,214 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
           onClose={() => setShowOpenTimePicker(false)}
           onSelect={(time) => setValue('openTime', time)}
         />
+      )}
+      
+      {/* DatePicker modal removed since we select inline in calendar */}
+
+      {showOccasionModal && (
+        <Modal visible={showOccasionModal} transparent={true} animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Add Special Occasion</Text>
+              <Text style={styles.modalLabel}>Selected Date</Text>
+              <Text style={styles.modalValue}>
+                {moment(tempOccasionDate, 'YYYY-MM-DD').format('dddd, MMMM DD, YYYY')}
+              </Text>
+              
+              <Text style={[styles.modalLabel, { marginTop: 12 }]}>Occasion Name</Text>
+              <TextInput
+                style={styles.modalTextInput}
+                placeholder="e.g. Diwali, Independence Day"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                value={occasionName}
+                onChangeText={setOccasionName}
+              />
+              
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalBtnCancel]}
+                  onPress={() => {
+                    setShowOccasionModal(false);
+                    setOccasionName('');
+                  }}
+                >
+                  <Text style={styles.modalBtnCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalBtnConfirm]}
+                  onPress={() => {
+                    const current = watch('specialDays') || [];
+                    if (!current.some(d => d.date === tempOccasionDate)) {
+                      setValue('specialDays', [
+                        ...current,
+                        { date: tempOccasionDate, occasion: occasionName.trim() || 'Special Day' }
+                      ]);
+                    }
+                    setShowOccasionModal(false);
+                    setOccasionName('');
+                  }}
+                >
+                  <Text style={styles.modalBtnConfirmText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Special Days Calendar Modal */}
+      {showSpecialDaysModal && (
+        <Modal visible={showSpecialDaysModal} transparent={true} animationType="fade">
+          <View style={styles.specialModalOverlay}>
+            <View style={styles.specialModalCard}>
+              <View style={styles.specialModalHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.specialModalTitle}>Special Days Calendar</Text>
+                  <Text style={styles.specialModalSubtitle}>
+                    Tap a date to add, or tap a yellow date to view/remove.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowSpecialDaysModal(false)}
+                  style={styles.specialModalCloseBtn}
+                >
+                  <Icon name="close" size={18} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Month Switcher */}
+              <View style={styles.regCalendarHeader}>
+                <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).subtract(1, 'month'))}>
+                  <Icon name="chevron-left" size={22} color="#FFF" />
+                </TouchableOpacity>
+                <Text style={styles.regCalendarTitle}>{calendarMonth.format('MMMM YYYY')}</Text>
+                <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).add(1, 'month'))}>
+                  <Icon name="chevron-right" size={22} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Grid */}
+              <View style={styles.regCalendarGrid}>
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                  <Text key={i} style={styles.regDayOfWeek}>{d}</Text>
+                ))}
+                {(() => {
+                  const startDay = moment(calendarMonth).startOf('month').day();
+                  const daysInMonth = moment(calendarMonth).daysInMonth();
+                  const grid = [];
+
+                  for (let i = 0; i < startDay; i++) {
+                    grid.push(<View key={`empty-${i}`} style={styles.regCalDay} />);
+                  }
+
+                  const specialDaysList = watch('specialDays') || [];
+
+                  for (let i = 1; i <= daysInMonth; i++) {
+                    const d = moment(calendarMonth).date(i);
+                    const dStr = d.format('YYYY-MM-DD');
+                    const isPast = d.isBefore(moment(), 'day');
+                    const specDay = specialDaysList.find(sd => sd.date === dStr);
+                    const isSpecial = !!specDay;
+
+                    grid.push(
+                      <TouchableOpacity
+                        key={`day-${i}`}
+                        style={[
+                          styles.regCalDay,
+                          isSpecial && styles.regCalDaySpecial
+                        ]}
+                        disabled={isPast}
+                        onPress={() => {
+                          if (isSpecial) {
+                            setSelectedSpecialDayDetail(specDay);
+                            setShowSpecialDayDetailModal(true);
+                          } else {
+                            setTempOccasionDate(dStr);
+                            setOccasionName('');
+                            setShowOccasionModal(true);
+                          }
+                        }}
+                      >
+                        <Text style={[
+                          styles.regCalDayText,
+                          isPast && { color: 'rgba(255,255,255,0.25)' },
+                          isSpecial && { color: '#000', fontFamily: Typography.fontFamily.bold }
+                        ]}>
+                          {i}
+                        </Text>
+                        {isSpecial && (
+                          <Text numberOfLines={1} style={styles.regCalDayOccasion}>
+                            {specDay.occasion}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  }
+                  return grid;
+                })()}
+              </View>
+
+              <TouchableOpacity
+                style={styles.specialModalDoneBtn}
+                onPress={() => setShowSpecialDaysModal(false)}
+              >
+                <Text style={styles.specialModalDoneBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Special Day Detail & Remove Modal */}
+      {showSpecialDayDetailModal && selectedSpecialDayDetail && (
+        <Modal visible={showSpecialDayDetailModal} transparent={true} animationType="fade">
+          <View style={styles.specialModalOverlay}>
+            <View style={[styles.specialModalCard, { width: '88%', padding: 20 }]}>
+              <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                <View style={styles.specialDayDetailIconWrap}>
+                  <Icon name="calendar-star" size={26} color="#FFD400" />
+                </View>
+                <Text style={styles.specialDayDetailDate}>
+                  {moment(selectedSpecialDayDetail.date, 'YYYY-MM-DD').format('dddd, DD MMMM YYYY')}
+                </Text>
+                <View style={styles.specialDayDetailBadge}>
+                  <Text style={styles.specialDayDetailBadgeText}>
+                    Occasion: {selectedSpecialDayDetail.occasion}
+                  </Text>
+                </View>
+                <Text style={styles.specialDayDetailDesc}>
+                  Weekend pricing will be applied automatically on this day.
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={styles.specialDayDetailCancelBtn}
+                  onPress={() => {
+                    setShowSpecialDayDetailModal(false);
+                    setSelectedSpecialDayDetail(null);
+                  }}
+                >
+                  <Text style={styles.specialDayDetailCancelText}>Close</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.specialDayDetailRemoveBtn}
+                  onPress={() => {
+                    const current = watch('specialDays') || [];
+                    setValue('specialDays', current.filter(sd => sd.date !== selectedSpecialDayDetail.date));
+                    setShowSpecialDayDetailModal(false);
+                    setSelectedSpecialDayDetail(null);
+                    showCustomAlert('Removed', 'Special day removed successfully.');
+                  }}
+                >
+                  <Icon name="trash-can-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.specialDayDetailRemoveText}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       )}
       
       {showCloseTimePicker && (
@@ -788,6 +1081,82 @@ const styles = StyleSheet.create({
   },
   inputWrapperError: { borderColor: Colors.error },
   inputIcon: { marginRight: 8 },
+
+  /* ── Special Day Occasion Modal Styles ── */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '85%',
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalLabel: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  modalValue: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.medium,
+    color: '#FFD400',
+  },
+  modalTextInput: {
+    backgroundColor: '#111',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#333',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#FFF',
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 14,
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBtnCancel: {
+    backgroundColor: '#2D2D2D',
+  },
+  modalBtnCancelText: {
+    color: '#FFF',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+  },
+  modalBtnConfirm: {
+    backgroundColor: '#FFD400',
+  },
+  modalBtnConfirmText: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+  },
   inputField: {
     flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14, padding: 0,
   },
@@ -857,7 +1226,7 @@ const styles = StyleSheet.create({
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justify: 'center',
+    justifyContent: 'center',
     alignItems: 'center',
     zIndex: 999,
   },
@@ -890,6 +1259,283 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginLeft: 4,
     fontFamily: Typography.fontFamily.medium,
+  },
+
+  /* ── Special Days Styles ── */
+  specialDaysTriggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#161616',
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginTop: 6,
+  },
+  specialDaysIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 212, 0, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  specialDaysTriggerTitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF',
+  },
+  specialDaysTriggerSubtitle: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 2,
+  },
+  specialModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  specialModalCard: {
+    width: '100%',
+    backgroundColor: '#161616',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    padding: 18,
+  },
+  specialModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#222',
+    marginBottom: 12,
+  },
+  specialModalTitle: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF',
+  },
+  specialModalSubtitle: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 2,
+  },
+  specialModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#222',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  specialModalDoneBtn: {
+    backgroundColor: '#FFD400',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  specialModalDoneBtnText: {
+    color: '#000',
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  specialDayDetailIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 212, 0, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  specialDayDetailDate: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF',
+    textAlign: 'center',
+  },
+  specialDayDetailBadge: {
+    backgroundColor: 'rgba(255, 212, 0, 0.15)',
+    borderWidth: 1,
+    borderColor: '#FFD400',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginTop: 8,
+  },
+  specialDayDetailBadgeText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFD400',
+  },
+  specialDayDetailDesc: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  specialDayDetailCancelBtn: {
+    flex: 1,
+    backgroundColor: '#222',
+    borderRadius: 10,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  specialDayDetailCancelText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  specialDayDetailRemoveBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#FF4757',
+    borderRadius: 10,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  specialDayDetailRemoveText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+  },
+
+  /* ── Calendar Grid Styles ── */
+  regCalendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    paddingHorizontal: 8,
+  },
+  regCalendarTitle: {
+    color: '#FFF',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+  },
+  regCalendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  regDayOfWeek: {
+    width: '14.28%',
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    marginBottom: 10,
+  },
+  regCalDay: {
+    width: '14.28%',
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    marginBottom: 4,
+    position: 'relative',
+    paddingTop: 4,
+  },
+  regCalDaySpecial: {
+    backgroundColor: '#FFD400',
+  },
+  regCalDayText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  regCalDayOccasion: {
+    color: '#000',
+    fontSize: 7,
+    fontFamily: Typography.fontFamily.bold,
+    marginTop: 2,
+    textAlign: 'center',
+    paddingHorizontal: 2,
+    width: '100%',
+  },
+  /* ── Booking Mode Cards ── */
+  bookingModeGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  bookingModeCard: {
+    flex: 1,
+    backgroundColor: '#161616',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#2A2A2A',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  bookingModeCardActive: {
+    borderColor: '#FFD400',
+    backgroundColor: 'rgba(255, 212, 0, 0.08)',
+  },
+  defaultModeBadge: {
+    position: 'absolute',
+    top: -7,
+    backgroundColor: '#FFD400',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  defaultModeBadgeText: {
+    color: '#000',
+    fontSize: 7,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.5,
+  },
+  bookingModeTitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+  },
+  bookingModeTitleActive: {
+    color: '#FFD400',
+  },
+  bookingModeSub: {
+    fontSize: 8,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.4)',
+    textAlign: 'center',
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  bookingModeSubActive: {
+    color: 'rgba(255,212,0,0.8)',
+  },
+  bookingModeRadio: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bookingModeRadioActive: {
+    borderColor: '#FFD400',
+  },
+  bookingModeRadioInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFD400',
   },
 });
 

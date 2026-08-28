@@ -14,6 +14,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme'
 import api from '../../../api/axios';
 import { formatISTTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import moment from 'moment';
 import Tts from 'react-native-tts';
 import Voice from '@react-native-voice/voice';
@@ -53,6 +54,13 @@ const generateDates = (startDate = new Date()) => {
 
 const VOICE_ASSISTANT_ENABLED = false;
 
+const TIME_OPTIONS = [];
+for (let h = 0; h < 24; h++) {
+  const hr = h.toString().padStart(2, '0');
+  TIME_OPTIONS.push(`${hr}:00`);
+  TIME_OPTIONS.push(`${hr}:30`);
+}
+
 const SlotManagerScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { dashboard } = useSelector((state) => state.owner);
@@ -78,6 +86,36 @@ const SlotManagerScreen = ({ navigation }) => {
   
   const [dates, setDates] = useState(generateDates());
   const [selectedSlots, setSelectedSlots] = useState([]);
+  const activeTurf = turfs.find(t => t._id === selectedTurf);
+  const [selectedIntervalMode, setSelectedIntervalMode] = useState('60');
+  const [filterFromTime, setFilterFromTime] = useState('');
+  const [filterToTime, setFilterToTime] = useState('');
+  const [showNativeFromPicker, setShowNativeFromPicker] = useState(false);
+  const [showNativeToPicker, setShowNativeToPicker] = useState(false);
+  const [showFilteredSlotsModal, setShowFilteredSlotsModal] = useState(false);
+  const [modalSelectedSlots, setModalSelectedSlots] = useState([]);
+
+  const databaseHas30MinSlots = React.useMemo(() => {
+    if (!slots || slots.length === 0) return false;
+    return slots.some(s => {
+      const diff = moment(s.endTime, 'HH:mm').diff(moment(s.startTime, 'HH:mm'), 'minutes');
+      return diff === 30;
+    });
+  }, [slots]);
+
+  useEffect(() => {
+    if (slots && slots.length > 0 && !databaseHas30MinSlots) {
+      setSelectedIntervalMode('60');
+    }
+  }, [slots, databaseHas30MinSlots]);
+
+  useEffect(() => {
+    if (activeTurf) {
+      setSelectedIntervalMode(
+        activeTurf.bookingMode === 'both' ? '60' : (activeTurf.bookingMode === '30_min' ? '30' : '60')
+      );
+    }
+  }, [selectedTurf, activeTurf]);
   
   // Audio Mute State
   const [isMuted, setIsMuted] = useState(false);
@@ -414,6 +452,23 @@ const SlotManagerScreen = ({ navigation }) => {
   };
 
   const handleSlotPress = (slot) => {
+    if (slot.isMerged) {
+      const bookedOrig = slot.originalSlots.find(os => os.status === 'booked' || os.status === 'offline_booking');
+      if (bookedOrig) {
+        return handleSlotPress(bookedOrig);
+      }
+      
+      const allSelected = slot.originalSlots.every(os => selectedSlots.includes(os._id));
+      if (allSelected) {
+        const idsToRemove = slot.originalSlots.map(os => os._id);
+        setSelectedSlots(prev => prev.filter(id => !idsToRemove.includes(id)));
+      } else {
+        const toAdd = slot.originalSlots.map(os => os._id).filter(id => !selectedSlots.includes(id));
+        setSelectedSlots(prev => [...prev, ...toAdd]);
+      }
+      return;
+    }
+
     const isBooked = slot.status === 'booked' || slot.status === 'offline_booking';
     
     if (isBooked) {
@@ -456,7 +511,19 @@ const SlotManagerScreen = ({ navigation }) => {
 
   const handleQuickAction = async (type) => {
     if (type === 'offline_booking') {
+      const totalSelectedPrice = selectedSlots.reduce((sum, id) => {
+        const slotObj = slots.find(s => s._id === id);
+        const price = slotObj?.discountPrice !== undefined && slotObj?.discountPrice !== null ? slotObj.discountPrice : (slotObj?.price || 0);
+        return sum + price;
+      }, 0);
+
       setActionType(type);
+      setOfflineDetails({
+        customerName: '',
+        customerMobile: '',
+        amount: totalSelectedPrice.toString(),
+        reason: 'walk_in'
+      });
       setModalVisible(true);
       return;
     }
@@ -598,13 +665,70 @@ const SlotManagerScreen = ({ navigation }) => {
     }
   };
 
+  const processedSlots = React.useMemo(() => {
+    if (!slots) return [];
+    
+    let finalSlots = slots;
+    
+    if (selectedIntervalMode === '60' && databaseHas30MinSlots) {
+      const merged = [];
+      const sorted = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+      
+      let i = 0;
+      while (i < sorted.length) {
+        const slot1 = sorted[i];
+        const slot2 = sorted[i + 1];
+        
+        if (slot2 && slot1.endTime === slot2.startTime) {
+          let discountPrice = null;
+          if (slot1.discountPrice !== undefined && slot1.discountPrice !== null || 
+              slot2.discountPrice !== undefined && slot2.discountPrice !== null) {
+            const p1 = slot1.discountPrice !== undefined && slot1.discountPrice !== null ? slot1.discountPrice : slot1.price;
+            const p2 = slot2.discountPrice !== undefined && slot2.discountPrice !== null ? slot2.discountPrice : slot2.price;
+            discountPrice = p1 + p2;
+          }
+
+          merged.push({
+            _id: `${slot1._id}_${slot2._id}`,
+            isMerged: true,
+            originalSlots: [slot1, slot2],
+            startTime: slot1.startTime,
+            endTime: slot2.endTime,
+            price: slot1.price + slot2.price,
+            discountPrice,
+            status: (slot1.status === 'booked' || slot2.status === 'booked')
+              ? 'booked'
+              : (slot1.status === 'offline_booking' || slot2.status === 'offline_booking')
+                ? 'offline_booking'
+                : (slot1.status === 'maintenance' || slot2.status === 'maintenance')
+                  ? 'maintenance'
+                  : 'available',
+          });
+          i += 2;
+        } else {
+          i++;
+        }
+      }
+      finalSlots = merged;
+    }
+    
+    if (filterFromTime) {
+      finalSlots = finalSlots.filter(s => s.startTime >= filterFromTime);
+    }
+    if (filterToTime) {
+      finalSlots = finalSlots.filter(s => s.endTime <= filterToTime);
+    }
+    
+    return finalSlots;
+  }, [slots, selectedIntervalMode, activeTurf, filterFromTime, filterToTime]);
+
   // Grouping slots logically
   const groupedSlots = {
-    early_morning: slots.filter(s => getTimeGroup(s.startTime) === 'early_morning'),
-    morning: slots.filter(s => getTimeGroup(s.startTime) === 'morning'),
-    afternoon: slots.filter(s => getTimeGroup(s.startTime) === 'afternoon'),
-    evening: slots.filter(s => getTimeGroup(s.startTime) === 'evening'),
-    night: slots.filter(s => getTimeGroup(s.startTime) === 'night'),
+    early_morning: processedSlots.filter(s => getTimeGroup(s.startTime) === 'early_morning'),
+    morning: processedSlots.filter(s => getTimeGroup(s.startTime) === 'morning'),
+    afternoon: processedSlots.filter(s => getTimeGroup(s.startTime) === 'afternoon'),
+    evening: processedSlots.filter(s => getTimeGroup(s.startTime) === 'evening'),
+    night: processedSlots.filter(s => getTimeGroup(s.startTime) === 'night'),
   };
 
   const renderDateItem = (dateObj) => {
@@ -633,7 +757,9 @@ const SlotManagerScreen = ({ navigation }) => {
   };
 
   const renderSlotCard = (slot) => {
-    const isSelected = selectedSlots.includes(slot._id);
+    const isSelected = slot.isMerged
+      ? slot.originalSlots.every(os => selectedSlots.includes(os._id))
+      : selectedSlots.includes(slot._id);
     const past = isPastSlot(selectedDate, slot.startTime);
     const isBooked = slot.status === 'booked';
     const isOffline = slot.status === 'offline_booking';
@@ -749,8 +875,95 @@ const SlotManagerScreen = ({ navigation }) => {
           </ScrollView>
         </View>
 
-        {/* ── Availability Summary Card ── */}
+        {/* ── Booking Mode Toggle (only if both are supported) ── */}
+        {!loading && activeTurf?.bookingMode === 'both' && databaseHas30MinSlots && (
+          <View style={styles.toggleContainer}>
+            <TouchableOpacity 
+              style={[styles.toggleBtn, selectedIntervalMode === '60' && styles.toggleBtnActive]}
+              onPress={() => {
+                setSelectedIntervalMode('60');
+                setSelectedSlots([]); // Clear selections when mode toggles
+              }}
+            >
+              <Text style={[styles.toggleBtnText, selectedIntervalMode === '60' && styles.toggleBtnTextActive]}>
+                1 Hour
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.toggleBtn, selectedIntervalMode === '30' && styles.toggleBtnActive]}
+              onPress={() => {
+                setSelectedIntervalMode('30');
+                setSelectedSlots([]); // Clear selections when mode toggles
+              }}
+            >
+              <Text style={[styles.toggleBtnText, selectedIntervalMode === '30' && styles.toggleBtnTextActive]}>
+                30 Mins
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Time Filter Row ── */}
         {!loading && slots.length > 0 && (
+          <View style={styles.filterContainer}>
+            <Text style={styles.filterHeaderLabel}>Filter By Time</Text>
+            <View style={styles.filterRow}>
+              <TouchableOpacity style={styles.filterInput} onPress={() => setShowNativeFromPicker(true)}>
+                <Icon name="clock-outline" size={14} color="#FFD400" style={{ marginRight: 6 }} />
+                <Text style={styles.filterText}>
+                  {filterFromTime ? formatISTTime(filterFromTime) : 'From Time'}
+                </Text>
+              </TouchableOpacity>
+              
+              <Text style={{ color: 'rgba(255,255,255,0.4)', marginHorizontal: 8 }}>to</Text>
+              
+              <TouchableOpacity style={styles.filterInput} onPress={() => setShowNativeToPicker(true)}>
+                <Icon name="clock-outline" size={14} color="#FFD400" style={{ marginRight: 6 }} />
+                <Text style={styles.filterText}>
+                  {filterToTime ? formatISTTime(filterToTime) : 'To Time'}
+                </Text>
+              </TouchableOpacity>
+
+              {(filterFromTime || filterToTime) && (
+                <TouchableOpacity 
+                  style={styles.filterResetBtn} 
+                  onPress={() => {
+                    setFilterFromTime('');
+                    setFilterToTime('');
+                  }}
+                >
+                  <Icon name="close-circle" size={18} color="#FF4757" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.displaySlotsBtn, { marginTop: 12 }]}
+              onPress={() => {
+                const selectables = processedSlots.filter(s => s.status !== 'booked' && !isPastSlot(selectedDate, s.startTime));
+                const initialIds = [];
+                selectables.forEach(s => {
+                  if (s.isMerged) {
+                    initialIds.push(...s.originalSlots.map(os => os._id));
+                  } else {
+                    initialIds.push(s._id);
+                  }
+                });
+                setModalSelectedSlots(initialIds);
+                setShowFilteredSlotsModal(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Icon name="view-grid-outline" size={16} color="#000" style={{ marginRight: 8 }} />
+              <Text style={styles.displaySlotsBtnText}>
+                {filterFromTime || filterToTime ? 'Display Filtered Slots' : 'Display All Slots'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Availability Summary Card ── */}
+        {!loading && processedSlots.length > 0 && (
           <View style={styles.summaryCard}>
             <View style={styles.summaryLeft}>
               <Text style={styles.summaryTitle}>
@@ -761,19 +974,19 @@ const SlotManagerScreen = ({ navigation }) => {
               <View style={styles.statsRow}>
                 <View style={styles.statBlock}>
                   <Text style={styles.statLabel}>Available</Text>
-                  <Text style={styles.statValue}>{slots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length}</Text>
+                  <Text style={styles.statValue}>{processedSlots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length}</Text>
                 </View>
                 <View style={styles.statBlock}>
                   <Text style={styles.statLabel}>Online</Text>
-                  <Text style={styles.statValue}>{slots.filter(s => s.status === 'booked').length}</Text>
+                  <Text style={styles.statValue}>{processedSlots.filter(s => s.status === 'booked').length}</Text>
                 </View>
                 <View style={styles.statBlock}>
                   <Text style={styles.statLabel}>Offline</Text>
-                  <Text style={styles.statValue}>{slots.filter(s => s.status === 'offline_booking').length}</Text>
+                  <Text style={styles.statValue}>{processedSlots.filter(s => s.status === 'offline_booking').length}</Text>
                 </View>
                 <View style={styles.statBlock}>
                   <Text style={styles.statLabel}>Past</Text>
-                  <Text style={styles.statValue}>{slots.filter(s => isPastSlot(selectedDate, s.startTime)).length}</Text>
+                  <Text style={styles.statValue}>{processedSlots.filter(s => isPastSlot(selectedDate, s.startTime)).length}</Text>
                 </View>
               </View>
             </View>
@@ -783,11 +996,11 @@ const SlotManagerScreen = ({ navigation }) => {
                   cx={30} cy={30} r={26}
                   stroke="#FFD400" strokeWidth={4} fill="none"
                   strokeDasharray={2 * Math.PI * 26}
-                  strokeDashoffset={(2 * Math.PI * 26) * (1 - (slots.length ? (slots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length / slots.length) : 0))}
+                  strokeDashoffset={(2 * Math.PI * 26) * (1 - (processedSlots.length ? (processedSlots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length / processedSlots.length) : 0))}
                   rotation="-90" origin="30, 30" strokeLinecap="round"
                 />
               </Svg>
-              <Text style={styles.progressText}>{slots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length}</Text>
+              <Text style={styles.progressText}>{processedSlots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length}</Text>
               <Text style={styles.progressSubText}>Slots</Text>
             </View>
           </View>
@@ -795,8 +1008,10 @@ const SlotManagerScreen = ({ navigation }) => {
 
         {loading ? (
           <ActivityIndicator size="large" color="#FFD400" style={{ marginTop: 50 }} />
-        ) : slots.length === 0 ? (
-          <Text style={styles.noSlotsText}>No slots generated for this day.</Text>
+        ) : processedSlots.length === 0 ? (
+          <Text style={styles.noSlotsText}>
+            {slots.length === 0 ? 'No slots generated for this day.' : 'No slots matches the selected filters.'}
+          </Text>
         ) : (
           /* ── Expandable Time Groups ── */
           <View style={styles.groupsContainer}>
@@ -1317,6 +1532,267 @@ const SlotManagerScreen = ({ navigation }) => {
         </View>
       </Modal>
 
+      {/* Native Platform Time Pickers */}
+      {showNativeFromPicker && (
+        <DateTimePicker
+          value={filterFromTime ? moment(filterFromTime, 'HH:mm').toDate() : new Date()}
+          mode="time"
+          is24Hour={false}
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(event, date) => {
+            setShowNativeFromPicker(false);
+            if (event.type === 'set' && date) {
+              const formattedTime = moment(date).format('HH:mm');
+              setFilterFromTime(formattedTime);
+              if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
+                setSelectedIntervalMode('30');
+              }
+            }
+          }}
+        />
+      )}
+
+      {showNativeToPicker && (
+        <DateTimePicker
+          value={filterToTime ? moment(filterToTime, 'HH:mm').toDate() : new Date()}
+          mode="time"
+          is24Hour={false}
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(event, date) => {
+            setShowNativeToPicker(false);
+            if (event.type === 'set' && date) {
+              const formattedTime = moment(date).format('HH:mm');
+              setFilterToTime(formattedTime);
+              if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
+                setSelectedIntervalMode('30');
+              }
+            }
+          }}
+        />
+      )}
+
+      {/* ── Filtered Slots Center Modal ── */}
+      {showFilteredSlotsModal && (
+        <Modal visible={showFilteredSlotsModal} transparent={true} animationType="fade" statusBarTranslucent>
+          <View style={styles.fsModalBackdrop}>
+            <View style={styles.fsModalCard}>
+              {/* Header */}
+              <View style={styles.fsModalHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fsModalTitle}>Filtered Slots</Text>
+                  <Text style={styles.fsModalSubtitle}>
+                    {filterFromTime ? formatISTTime(filterFromTime) : 'Start'} → {filterToTime ? formatISTTime(filterToTime) : 'End'}
+                  </Text>
+                </View>
+
+                {/* Select All Toggle */}
+                {processedSlots.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.fsSelectAllBtn}
+                    onPress={() => {
+                      const selectables = processedSlots.filter(s => s.status !== 'booked');
+                      const allSelected = selectables.length > 0 && selectables.every(s => {
+                        if (s.isMerged) return s.originalSlots.every(os => modalSelectedSlots.includes(os._id));
+                        return modalSelectedSlots.includes(s._id);
+                      });
+
+                      if (allSelected) {
+                        setModalSelectedSlots([]);
+                      } else {
+                        const ids = [];
+                        selectables.forEach(s => {
+                          if (s.isMerged) ids.push(...s.originalSlots.map(os => os._id));
+                          else ids.push(s._id);
+                        });
+                        setModalSelectedSlots(ids);
+                      }
+                    }}
+                  >
+                    <Icon
+                      name={
+                        processedSlots.filter(s => s.status !== 'booked').length > 0 &&
+                        processedSlots.filter(s => s.status !== 'booked').every(s => {
+                          if (s.isMerged) return s.originalSlots.every(os => modalSelectedSlots.includes(os._id));
+                          return modalSelectedSlots.includes(s._id);
+                        })
+                          ? 'checkbox-marked'
+                          : 'checkbox-blank-outline'
+                      }
+                      size={16}
+                      color="#FFD400"
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text style={styles.fsSelectAllText}>
+                      {processedSlots.filter(s => s.status !== 'booked').length > 0 &&
+                      processedSlots.filter(s => s.status !== 'booked').every(s => {
+                        if (s.isMerged) return s.originalSlots.every(os => modalSelectedSlots.includes(os._id));
+                        return modalSelectedSlots.includes(s._id);
+                      })
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity onPress={() => setShowFilteredSlotsModal(false)} style={styles.fsModalCloseBtn}>
+                  <Icon name="close" size={18} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Slot list */}
+              <ScrollView
+                showsVerticalScrollIndicator={true}
+                style={{ maxHeight: 360, marginVertical: 8 }}
+                contentContainerStyle={{ paddingVertical: 4 }}
+              >
+                {processedSlots.length === 0 ? (
+                  <Text style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginVertical: 24, fontFamily: Typography.fontFamily.medium }}>
+                    No slots found in this time range.
+                  </Text>
+                ) : processedSlots.map((slot) => {
+                  const isBooked = slot.status === 'booked';
+                  const isOffline = slot.status === 'offline_booking';
+                  const isMaintenance = slot.status === 'maintenance';
+                  const past = isPastSlot(selectedDate, slot.startTime);
+                  const isSelected = slot.isMerged
+                    ? slot.originalSlots.every(os => modalSelectedSlots.includes(os._id))
+                    : modalSelectedSlots.includes(slot._id);
+
+                  const borderColor = isSelected ? '#FFD400'
+                    : isBooked ? '#2196F3'
+                    : isOffline ? '#9C27B0'
+                    : isMaintenance ? '#FF4757'
+                    : past ? '#333'
+                    : '#2A2A2A';
+
+                  const badgeLabel = isBooked ? 'Online'
+                    : past ? 'Past'
+                    : isOffline ? 'Walk-in'
+                    : isMaintenance ? 'Blocked'
+                    : 'Available';
+
+                  const badgeBg = isBooked ? 'rgba(33, 150, 243, 0.15)'
+                    : past ? 'rgba(255, 255, 255, 0.08)'
+                    : isOffline ? 'rgba(156, 39, 176, 0.15)'
+                    : isMaintenance ? 'rgba(255, 71, 87, 0.15)'
+                    : 'rgba(46, 213, 115, 0.15)';
+
+                  const badgeText = isBooked ? '#2196F3'
+                    : past ? 'rgba(255, 255, 255, 0.5)'
+                    : isOffline ? '#9C27B0'
+                    : isMaintenance ? '#FF4757'
+                    : '#2ed573';
+
+                  return (
+                    <TouchableOpacity
+                      key={slot._id}
+                      activeOpacity={0.75}
+                      disabled={isBooked}
+                      onPress={() => {
+                        const ids = slot.isMerged ? slot.originalSlots.map(os => os._id) : [slot._id];
+                        const allSel = ids.every(id => modalSelectedSlots.includes(id));
+                        setModalSelectedSlots(prev =>
+                          allSel ? prev.filter(id => !ids.includes(id)) : [...prev, ...ids.filter(id => !prev.includes(id))]
+                        );
+                      }}
+                      style={[
+                        styles.fsSlotRow,
+                        {
+                          borderColor,
+                          backgroundColor: isSelected ? 'rgba(255, 212, 0, 0.08)' : '#1B1B1B',
+                          opacity: isBooked ? 0.6 : 1,
+                        }
+                      ]}
+                    >
+                      <View style={styles.fsSlotCheckbox}>
+                        {isBooked ? (
+                          <Icon name="lock" size={15} color="#2196F3" />
+                        ) : isSelected ? (
+                          <Icon name="check-circle" size={16} color="#FFD400" />
+                        ) : (
+                          <Icon name="circle-outline" size={16} color="rgba(255,255,255,0.3)" />
+                        )}
+                      </View>
+
+                      <Text style={[styles.fsSlotTime, isSelected && { color: '#FFD400', fontFamily: Typography.fontFamily.bold }]}>
+                        {formatISTTime(slot.startTime)} – {formatISTTime(slot.endTime)}
+                      </Text>
+
+                      <View style={[styles.fsSlotBadge, { backgroundColor: badgeBg, borderColor: badgeText }]}>
+                        <Text style={[styles.fsSlotBadgeText, { color: badgeText }]}>{badgeLabel}</Text>
+                      </View>
+
+                      <Text style={[styles.fsSlotPrice, isSelected && { color: '#FFD400' }]}>
+                        ₹{slot.price}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Footer actions */}
+              <View style={styles.fsModalFooter}>
+                <Text style={styles.fsFooterLabel}>
+                  {modalSelectedSlots.length} slot{modalSelectedSlots.length === 1 ? '' : 's'} selected
+                </Text>
+                <View style={styles.fsFooterBtns}>
+                  <TouchableOpacity
+                    style={[styles.fsFooterBtn, { borderColor: '#FFD400', backgroundColor: 'rgba(255, 212, 0, 0.1)' }]}
+                    disabled={modalSelectedSlots.length === 0}
+                    onPress={async () => {
+                      try {
+                        await api.post('/slots/bulk-update-ids', { turfId: selectedTurf, slotIds: modalSelectedSlots, action: 'status', actionData: { status: 'available' } });
+                        setShowFilteredSlotsModal(false);
+                        fetchSlots();
+                        showCustomAlert('Success', 'Slots marked as available.');
+                      } catch { showCustomAlert('Error', 'Failed to update.'); }
+                    }}
+                  >
+                    <Icon name="check-circle-outline" size={14} color="#FFD400" />
+                    <Text style={[styles.fsFooterBtnText, { color: '#FFD400' }]}>Avail</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.fsFooterBtn, { borderColor: '#9C27B0', backgroundColor: 'rgba(156, 39, 176, 0.1)' }]}
+                    disabled={modalSelectedSlots.length === 0}
+                    onPress={() => {
+                      const totalPrice = modalSelectedSlots.reduce((sum, id) => {
+                        const s = slots.find(sl => sl._id === id);
+                        return sum + (s?.discountPrice ?? s?.price ?? 0);
+                      }, 0);
+                      setSelectedSlots(modalSelectedSlots);
+                      setActionType('offline_booking');
+                      setOfflineDetails({ customerName: '', customerMobile: '', amount: totalPrice.toString(), reason: 'walk_in' });
+                      setShowFilteredSlotsModal(false);
+                      setModalVisible(true);
+                    }}
+                  >
+                    <Icon name="account-cash-outline" size={14} color="#9C27B0" />
+                    <Text style={[styles.fsFooterBtnText, { color: '#9C27B0' }]}>Walk-in</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.fsFooterBtn, { borderColor: '#FF4757', backgroundColor: 'rgba(255, 71, 87, 0.1)' }]}
+                    disabled={modalSelectedSlots.length === 0}
+                    onPress={async () => {
+                      try {
+                        await api.post('/slots/bulk-update-ids', { turfId: selectedTurf, slotIds: modalSelectedSlots, action: 'status', actionData: { status: 'maintenance' } });
+                        setShowFilteredSlotsModal(false);
+                        fetchSlots();
+                        showCustomAlert('Success', 'Slots marked as maintenance.');
+                      } catch { showCustomAlert('Error', 'Failed to update.'); }
+                    }}
+                  >
+                    <Icon name="tools" size={14} color="#FF4757" />
+                    <Text style={[styles.fsFooterBtnText, { color: '#FF4757' }]}>Maint</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {/* Voice Assistant Floating Action Button */}
       {VOICE_ASSISTANT_ENABLED && (
         <TouchableOpacity 
@@ -1696,7 +2172,7 @@ const styles = StyleSheet.create({
   fabBtnText: { fontSize: 11, fontFamily: Typography.fontFamily.bold, lineHeight: 13 },
 
   /* ── Modals General ── */
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', padding: 16 },
   modalContent: { backgroundColor: '#171717', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#2A2A2A' },
   modalHeaderTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
@@ -1928,6 +2404,242 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     marginLeft: 4,
     letterSpacing: 0.5,
+  },
+
+  /* ── Toggle Switch Styles ── */
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#171717',
+    borderRadius: 24,
+    padding: 4,
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toggleBtnActive: {
+    backgroundColor: '#FFD400',
+  },
+  toggleBtnText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  toggleBtnTextActive: {
+    color: '#000',
+  },
+
+  /* ── Time Filter Styles ── */
+  filterContainer: {
+    marginHorizontal: 16,
+    marginTop: 0,
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#171717',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  filterHeaderLabel: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  filterInput: {
+    flex: 1,
+    height: 38,
+    backgroundColor: '#0F0F0F',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  filterText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  filterResetBtn: {
+    marginLeft: 10,
+    padding: 4,
+  },
+  selectAllFilteredBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F0F0F',
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginTop: 8,
+  },
+  selectAllFilteredText: {
+    color: '#FFD400',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 11,
+  },
+  displaySlotsBtn: {
+    height: 40,
+    backgroundColor: '#FFD400',
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  displaySlotsBtnText: {
+    color: '#000',
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  /* ── Filtered Slots Center Modal ── */
+  fsModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  fsModalCard: {
+    width: '100%',
+    maxHeight: '85%',
+    backgroundColor: '#161616',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    padding: 16,
+  },
+  fsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#222',
+  },
+  fsModalTitle: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF',
+  },
+  fsModalSubtitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: '#FFD400',
+    marginTop: 2,
+  },
+  fsSelectAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 212, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 212, 0, 0.3)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginRight: 10,
+  },
+  fsSelectAllText: {
+    color: '#FFD400',
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  fsModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#222',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsSlotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    marginBottom: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+  },
+  fsSlotCheckbox: {
+    width: 22,
+    alignItems: 'center',
+  },
+  fsSlotTime: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: '#FFF',
+    marginLeft: 8,
+  },
+  fsSlotBadge: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginHorizontal: 8,
+  },
+  fsSlotBadgeText: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  fsSlotPrice: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF',
+    minWidth: 44,
+    textAlign: 'right',
+  },
+  fsModalFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#222',
+    paddingTop: 12,
+  },
+  fsFooterLabel: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: 'rgba(255,255,255,0.55)',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  fsFooterBtns: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  fsFooterBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderWidth: 1.5,
+    borderRadius: 18,
+    paddingVertical: 10,
+  },
+  fsFooterBtnText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
   },
 });
 
