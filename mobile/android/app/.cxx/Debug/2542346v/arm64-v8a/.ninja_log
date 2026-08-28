@@ -170,3 +170,5 @@
 20	2867	1787725154149372003	AsyncStorageSpec_autolinked_build/CMakeFiles/react_codegen_AsyncStorageSpec.dir/react/renderer/components/AsyncStorageSpec/EventEmitters.cpp.o	8812b9ff6a601f56
 40878	44964	1787725196243541317	safeareacontext_autolinked_build/CMakeFiles/react_codegen_safeareacontext.dir/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-safe-area-context/android/build/generated/source/codegen/jni/react/renderer/components/safeareacontext/ShadowNodes.cpp.o	897cf07df32248e6
 1	21	0	/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/cmake.verify_globs	232ce5889563e8d7
+1	75	0	/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/cmake.verify_globs	232ce5889563e8d7
+0	354	0	clean	19032e23f5748419

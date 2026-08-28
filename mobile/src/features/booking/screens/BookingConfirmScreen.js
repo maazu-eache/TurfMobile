@@ -101,7 +101,7 @@ const BookingConfirmScreen = ({ route, navigation }) => {
           description: `Booking for ${turf.name}`,
           image: Image.resolveAssetSource(require('../../../../SportVerse.png')).uri,
           currency: order.currency,
-          key: key || 'rzp_test_replace_me',
+          key: key,
           amount: order.amount,
           name: 'ScoreVerse',
           order_id: order.id,
