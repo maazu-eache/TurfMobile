@@ -432,6 +432,10 @@
 	[
 		{
 			"backtrace" : 4,
+			"id" : "react_codegen_AsyncStorageSpec::@15af80695a6281ecf900"
+		},
+		{
+			"backtrace" : 4,
 			"id" : "react_codegen_RNDateTimePickerCGen::@59b70ddc31ba2f8ef1d2"
 		},
 		{
@@ -513,10 +517,6 @@
 		{
 			"backtrace" : 4,
 			"id" : "react_codegen_RNWorkletsSpec::@c787b30dd2b0f948dced"
-		},
-		{
-			"backtrace" : 4,
-			"id" : "react_codegen_AsyncStorageSpec::@15af80695a6281ecf900"
 		}
 	],
 	"id" : "appmodules::@6890427a1f51a3e7e1df",

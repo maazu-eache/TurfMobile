@@ -16,83 +16,6 @@ import NotificationService from './src/services/NotificationService';
 import CustomAlert, { customAlertRef } from './src/components/CustomAlert';
 
 const App = () => {
-  const navigateUrl = (url, retries = 0) => {
-    if (!url) return;
-    
-    let cleanPath = url
-      .replace('scoreverse://', '')
-      .replace('roughturf://', '')
-      .replace('https://scoreverse.in/', '');
-
-    let queryParams = {};
-    if (cleanPath.includes('?')) {
-      const [pathPart, queryPart] = cleanPath.split('?');
-      cleanPath = pathPart;
-      if (queryPart) {
-        queryPart.split('&').forEach(pair => {
-          const [key, val] = pair.split('=');
-          if (key) queryParams[key] = decodeURIComponent(val || '');
-        });
-      }
-    }
-
-    const parts = cleanPath.split('/').filter(Boolean);
-    if (parts.length >= 2) {
-      const route = parts[0];
-      const id = parts[1];
-
-      const isReady = navigationRef.isReady();
-      const currentRoute = isReady ? navigationRef.getCurrentRoute() : null;
-
-      if (isReady && currentRoute) {
-        if (route === 'turf') {
-          navigate('Customer', {
-            screen: 'Home',
-            params: {
-              screen: 'TurfDetail',
-              params: { id, ...queryParams }
-            }
-          });
-        } else if (route === 'tournament' || route === 'auction') {
-          if (parts[2] === 'register' || parts[1] === 'register') {
-            navigate('Customer', {
-              screen: 'AuctionRegistration',
-              params: { tournamentId: id, ...queryParams }
-            });
-          } else {
-            navigate('Customer', {
-              screen: 'My Cricket',
-              params: {
-                screen: 'TournamentDetail',
-                params: { tournamentId: id, ...queryParams }
-              }
-            });
-          }
-        } else if (route === 'match') {
-          navigate('Customer', {
-            screen: 'My Cricket',
-            params: {
-              screen: 'MatchSummary',
-              params: { matchId: id, ...queryParams }
-            }
-          });
-        } else if (route === 'player') {
-          navigate('Customer', {
-            screen: 'Home',
-            params: {
-              screen: 'PlayerDetail',
-              params: { id, ...queryParams }
-            }
-          });
-        }
-      } else {
-        if (retries < 15) {
-          setTimeout(() => navigateUrl(url, retries + 1), 1000);
-        }
-      }
-    }
-  };
-
   useEffect(() => {
     try {
       NotificationService.requestUserPermission();
@@ -100,54 +23,14 @@ const App = () => {
       // Handle FCM foreground messages
       const unsubscribe = NotificationService.listenToForegroundMessages();
 
-      const handleNotificationNavigation = (remoteMessage) => {
-        const data = remoteMessage?.data;
-        if (!data) return;
-
-        if (data.url) {
-          navigateUrl(data.url);
-        } else if (data.matchId) {
-          navigateUrl(`https://scoreverse.in/match/${data.matchId}`);
-        } else if (data.playerId) {
-          navigateUrl(`https://scoreverse.in/player/${data.playerId}`);
-        } else if (data.turfId) {
-          navigateUrl(`https://scoreverse.in/turf/${data.turfId}`);
-        } else if (data.tournamentId) {
-          navigateUrl(`https://scoreverse.in/tournament/${data.tournamentId}`);
-        } else if (data.type) {
-          navigate('Notifications');
-        }
-      };
-
-      NotificationService.onNotificationOpenedApp(remoteMessage => {
-        handleNotificationNavigation(remoteMessage);
-      });
-
-      NotificationService.getInitialNotification().then(remoteMessage => {
-        if (remoteMessage) handleNotificationNavigation(remoteMessage);
-      });
-
-      // Handle deep linking
-      const handleDeepLink = (event) => {
-        navigateUrl(event.url);
-      };
-
-      Linking.getInitialURL().then((url) => {
-        if (url) {
-          navigateUrl(url);
-        }
-      });
-
-      const subscription = Linking.addEventListener('url', handleDeepLink);
-
       return () => {
         unsubscribe?.();
-        subscription.remove();
       };
     } catch (err) {
       console.log('App initialization error:', err.message);
     }
   }, []);
+
   const linking = {
     prefixes: [
       'scoreverse://',
@@ -157,6 +40,43 @@ const App = () => {
       'https://www.scoreverse.in',
       'http://www.scoreverse.in'
     ],
+    async getInitialURL() {
+      // First, check if app was opened from a deep link
+      const url = await Linking.getInitialURL();
+      if (url != null) return url;
+
+      // Check if there is an initial firebase notification
+      const message = await NotificationService.getInitialNotification();
+      if (message?.data) {
+        if (message.data.url) return message.data.url;
+        if (message.data.matchId) return `scoreverse://match/${message.data.matchId}`;
+        if (message.data.playerId) return `scoreverse://player/${message.data.playerId}`;
+        if (message.data.turfId) return `scoreverse://turf/${message.data.turfId}`;
+        if (message.data.tournamentId) return `scoreverse://tournament/${message.data.tournamentId}`;
+        if (message.data.type) return `scoreverse://notifications`;
+      }
+      return null;
+    },
+    subscribe(listener) {
+      const onReceiveURL = ({ url }) => listener(url);
+      const linkingSubscription = Linking.addEventListener('url', onReceiveURL);
+
+      const unsubscribeNotification = NotificationService.onNotificationOpenedApp(message => {
+        if (message?.data) {
+          if (message.data.url) listener(message.data.url);
+          else if (message.data.matchId) listener(`scoreverse://match/${message.data.matchId}`);
+          else if (message.data.playerId) listener(`scoreverse://player/${message.data.playerId}`);
+          else if (message.data.turfId) listener(`scoreverse://turf/${message.data.turfId}`);
+          else if (message.data.tournamentId) listener(`scoreverse://tournament/${message.data.tournamentId}`);
+          else if (message.data.type) listener(`scoreverse://notifications`);
+        }
+      });
+
+      return () => {
+        linkingSubscription.remove();
+        unsubscribeNotification?.();
+      };
+    },
     config: {
       screens: {
         Customer: {
@@ -165,6 +85,7 @@ const App = () => {
               screens: {
                 TurfDetail: 'turf/:id',
                 PlayerDetail: 'player/:id',
+                Notifications: 'notifications',
               }
             },
             'My Cricket': {

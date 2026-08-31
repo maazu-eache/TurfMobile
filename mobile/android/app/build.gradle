@@ -82,7 +82,7 @@ android {
         applicationId "com.scoreverse.sports"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 30
+        versionCode 31
         versionName "1.12"
         missingDimensionStrategy 'react-native-camera', 'general'
     }
