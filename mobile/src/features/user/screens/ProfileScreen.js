@@ -20,42 +20,7 @@ const ProfileScreen = ({ navigation }) => {
   const [loggingOut, setLoggingOut] = useState(false);
 
   const [deletingAccount, setDeletingAccount] = useState(false);
-  const [infoModalVisible, setInfoModalVisible] = useState(false);
-
-  const handleDeleteAccount = () => {
-    showCustomAlert(
-      "Delete Account",
-      "⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nAre you absolutely sure you want to delete your account? All your details, score stats, wallets, and transaction history will be permanently erased.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete My Account", 
-          style: "destructive",
-          onPress: async () => {
-            setDeletingAccount(true);
-            try {
-              await api.delete('/users/delete-account');
-              showCustomAlert(
-                "Account Deleted", 
-                "Your account has been permanently deleted.", 
-                [{
-                  text: "OK",
-                  onPress: async () => {
-                    await dispatch(logout());
-                    reset('Customer');
-                  }
-                }]
-              );
-            } catch (err) {
-              setDeletingAccount(false);
-              showCustomAlert("Error", err.response?.data?.message || "Failed to delete account");
-            }
-          }
-        }
-      ]
-    );
-  };
-
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   const handleLogout = () => {
     showCustomAlert(
@@ -99,11 +64,8 @@ const ProfileScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.container}>
-        <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+        <View style={styles.header}>
           <Text style={styles.headerTitle}>Profile</Text>
-          <TouchableOpacity onPress={() => setInfoModalVisible(true)}>
-            <Icon name="dots-vertical" size={26} color={Colors.textSecondary} />
-          </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -161,35 +123,54 @@ const ProfileScreen = ({ navigation }) => {
             {renderOption('headset', 'Help & Support', 'Get help with your bookings', () => navigation.navigate('TicketListScreen'))}
             {renderOption('shield-check', 'Privacy Policy', 'Your data and privacy rights', () => navigation.navigate('PrivacyPolicy'))}
             {renderOption('logout', 'Logout', 'Sign out of your account', handleLogout, true, loggingOut)}
-
+            
+            <TouchableOpacity onPress={() => setDeleteModalVisible(true)} style={styles.deleteLinkContainer}>
+              <Text style={styles.deleteLinkText}>More</Text>
+            </TouchableOpacity>
           </View>
-          
-          <Text style={styles.version}>Version 1.0.0</Text>
-        </ScrollView>
+                  </ScrollView>
       </View>
 
-      <Modal visible={infoModalVisible} transparent animationType="fade" onRequestClose={() => setInfoModalVisible(false)}>
+      <Modal visible={deleteModalVisible} transparent animationType="fade" onRequestClose={() => setDeleteModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Account Options</Text>
-              <TouchableOpacity onPress={() => setInfoModalVisible(false)}>
+              <Text style={styles.modalTitle}>Delete Account</Text>
+              <TouchableOpacity onPress={() => setDeleteModalVisible(false)}>
                 <Icon name="close" size={24} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
             <View style={{ marginBottom: 20 }}>
-              <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, marginBottom: 12, lineHeight: 20 }}>
-                Here you can view and manage your account status. Your account contains all your career statistics, wallet balances, and booking history.
+              <Text style={{ color: Colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginBottom: 12, lineHeight: 20 }}>
+                ⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!
               </Text>
               <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, marginBottom: 12, lineHeight: 20 }}>
-                If you wish to leave the platform, you can permanently delete your account. This action will purge all data associated with you and cannot be undone.
+                Are you absolutely sure you want to delete your account? All your details, score stats, wallets, and transaction history will be permanently erased.
               </Text>
             </View>
             <TouchableOpacity 
               style={{ backgroundColor: 'rgba(244,67,54,0.1)', paddingVertical: 14, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}
-              onPress={() => {
-                setInfoModalVisible(false);
-                setTimeout(handleDeleteAccount, 300);
+              onPress={async () => {
+                setDeletingAccount(true);
+                try {
+                  await api.delete('/users/delete-account');
+                  setDeleteModalVisible(false);
+                  setDeletingAccount(false);
+                  showCustomAlert(
+                    "Account Deleted", 
+                    "Your account has been permanently deleted.", 
+                    [{
+                      text: "OK",
+                      onPress: async () => {
+                        await dispatch(logout());
+                        reset('Customer');
+                      }
+                    }]
+                  );
+                } catch (err) {
+                  setDeletingAccount(false);
+                  showCustomAlert("Error", err.response?.data?.message || "Failed to delete account");
+                }
               }}
               disabled={deletingAccount}
             >
@@ -198,7 +179,7 @@ const ProfileScreen = ({ navigation }) => {
               ) : (
                 <>
                   <Icon name="delete-forever" size={22} color={Colors.error} style={{ marginRight: 8 }} />
-                  <Text style={{ color: Colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Delete Account</Text>
+                  <Text style={{ color: Colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Delete My Account</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -243,6 +224,8 @@ const styles = StyleSheet.create({
   modalContent: { backgroundColor: Colors.backgroundElevated, width: '100%', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: Colors.border },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18 },
+  deleteLinkContainer: { alignSelf: 'flex-end', marginTop: Spacing.md, marginRight: Spacing.xs },
+  deleteLinkText: { color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium, textDecorationLine: 'underline' },
 });
 
 export default ProfileScreen;

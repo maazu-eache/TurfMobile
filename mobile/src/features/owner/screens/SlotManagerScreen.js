@@ -454,7 +454,13 @@ const SlotManagerScreen = ({ navigation }) => {
   const handleSlotPress = (slot) => {
     if (slot.isMerged) {
       const bookedOrig = slot.originalSlots.find(os => os.status === 'booked' || os.status === 'offline_booking');
+      const allBooked = slot.originalSlots.every(os => os.status === 'booked' || os.status === 'offline_booking');
       if (bookedOrig) {
+        if (!allBooked) {
+          // Switch to 30 Mins mode if partially booked
+          setSelectedIntervalMode('30');
+          return;
+        }
         return handleSlotPress(bookedOrig);
       }
       
@@ -563,6 +569,46 @@ const SlotManagerScreen = ({ navigation }) => {
       showCustomAlert('Success', 'Offline bookings created.');
     } catch (err) {
       showCustomAlert('Error', err.response?.data?.message || 'Failed to create offline bookings');
+    }
+  };
+
+  const handleMobileChange = async (val) => {
+    setOfflineDetails(prev => ({ ...prev, customerMobile: val }));
+    if (val.trim().length === 10) {
+      try {
+        const response = await api.get(`/users/lookup/${val.trim()}`);
+        if (response.data?.data?.exists) {
+          const matchedUser = response.data.data.user;
+          if (matchedUser && matchedUser.name) {
+            setOfflineDetails(prev => ({ ...prev, customerName: matchedUser.name }));
+          }
+        }
+      } catch (err) {
+        console.log('Error looking up user by mobile:', err);
+      }
+    }
+  };
+
+  const handleBulkMobileChange = async (val) => {
+    setBulkData(prev => ({
+      ...prev,
+      actionData: { ...prev.actionData, customerMobile: val }
+    }));
+    if (val.trim().length === 10) {
+      try {
+        const response = await api.get(`/users/lookup/${val.trim()}`);
+        if (response.data?.data?.exists) {
+          const matchedUser = response.data.data.user;
+          if (matchedUser && matchedUser.name) {
+            setBulkData(prev => ({
+              ...prev,
+              actionData: { ...prev.actionData, customerName: matchedUser.name }
+            }));
+          }
+        }
+      } catch (err) {
+        console.log('Error looking up user by mobile:', err);
+      }
     }
   };
 
@@ -764,6 +810,12 @@ const SlotManagerScreen = ({ navigation }) => {
     const isBooked = slot.status === 'booked';
     const isOffline = slot.status === 'offline_booking';
     const isMaintenance = slot.status === 'maintenance';
+
+    const isPartiallyBooked = slot.isMerged && (() => {
+      const s1Booked = slot.originalSlots[0].status === 'booked' || slot.originalSlots[0].status === 'offline_booking';
+      const s2Booked = slot.originalSlots[1].status === 'booked' || slot.originalSlots[1].status === 'offline_booking';
+      return (s1Booked && !s2Booked) || (!s1Booked && s2Booked);
+    })();
     
     let cardStyle = styles.slotCardAvailable;
     let textStyle = styles.slotTextAvailable;
@@ -774,12 +826,24 @@ const SlotManagerScreen = ({ navigation }) => {
     } else if (isMaintenance) {
       cardStyle = styles.slotCardMaintenance;
       textStyle = styles.slotTextMaintenance;
-    } else if (isOffline) {
+    } else if (isOffline && !isPartiallyBooked) {
       cardStyle = styles.slotCardOffline;
       textStyle = styles.slotTextOffline;
-    } else if (isBooked) {
+    } else if (isBooked && !isPartiallyBooked) {
       cardStyle = styles.slotCardBooked;
       textStyle = styles.slotTextBooked;
+    } else if (isPartiallyBooked) {
+      const bookedSubSlot = slot.originalSlots.find(os => os.status === 'booked' || os.status === 'offline_booking');
+      if (bookedSubSlot && bookedSubSlot.status === 'offline_booking') {
+        cardStyle = styles.slotCardOffline;
+        textStyle = styles.slotTextOffline;
+      } else if (bookedSubSlot && bookedSubSlot.status === 'booked') {
+        cardStyle = styles.slotCardBooked;
+        textStyle = styles.slotTextBooked;
+      } else {
+        cardStyle = styles.slotCardAvailable;
+        textStyle = styles.slotTextAvailable;
+      }
     } else if (past) {
       cardStyle = styles.slotCardPast;
       textStyle = styles.slotTextPast;
@@ -792,10 +856,12 @@ const SlotManagerScreen = ({ navigation }) => {
         onPress={() => handleSlotPress(slot)}
         activeOpacity={0.8}
       >
-        {isBooked ? (
+        {isBooked && !isPartiallyBooked ? (
           <Icon name="lock" size={14} color="#2196F3" style={styles.slotStateIcon} />
-        ) : isOffline ? (
+        ) : isOffline && !isPartiallyBooked ? (
           <Icon name="account-cash" size={14} color="#9C27B0" style={styles.slotStateIcon} />
+        ) : isPartiallyBooked ? (
+          <View style={styles.slotPartialDot} />
         ) : isMaintenance ? (
           <Icon name="tools" size={12} color="#FF4757" style={styles.slotStateIcon} />
         ) : past ? (
@@ -1013,8 +1079,16 @@ const SlotManagerScreen = ({ navigation }) => {
             {slots.length === 0 ? 'No slots generated for this day.' : 'No slots matches the selected filters.'}
           </Text>
         ) : (
-          /* ── Expandable Time Groups ── */
-          <View style={styles.groupsContainer}>
+          <>
+            {selectedIntervalMode === '60' && databaseHas30MinSlots && (
+              <View style={styles.legendContainer}>
+                <View style={styles.legendDot} />
+                <Text style={styles.legendText}>Orange dot indicates slot is partially booked (30 mins booked). Click to switch to 30 min view.</Text>
+              </View>
+            )}
+            
+            {/* ── Expandable Time Groups ── */}
+            <View style={styles.groupsContainer}>
             {[
               { key: 'early_morning', label: 'Early Morning', icon: 'weather-sunset-up', desc: '12:00 AM - 06:00 AM' },
               { key: 'morning', label: 'Morning', icon: 'weather-sunny', desc: '06:00 AM - 12:00 PM' },
@@ -1062,6 +1136,7 @@ const SlotManagerScreen = ({ navigation }) => {
               );
             })}
           </View>
+        </>
         )}
 
         <View style={{ height: 160 }} />
@@ -1118,18 +1193,18 @@ const SlotManagerScreen = ({ navigation }) => {
               <Text style={styles.modalSubtitle}>Customer Details</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="Customer Name *"
-                placeholderTextColor="rgba(255,255,255,0.3)"
-                value={offlineDetails.customerName}
-                onChangeText={(t) => setOfflineDetails({...offlineDetails, customerName: t})}
-              />
-              <TextInput
-                style={styles.modalInput}
                 placeholder="Mobile Number"
                 placeholderTextColor="rgba(255,255,255,0.3)"
                 keyboardType="phone-pad"
                 value={offlineDetails.customerMobile}
-                onChangeText={(t) => setOfflineDetails({...offlineDetails, customerMobile: t})}
+                onChangeText={handleMobileChange}
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Customer Name *"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={offlineDetails.customerName}
+                onChangeText={(t) => setOfflineDetails({...offlineDetails, customerName: t})}
               />
               <TextInput
                 style={styles.modalInput}
@@ -1395,18 +1470,18 @@ const SlotManagerScreen = ({ navigation }) => {
                       <Text style={styles.modalSubtitle}>Customer Details</Text>
                       <TextInput
                         style={styles.modalInput}
-                        placeholder="Customer Name *"
-                        placeholderTextColor="rgba(255,255,255,0.3)"
-                        value={bulkData.actionData.customerName}
-                        onChangeText={t => setBulkData({ ...bulkData, actionData: { ...bulkData.actionData, customerName: t } })}
-                      />
-                      <TextInput
-                        style={styles.modalInput}
                         placeholder="Mobile Number"
                         placeholderTextColor="rgba(255,255,255,0.3)"
                         keyboardType="phone-pad"
                         value={bulkData.actionData.customerMobile}
-                        onChangeText={t => setBulkData({ ...bulkData, actionData: { ...bulkData.actionData, customerMobile: t } })}
+                        onChangeText={handleBulkMobileChange}
+                      />
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder="Customer Name *"
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        value={bulkData.actionData.customerName}
+                        onChangeText={t => setBulkData({ ...bulkData, actionData: { ...bulkData.actionData, customerName: t } })}
                       />
                     </View>
                   )}
@@ -2142,6 +2217,10 @@ const styles = StyleSheet.create({
   slotCardOffline: { backgroundColor: 'rgba(156, 39, 176, 0.05)', borderWidth: 1, borderColor: 'rgba(156, 39, 176, 0.4)', borderBottomWidth: 3, borderBottomColor: 'rgba(156, 39, 176, 0.2)' },
   slotTextOffline: { color: '#9C27B0' },
   
+  slotCardPartiallyBooked: { backgroundColor: 'rgba(255, 152, 0, 0.05)', borderWidth: 1, borderColor: 'rgba(255, 152, 0, 0.4)', borderBottomWidth: 3, borderBottomColor: 'rgba(255, 152, 0, 0.2)' },
+  slotTextPartiallyBooked: { color: '#FF9800' },
+  partiallyBookedLabel: { fontSize: 7, fontFamily: Typography.fontFamily.bold, color: '#FF9800', marginTop: 1, textTransform: 'uppercase' },
+
   slotCardPast: { backgroundColor: '#0A0A0A', borderWidth: 1, borderColor: '#333', borderBottomWidth: 3, borderBottomColor: '#111' },
   slotTextPast: { color: 'rgba(255,255,255,0.4)' },
 
@@ -2640,6 +2719,40 @@ const styles = StyleSheet.create({
   fsFooterBtnText: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
+  },
+  slotPartialDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF9800',
+    position: 'absolute',
+    top: 6,
+    right: 8,
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#222',
+    borderRadius: 12,
+    padding: 10,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF9800',
+    marginRight: 8,
+  },
+  legendText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    flex: 1,
   },
 });
 

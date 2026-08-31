@@ -337,10 +337,10 @@ const HomeScreen = ({ navigation }) => {
                 <View style={{ height: 24 }} />
               </ScrollView>
 
-              <View style={styles.sidebarFooter}>
+              {/* <View style={styles.sidebarFooter}>
                 <Icon name="leaf" size={12} color={Colors.primary} />
                 <Text style={styles.sidebarFooterTxt}>ScoreVerse v1.0</Text>
-              </View>
+              </View> */}
             </LinearGradient>
           </Animated.View>
         </Modal>

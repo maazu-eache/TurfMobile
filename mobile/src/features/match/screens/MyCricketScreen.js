@@ -65,7 +65,7 @@ const MyCricketScreen = ({ route }) => {
 
     if (isFocused) {
       if (activeTopTab === 'Matches') {
-        const params = { status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase().replace(' ', ''), limit: 20 };
+        const params = { status: activeSubTab === 'Played' ? 'completed' : (activeSubTab === 'Near By' ? undefined : 'active'), filterType: activeSubTab.toLowerCase().replace(' ', ''), limit: 20 };
         if (activeSubTab === 'Near By') {
           if (myProfile?.city || user?.city) params.city = myProfile?.city || user?.city;
           if (myProfile?.latitude && myProfile?.longitude) {
@@ -218,7 +218,7 @@ const MyCricketScreen = ({ route }) => {
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
     if (activeTopTab === 'Matches') {
-      const params = { status: activeSubTab === 'Played' ? 'completed' : 'active', filterType: activeSubTab.toLowerCase().replace(' ', ''), limit: 20 };
+      const params = { status: activeSubTab === 'Played' ? 'completed' : (activeSubTab === 'Near By' ? undefined : 'active'), filterType: activeSubTab.toLowerCase().replace(' ', ''), limit: 20 };
       if (activeSubTab === 'Near By') {
         if (myProfile?.city || user?.city) params.city = myProfile?.city || user?.city;
         if (myProfile?.latitude && myProfile?.longitude) {

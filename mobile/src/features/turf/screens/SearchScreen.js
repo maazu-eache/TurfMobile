@@ -159,6 +159,24 @@ const SearchScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('blur', () => {
+      // Find parent tab navigator if it exists
+      let parentNav = navigation.getParent();
+      let activeTabName = null;
+      while (parentNav) {
+        const state = parentNav.getState();
+        if (state && state.type === 'tab') {
+          activeTabName = state.routes[state.index]?.name;
+          break;
+        }
+        parentNav = parentNav.getParent();
+      }
+
+      // If we are still active on the 'Search' tab stack (e.g. navigated to a detail screen),
+      // do not reset the location/search query.
+      if (activeTabName === 'Search') {
+        return;
+      }
+
       const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
       const lat = myProfile?.locationObj?.latitude || user?.latitude;
       const lng = myProfile?.locationObj?.longitude || user?.longitude;

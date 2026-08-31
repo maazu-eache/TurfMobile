@@ -23,7 +23,19 @@ const NotificationsScreen = ({ navigation }) => {
     try {
       setLoading(true);
       const res = await api.get('/notifications');
-      setNotifications(res.data.data.notifications || []);
+      const fetchedNotifications = res.data.data.notifications || [];
+      
+      const hasUnread = fetchedNotifications.some(n => !n.isRead);
+      if (hasUnread) {
+        // Set local state to read immediately for a seamless user experience
+        setNotifications(fetchedNotifications.map(n => ({ ...n, isRead: true })));
+        // Update backend asynchronously
+        api.put('/notifications/read-all').catch(err => {
+          console.log('Error auto-marking notifications as read:', err);
+        });
+      } else {
+        setNotifications(fetchedNotifications);
+      }
     } catch (err) {
       console.log('Error fetching notifications:', err);
     } finally {

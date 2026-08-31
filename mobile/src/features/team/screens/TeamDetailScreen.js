@@ -596,27 +596,35 @@ const TeamDetailScreen = ({ navigation, route }) => {
               <Icon name="cricket" size={16} color={Colors.primary} />
               <Text style={styles.lbSectionTitle}>Top Scorers</Text>
             </View>
-            {topBat.length === 0 ? <EmptyState icon="cricket" label="No batting data yet" small /> : topBat.map((p, i) => (
-              <View key={p.player?._id || i} style={styles.lbRow}>
-                <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
-                  <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
-                </View>
-                <View style={styles.lbAvatar}>
-                  {p.player?.photo
-                    ? <Image source={{ uri: getImageUrl(p.player.photo) }} style={styles.lbAvatarImg} />
-                    : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
-                  }
-                </View>
-                <View style={styles.lbInfo}>
-                  <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
-                  <Text style={styles.lbMeta}>SR: {p.strikeRate} · Avg: {p.average}</Text>
-                </View>
-                <View style={styles.lbPrimaryVal}>
-                  <Text style={styles.lbPrimaryValNum}>{p.runs}</Text>
-                  <Text style={styles.lbPrimaryValLabel}>runs</Text>
-                </View>
-              </View>
-            ))}
+            {topBat.length === 0 ? <EmptyState icon="cricket" label="No batting data yet" small /> : topBat.map((p, i) => {
+              const photo = p.player?.photo || p.player?.userId?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
+              return (
+                <TouchableOpacity 
+                  key={p.player?._id || i} 
+                  style={styles.lbRow}
+                  activeOpacity={0.85}
+                  onPress={() => p.player?._id && navigation.navigate('PlayerDetail', { id: p.player._id })}
+                >
+                  <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
+                    <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
+                  </View>
+                  <View style={styles.lbAvatar}>
+                    {photo
+                      ? <Image source={{ uri: getImageUrl(photo) }} style={styles.lbAvatarImg} />
+                      : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
+                    }
+                  </View>
+                  <View style={styles.lbInfo}>
+                    <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
+                    <Text style={styles.lbMeta}>SR: {p.strikeRate} · Avg: {p.average}</Text>
+                  </View>
+                  <View style={styles.lbPrimaryVal}>
+                    <Text style={styles.lbPrimaryValNum}>{p.runs}</Text>
+                    <Text style={styles.lbPrimaryValLabel}>runs</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
@@ -626,27 +634,35 @@ const TeamDetailScreen = ({ navigation, route }) => {
               <Icon name="baseball" size={16} color={Colors.primary} />
               <Text style={styles.lbSectionTitle}>Top Wicket Takers</Text>
             </View>
-            {topBowl.length === 0 ? <EmptyState icon="baseball" label="No bowling data yet" small /> : topBowl.map((p, i) => (
-              <View key={p.player?._id || i} style={styles.lbRow}>
-                <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
-                  <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
-                </View>
-                <View style={styles.lbAvatar}>
-                  {p.player?.photo
-                    ? <Image source={{ uri: getImageUrl(p.player.photo) }} style={styles.lbAvatarImg} />
-                    : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
-                  }
-                </View>
-                <View style={styles.lbInfo}>
-                  <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
-                  <Text style={styles.lbMeta}>Econ: {p.economy} · {p.overs} Overs</Text>
-                </View>
-                <View style={styles.lbPrimaryVal}>
-                  <Text style={styles.lbPrimaryValNum}>{p.wickets}</Text>
-                  <Text style={styles.lbPrimaryValLabel}>wkts</Text>
-                </View>
-              </View>
-            ))}
+            {topBowl.length === 0 ? <EmptyState icon="baseball" label="No bowling data yet" small /> : topBowl.map((p, i) => {
+              const photo = p.player?.photo || p.player?.userId?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
+              return (
+                <TouchableOpacity 
+                  key={p.player?._id || i} 
+                  style={styles.lbRow}
+                  activeOpacity={0.85}
+                  onPress={() => p.player?._id && navigation.navigate('PlayerDetail', { id: p.player._id })}
+                >
+                  <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
+                    <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
+                  </View>
+                  <View style={styles.lbAvatar}>
+                    {photo
+                      ? <Image source={{ uri: getImageUrl(photo) }} style={styles.lbAvatarImg} />
+                      : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
+                    }
+                  </View>
+                  <View style={styles.lbInfo}>
+                    <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
+                    <Text style={styles.lbMeta}>Econ: {p.economy} · {p.overs} Overs</Text>
+                  </View>
+                  <View style={styles.lbPrimaryVal}>
+                    <Text style={styles.lbPrimaryValNum}>{p.wickets}</Text>
+                    <Text style={styles.lbPrimaryValLabel}>wkts</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
@@ -656,27 +672,35 @@ const TeamDetailScreen = ({ navigation, route }) => {
               <Icon name="hand-back-right" size={16} color={Colors.primary} />
               <Text style={styles.lbSectionTitle}>Top Fielders</Text>
             </View>
-            {topField.length === 0 ? <EmptyState icon="hand-back-right" label="No fielding data yet" small /> : topField.map((p, i) => (
-              <View key={p.player?._id || i} style={styles.lbRow}>
-                <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
-                  <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
-                </View>
-                <View style={styles.lbAvatar}>
-                  {p.player?.photo
-                    ? <Image source={{ uri: getImageUrl(p.player.photo) }} style={styles.lbAvatarImg} />
-                    : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
-                  }
-                </View>
-                <View style={styles.lbInfo}>
-                  <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
-                  <Text style={styles.lbMeta}>Catches: {p.catches} · Run Outs: {p.runOuts} · Stumpings: {p.stumpings}</Text>
-                </View>
-                <View style={styles.lbPrimaryVal}>
-                  <Text style={styles.lbPrimaryValNum}>{p.total}</Text>
-                  <Text style={styles.lbPrimaryValLabel}>dismissals</Text>
-                </View>
-              </View>
-            ))}
+            {topField.length === 0 ? <EmptyState icon="hand-back-right" label="No fielding data yet" small /> : topField.map((p, i) => {
+              const photo = p.player?.photo || p.player?.userId?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
+              return (
+                <TouchableOpacity 
+                  key={p.player?._id || i} 
+                  style={styles.lbRow}
+                  activeOpacity={0.85}
+                  onPress={() => p.player?._id && navigation.navigate('PlayerDetail', { id: p.player._id })}
+                >
+                  <View style={[styles.lbRank, i < 3 && styles.lbRankTop]}>
+                    <Text style={[styles.lbRankText, i < 3 && { color: '#FFD700' }]}>{i + 1}</Text>
+                  </View>
+                  <View style={styles.lbAvatar}>
+                    {photo
+                      ? <Image source={{ uri: getImageUrl(photo) }} style={styles.lbAvatarImg} />
+                      : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
+                    }
+                  </View>
+                  <View style={styles.lbInfo}>
+                    <Text style={styles.lbName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
+                    <Text style={styles.lbMeta}>Catches: {p.catches} · Run Outs: {p.runOuts} · Stumpings: {p.stumpings}</Text>
+                  </View>
+                  <View style={styles.lbPrimaryVal}>
+                    <Text style={styles.lbPrimaryValNum}>{p.total}</Text>
+                    <Text style={styles.lbPrimaryValLabel}>dismissals</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </ScrollView>

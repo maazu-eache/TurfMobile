@@ -22,6 +22,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
   const [fullOppositionSquad, setFullOppositionSquad] = useState([]);
   const [loading, setLoading] = useState(false);
   const [scorecards, setScorecards] = useState([]);
+  const [commentary, setCommentary] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
   const [showEditSquadModal, setShowEditSquadModal] = useState(false);
@@ -66,8 +67,101 @@ const SelectBowlerScreen = ({ route, navigation }) => {
       loadedOnceRef.current = true;
       loadFullRosterData();
       fetchScorecards();
+      fetchCommentary();
     }
   }, [match?._id]);
+
+  const fetchCommentary = async () => {
+    try {
+      const res = await api.get(`/matches/${match._id}/commentary`);
+      setCommentary(res.data.data || []);
+    } catch (e) {
+      console.log('Error fetching commentary', e);
+    }
+  };
+
+  const bowlersOrder = useMemo(() => {
+    if (!commentary || commentary.length === 0) return [];
+    
+    // Filter commentary to only include balls of the current innings
+    const currentInningsBalls = commentary.filter(ball => {
+      const ballInningsId = String(ball.innings?._id || ball.innings || '');
+      const currentInningsId = String(match?.innings?.[match?.currentInnings - 1]?._id || match?.innings?.[match?.currentInnings - 1] || '');
+      return ballInningsId && currentInningsId && ballInningsId === currentInningsId;
+    });
+    
+    // Map overNumber -> bowlerId
+    const overBowlersMap = {};
+    currentInningsBalls.forEach(ball => {
+      const oNum = ball.overNumber;
+      const bId = String(ball.bowler?._id || ball.bowler || '');
+      if (bId && !overBowlersMap[oNum]) {
+        overBowlersMap[oNum] = bId;
+      }
+    });
+
+    const sortedOvers = Object.keys(overBowlersMap)
+      .map(Number)
+      .sort((a, b) => a - b);
+      
+    return sortedOvers.map(oNum => overBowlersMap[oNum]);
+  }, [commentary, match?.innings, match?.currentInnings]);
+
+  const sortedSquad = useMemo(() => {
+    const XI = isTeamABatting ? (match?.playingXI?.teamB || []) : (match?.playingXI?.teamA || []);
+    const filteredXI = XI.filter(Boolean);
+
+    // bowlersOrder is: [bowler_over_1, bowler_over_2, ..., bowler_over_N]
+    // The previous bowler is bowler_over_N.
+    // The bowler we want to prioritize is bowler_over_N-1.
+    const priorityBowlerId = (bowlersOrder.length >= 2) 
+      ? String(bowlersOrder[bowlersOrder.length - 2]) 
+      : '';
+
+    return [...filteredXI].sort((a, b) => {
+      const aId = String(a._id || a);
+      const bId = String(b._id || b);
+
+      // A) Check priority bowler:
+      if (priorityBowlerId) {
+        if (aId === priorityBowlerId) return -1;
+        if (bId === priorityBowlerId) return 1;
+      }
+
+      // B) Keep disabled bowlers at the bottom:
+      const currentScorecard = scorecards.find(sc => sc.inningsNumber === match?.currentInnings);
+      const getBowlerStatus = (bowlerId) => {
+        let isQuotaCompleted = false;
+        if (currentScorecard) {
+          const bowlerStat = currentScorecard.bowling.find(b => String(b.player?._id || b.player) === bowlerId);
+          if (bowlerStat && bowlerStat.overs >= match.bowlerQuota) {
+            isQuotaCompleted = true;
+          }
+        }
+        const prevBowlerId = String(liveState?.previousBowler?._id || liveState?.previousBowler || '');
+        const isPreviousBowler = prevBowlerId !== '' && prevBowlerId === bowlerId;
+        const otherEligibleCount = filteredXI.filter(p => {
+          const pId = String(p._id || p);
+          if (pId === bowlerId) return false;
+          if (currentScorecard) {
+            const bStat = currentScorecard.bowling.find(b => String(b.player?._id || b.player) === pId);
+            if (bStat && bStat.overs >= match.bowlerQuota) return false;
+          }
+          return true;
+        }).length;
+        const isPreviousBowlerBlocked = isPreviousBowler && otherEligibleCount > 0;
+        return isQuotaCompleted || isPreviousBowlerBlocked;
+      };
+
+      const aDisabled = getBowlerStatus(aId);
+      const bDisabled = getBowlerStatus(bId);
+
+      if (aDisabled && !bDisabled) return 1;
+      if (!aDisabled && bDisabled) return -1;
+
+      return 0;
+    });
+  }, [match?.playingXI, isTeamABatting, bowlersOrder, scorecards, match?.currentInnings, match?.bowlerQuota, liveState?.previousBowler]);
 
   const fetchScorecards = async () => {
     try {
@@ -199,7 +293,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={squad}
+          data={sortedSquad}
           keyExtractor={item => item._id}
           renderItem={({ item }) => {
             const currentScorecard = scorecards.find(sc => sc.inningsNumber === match?.currentInnings);

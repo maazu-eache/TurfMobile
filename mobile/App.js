@@ -101,8 +101,20 @@ const App = () => {
       const unsubscribe = NotificationService.listenToForegroundMessages();
 
       const handleNotificationNavigation = (remoteMessage) => {
-        if (remoteMessage?.data?.type) {
-          // Simply go to Notifications screen for now
+        const data = remoteMessage?.data;
+        if (!data) return;
+
+        if (data.url) {
+          navigateUrl(data.url);
+        } else if (data.matchId) {
+          navigateUrl(`https://scoreverse.in/match/${data.matchId}`);
+        } else if (data.playerId) {
+          navigateUrl(`https://scoreverse.in/player/${data.playerId}`);
+        } else if (data.turfId) {
+          navigateUrl(`https://scoreverse.in/turf/${data.turfId}`);
+        } else if (data.tournamentId) {
+          navigateUrl(`https://scoreverse.in/tournament/${data.tournamentId}`);
+        } else if (data.type) {
           navigate('Notifications');
         }
       };
@@ -140,7 +152,10 @@ const App = () => {
     prefixes: [
       'scoreverse://',
       'roughturf://', 
-      'https://scoreverse.in'
+      'https://scoreverse.in',
+      'http://scoreverse.in',
+      'https://www.scoreverse.in',
+      'http://www.scoreverse.in'
     ],
     config: {
       screens: {
@@ -155,19 +170,7 @@ const App = () => {
             'My Cricket': {
               screens: {
                 TournamentDetail: 'tournament/:tournamentId',
-                MatchSummary: 'match/:matchId',
-              }
-            },
-            AuctionRegistration: 'tournament/:tournamentId/register',
-          }
-        },
-        Player: {
-          screens: {
-            PlayerDetail: 'player/:id',
-            'My Cricket': {
-              screens: {
-                TournamentDetail: 'tournament/:tournamentId',
-                MatchSummary: 'match/:matchId',
+                MatchSummary: 'match/:id',
               }
             },
             AuctionRegistration: 'tournament/:tournamentId/register',

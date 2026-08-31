@@ -12,7 +12,7 @@ import moment from 'moment';
 
 const DonutTimer = ({ createdAt }) => {
   const [timeLeft, setTimeLeft] = useState(0);
-  const totalDuration = 24 * 60 * 60 * 1000; // 24 hours
+  const totalDuration = 48 * 60 * 60 * 1000; // 48 hours
 
   useEffect(() => {
     const calculateTimeLeft = () => {
@@ -40,8 +40,8 @@ const DonutTimer = ({ createdAt }) => {
   const secsLeft = Math.floor((timeLeft % (1000 * 60)) / 1000);
 
   let color = Colors.primary;
-  if (hoursLeft < 4) color = Colors.error;
-  else if (hoursLeft < 12) color = '#FF9800';
+  if (hoursLeft < 8) color = Colors.error;
+  else if (hoursLeft < 24) color = '#FF9800';
 
   if (timeLeft <= 0) return <Text style={{ color: Colors.error, fontSize: 10, fontWeight: 'bold' }}>EXPIRED</Text>;
 
@@ -287,18 +287,18 @@ const WalletScreen = ({ navigation }) => {
             item.status === 'pending' ? (
               <DonutTimer createdAt={item.createdAt} />
             ) : isCredit ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <Icon name="close-circle-outline" size={14} color={Colors.error} style={{ marginRight: 2 }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+                <Icon name="close-circle-outline" size={11} color={Colors.error} style={{ marginRight: 3 }} />
                 <Text style={[styles.paymentStatus, { color: Colors.error, marginTop: 0 }]}>REJECTED</Text>
               </View>
             ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <Icon name="check-circle-outline" size={14} color={Colors.success} style={{ marginRight: 2 }} />
-                <Text style={[styles.paymentStatus, { color: Colors.success, marginTop: 0 }]}>PROCESSED</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+                <Icon name="check-circle-outline" size={11} color={Colors.primary} style={{ marginRight: 3 }} />
+                <Text style={[styles.paymentStatus, { color: Colors.primary, marginTop: 0 }]}>PROCESSED</Text>
               </View>
             )
           ) : (
-            <Text style={[styles.paymentStatus, { color: amountColor }]}>
+            <Text style={[styles.paymentStatus, { color: isCredit ? Colors.primary : Colors.error }]}>
               {isCredit ? 'CREDIT' : 'DEBIT'}
             </Text>
           )}
@@ -409,21 +409,26 @@ const WalletScreen = ({ navigation }) => {
               <Text style={styles.inputLabel}>Amount to Withdraw (Max: ₹{wallet.balance})</Text>
               <TextInput
                 style={styles.input}
-                keyboardType="numeric"
+                keyboardType="number-pad"
                 placeholder="Enter amount"
                 placeholderTextColor={Colors.textTertiary}
                 value={withdrawAmount}
                 onChangeText={(text) => {
-                  const val = Number(text);
+                  const cleaned = text.replace(/[^0-9]/g, '');
+                  if (!cleaned) {
+                    setWithdrawAmount('');
+                    return;
+                  }
+                  const val = parseInt(cleaned, 10);
                   if (val > wallet.balance) {
                     setWithdrawAmount(wallet.balance.toString());
                   } else {
-                    setWithdrawAmount(text);
+                    setWithdrawAmount(cleaned);
                   }
                 }}
               />
               <Text style={{ fontSize: 11, color: Colors.textTertiary, marginTop: 6, lineHeight: 16 }}>
-                <Icon name="information-outline" size={12} /> Action will be taken within 24 hours. Exceeding this, the request will be automatically rejected and refunded.
+                <Icon name="information-outline" size={12} /> Action will be taken within 48 hours. Exceeding this, the request will be automatically rejected and refunded.
               </Text>
             </View>
 
@@ -485,11 +490,11 @@ const WalletScreen = ({ navigation }) => {
                 <View style={{ justifyContent: 'center' }}>
                   <TextInput
                     style={[styles.input, { paddingRight: 45 }]}
-                    keyboardType="numeric"
+                    keyboardType="number-pad"
                     placeholder="Enter Account Number"
                     placeholderTextColor={Colors.textTertiary}
                     value={bankForm.accountNumber}
-                    onChangeText={(text) => setBankForm({ ...bankForm, accountNumber: text })}
+                    onChangeText={(text) => setBankForm({ ...bankForm, accountNumber: text.replace(/[^0-9]/g, '') })}
                     secureTextEntry={!showAccountNumber}
                   />
                   <TouchableOpacity 
@@ -505,11 +510,11 @@ const WalletScreen = ({ navigation }) => {
                 <Text style={styles.inputLabel}>Re-enter Account Number</Text>
                 <TextInput
                   style={styles.input}
-                  keyboardType="numeric"
+                  keyboardType="number-pad"
                   placeholder="Re-enter Account Number"
                   placeholderTextColor={Colors.textTertiary}
                   value={bankForm.reAccountNumber}
-                  onChangeText={(text) => setBankForm({ ...bankForm, reAccountNumber: text })}
+                  onChangeText={(text) => setBankForm({ ...bankForm, reAccountNumber: text.replace(/[^0-9]/g, '') })}
                 />
                 {bankForm.accountNumber && bankForm.reAccountNumber && bankForm.accountNumber !== bankForm.reAccountNumber && (
                   <Text style={styles.errorHint}>Account numbers do not match</Text>
@@ -641,7 +646,7 @@ const styles = StyleSheet.create({
   paymentTurf: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
   paymentDate: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 4 },
   paymentAmount: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  paymentStatus: { fontSize: 10, fontFamily: Typography.fontFamily.bold, marginTop: 4 },
+  paymentStatus: { fontSize: 8.5, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5, marginTop: 3 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: Colors.backgroundCard, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, padding: Spacing.xl, maxHeight: '80%' },

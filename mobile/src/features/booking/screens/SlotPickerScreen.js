@@ -159,6 +159,16 @@ const SlotPickerScreen = ({ route, navigation }) => {
   }, [turf._id, selectedDate, dispatch]);
 
   const toggleSlot = (slot) => {
+    if (slot.isMerged) {
+      const s1Booked = slot.originalSlots[0].status !== 'available';
+      const s2Booked = slot.originalSlots[1].status !== 'available';
+      const isPartiallyBooked = (s1Booked && !s2Booked) || (!s1Booked && s2Booked);
+      if (isPartiallyBooked) {
+        setSelectedIntervalMode('30');
+        return;
+      }
+    }
+
     if (slot.status !== 'available') return;
     if (isPastSlot(selectedDate, slot.startTime)) return;
 
@@ -351,7 +361,14 @@ const SlotPickerScreen = ({ route, navigation }) => {
       ? slot.originalSlots.every(os => selectedSlots.some(s => s._id === os._id))
       : selectedSlots.some(s => s._id === slot._id);
     const past = isPastSlot(selectedDate, slot.startTime);
-    const isBooked = slot.status === 'booked' || slot.status === 'offline_booking' || slot.status === 'offline';
+
+    const isPartiallyBooked = slot.isMerged && (() => {
+      const s1Booked = slot.originalSlots[0].status !== 'available';
+      const s2Booked = slot.originalSlots[1].status !== 'available';
+      return (s1Booked && !s2Booked) || (!s1Booked && s2Booked);
+    })();
+
+    const isBooked = (slot.status === 'booked' || slot.status === 'offline_booking' || slot.status === 'offline') && !isPartiallyBooked;
     
     let cardStyle = styles.slotCardAvailable;
     let textStyle = styles.slotTextAvailable;
@@ -360,6 +377,9 @@ const SlotPickerScreen = ({ route, navigation }) => {
       cardStyle = styles.slotCardSelected;
       textStyle = styles.slotTextSelected;
     } else if (isBooked) {
+      cardStyle = styles.slotCardBooked;
+      textStyle = styles.slotTextBooked;
+    } else if (isPartiallyBooked) {
       cardStyle = styles.slotCardBooked;
       textStyle = styles.slotTextBooked;
     } else if (past) {
@@ -377,6 +397,8 @@ const SlotPickerScreen = ({ route, navigation }) => {
       >
         {isBooked ? (
           <Icon name="lock-outline" size={14} color="rgba(255,255,255,0.25)" style={styles.slotStateIcon} />
+        ) : isPartiallyBooked ? (
+          <View style={styles.slotPartialDot} />
         ) : past ? (
           <Icon name="clock-alert-outline" size={14} color="rgba(255,255,255,0.15)" style={styles.slotStateIcon} />
         ) : isSelected ? (
@@ -562,6 +584,13 @@ const SlotPickerScreen = ({ route, navigation }) => {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {selectedIntervalMode === '60' && databaseHas30MinSlots && (
+          <View style={styles.legendContainer}>
+            <View style={styles.legendDot} />
+            <Text style={styles.legendText}>Orange dot indicates slot is partially booked (30 mins booked). Click to switch to 30 min view.</Text>
+          </View>
+        )}
 
         {/* ── Expandable Time Groups ── */}
         <View style={styles.groupsContainer}>
@@ -1635,6 +1664,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Typography.fontFamily.bold,
     color: '#000',
+  },
+  slotPartialDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF9800',
+    position: 'absolute',
+    top: 6,
+    right: 8,
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#222',
+    borderRadius: 12,
+    padding: 10,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF9800',
+    marginRight: 8,
+  },
+  legendText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    flex: 1,
   },
 });
 

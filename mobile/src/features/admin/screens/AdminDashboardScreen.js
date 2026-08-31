@@ -51,8 +51,8 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   const handleTabSelect = (tab) => {
     if (tab === 'user_manager') {
+      setActiveTab('users');
       closeSidebar();
-      navigation.navigate('UserManager');
       return;
     }
     setActiveTab(tab);
@@ -66,6 +66,7 @@ const AdminDashboardScreen = ({ navigation }) => {
       }
     }
   };
+  const [selectedImageModal, setSelectedImageModal] = useState(null);
   const [owners, setOwners] = useState([]);
   const [users, setUsers] = useState([]);
   const [turfs, setTurfs] = useState([]);
@@ -163,6 +164,35 @@ const AdminDashboardScreen = ({ navigation }) => {
       showCustomAlert('Error', `Failed to verify payment: ${msg}`);
       console.log('Verify Error:', err.response?.data || err);
     }
+  };
+
+  const handleToggleSuspendUser = (user) => {
+    const isSuspended = user.isDeleted || user.isSuspended || user.isDeactivated || user.isActive === false;
+    const action = isSuspended ? 'Reactivate' : 'Suspend';
+    const endpoint = isSuspended
+      ? `/admin/users/${user._id}/reactivate`
+      : `/admin/users/${user._id}/suspend`;
+
+    showCustomAlert(
+      `${action} Account`,
+      `Are you sure you want to ${action.toLowerCase()} the account of "${user.name || user.email}"?\n\nThe user's data and match history will remain intact.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: action,
+          style: isSuspended ? 'default' : 'destructive',
+          onPress: async () => {
+            try {
+              await api.put(endpoint);
+              showCustomAlert('Done', `User "${user.name}" has been ${action.toLowerCase()}d.`);
+              fetchData();
+            } catch (err) {
+              showCustomAlert('Error', err.response?.data?.message || `Failed to ${action.toLowerCase()} user`);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleDeleteUser = async (userId) => {
@@ -293,13 +323,37 @@ const AdminDashboardScreen = ({ navigation }) => {
         
         {item.turfs && item.turfs.length > 0 ? (
           <View style={styles.turfsList}>
-            <Text style={styles.sectionHeader}>Registered Turfs ({item.turfs.length})</Text>
-            {item.turfs.map(turf => (
-              <View key={turf._id} style={styles.turfItem}>
-                <Icon name="soccer-field" size={14} color={Colors.primary} />
-                <Text style={styles.turfName} numberOfLines={1}>{turf.name}</Text>
+            <View style={styles.turfsListHeader}>
+              <Icon name="soccer-field" size={14} color={Colors.primary} />
+              <Text style={styles.sectionHeader}>Registered Turfs</Text>
+              <View style={styles.turfCountBadge}>
+                <Text style={styles.turfCountBadgeText}>{item.turfs.length}</Text>
               </View>
-            ))}
+            </View>
+            <View style={styles.turfItemsWrap}>
+              {item.turfs.map(turf => (
+                <View key={turf._id} style={styles.turfItem}>
+                  <View style={styles.turfItemIcon}>
+                    <Icon name="stadium-variant" size={16} color={Colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.turfName} numberOfLines={1}>{turf.name}</Text>
+                    {turf.location?.city || turf.city ? (
+                      <Text style={styles.turfCity} numberOfLines={1}>
+                        <Icon name="map-marker" size={11} color={Colors.textTertiary} /> {turf.location?.city || turf.city}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {turf.status ? (
+                    <View style={[styles.turfStatusChip, turf.status === 'active' || turf.isVerified ? styles.turfStatusActive : styles.turfStatusPending]}>
+                      <Text style={[styles.turfStatusText, turf.status === 'active' || turf.isVerified ? { color: Colors.success } : { color: '#FF9800' }]}>
+                        {turf.status?.toUpperCase() || (turf.isVerified ? 'VERIFIED' : 'PENDING')}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ))}
+            </View>
           </View>
         ) : (
           <View style={styles.noTurfs}>
@@ -315,46 +369,114 @@ const AdminDashboardScreen = ({ navigation }) => {
     const joinedDate = formatISTDateSpelled(item.createdAt);
     const initials = (item.name || '?').charAt(0).toUpperCase();
     const isOwner = item.role === 'owner';
-    
+    const isPlayer = item.role === 'player' || !!item.player;
+    const isSuspended = item.isDeleted || item.isSuspended || item.isDeactivated || item.isActive === false;
+    const photo = item.photo || item.player?.photo;
+
+    const roleBg = isOwner
+      ? Colors.primaryAlpha20
+      : item.role === 'admin'
+      ? 'rgba(255,71,87,0.15)'
+      : isPlayer
+      ? 'rgba(156,39,176,0.15)'
+      : 'rgba(255,255,255,0.08)';
+
+    const roleColor = isOwner
+      ? Colors.primary
+      : item.role === 'admin'
+      ? '#FF4757'
+      : isPlayer
+      ? '#BA68C8'
+      : Colors.textTertiary;
+
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, isSuspended && { opacity: 0.75, borderColor: 'rgba(255,71,87,0.3)' }]}>
         <View style={styles.cardHeader}>
-          <View style={styles.avatarWrap}>
-            <View style={[styles.avatar, { backgroundColor: Colors.surfaceVariant }]}>
-              <Text style={styles.avatarText}>{initials}</Text>
+          {photo ? (
+            <TouchableOpacity
+              style={styles.avatarWrap}
+              activeOpacity={0.8}
+              onPress={() => setSelectedImageModal({
+                url: getImageUrl(photo),
+                name: item.name || 'User Profile',
+                subtitle: item.email || (item.role ? item.role.toUpperCase() : '')
+              })}
+            >
+              <Image source={{ uri: getImageUrl(photo) }} style={styles.userAvatarImage} />
+              {/* <View style={styles.avatarZoomBadge}>
+                <Icon name="magnify-plus" size={10} color="#FFF" />
+              </View> */}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.avatarWrap}>
+              <View style={[styles.avatar, { backgroundColor: Colors.surfaceVariant }]}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
             </View>
-          </View>
+          )}
+
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>{item.name || 'Unknown User'}</Text>
-            <Text style={styles.cardSubtitle} numberOfLines={1}>{item.email}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.cardTitle} numberOfLines={1}>{item.name || 'Unknown User'}</Text>
+              {isSuspended && (
+                <View style={styles.suspendedTag}>
+                  <Text style={styles.suspendedTagText}>SUSPENDED</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.cardSubtitle} numberOfLines={1}>{item.email || item.mobile || '—'}</Text>
+            {item.mobile && item.email ? (
+              <Text style={styles.cardSubtitlePhone} numberOfLines={1}>{item.mobile}</Text>
+            ) : null}
           </View>
           <View>
-            <View style={[styles.roleBadge, { backgroundColor: isOwner ? Colors.primaryAlpha20 : 'rgba(156,39,176,0.15)' }]}>
-              <Icon name={isOwner ? 'briefcase' : 'account'} size={10} color={isOwner ? Colors.primary : '#9C27B0'} />
-              <Text style={[styles.roleText, { color: isOwner ? Colors.primary : '#9C27B0' }]}>
-                {item.role?.toUpperCase()}
+            <View style={[styles.roleBadge, { backgroundColor: roleBg }]}>
+              <Icon name={isOwner ? 'briefcase' : item.role === 'admin' ? 'shield-crown' : isPlayer ? 'cricket' : 'account'} size={11} color={roleColor} />
+              <Text style={[styles.roleText, { color: roleColor }]}>
+                {item.role?.toUpperCase() || 'USER'}
               </Text>
             </View>
           </View>
         </View>
+
+        {/* Linked Player Profile Box */}
+       
+
         <View style={styles.cardFooter}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Icon name="calendar-outline" size={12} color={Colors.textTertiary} />
             <Text style={styles.joinedLabel}>Joined {joinedDate}</Text>
           </View>
-          <TouchableOpacity onPress={() => {
-            showCustomAlert(
-              'PERMANENT USER DELETION',
-              `⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nAre you sure you want to permanently delete user "${item.name || 'User'}"?\n\nThis will purge ALL bookings, wallet balance, stats, player profile, owner turfs, and team captaincy records. ZERO data will remain.`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'PERMANENTLY DELETE', style: 'destructive', onPress: () => handleDeleteUser(item._id) }
-              ]
-            );
-          }} style={styles.deleteBtn}>
-            <Icon name="trash-can-outline" size={14} color={Colors.error} />
-            <Text style={styles.deleteUserText}>Delete</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => handleToggleSuspendUser(item)}
+              style={[styles.suspendBtn, isSuspended ? styles.reactivateBtn : null]}
+              activeOpacity={0.7}
+            >
+              <Icon
+                name={isSuspended ? 'account-check-outline' : 'account-off-outline'}
+                size={13}
+                color={isSuspended ? Colors.success : '#FF9800'}
+              />
+              <Text style={[styles.suspendUserText, isSuspended ? { color: Colors.success } : { color: '#FF9800' }]}>
+                {isSuspended ? 'Reactivate' : 'Suspend'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => {
+              showCustomAlert(
+                'PERMANENT USER DELETION',
+                `⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nAre you sure you want to permanently delete user "${item.name || 'User'}"?\n\nThis will purge ALL bookings, wallet balance, stats, player profile, owner turfs, and team captaincy records. ZERO data will remain.`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'PERMANENTLY DELETE', style: 'destructive', onPress: () => handleDeleteUser(item._id) }
+                ]
+              );
+            }} style={styles.deleteBtn} activeOpacity={0.7}>
+              <Icon name="trash-can-outline" size={14} color={Colors.error} />
+              <Text style={styles.deleteUserText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -768,6 +890,9 @@ const AdminDashboardScreen = ({ navigation }) => {
     const ownerName = item.owner?.businessName || item.owner?.userId?.name || item.user?.name || item.userName || 'Organizer / Owner';
     const ownerContact = item.owner?.userId?.email || item.user?.email || item.user?.mobile || item.owner?.userId?.phone || '';
     const initials = ownerName.charAt(0).toUpperCase();
+    const bank = item.bankDetailsSnapshot || item.owner?.bankDetails || item.user?.bankDetails || {};
+    const hasBank = !!(bank.accountNumber || bank.ifsc || bank.bankName || bank.accountHolder);
+
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -801,6 +926,45 @@ const AdminDashboardScreen = ({ navigation }) => {
             <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>{item.turf.name}</Text>
           </View>
         )}
+
+        {/* Bank Details Snapshot Box */}
+        <View style={styles.settlementBankBox}>
+          <View style={styles.settlementBankHeader}>
+            <Icon name="bank" size={13} color={Colors.primary} />
+            <Text style={styles.settlementBankTitle}>Bank Account Details</Text>
+          </View>
+          {hasBank ? (
+            <View style={styles.settlementBankGrid}>
+              {bank.accountHolder ? (
+                <View style={styles.settlementBankRow}>
+                  <Text style={styles.settlementBankLabel}>A/C Holder:</Text>
+                  <Text style={styles.settlementBankValue} numberOfLines={1}>{bank.accountHolder}</Text>
+                </View>
+              ) : null}
+              {bank.bankName ? (
+                <View style={styles.settlementBankRow}>
+                  <Text style={styles.settlementBankLabel}>Bank Name:</Text>
+                  <Text style={styles.settlementBankValue} numberOfLines={1}>{bank.bankName}</Text>
+                </View>
+              ) : null}
+              {bank.accountNumber ? (
+                <View style={styles.settlementBankRow}>
+                  <Text style={styles.settlementBankLabel}>A/C Number:</Text>
+                  <Text style={[styles.settlementBankValue, { color: '#FFF', fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{bank.accountNumber}</Text>
+                </View>
+              ) : null}
+              {bank.ifsc ? (
+                <View style={styles.settlementBankRow}>
+                  <Text style={styles.settlementBankLabel}>IFSC Code:</Text>
+                  <Text style={[styles.settlementBankValue, { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{bank.ifsc}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : (
+            <Text style={{ color: Colors.textTertiary, fontSize: 11, fontStyle: 'italic' }}>No bank account details provided</Text>
+          )}
+        </View>
+
         {item.status !== 'pending' && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, margin: 12, padding: 10, backgroundColor: statusStyle.bg, borderRadius: 10 }}>
             <Icon name={item.status === 'processed' ? 'receipt' : 'information-outline'} size={13} color={statusStyle.text} />
@@ -1026,7 +1190,7 @@ const AdminDashboardScreen = ({ navigation }) => {
 
         {/* Stats Row */}
         <View style={styles.statsContainer}>
-          <TouchableOpacity style={styles.statBox} onPress={() => navigation.navigate('UserManager')} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('users'); setSearchQuery(''); }} activeOpacity={0.8}>
             <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Icon name="account-group" size={20} color={Colors.primary} />
@@ -1419,6 +1583,35 @@ const AdminDashboardScreen = ({ navigation }) => {
           <Text style={styles.overlayText}>Processing transaction...</Text>
         </View>
       )}
+
+      {/* ── PROFILE IMAGE FULL VIEW MODAL ── */}
+      <Modal visible={!!selectedImageModal} transparent animationType="fade" onRequestClose={() => setSelectedImageModal(null)}>
+        <View style={styles.imageViewerOverlay}>
+          <TouchableOpacity style={styles.imageViewerDismissArea} activeOpacity={1} onPress={() => setSelectedImageModal(null)} />
+          <View style={styles.imageViewerCard}>
+            <View style={styles.imageViewerHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.imageViewerTitle} numberOfLines={1}>{selectedImageModal?.name || 'Profile Picture'}</Text>
+                {selectedImageModal?.subtitle ? (
+                  <Text style={styles.imageViewerSubtitle} numberOfLines={1}>{selectedImageModal.subtitle}</Text>
+                ) : null}
+              </View>
+              <TouchableOpacity style={styles.imageViewerCloseBtn} onPress={() => setSelectedImageModal(null)} activeOpacity={0.7}>
+                <Icon name="close" size={20} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.imageViewerBody}>
+              {selectedImageModal?.url ? (
+                <Image
+                  source={{ uri: selectedImageModal.url }}
+                  style={styles.imageViewerLarge}
+                  resizeMode="contain"
+                />
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1763,6 +1956,133 @@ const styles = StyleSheet.create({
   noTurfs: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
   noTurfsText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 12, fontStyle: 'italic' },
 
+  // ── Registered Turfs in Owner Card ──────────────────────────────────────
+  turfsList: {
+    backgroundColor: Colors.backgroundElevated,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    padding: Spacing.md,
+  },
+  turfsListHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.sm,
+  },
+  sectionHeader: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  turfCountBadge: {
+    backgroundColor: Colors.primaryAlpha20,
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+  },
+  turfCountBadgeText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.extraBold,
+    color: Colors.primary,
+  },
+  turfItemsWrap: {
+    gap: 8,
+  },
+  turfItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 10,
+  },
+  turfItemIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: Colors.primaryAlpha10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  turfName: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
+  },
+  turfCity: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    marginTop: 2,
+  },
+  turfStatusChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  turfStatusActive: {
+    backgroundColor: 'rgba(46,213,115,0.1)',
+    borderColor: 'rgba(46,213,115,0.3)',
+  },
+  turfStatusPending: {
+    backgroundColor: 'rgba(255,152,0,0.1)',
+    borderColor: 'rgba(255,152,0,0.3)',
+  },
+  turfStatusText: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+  },
+
+  // ── Settlement Bank Details Card ──────────────────────────────────────
+  settlementBankBox: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,204,0,0.2)',
+  },
+  settlementBankHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  settlementBankTitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  settlementBankGrid: {
+    gap: 6,
+  },
+  settlementBankRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settlementBankLabel: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textTertiary,
+  },
+  settlementBankValue: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+  },
+
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: Colors.surfaceVariant, borderWidth: 1, borderColor: Colors.border },
   actionBtnText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
@@ -1779,6 +2099,176 @@ const styles = StyleSheet.create({
   bannerUploadBtn: { height: 120, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', overflow: 'hidden' },
   bannerPreview: { width: '100%', height: '100%' },
   bannerUploadText: { color: Colors.primary, fontFamily: Typography.fontFamily.medium, marginTop: 8 },
+
+  // ── User Management Extra Styles ──
+  userAvatarImage: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+  },
+  avatarZoomBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.backgroundCard,
+  },
+  suspendedTag: {
+    backgroundColor: 'rgba(255,71,87,0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,71,87,0.3)',
+  },
+  suspendedTagText: {
+    color: '#FF4757',
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  cardSubtitlePhone: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
+    marginTop: 1,
+  },
+  userPlayerBox: {
+    backgroundColor: Colors.backgroundElevated,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+  },
+  userPlayerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  userPlayerTitle: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  userPlayerViewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  userPlayerViewBtnText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  userPlayerChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  userPlayerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  userPlayerChipText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  suspendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(255,152,0,0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,152,0,0.25)',
+  },
+  reactivateBtn: {
+    backgroundColor: 'rgba(46,213,115,0.1)',
+    borderColor: 'rgba(46,213,115,0.3)',
+  },
+  suspendUserText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 12,
+  },
+
+  // ── Profile Image Full View Modal ──
+  imageViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  imageViewerDismissArea: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  imageViewerCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: Colors.backgroundCard,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    zIndex: 10,
+  },
+  imageViewerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  imageViewerTitle: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
+  },
+  imageViewerSubtitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    marginTop: 2,
+  },
+  imageViewerCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerBody: {
+    width: '100%',
+    height: 340,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerLarge: {
+    width: '100%',
+    height: '100%',
+  },
 
   overlayLoader: {
     position: 'absolute',

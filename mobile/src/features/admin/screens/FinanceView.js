@@ -423,6 +423,7 @@ const FinanceView = () => {
   const renderPendingWithdrawal = ({ item }) => {
     const isProcessing = processingId === item._id;
     const name = item.owner?.businessName || item.user?.name || 'Unknown';
+    const bank = item.bankDetailsSnapshot || item.owner?.bankDetails || item.user?.bankDetails || {};
     return (
       <View style={[styles.card, styles.cardOrangeAccent]}>
         <View style={styles.pendingBadge}>
@@ -439,8 +440,10 @@ const FinanceView = () => {
           <Text style={[styles.cardAmount, { color: Colors.warning }]}>{formatCurrency(item.amount)}</Text>
         </View>
         <View style={styles.divider} />
-        <InfoRow icon="bank-outline" label="Bank" value={item.bankName || 'N/A'} />
-        <InfoRow icon="card-account-details-outline" label="Account" value={item.accountNumber ? `••••${item.accountNumber.slice(-4)}` : 'N/A'} />
+        {bank.accountHolder ? <InfoRow icon="account-circle-outline" label="Holder" value={bank.accountHolder} /> : null}
+        <InfoRow icon="bank-outline" label="Bank" value={bank.bankName || 'N/A'} />
+        <InfoRow icon="card-account-details-outline" label="Account" value={bank.accountNumber || 'N/A'} />
+        {bank.ifsc ? <InfoRow icon="barcode-scan" label="IFSC" value={bank.ifsc} /> : null}
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.success }, isProcessing && styles.actionBtnDisabled]}

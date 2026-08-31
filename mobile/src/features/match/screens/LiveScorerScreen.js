@@ -22,12 +22,17 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 // ─── 3D Animated Keypad Button ────────────────────────────────────────────────
 const ScoreBtn3D = ({ onPress, style, children, lift = 5 }) => {
   const anim = useRef(new Animated.Value(0)).current;
+  const [isHighlighted, setIsHighlighted] = useState(false);
 
   const handlePressIn = () => {
+    setIsHighlighted(true);
     Animated.spring(anim, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
   };
   const handlePressOut = () => {
     Animated.spring(anim, { toValue: 0, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
+    setTimeout(() => {
+      setIsHighlighted(false);
+    }, 150);
   };
 
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, lift - 1] });
@@ -44,8 +49,27 @@ const ScoreBtn3D = ({ onPress, style, children, lift = 5 }) => {
       onPressOut={handlePressOut}
       style={{ flex, width }}
     >
-      <Animated.View style={[style, { flex: undefined, width: undefined, transform: [{ translateY }] }]}>
+      <Animated.View style={[
+        style,
+        { flex: undefined, width: undefined, transform: [{ translateY }] }
+      ]}>
         {children}
+        {isHighlighted && (
+          <View
+            style={{
+              position: 'absolute',
+              top: -1,
+              left: -1,
+              right: -1,
+              bottom: -1,
+              borderRadius: 12,
+              borderWidth: 2,
+              borderColor: '#FFD400',
+              zIndex: 999
+            }}
+            pointerEvents="none"
+          />
+        )}
       </Animated.View>
     </TouchableOpacity>
   );
@@ -61,6 +85,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
   const { liveState, isLoading } = useSelector((state) => state.match);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [scoringToast, setScoringToast] = useState(null);
+  const toastTimeoutRef = useRef(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
 
   // Scoring Modal/Drawer states
   const [showExtrasPanel, setShowExtrasPanel] = useState(null);
@@ -290,6 +317,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
       unsubscribeScore();
       unsubscribeScorer();
       socketService.leaveMatch(cleanMatchId);
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
     };
   }, [dispatch, cleanMatchId, navigation, currentUser?._id, currentUser?.id, route.params?.skipFocusFetch]);
 
@@ -645,7 +675,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
     const battingTeam = liveState?.battingTeam;
     const inningsNum = liveState?.inningsNumber;
     return (
-      <View style={styles.scoreBoard}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('MatchSummary', { matchId, initialTab: 'Scorecard' })}
+        style={styles.scoreBoard}
+      >
         <View style={styles.scoreBoardDivider} />
         <View style={styles.mainScore}>
           <Text style={styles.runs}>{s?.runs || 0}</Text>
@@ -722,9 +756,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
             </View>
           )
         ) : null}
-      </View>
+      </TouchableOpacity>
     );
-  }, [liveState?.battingTeam, liveState?.inningsNumber, liveState?.score?.runs, liveState?.score?.wickets, liveState?.score?.overs, liveState?.requiredRunRate, liveState?.toWin, liveState?.ballsRemaining, liveState?.isDlsTarget, liveState?.dlsParScore, liveState?.match?.teamA?.name, liveState?.match?.teamB?.name, liveState?.match?.overs]);
+  }, [navigation, matchId, liveState?.battingTeam, liveState?.inningsNumber, liveState?.score?.runs, liveState?.score?.wickets, liveState?.score?.overs, liveState?.requiredRunRate, liveState?.toWin, liveState?.ballsRemaining, liveState?.isDlsTarget, liveState?.dlsParScore, liveState?.match?.teamA?.name, liveState?.match?.teamB?.name, liveState?.match?.overs]);
 
 
   if (!liveState) {
@@ -1295,9 +1329,16 @@ const LiveScorerScreen = ({ navigation, route }) => {
     }
     scoringLockRef.current = true;
 
-    // Wagon Wheel Interception Logic: trigger for 1, 2, 3, 4, 6 runs on normal deliveries
+    // Wagon Wheel Interception Logic: trigger for 1, 2, 3, 4, 6 runs on normal deliveries, or boundaries (4/6) on extras
     const isExtra = options.isWide || options.isNoBall || options.isBye || options.isLegBye;
-    const isWagonWheelEligible = [1, 2, 3, 4, 6].includes(runs) && !isExtra;
+    let isWagonWheelEligible = [1, 2, 3, 4, 6].includes(runs) && !isExtra;
+
+    if (isExtra) {
+      const totalExtraOrBatRuns = runs > 0 ? runs : (options.extraRuns || 0);
+      if ([4, 6].includes(totalExtraOrBatRuns)) {
+        isWagonWheelEligible = true;
+      }
+    }
 
     if (isWagonWheelEligible && !options.wagonWheelResolved && !alwaysSkipWagonWheel) {
       setWagonWheelData(null); // reset previous selection
@@ -1570,6 +1611,61 @@ const LiveScorerScreen = ({ navigation, route }) => {
         dispatch(setLiveState(optimisticState));
       }
 
+      // Display scoring toast in yellow color
+      let scoredText = '';
+      if (options.isWicket) {
+        scoredText = 'Wicket Scored!';
+      } else if (options.isWide) {
+        const extraRuns = options.extraRuns || 0;
+        if (extraRuns > 0) {
+          scoredText = `Wide + ${extraRuns} Run${extraRuns !== 1 ? 's' : ''} Scored!`;
+        } else {
+          scoredText = 'Wide Scored!';
+        }
+      } else if (options.isNoBall) {
+        const extraRuns = options.extraRuns || 0;
+        if (options.isBye) {
+          scoredText = `No Ball + ${extraRuns} Bye${extraRuns !== 1 ? 's' : ''} Scored!`;
+        } else if (options.isLegBye) {
+          scoredText = `No Ball + ${extraRuns} Leg Bye${extraRuns !== 1 ? 's' : ''} Scored!`;
+        } else if (runs > 0) {
+          scoredText = `No Ball + ${runs} Run${runs !== 1 ? 's' : ''} Scored!`;
+        } else {
+          scoredText = 'No Ball Scored!';
+        }
+      } else if (options.isBye) {
+        const extraRuns = options.extraRuns || 0;
+        scoredText = `${extraRuns} Bye${extraRuns !== 1 ? 's' : ''} Scored!`;
+      } else if (options.isLegBye) {
+        const extraRuns = options.extraRuns || 0;
+        scoredText = `${extraRuns} Leg Bye${extraRuns !== 1 ? 's' : ''} Scored!`;
+      } else {
+        scoredText = `${runs} Run${runs !== 1 ? 's' : ''} Scored!`;
+      }
+
+      setScoringToast(scoredText);
+      toastOpacity.stopAnimation();
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true
+      }).start();
+
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      toastTimeoutRef.current = setTimeout(() => {
+        Animated.timing(toastOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true
+        }).start(({ finished }) => {
+          if (finished) {
+            setScoringToast(null);
+          }
+        });
+      }, 1700);
+
       // Emit via Socket.IO instead of slow HTTP API call
       lastScoredAtRef.current = Date.now(); // stamp so socket knows we just scored
       const socket = socketService.getSocket();
@@ -1636,6 +1732,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
       )}
+      {scoringToast ? (
+        <Animated.View style={[styles.toastContainer, { opacity: toastOpacity }]}>
+          <Text style={styles.toastText}>{scoringToast}</Text>
+        </Animated.View>
+      ) : null}
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBackPress} style={styles.headerBackBtn}>
@@ -2791,89 +2892,97 @@ const LiveScorerScreen = ({ navigation, route }) => {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Wagon Wheel</Text>
-              <Text style={styles.modalSub}>Tap the ground to indicate where the {pendingRuns} run{pendingRuns > 1 ? 's were' : ' was'} hit.</Text>
+              {(() => {
+                const displayRuns = pendingRuns > 0 ? pendingRuns : (pendingScoreOptions?.extraRuns || 0);
+                return (
+                  <Text style={styles.modalSub}>Tap the ground to indicate where the {displayRuns} run{displayRuns > 1 ? 's were' : ' was'} hit.</Text>
+                );
+              })()}
 
               <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                <TouchableOpacity
-                  activeOpacity={1}
-                  onPress={(evt) => {
-                    const { locationX, locationY } = evt.nativeEvent;
-                    const isTurf = match.pitchType === 'Box Cricket' || match.groundType === 'Box Cricket' || match.groundType === 'Indoor';
-                    const W = isTurf ? 220 : 300;
-                    const H = isTurf ? 360 : 300;
-                    const CX = W / 2;
-                    const CY = H / 2;
-                    const CY_ACTUAL = CY - (isTurf ? 60 : 40); // Move to top (start) of the pitch
+                {(() => {
+                  const isTurf = match.pitchType === 'Box Cricket' || match.groundType === 'Box Cricket' || match.groundType === 'Indoor';
+                  const W = isTurf ? 200 : 240;
+                  const H = isTurf ? 300 : 240;
+                  const CX = W / 2;
+                  const CY = H / 2;
+                  const CY_ACTUAL = CY - (isTurf ? 50 : 32); // Scale pitch start dynamically
+                  const padX = 35;
+                  const padY = 10;
 
-                    const dx = locationX - CX;
-                    const dy = locationY - CY_ACTUAL;
-                    let distance = Math.sqrt(dx * dx + dy * dy);
+                  return (
+                    <View style={{ width: W + padX * 2, height: H + padY * 2, justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+                      <TouchableOpacity
+                        activeOpacity={1}
+                        onPress={(evt) => {
+                          const { locationX, locationY } = evt.nativeEvent;
+                          const dx = locationX - CX;
+                          const dy = locationY - CY_ACTUAL;
+                          let distance = Math.sqrt(dx * dx + dy * dy);
 
-                    let maxDist = 150;
-                    if (distance > 0) {
-                      const maxDx = dx > 0 ? (W - CX) : CX;
-                      const maxDy = dy > 0 ? (H - CY_ACTUAL) : CY_ACTUAL;
-                      const scaleX = Math.abs(maxDx / (dx === 0 ? 0.001 : dx));
-                      const scaleY = Math.abs(maxDy / (dy === 0 ? 0.001 : dy));
-                      maxDist = distance * Math.min(scaleX, scaleY);
-                    }
+                          let maxDist = W / 2;
+                          if (distance > 0) {
+                            const R = W / 2;
+                            const dy_pitch = CY_ACTUAL - CY;
+                            const A = dx * dx + dy * dy;
+                            const B = 2 * dy_pitch * dy;
+                            const C = dy_pitch * dy_pitch - R * R;
+                            const disc = B * B - 4 * A * C;
+                            if (disc >= 0) {
+                              const t = (-B + Math.sqrt(disc)) / (2 * A);
+                              maxDist = t * Math.sqrt(A);
+                            }
+                          }
 
-                    if (pendingRuns === 4 || pendingRuns === 6) {
-                      distance = maxDist; // Boundaries always reach the edge
-                    } else {
-                      distance = Math.min(distance, maxDist); // Cap at edge for 1s, 2s, 3s
-                    }
+                          const runsToUse = pendingRuns > 0 ? pendingRuns : (pendingScoreOptions?.extraRuns || 0);
 
-                    let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                          if (runsToUse === 4 || runsToUse === 6) {
+                            distance = maxDist; // Boundaries always reach the edge
+                          } else {
+                            distance = Math.min(distance, maxDist); // Cap at edge for 1s, 2s, 3s
+                          }
 
-                    let color = '#FFFFFF'; // 1s & 2s (White)
-                    if (pendingRuns === 3) color = '#FFD700'; // 3s (Yellow)
-                    else if (pendingRuns === 4) color = '#4CAF50'; // 4s (Green)
-                    else if (pendingRuns === 6) color = '#E53935'; // 6s (Red)
+                          let angle = Math.atan2(dy, dx) * (180 / Math.PI);
 
-                    setWagonWheelData({ angle, distance, color });
-                  }}
-                >
-                  {(() => {
-                    const isTurf = match.pitchType === 'Box Cricket' || match.groundType === 'Box Cricket' || match.groundType === 'Indoor';
-                    const W = isTurf ? 220 : 300;
-                    const H = isTurf ? 360 : 300;
-                    const CX = W / 2;
-                    const CY = H / 2;
-                    const CY_ACTUAL = CY - (isTurf ? 60 : 40);
-                    return (
-                      <ImageBackground
-                        source={isTurf ? require('../../../turf.png') : require('../../../ground.png')}
-                        style={{ width: W, height: H, overflow: 'hidden', borderRadius: isTurf ? 16 : 150 }}
-                        resizeMode="cover"
+                          let color = '#FFFFFF'; // 1s & 2s (White)
+                          if (runsToUse === 3) color = '#FFD700'; // 3s (Yellow)
+                          else if (runsToUse === 4) color = '#4CAF50'; // 4s (Green)
+                          else if (runsToUse === 6) color = '#E53935'; // 6s (Red)
+
+                          setWagonWheelData({ angle, distance, color });
+                        }}
                       >
-                        {/* Pitch Center */}
-                        <View pointerEvents="none" style={{ position: 'absolute', left: CX - 4, top: CY_ACTUAL - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: 'red' }} />
+                        <ImageBackground
+                          source={isTurf ? require('../../../turf.png') : require('../../../ground.png')}
+                          style={{ width: W, height: H, overflow: 'hidden', borderRadius: isTurf ? 16 : W / 2 }}
+                          resizeMode="cover"
+                        >
+                          {/* Pitch Center */}
+                          <View pointerEvents="none" style={{ position: 'absolute', left: CX - 3, top: CY_ACTUAL - 3, width: 6, height: 6, borderRadius: 3, backgroundColor: 'red' }} />
 
-                        {/* Field Labels (Inverted) */}
-                        <Text pointerEvents="none" style={{ position: 'absolute', top: 10, left: CX - 30, width: 60, textAlign: 'center', color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 'bold' }}>BEHIND</Text>
-                        <Text pointerEvents="none" style={{ position: 'absolute', bottom: 10, left: CX - 40, width: 80, textAlign: 'center', color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 'bold' }}>STRAIGHT</Text>
-                        <Text pointerEvents="none" style={{ position: 'absolute', right: 10, top: CY_ACTUAL - 8, color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 'bold' }}>LEG</Text>
-                        <Text pointerEvents="none" style={{ position: 'absolute', left: 10, top: CY_ACTUAL - 8, color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 'bold' }}>OFF</Text>
+                          {wagonWheelData ? (
+                            <View style={{
+                              position: 'absolute',
+                              left: CX - wagonWheelData.distance / 2,
+                              top: CY_ACTUAL - 0.75,
+                              width: wagonWheelData.distance,
+                              height: 1.5,
+                              backgroundColor: wagonWheelData.color,
+                              transform: [
+                                { rotate: `${wagonWheelData.angle}deg` },
+                                { translateX: wagonWheelData.distance / 2 }
+                              ]
+                            }} />
+                          ) : null}
+                        </ImageBackground>
+                      </TouchableOpacity>
 
-                        {wagonWheelData ? (
-                          <View style={{
-                            position: 'absolute',
-                            left: CX - wagonWheelData.distance / 2,
-                            top: CY_ACTUAL - 2,
-                            width: wagonWheelData.distance,
-                            height: 4,
-                            backgroundColor: wagonWheelData.color,
-                            transform: [
-                              { rotate: `${wagonWheelData.angle}deg` },
-                              { translateX: wagonWheelData.distance / 2 }
-                            ]
-                          }} />
-                        ) : null}
-                      </ImageBackground>
-                    );
-                  })()}
-                </TouchableOpacity>
+                      {/* Field Labels (Positioned outside circular boundaries) */}
+                      <Text pointerEvents="none" style={{ position: 'absolute', left: 4, top: CY - 8 + padY, color: '#FFFFFF', fontSize: 10, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>OFF</Text>
+                      <Text pointerEvents="none" style={{ position: 'absolute', right: 4, top: CY - 8 + padY, color: '#FFFFFF', fontSize: 10, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>LEG</Text>
+                    </View>
+                  );
+                })()}
               </View>
 
               <TouchableOpacity
@@ -3841,6 +3950,27 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
+  },
+  toastContainer: {
+    position: 'absolute',
+    bottom: 100,
+    alignSelf: 'center',
+    backgroundColor: '#FFD400',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 6,
+    zIndex: 10000,
+    shadowColor: '#FFD400',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  toastText: {
+    color: '#000000',
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    textAlign: 'center',
   },
 });
 
