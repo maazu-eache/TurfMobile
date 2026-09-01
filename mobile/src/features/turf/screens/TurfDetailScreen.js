@@ -711,7 +711,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
         visible={shareModalVisible}
         onClose={() => setShareModalVisible(false)}
         title={selectedTurf?.name}
-        shareUrl={`https://scoreverse.in/turf/${selectedTurf?._id}`}
+        shareUrl={`https://www.scoreverse.in/turf/${selectedTurf?._id}`}
       >
         <TurfPoster turf={selectedTurf} />
       </SharePreviewModal>

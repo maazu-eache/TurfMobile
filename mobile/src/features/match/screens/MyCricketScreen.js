@@ -52,10 +52,10 @@ const MyCricketScreen = ({ route }) => {
 
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && isFocused) {
       navigation.navigate('AuthModal', { screen: 'Login' });
     }
-  }, [isAuthenticated, navigation]);
+  }, [isAuthenticated, isFocused, navigation]);
 
 
 

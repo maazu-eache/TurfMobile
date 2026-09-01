@@ -549,7 +549,7 @@ const OwnerDashboardScreen = ({ navigation }) => {
         visible={shareModalVisible}
         onClose={() => setShareModalVisible(false)}
         title={selectedShareTurf?.name}
-        shareUrl={`https://scoreverse.in/turf/${selectedShareTurf?._id}`}
+        shareUrl={`https://www.scoreverse.in/turf/${selectedShareTurf?._id}`}
       >
         {selectedShareTurf ? <TurfPoster turf={selectedShareTurf} /> : <View />}
       </SharePreviewModal>

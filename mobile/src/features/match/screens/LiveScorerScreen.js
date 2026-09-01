@@ -3106,7 +3106,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
         visible={shareModalVisible}
         onClose={() => setShareModalVisible(false)}
         title={`${match?.teamA?.name || 'Team A'} vs ${match?.teamB?.name || 'Team B'}`}
-        shareUrl={`https://scoreverse.in/match/${cleanMatchId}`}
+        shareUrl={`https://www.scoreverse.in/match/${cleanMatchId}`}
       >
         <MatchSummaryPoster liveState={liveState} />
       </SharePreviewModal>

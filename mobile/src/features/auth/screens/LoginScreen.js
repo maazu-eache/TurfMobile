@@ -8,15 +8,47 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { loginWithPassword, registerWithPassword, loginWithGoogle, clearError } from '../authSlice';
+import { loginWithPassword, registerWithPassword, loginWithGoogle, clearError, setGuestMode, logoutLocal } from '../authSlice';
+import Svg, { Path } from 'react-native-svg';
 import { Colors, Typography } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import NotificationService from '../../../services/NotificationService';
 
+const GoogleIcon = ({ size = 20 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Path
+      fill="#4285F4"
+      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+    />
+    <Path
+      fill="#34A853"
+      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+    />
+    <Path
+      fill="#FBBC05"
+      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+    />
+    <Path
+      fill="#EA4335"
+      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+    />
+  </Svg>
+);
+
 const LoginScreen = ({ navigation }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [registerRole, setRegisterRole] = useState('customer'); // 'customer' or 'owner'
+
+  const handleSuspendedUser = () => {
+    dispatch(logoutLocal());
+    dispatch(setGuestMode(true));
+    showCustomAlert(
+      'Account Suspended',
+      'Your account has been suspended by the administrator. You can browse in guest mode.'
+    );
+    navigation.navigate('Customer');
+  };
   
   const [identifier, setIdentifier] = useState(''); // Email or Mobile for Login
   const [email, setEmail] = useState('');
@@ -147,13 +179,20 @@ const LoginScreen = ({ navigation }) => {
 
       if (loginWithGoogle.fulfilled.match(result)) {
         const payload = result.payload;
-        if (payload.signUpRequired) {
+        if (payload?.signUpRequired) {
           setGoogleEmail(payload.email);
           setGoogleName(payload.name);
           setShowGoogleSignupModal(true);
+        } else if (payload?.user && (payload.user.isSuspended || payload.user.isActive === false || payload.user.isDeactivated || payload.user.isDeleted)) {
+          handleSuspendedUser();
         }
       } else {
-        showCustomAlert('Error', result.payload || 'Google Login failed');
+        const errPayload = String(result.payload || '');
+        if (errPayload.toLowerCase().includes('suspended') || errPayload.toLowerCase().includes('deactivated')) {
+          handleSuspendedUser();
+        } else {
+          showCustomAlert('Error', result.payload || 'Google Login failed');
+        }
       }
     } catch (err) {
       if (err.code === statusCodes.SIGN_IN_CANCELLED) {
@@ -161,7 +200,12 @@ const LoginScreen = ({ navigation }) => {
       } else if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         showCustomAlert('Error', 'Google Play services not available');
       } else {
-        showCustomAlert('Error', err.message || 'Google Login failed');
+        const errMsg = String(err.message || '');
+        if (errMsg.toLowerCase().includes('suspended') || errMsg.toLowerCase().includes('deactivated')) {
+          handleSuspendedUser();
+        } else {
+          showCustomAlert('Error', err.message || 'Google Login failed');
+        }
       }
     } finally {
       setGoogleLoading(false);
@@ -193,8 +237,18 @@ const LoginScreen = ({ navigation }) => {
 
     if (loginWithGoogle.fulfilled.match(result)) {
       setShowGoogleSignupModal(false);
+      const payload = result.payload;
+      if (payload?.user && (payload.user.isSuspended || payload.user.isActive === false || payload.user.isDeactivated || payload.user.isDeleted)) {
+        handleSuspendedUser();
+      }
     } else {
-      showCustomAlert('Error', result.payload || 'Google Registration failed');
+      const errPayload = String(result.payload || '');
+      if (errPayload.toLowerCase().includes('suspended') || errPayload.toLowerCase().includes('deactivated')) {
+        setShowGoogleSignupModal(false);
+        handleSuspendedUser();
+      } else {
+        showCustomAlert('Error', result.payload || 'Google Registration failed');
+      }
     }
   };
 
@@ -214,8 +268,18 @@ const LoginScreen = ({ navigation }) => {
         password: password.trim(),
         fcmToken
       }));
-      if (loginWithPassword.rejected.match(result)) {
-        showCustomAlert('Error', result.payload || 'Login failed');
+      if (loginWithPassword.fulfilled.match(result)) {
+        const payload = result.payload;
+        if (payload?.user && (payload.user.isSuspended || payload.user.isActive === false || payload.user.isDeactivated || payload.user.isDeleted)) {
+          handleSuspendedUser();
+        }
+      } else if (loginWithPassword.rejected.match(result)) {
+        const errPayload = String(result.payload || '');
+        if (errPayload.toLowerCase().includes('suspended') || errPayload.toLowerCase().includes('deactivated')) {
+          handleSuspendedUser();
+        } else {
+          showCustomAlert('Error', result.payload || 'Login failed');
+        }
       }
     } else {
       if (!termsAccepted) return showCustomAlert('Terms & Conditions', 'Please accept the Terms of Service and Privacy Policy to register.');
@@ -338,7 +402,7 @@ const LoginScreen = ({ navigation }) => {
 
           <View style={[styles.headerTextContainer, !isLogin && { marginBottom: 12, marginTop: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
             <View>
-              {isLogin && <Text style={styles.title}>SCORE <Text style={styles.titleYellow}>VERSE</Text></Text>}
+              {isLogin && <Text style={styles.title}>SCORE<Text style={styles.titleYellow}>VERSE</Text></Text>}
               {!isLogin && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
                   <Text style={[styles.title, { fontSize: 22 }]}>Registering as </Text>
@@ -371,13 +435,15 @@ const LoginScreen = ({ navigation }) => {
                   style={[styles.googleBtn, { marginBottom: 16 }, googleLoading && styles.googleBtnDisabled]}
                   onPress={handleGoogleSignIn}
                   disabled={googleLoading || isLoading}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
                 >
                   {googleLoading ? (
-                    <ActivityIndicator color="#FFD400" size="small" />
+                    <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
                     <View style={styles.googleContent}>
-                      <Icon name="google" size={20} color="#FFD400" style={{ marginRight: 10 }} />
+                      <View style={styles.googleIconBadge}>
+                        <GoogleIcon size={20} />
+                      </View>
                       <Text style={styles.googleBtnText}>Register with Google</Text>
                     </View>
                   )}
@@ -488,13 +554,15 @@ const LoginScreen = ({ navigation }) => {
                   style={[styles.googleBtn, googleLoading && styles.googleBtnDisabled]}
                   onPress={handleGoogleSignIn}
                   disabled={googleLoading || isLoading}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
                 >
                   {googleLoading ? (
-                    <ActivityIndicator color="#FFD400" size="small" />
+                    <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
                     <View style={styles.googleContent}>
-                      <Icon name="google" size={20} color="#FFD400" style={{ marginRight: 10 }} />
+                      <View style={styles.googleIconBadge}>
+                        <GoogleIcon size={20} />
+                      </View>
                       <Text style={styles.googleBtnText}>Continue with Google</Text>
                     </View>
                   )}
@@ -663,8 +731,8 @@ const styles = StyleSheet.create({
   logoImage: { width: 64, height: 64, borderRadius: 20 },
 
   headerTextContainer: { alignItems: 'center', marginBottom: 36 },
-  title: { fontSize: 38, fontFamily: Typography.fontFamily.extraBold, color: '#FFFFFF', letterSpacing: 1 },
-  titleYellow: { color: '#FFD400' },
+  title: { fontSize: 38, fontFamily: Typography.fontFamily.extraBold, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.5 },
+  titleYellow: { color: '#FFD400', fontFamily: Typography.fontFamily.extraBold, fontWeight: '900' },
   subtitle: { fontSize: 16, fontFamily: Typography.fontFamily.medium, color: '#A0A0A0', textAlign: 'center', marginTop: 8 },
 
   authCard: {
@@ -742,12 +810,34 @@ const styles = StyleSheet.create({
   dividerText: { color: 'rgba(255,255,255,0.4)', paddingHorizontal: 12, fontSize: 13, fontFamily: Typography.fontFamily.semiBold },
 
   googleBtn: {
-    height: 52, borderRadius: 14, backgroundColor: '#000000', borderWidth: 1, borderColor: 'rgba(255, 212, 0, 0.3)', justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#1A73E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#1A73E8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
   },
   googleBtnDisabled: { opacity: 0.6 },
-  googleContent: { flexDirection: 'row', alignItems: 'center' },
-  googleBtnText: { fontSize: 16, fontFamily: Typography.fontFamily.semiBold, color: '#FFD400' },
+  googleContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  googleIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  googleBtnText: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
 
   googleProfileCard: {
     backgroundColor: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 16, borderHeight: 1, borderColor: 'rgba(255,255,255,0.06)',

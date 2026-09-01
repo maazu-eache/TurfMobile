@@ -1913,7 +1913,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
           <View style={{ flex: 1 }} />
           <TouchableOpacity onPress={() => navigation.navigate('CreateTicketScreen', { tournamentId: tournament._id, category: 'Tournament Dispute' })} style={styles.menuBtn}>
-            <MCIcon name="alert-circle-outline" size={20} color="#FF3B30" />
+            <MCIcon name="alert-circle-outline" size={20} color="#ffffff" />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleShareTournament} style={styles.menuBtn}>
             <Icon name="share-2" size={20} color="#ffffff" />
@@ -2419,8 +2419,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         title={shareData?.type === 'tournament' ? tournament?.name : shareData?.type === 'fixture' ? 'Match Fixture' : shareData?.type === 'fullSchedule' ? 'Match Schedule' : shareData?.type === 'pointsTable' ? 'Points Table' : shareData?.type === 'registration' ? 'Register for Auction' : shareData?.type === 'teamInvite' ? 'Invite Teams' : 'Leaderboard'}
         shareUrl={
           shareData?.type === 'fixture'
-            ? `https://scoreverse.in/match/${shareData.data._id}`
-            : `https://scoreverse.in/tournament/${tournamentId}${shareData?.type === 'registration' ? '/register' : shareData?.type === 'teamInvite' ? '?action=join-team' : ''}`
+            ? `https://www.scoreverse.in/match/${shareData.data._id}`
+            : `https://www.scoreverse.in/tournament/${tournamentId}${shareData?.type === 'registration' ? '/register' : shareData?.type === 'teamInvite' ? '?action=join-team' : ''}`
         }
       >
         {shareData?.type === 'tournament' && <TournamentSummaryPoster tournament={shareData.data} />}

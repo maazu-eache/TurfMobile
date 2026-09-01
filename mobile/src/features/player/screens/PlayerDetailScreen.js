@@ -993,7 +993,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
         visible={shareModalVisible}
         onClose={() => setShareModalVisible(false)}
         title={viewedPlayer?.name}
-        shareUrl={`https://scoreverse.in/player/${viewedPlayer?._id}`}
+        shareUrl={`https://www.scoreverse.in/player/${viewedPlayer?._id}`}
       >
         <PlayerProfilePoster
           player={viewedPlayer}

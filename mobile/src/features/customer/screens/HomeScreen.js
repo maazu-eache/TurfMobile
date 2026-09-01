@@ -88,6 +88,7 @@ const HomeScreen = ({ navigation }) => {
   const [platformSettings, setPlatformSettings] = useState(null);
   const [dashboardStats, setDashboardStats] = useState({ bookings: 0, matches: 0, turfsNear: 0 });
   const [nearPlayers, setNearPlayers] = useState([]);
+  const [liveMatches, setLiveMatches] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
@@ -112,19 +113,77 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  const fetchLiveMatches = async (city, lat, lng) => {
+    try {
+      if (isAuthenticated) {
+        const nearbyParams = { filterType: 'nearby', status: 'live', limit: 10 };
+        if (lat && lng) {
+          nearbyParams.lat = lat;
+          nearbyParams.lng = lng;
+        } else if (city) {
+          nearbyParams.city = city;
+        }
+
+        const [nearbyRes, networkRes] = await Promise.allSettled([
+          api.get('/matches/my-matches', { params: nearbyParams }),
+          api.get('/matches/my-matches', { params: { filterType: 'network', status: 'live', limit: 10 } }),
+        ]);
+
+        const nearbyList = nearbyRes.status === 'fulfilled' ? (nearbyRes.value?.data?.data || []) : [];
+        const networkList = networkRes.status === 'fulfilled' ? (networkRes.value?.data?.data || []) : [];
+
+        // Deduplicate matches by _id
+        const combined = [...nearbyList, ...networkList];
+        const uniqueMatches = [];
+        const seenIds = new Set();
+        combined.forEach(m => {
+          const id = m?._id || m?.id;
+          if (id && !seenIds.has(String(id))) {
+            seenIds.add(String(id));
+            uniqueMatches.push(m);
+          }
+        });
+
+        setLiveMatches(uniqueMatches);
+      } else {
+        const params = { status: 'in_progress', limit: 10 };
+        if (lat && lng) {
+          params.lat = lat;
+          params.lng = lng;
+        } else if (city) {
+          params.city = city;
+        }
+        const res = await api.get('/matches', { params });
+        const list = res.data?.data || [];
+        setLiveMatches(list);
+      }
+    } catch (err) {
+      console.log('Error fetching live matches for banner:', err?.message);
+    }
+  };
+
   useEffect(() => {
-    if (!isAuthenticated) dispatch(fetchTurfs({ limit: 8, sort: '-rating' }));
+    const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
+    const lat = myProfile?.locationObj?.latitude || user?.latitude;
+    const lng = myProfile?.locationObj?.longitude || user?.longitude;
+    if (!isAuthenticated) {
+      dispatch(fetchTurfs({ limit: 8, sort: '-rating' }));
+    }
     fetchPlatformSettings();
-  }, [dispatch, isAuthenticated]);
+    fetchLiveMatches(city, lat, lng);
+  }, [dispatch, isAuthenticated, user?.city, user?.latitude, user?.longitude, myProfile]);
 
   useFocusEffect(
     React.useCallback(() => {
-      if (!isAuthenticated) return;
-      fetchDashboardStats();
-      if (!myProfile && user) dispatch(fetchMyPlayer());
       const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
       const lat = myProfile?.locationObj?.latitude || user?.latitude;
       const lng = myProfile?.locationObj?.longitude || user?.longitude;
+
+      fetchLiveMatches(city, lat, lng);
+
+      if (!isAuthenticated) return;
+      fetchDashboardStats();
+      if (!myProfile && user) dispatch(fetchMyPlayer());
       fetchNearPlayers(city, lat, lng);
       const tp = { limit: 8, sort: '-rating' };
       if (lat && lng) { tp.lat = lat; tp.lng = lng; tp.radius = 50; }
@@ -136,21 +195,24 @@ const HomeScreen = ({ navigation }) => {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
+      const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
+      const lat = myProfile?.locationObj?.latitude || user?.latitude;
+      const lng = myProfile?.locationObj?.longitude || user?.longitude;
+
+      const livePromise = fetchLiveMatches(city, lat, lng);
+
       if (!isAuthenticated) {
         dispatch(fetchTurfs({ limit: 8, sort: '-rating' }));
       } else {
         await fetchDashboardStats();
         if (!myProfile && user) dispatch(fetchMyPlayer());
-        const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
-        const lat = myProfile?.locationObj?.latitude || user?.latitude;
-        const lng = myProfile?.locationObj?.longitude || user?.longitude;
         await fetchNearPlayers(city, lat, lng);
         const tp = { limit: 8, sort: '-rating' };
         if (lat && lng) { tp.lat = lat; tp.lng = lng; tp.radius = 50; }
         else if (city) { tp.city = city; }
         dispatch(fetchTurfs(tp));
       }
-      await fetchPlatformSettings();
+      await Promise.allSettled([fetchPlatformSettings(), livePromise]);
     } catch (e) {}
     setRefreshing(false);
   };
@@ -612,31 +674,45 @@ const HomeScreen = ({ navigation }) => {
           </View>
         )}
 
-        {/* ── LIVE MATCHES BANNER ── */}
-        <View style={styles.section}>
-          <TouchableOpacity onPress={() => navigation.navigate('My Cricket', { screen: 'MyCricketMain' })} activeOpacity={0.88}>
-            <View style={styles.liveBanner}>
-              {/* Red left accent */}
-              <View style={styles.liveBannerAccent} />
-              <LinearGradient
-                colors={['rgba(255,204,0,0.07)', 'transparent']}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
-              />
-              <View style={{ flex: 1, gap: 6 }}>
-                <View style={styles.livePill}>
-                  <PulseDot />
-                  <Text style={styles.livePillTxt}>LIVE</Text>
+        {/* ── LIVE MATCHES BANNER (Displayed only when nearby/network has live matches) ── */}
+        {liveMatches?.length > 0 && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } })}
+              activeOpacity={0.88}
+            >
+              <View style={styles.liveBanner}>
+                {/* Red left accent */}
+                <View style={styles.liveBannerAccent} />
+                <LinearGradient
+                  colors={['rgba(255,204,0,0.07)', 'transparent']}
+                  style={StyleSheet.absoluteFill}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                />
+                <View style={{ flex: 1, gap: 6 }}>
+                  <View style={styles.livePill}>
+                    <PulseDot />
+                    <Text style={styles.livePillTxt}>LIVE ({liveMatches.length})</Text>
+                  </View>
+                  <Text style={styles.liveBannerTitle}>
+                    {liveMatches.length === 1 && liveMatches[0]?.teamA?.name && liveMatches[0]?.teamB?.name
+                      ? `${liveMatches[0].teamA.name} vs ${liveMatches[0].teamB.name}`
+                      : 'Watch Live Matches'}
+                  </Text>
+                  <Text style={styles.liveBannerSub}>
+                    {liveMatches.length === 1
+                      ? 'Live match in progress — Tap to watch'
+                      : `${liveMatches.length} live matches running in your area & network`}
+                  </Text>
                 </View>
-                <Text style={styles.liveBannerTitle}>Watch Live Matches</Text>
-                <Text style={styles.liveBannerSub}>Catch the action from local turfs near you</Text>
+                <View style={styles.liveArrow}>
+                  <Icon name="arrow-right" size={20} color={Colors.primary} />
+                </View>
               </View>
-              <View style={styles.liveArrow}>
-                <Icon name="arrow-right" size={20} color={Colors.primary} />
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── EXPLORE CTA ── */}
         {/* <View style={styles.section}>

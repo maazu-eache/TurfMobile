@@ -117,14 +117,17 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
-    paddingVertical: Spacing.md,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 48,
   },
   buttonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.primary,
+    textAlign: 'center',
   }
 });
 

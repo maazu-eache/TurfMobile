@@ -96,6 +96,8 @@ export const logout = createAsyncThunk('auth/logout', async (_, { dispatch, getS
   }
 });
 
+const isUserSuspended = (u) => Boolean(u && (u.isSuspended || u.isActive === false || u.isDeactivated || u.isDeleted));
+
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
@@ -157,12 +159,28 @@ const authSlice = createSlice({
         if (state) {
           state.isLoading = false;
           state.error = null;
+          if (isUserSuspended(state.user)) {
+            state.user = null;
+            state.accessToken = null;
+            state.refreshToken = null;
+            state.isAuthenticated = false;
+            state.isGuest = true;
+          }
         }
       })
       // Register
       .addCase(registerWithPassword.pending, (state) => { state.isLoading = true; state.error = null; })
       .addCase(registerWithPassword.fulfilled, (state, action) => {
         state.isLoading = false;
+        if (isUserSuspended(action.payload?.user)) {
+          state.user = null;
+          state.accessToken = null;
+          state.refreshToken = null;
+          state.isAuthenticated = false;
+          state.isGuest = true;
+          state.error = 'Your account has been suspended by the administrator.';
+          return;
+        }
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.accessToken = action.payload.accessToken;
@@ -176,6 +194,15 @@ const authSlice = createSlice({
       .addCase(loginWithPassword.pending, (state) => { state.isLoading = true; state.error = null; })
       .addCase(loginWithPassword.fulfilled, (state, action) => {
         state.isLoading = false;
+        if (isUserSuspended(action.payload?.user)) {
+          state.user = null;
+          state.accessToken = null;
+          state.refreshToken = null;
+          state.isAuthenticated = false;
+          state.isGuest = true;
+          state.error = 'Your account has been suspended by the administrator.';
+          return;
+        }
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.accessToken = action.payload.accessToken;
@@ -190,6 +217,15 @@ const authSlice = createSlice({
       .addCase(loginWithGoogle.fulfilled, (state, action) => {
         state.isLoading = false;
         if (action.payload?.signUpRequired) {
+          return;
+        }
+        if (isUserSuspended(action.payload?.user)) {
+          state.user = null;
+          state.accessToken = null;
+          state.refreshToken = null;
+          state.isAuthenticated = false;
+          state.isGuest = true;
+          state.error = 'Your account has been suspended by the administrator.';
           return;
         }
         state.isAuthenticated = true;

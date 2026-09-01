@@ -201,7 +201,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
 
   const handleShare = async () => {
     try {
-      const link = `https://scoreverse.in/tournament/${tournamentId}/register`;
+      const link = `https://www.scoreverse.in/tournament/${tournamentId}/register`;
       await Share.share({
         message: `Register for ${auction?.tournament?.name || 'the tournament'} on ScoreVerse!\nJoin here: ${link}`,
         title: 'Share Tournament',

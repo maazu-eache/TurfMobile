@@ -22,6 +22,26 @@ import { navigate, reset } from '../../../navigation/navigationRef';
 import { useFocusEffect } from '@react-navigation/native';
 import NotificationBell from '../../../components/NotificationBell';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+const AdminSearchBar = React.memo(({ searchQuery, setSearchQuery }) => (
+  <View style={styles.searchBar}>
+    <Icon name="magnify" size={18} color={Colors.textTertiary} />
+    <TextInput
+      style={styles.searchInput}
+      placeholder="Search by name or email..."
+      placeholderTextColor={Colors.textTertiary}
+      value={searchQuery}
+      onChangeText={setSearchQuery}
+      autoCapitalize="none"
+      autoCorrect={false}
+      clearButtonMode="while-editing"
+    />
+    {searchQuery.length > 0 && (
+      <TouchableOpacity onPress={() => setSearchQuery('')}>
+        <Icon name="close-circle" size={17} color={Colors.textTertiary} />
+      </TouchableOpacity>
+    )}
+  </View>
+));
 
 const AdminDashboardScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('owners');
@@ -73,6 +93,8 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [waitlist, setWaitlist] = useState([]);
   const [refunds, setRefunds] = useState([]);
   const [settlements, setSettlements] = useState([]);
+  const [onlineBookings, setOnlineBookings] = useState([]);
+  const [offlineBookings, setOfflineBookings] = useState([]);
   const [openTickets, setOpenTickets] = useState(0);
   const [pendingUgcReports, setPendingUgcReports] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -228,7 +250,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [ownersRes, usersRes, turfsRes, waitlistRes, refundsRes, settlementsRes, ticketsRes, ugcReportsRes] = await Promise.allSettled([
+      const [ownersRes, usersRes, turfsRes, waitlistRes, refundsRes, settlementsRes, ticketsRes, ugcReportsRes, onlineBookingsRes, offlineBookingsRes] = await Promise.allSettled([
         api.get('/admin/owners?limit=100'),
         api.get('/admin/users?limit=100'),
         api.get('/admin/turfs?limit=100'),
@@ -236,7 +258,9 @@ const AdminDashboardScreen = ({ navigation }) => {
         api.get('/admin/refunds?limit=100'),
         api.get('/admin/settlements?limit=100'),
         api.get('/admin/support?status=open'),
-        api.get('/admin/ugc-reports')
+        api.get('/admin/ugc-reports'),
+        api.get('/admin/bookings/online?limit=100'),
+        api.get('/admin/bookings/offline?limit=100')
       ]);
 
       if (ownersRes.status === 'fulfilled') setOwners(ownersRes.value.data.data || []);
@@ -266,10 +290,16 @@ const AdminDashboardScreen = ({ navigation }) => {
         setOpenTickets(ticketsRes.value.data?.data?.length || 0);
       }
 
-
       if (ugcReportsRes && ugcReportsRes.status === 'fulfilled') {
         const reps = ugcReportsRes.value.data?.data || [];
         setPendingUgcReports(reps.filter(r => r.status === 'pending').length);
+      }
+
+      if (onlineBookingsRes && onlineBookingsRes.status === 'fulfilled') {
+        setOnlineBookings(onlineBookingsRes.value.data.data || []);
+      }
+      if (offlineBookingsRes && offlineBookingsRes.status === 'fulfilled') {
+        setOfflineBookings(offlineBookingsRes.value.data.data || []);
       }
     } catch (err) {
       console.error('Failed to fetch admin data', err);
@@ -586,18 +616,23 @@ const AdminDashboardScreen = ({ navigation }) => {
           {/* Stats row */}
           <View style={styles.turfStatsRow}>
             <View style={styles.turfStatItem}>
-              <Text style={styles.turfStatVal}>{item.totalBookings ?? 0}</Text>
-              <Text style={styles.turfStatLabel}>Bookings</Text>
+              <Text style={[styles.turfStatVal, { color: Colors.primary }]}>{item.onlineBookings ?? 0}</Text>
+              <Text style={styles.turfStatLabel}>Online</Text>
+            </View>
+            <View style={styles.turfStatDivider} />
+            <View style={styles.turfStatItem}>
+              <Text style={[styles.turfStatVal, { color: '#5B8DEF' }]}>{item.offlineBookings ?? 0}</Text>
+              <Text style={styles.turfStatLabel}>Offline</Text>
+            </View>
+            <View style={styles.turfStatDivider} />
+            <View style={styles.turfStatItem}>
+              <Text style={styles.turfStatVal}>{item.totalBookings ?? ((item.onlineBookings ?? 0) + (item.offlineBookings ?? 0))}</Text>
+              <Text style={styles.turfStatLabel}>Total</Text>
             </View>
             <View style={styles.turfStatDivider} />
             <View style={styles.turfStatItem}>
               <Text style={styles.turfStatVal}>{item.rating?.toFixed(1) ?? '—'}</Text>
               <Text style={styles.turfStatLabel}>Rating</Text>
-            </View>
-            <View style={styles.turfStatDivider} />
-            <View style={styles.turfStatItem}>
-              <Text style={styles.turfStatVal}>{item.reviewCount ?? 0}</Text>
-              <Text style={styles.turfStatLabel}>Reviews</Text>
             </View>
             {item.pendingPlatformFee > 0 && (
               <>
@@ -1019,6 +1054,148 @@ const AdminDashboardScreen = ({ navigation }) => {
     </View>
   );
 
+  const renderOnlineBookingCard = ({ item }) => {
+    const isConfirmed = item.status === 'confirmed' || item.status === 'completed';
+    const isCancelled = item.status === 'cancelled';
+    const statusColor = isConfirmed ? '#2ED573' : isCancelled ? Colors.error : '#FF9800';
+    const statusBg = isConfirmed ? 'rgba(46,213,115,0.12)' : isCancelled ? 'rgba(255,71,87,0.12)' : 'rgba(255,152,0,0.12)';
+    const userName = item.user?.name || item.user?.email || 'Customer';
+    const userPhone = item.user?.mobile || 'No phone';
+    const turfName = item.turf?.name || 'Turf';
+    const turfCity = item.turf?.city ? `${item.turf.city}` : '';
+    const bookingRef = item.bookingRef || item._id?.slice(-8).toUpperCase();
+    const dateStr = item.createdAt ? moment(item.createdAt).format('DD MMM YYYY, hh:mm A') : '';
+    const slotSnap = item.slotsSnapshot?.[0];
+    const slotInfo = slotSnap ? `${slotSnap.startTime} - ${slotSnap.endTime} (${moment(slotSnap.date).format('DD MMM')})` : null;
+
+    return (
+      <View style={[styles.card, { overflow: 'hidden' }]}>
+        <View style={{ height: 3, backgroundColor: statusColor }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, paddingBottom: 10 }}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+              <Icon name="cloud-check" size={14} color={Colors.primary} />
+              <Text style={{ fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.5 }}>ONLINE BOOKING</Text>
+            </View>
+            <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{bookingRef}</Text>
+          </View>
+          <View style={[{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: statusBg, borderWidth: 1, borderColor: statusColor + '55' }]}>
+            <Text style={{ fontSize: 10, fontFamily: Typography.fontFamily.bold, color: statusColor, letterSpacing: 0.8 }}>
+              {item.status?.toUpperCase() || 'CONFIRMED'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Turf & User details */}
+        <View style={{ paddingHorizontal: 14, gap: 8, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(46,213,115,0.12)', justifyContent: 'center', alignItems: 'center' }}>
+              <Icon name="soccer-field" size={14} color="#2ED573" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{turfName}</Text>
+              {turfCity ? <Text style={{ fontSize: 11, color: Colors.textTertiary }}>{turfCity}</Text> : null}
+            </View>
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center' }}>
+              <Icon name="account" size={14} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium }}>{userName}</Text>
+              <Text style={{ fontSize: 11, color: Colors.textTertiary }}>{userPhone} {item.user?.email ? `• ${item.user.email}` : ''}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Bottom bar with slot & price */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border }}>
+          <View style={{ flex: 1 }}>
+            {slotInfo ? (
+              <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium }}>
+                <Icon name="clock-outline" size={12} color={Colors.primary} /> {slotInfo}
+              </Text>
+            ) : (
+              <Text style={{ fontSize: 11, color: Colors.textTertiary }}>{dateStr}</Text>
+            )}
+          </View>
+          <Text style={{ fontSize: 16, color: Colors.primary, fontFamily: Typography.fontFamily.bold }}>
+            ₹{item.finalAmount || item.totalAmount || 0}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  const renderOfflineBookingCard = ({ item }) => {
+    const isPaid = item.isPaid !== false;
+    const statusColor = isPaid ? '#5B8DEF' : '#FF9800';
+    const statusBg = isPaid ? 'rgba(91,141,239,0.12)' : 'rgba(255,152,0,0.12)';
+    const turfName = item.turf?.name || 'Turf';
+    const ownerName = item.owner?.businessName || item.owner?.userId?.name || 'Turf Owner';
+    const customerName = item.customerName || 'Walk-in Customer';
+    const customerMobile = item.customerMobile || 'No phone';
+    const dateStr = item.date ? moment(item.date).format('DD MMM YYYY') : '';
+    const timeStr = `${item.startTime || ''} - ${item.endTime || ''}`;
+    const reasonLabel = (item.reason || 'walk_in').replace(/_/g, ' ').toUpperCase();
+
+    return (
+      <View style={[styles.card, { overflow: 'hidden' }]}>
+        <View style={{ height: 3, backgroundColor: statusColor }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, paddingBottom: 10 }}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+              <Icon name="calendar-clock" size={14} color="#5B8DEF" />
+              <Text style={{ fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.5 }}>OFFLINE BOOKING</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: '#5B8DEF', fontFamily: Typography.fontFamily.bold }}>{reasonLabel}</Text>
+          </View>
+          <View style={[{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: statusBg, borderWidth: 1, borderColor: statusColor + '55' }]}>
+            <Text style={{ fontSize: 10, fontFamily: Typography.fontFamily.bold, color: statusColor, letterSpacing: 0.8 }}>
+              {isPaid ? 'PAID' : 'UNPAID'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Turf & Owner details */}
+        <View style={{ paddingHorizontal: 14, gap: 8, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(46,213,115,0.12)', justifyContent: 'center', alignItems: 'center' }}>
+              <Icon name="soccer-field" size={14} color="#2ED573" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{turfName}</Text>
+              <Text style={{ fontSize: 11, color: Colors.textTertiary }}>Owner: {ownerName}</Text>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(91,141,239,0.12)', justifyContent: 'center', alignItems: 'center' }}>
+              <Icon name="account-outline" size={14} color="#5B8DEF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium }}>{customerName}</Text>
+              <Text style={{ fontSize: 11, color: Colors.textTertiary }}>{customerMobile}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Bottom bar with date/time & price */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium }}>
+              <Icon name="clock-outline" size={12} color="#5B8DEF" /> {dateStr} • {timeStr}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 16, color: '#5B8DEF', fontFamily: Typography.fontFamily.bold }}>
+            ₹{item.amount || 0}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   const handleLogout = () => {
     showCustomAlert("Confirm Logout", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
@@ -1050,6 +1227,22 @@ const AdminDashboardScreen = ({ navigation }) => {
     (t.city || '').toLowerCase().includes(q) ||
     (t.owner?.businessName || '').toLowerCase().includes(q)
   );
+  const filteredOnlineBookings = onlineBookings.filter(b => !q ||
+    (b.bookingRef || '').toLowerCase().includes(q) ||
+    (b.user?.name || '').toLowerCase().includes(q) ||
+    (b.user?.email || '').toLowerCase().includes(q) ||
+    (b.user?.mobile || '').toLowerCase().includes(q) ||
+    (b.turf?.name || '').toLowerCase().includes(q) ||
+    (b.turf?.city || '').toLowerCase().includes(q) ||
+    (b.status || '').toLowerCase().includes(q)
+  );
+  const filteredOfflineBookings = offlineBookings.filter(b => !q ||
+    (b.customerName || '').toLowerCase().includes(q) ||
+    (b.customerMobile || '').toLowerCase().includes(q) ||
+    (b.turf?.name || '').toLowerCase().includes(q) ||
+    (b.reason || '').toLowerCase().includes(q) ||
+    (b.owner?.businessName || '').toLowerCase().includes(q)
+  );
   const filteredRefunds = refunds.filter(r => !q ||
     (r.user?.name || '').toLowerCase().includes(q) ||
     (r.user?.email || '').toLowerCase().includes(q) ||
@@ -1074,27 +1267,6 @@ const AdminDashboardScreen = ({ navigation }) => {
     (w.ownerName || '').toLowerCase().includes(q) ||
     (w.email || '').toLowerCase().includes(q)
   ));
-
-  const SearchBar = () => (
-    <View style={styles.searchBar}>
-      <Icon name="magnify" size={18} color={Colors.textTertiary} />
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by name or email..."
-        placeholderTextColor={Colors.textTertiary}
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        autoCapitalize="none"
-        autoCorrect={false}
-        clearButtonMode="while-editing"
-      />
-      {searchQuery.length > 0 && (
-        <TouchableOpacity onPress={() => setSearchQuery('')}>
-          <Icon name="close-circle" size={17} color={Colors.textTertiary} />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
 
   const SidebarItem = ({ tab, icon, label, badge }) => {
     const isActive = activeTab === tab;
@@ -1199,20 +1371,20 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Text style={styles.statLabel}>Total Users</Text>
             </View>
           </TouchableOpacity>
-          <View style={styles.statBox}>
+          <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('owners'); setSearchQuery(''); }} activeOpacity={0.8}>
             <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
               <Icon name="briefcase-account" size={20} color="#5B8DEF" />
               <Text style={[styles.statValue, { color: '#5B8DEF' }]}>{owners.length}</Text>
               <Text style={styles.statLabel}>Owners</Text>
             </View>
-          </View>
-          <View style={styles.statBox}>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('turfs'); setSearchQuery(''); }} activeOpacity={0.8}>
             <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
               <Icon name="soccer-field" size={20} color="#2ED573" />
               <Text style={[styles.statValue, { color: '#2ED573' }]}>{turfs.length}</Text>
               <Text style={styles.statLabel}>Turfs</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
       
@@ -1421,92 +1593,79 @@ const AdminDashboardScreen = ({ navigation }) => {
 
       {/* Main Content */}
       <View style={styles.contentArea}>
+        {['owners', 'turfs', 'users', 'online_bookings', 'offline_bookings', 'refunds', 'waitlist', 'settlements_requests', 'settlements_turf', 'settlements_org'].includes(activeTab) && (
+          <AdminSearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+        )}
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={Colors.primary} />
           </View>
         ) : activeTab === 'owners' ? (
-          <>
-            <SearchBar />
-            <FlatList data={filteredOwners} keyExtractor={item => item._id} renderItem={renderOwnerCard}
-              contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No owners found.'}</Text>} />
-          </>
+          <FlatList data={filteredOwners} keyExtractor={item => item._id} renderItem={renderOwnerCard}
+            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No owners found.'}</Text>} />
         ) : activeTab === 'turfs' ? (
-          <>
-            <SearchBar />
-            <FlatList data={filteredTurfs} keyExtractor={item => item._id} renderItem={renderTurfCard}
-              contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No turfs found.'}</Text>} />
-          </>
+          <FlatList data={filteredTurfs} keyExtractor={item => item._id} renderItem={renderTurfCard}
+            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No turfs found.'}</Text>} />
         ) : activeTab === 'users' ? (
-          <>
-            <SearchBar />
-            <FlatList data={filteredUsers} keyExtractor={item => item._id} renderItem={renderUserCard}
-              contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No users found.'}</Text>} />
-          </>
+          <FlatList data={filteredUsers} keyExtractor={item => item._id} renderItem={renderUserCard}
+            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No users found.'}</Text>} />
+        ) : activeTab === 'online_bookings' ? (
+          <FlatList data={filteredOnlineBookings} keyExtractor={item => item._id} renderItem={renderOnlineBookingCard}
+            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No online bookings found.'}</Text>} />
+        ) : activeTab === 'offline_bookings' ? (
+          <FlatList data={filteredOfflineBookings} keyExtractor={item => item._id} renderItem={renderOfflineBookingCard}
+            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No offline bookings found.'}</Text>} />
         ) : activeTab === 'refunds' ? (
-          <>
-            <SearchBar />
-            <FlatList data={filteredRefunds} keyExtractor={item => item._id} renderItem={renderRefundCard}
-              contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No refunds found.'}</Text>} />
-          </>
+          <FlatList data={filteredRefunds} keyExtractor={item => item._id} renderItem={renderRefundCard}
+            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No refunds found.'}</Text>} />
         ) : activeTab === 'waitlist' ? (
-          <>
-            <SearchBar />
-            <FlatList data={filteredWaitlist} keyExtractor={item => item._id} renderItem={renderWaitlistCard}
-              contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No waitlist entries found.'}</Text>} />
-          </>
+          <FlatList data={filteredWaitlist} keyExtractor={item => item._id} renderItem={renderWaitlistCard}
+            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No waitlist entries found.'}</Text>} />
         ) : activeTab === 'settlements_requests' ? (
           loadingSettlements ? (
             <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
           ) : (
-            <>
-              <SearchBar />
-              <FlatList
-                data={filteredSettlementReqs}
-                keyExtractor={item => item._id}
-                renderItem={renderSettlementRequest}
-                contentContainerStyle={styles.list}
-                keyboardShouldPersistTaps="handled"
-                ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No withdrawal requests found.'}</Text>}
-              />
-            </>
+            <FlatList
+              data={filteredSettlementReqs}
+              keyExtractor={item => item._id}
+              renderItem={renderSettlementRequest}
+              contentContainerStyle={styles.list}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No withdrawal requests found.'}</Text>}
+            />
           )
         ) : activeTab === 'settlements_turf' ? (
           loadingSettlements ? (
             <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
           ) : (
-            <>
-              <SearchBar />
-              <FlatList
-                data={filteredTurfWallets}
-                keyExtractor={item => item._id}
-                renderItem={renderWalletCard}
-                contentContainerStyle={styles.list}
-                keyboardShouldPersistTaps="handled"
-                ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No turf owner wallets found.'}</Text>}
-              />
-            </>
+            <FlatList
+              data={filteredTurfWallets}
+              keyExtractor={item => item._id}
+              renderItem={renderWalletCard}
+              contentContainerStyle={styles.list}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No turf owner wallets found.'}</Text>}
+            />
           )
         ) : activeTab === 'settlements_org' ? (
           loadingSettlements ? (
             <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
           ) : (
-            <>
-              <SearchBar />
-              <FlatList
-                data={filteredOrgWallets}
-                keyExtractor={item => item._id}
-                renderItem={renderWalletCard}
-                contentContainerStyle={styles.list}
-                keyboardShouldPersistTaps="handled"
-                ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No organizer wallets found.'}</Text>}
-              />
-            </>
+            <FlatList
+              data={filteredOrgWallets}
+              keyExtractor={item => item._id}
+              renderItem={renderWalletCard}
+              contentContainerStyle={styles.list}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No organizer wallets found.'}</Text>}
+            />
           )
         ) : activeTab === 'finance' ? (
           <FinanceView navigation={navigation} />
@@ -1550,6 +1709,12 @@ const AdminDashboardScreen = ({ navigation }) => {
           <SidebarItem tab="owners" icon="briefcase-account" label="Owners" badge={0} />
           <SidebarItem tab="users" icon="account-group" label="Users" badge={0} />
           <SidebarItem tab="waitlist" icon="clipboard-list-outline" label="Waitlist" badge={0} />
+
+          {/* ── BOOKINGS ── */}
+          <View style={styles.sidebarDivider} />
+          <Text style={styles.sidebarSectionLabel}>BOOKINGS</Text>
+          <SidebarItem tab="online_bookings" icon="calendar-check" label="Online Bookings" badge={0} />
+          <SidebarItem tab="offline_bookings" icon="calendar-clock" label="Offline Bookings" badge={0} />
 
           {/* ── REFUNDS ── */}
           <View style={styles.sidebarDivider} />

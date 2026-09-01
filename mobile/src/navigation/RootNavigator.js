@@ -1,33 +1,32 @@
 import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector } from 'react-redux';
 
-import { Linking } from 'react-native';
 import AuthNavigator from './AuthNavigator';
 import CustomerNavigator from './CustomerNavigator';
 import OwnerNavigator from './OwnerNavigator';
 import PlayerNavigator from './PlayerNavigator';
 import AdminNavigator from './AdminNavigator';
 import SplashScreen from '../features/auth/screens/SplashScreen';
-
 import NotificationService from '../services/NotificationService';
 
 const Stack = createNativeStackNavigator();
 
+let hasShownInitialSplash = false;
+
 const RootNavigator = () => {
   const { isAuthenticated, isGuest, user } = useSelector((state) => state.auth);
-  const [showSplash, setShowSplash] = React.useState(true);
+  const [showSplash, setShowSplash] = React.useState(!hasShownInitialSplash);
 
   React.useEffect(() => {
-    // If opened via shared deep link, skip splash video delay for instant navigation
-    Linking.getInitialURL().then((url) => {
-      if (url) {
+    if (!hasShownInitialSplash) {
+      const timer = setTimeout(() => {
+        hasShownInitialSplash = true;
         setShowSplash(false);
-      }
-    }).catch(() => {});
-
-    const timer = setTimeout(() => setShowSplash(false), 7000); // Wait for the 16s video to finish
-    return () => clearTimeout(timer);
+      }, 7000);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -36,15 +35,22 @@ const RootNavigator = () => {
     }
   }, [isAuthenticated, user?._id]);
 
+  const roles = user?.roles || (user?.role ? [user.role] : []);
+
   const getMainNavigator = () => {
     if (!user) return <Stack.Screen name="Customer" component={CustomerNavigator} />;
 
-    const roles = user.roles || [user.role];
-
-    if (roles.includes('admin')) return <Stack.Screen name="Admin" component={AdminNavigator} />;
+    if (roles.includes('admin') || user.role === 'admin') {
+      return <Stack.Screen name="Admin" component={AdminNavigator} />;
+    }
     
-    if (roles.includes('owner')) {
-      return <Stack.Screen name="Owner" component={OwnerNavigator} />;
+    if (roles.includes('owner') || user.role === 'owner') {
+      return (
+        <>
+          <Stack.Screen name="Owner" component={OwnerNavigator} />
+          <Stack.Screen name="Customer" component={CustomerNavigator} />
+        </>
+      );
     }
 
     // Default — customer + player
@@ -56,24 +62,49 @@ const RootNavigator = () => {
     );
   };
 
+  const navKey = isAuthenticated
+    ? (roles.includes('admin') || user?.role === 'admin'
+        ? 'admin-stack'
+        : (roles.includes('owner') || user?.role === 'owner'
+            ? 'owner-stack'
+            : 'customer-stack'))
+    : (isGuest ? 'guest-stack' : 'auth-stack');
+
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {showSplash ? (
-        <Stack.Screen name="Splash">
-          {(props) => <SplashScreen {...props} onFinished={() => setShowSplash(false)} />}
-        </Stack.Screen>
-      ) : isAuthenticated ? (
-        getMainNavigator()
-      ) : isGuest ? (
-        <>
-          <Stack.Screen name="Customer" component={CustomerNavigator} />
-          <Stack.Screen name="AuthModal" component={AuthNavigator} options={{ presentation: 'fullScreenModal' }} />
-        </>
-      ) : (
-        <Stack.Screen name="Auth" component={AuthNavigator} />
+    <View style={styles.container}>
+      <Stack.Navigator key={navKey} screenOptions={{ headerShown: false }}>
+        {isAuthenticated ? (
+          getMainNavigator()
+        ) : isGuest ? (
+          <>
+            <Stack.Screen name="Customer" component={CustomerNavigator} />
+            <Stack.Screen
+              name="AuthModal"
+              component={AuthNavigator}
+              options={{ presentation: 'fullScreenModal' }}
+            />
+          </>
+        ) : (
+          <>
+            <Stack.Screen name="Auth" component={AuthNavigator} />
+            <Stack.Screen name="Customer" component={CustomerNavigator} />
+          </>
+        )}
+      </Stack.Navigator>
+
+      {showSplash && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <SplashScreen onFinished={() => setShowSplash(false)} />
+        </View>
       )}
-    </Stack.Navigator>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});
 
 export default RootNavigator;

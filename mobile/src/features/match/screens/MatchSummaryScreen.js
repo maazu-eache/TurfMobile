@@ -5183,7 +5183,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             )}
             <TouchableOpacity style={{ padding: 8 }} onPress={() => navigation.navigate('CreateTicketScreen', { matchId: match._id, category: 'Match Dispute' })}>
-              <Icon name="alert-circle-outline" size={20} color="#FF3B30" />
+              <Icon name="alert-circle-outline" size={20} color="#ffffff" />
             </TouchableOpacity>
             <TouchableOpacity style={{ padding: 8 }} onPress={handleShare}>
               <Icon name="share-variant" size={20} color="#fff" />
@@ -5850,7 +5850,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               ? 'AI Match Report'
               : `${liveState?.match?.teamA?.name || 'Team A'} vs ${liveState?.match?.teamB?.name || 'Team B'}`
         }
-        shareUrl={`https://scoreverse.in/match/${cleanMatchId}`}
+        shareUrl={`https://www.scoreverse.in/match/${cleanMatchId}`}
       >
         {activePosterType === 'summary' && <MatchSummaryPoster liveState={liveState} />}
         {activePosterType === 'motm' && <MotmPoster liveState={liveState} mvp={resolvedMvp} />}

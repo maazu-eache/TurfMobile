@@ -103,6 +103,20 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    if (
+      error.response?.status === 403 &&
+      (String(error.response?.data?.message || '').toLowerCase().includes('suspended') ||
+       String(error.response?.data?.message || '').toLowerCase().includes('deactivated'))
+    ) {
+      const { store } = require('../store');
+      const { logoutLocal, setGuestMode } = require('../features/auth/authSlice');
+      const { showCustomAlert } = require('../components/CustomAlert');
+      store.dispatch(logoutLocal());
+      store.dispatch(setGuestMode(true));
+      showCustomAlert('Account Suspended', 'Your account has been suspended by the administrator. You can browse in guest mode.');
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Don't intercept login, register, refresh-token or logout requests to avoid infinite recursion
       if (
