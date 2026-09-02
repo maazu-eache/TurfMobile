@@ -137,7 +137,11 @@ const teamSlice = createSlice({
       .addCase(searchGlobalTeams.rejected, (state, a) => { state.searchLoading = false; state.error = a.payload; })
 
       // Team by ID
-      .addCase(fetchTeamById.pending, (state) => { state.isLoading = true; })
+      .addCase(fetchTeamById.pending, (state) => {
+        state.isLoading = true;
+        state.selectedTeam = null;
+        state.teamStats = null;
+      })
       .addCase(fetchTeamById.fulfilled, (state, a) => { state.isLoading = false; state.selectedTeam = a.payload; })
       .addCase(fetchTeamById.rejected, (state) => { state.isLoading = false; })
 

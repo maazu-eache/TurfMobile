@@ -75,7 +75,7 @@ const TeamListScreen = ({ navigation }) => {
             ? <Image source={{ uri: getImageUrl(item.logo) }} style={styles.logo} />
             : (
               <LinearGradient colors={[Colors.primaryAlpha20, Colors.primaryAlpha10]} style={styles.logoFallback}>
-                <Icon name="shield" size={28} color={Colors.primary} />
+                <Text style={styles.logoLetter}>{(item.name || 'T').trim().charAt(0).toUpperCase()}</Text>
               </LinearGradient>
             )
           }
@@ -98,16 +98,8 @@ const TeamListScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Follow + Chevron */}
-        <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={[styles.followBtn, item.isFollowing && styles.followBtnActive]}
-            onPress={() => handleFollow(item._id)}
-          >
-            <Icon name={item.isFollowing ? 'bell' : 'bell-outline'} size={16} color={item.isFollowing ? '#000' : Colors.primary} />
-          </TouchableOpacity>
-          <Icon name="chevron-right" size={20} color={Colors.textTertiary} style={{ marginTop: 8 }} />
-        </View>
+        {/* Right Arrow */}
+        <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.25)" style={{ marginLeft: 8 }} />
       </TouchableOpacity>
     );
   };
@@ -127,8 +119,8 @@ const TeamListScreen = ({ navigation }) => {
           {item.logo
             ? <Image source={{ uri: getImageUrl(item.logo) }} style={styles.logo} />
             : (
-              <LinearGradient colors={['rgba(244,67,54,0.12)', 'rgba(244,67,54,0.05)']} style={styles.logoFallback}>
-                <Icon name="shield-sword" size={28} color={Colors.error} />
+              <LinearGradient colors={[Colors.primaryAlpha20, Colors.primaryAlpha10]} style={styles.logoFallback}>
+                <Text style={styles.logoLetter}>{(item.name || 'T').trim().charAt(0).toUpperCase()}</Text>
               </LinearGradient>
             )
           }
@@ -154,16 +146,8 @@ const TeamListScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Follow button */}
-        <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={[styles.followBtn, item.isFollowing && styles.followBtnActive]}
-            onPress={() => handleFollow(item._id)}
-          >
-            <Icon name={item.isFollowing ? 'bell' : 'bell-outline'} size={16} color={item.isFollowing ? '#000' : Colors.primary} />
-          </TouchableOpacity>
-          <Icon name="chevron-right" size={20} color={Colors.textTertiary} style={{ marginTop: 8 }} />
-        </View>
+        {/* Right Arrow */}
+        <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.25)" style={{ marginLeft: 8 }} />
       </TouchableOpacity>
     );
   };
@@ -191,20 +175,6 @@ const TeamListScreen = ({ navigation }) => {
               <Icon name="plus" size={18} color="#000" />
             </LinearGradient>
           </TouchableOpacity>
-        </View>
-
-        {/* Stats summary */}
-        <View style={styles.summaryRow}>
-          <SummaryCard icon="shield-account" value={myTeams.length} label="My Teams" />
-          <View style={styles.summaryDivider} />
-          <SummaryCard icon="sword-cross" value={opponentTeams.length} label="Opponents Faced" />
-          <View style={styles.summaryDivider} />
-          <SummaryCard
-            icon="trophy"
-            value={myTeams.reduce((sum, t) => sum + (t.stats?.wins || 0), 0)}
-            label="Total Wins"
-            primary
-          />
         </View>
 
         {/* Section Tabs */}
@@ -455,7 +425,12 @@ const styles = StyleSheet.create({
   logoFallback: {
     width: 54, height: 54, borderRadius: 27,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: Colors.primaryAlpha30,
+    borderWidth: 1.5, borderColor: Colors.primaryAlpha30,
+  },
+  logoLetter: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 22,
   },
   teamInfo: { flex: 1 },
   teamName: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 15, marginBottom: 3 },
@@ -473,16 +448,25 @@ const styles = StyleSheet.create({
   statBadgeDanger: { borderColor: 'rgba(244,67,54,0.3)', backgroundColor: 'rgba(244,67,54,0.08)' },
   statBadgeText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 10 },
 
-  cardActions: { alignItems: 'center', gap: 4 },
-  followBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: Colors.primaryAlpha10,
-    borderWidth: 1, borderColor: Colors.primaryAlpha30,
-    alignItems: 'center', justifyContent: 'center',
+  cardActions: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
-  followBtnActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+  miniActionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  miniActionBtnActive: {
+    backgroundColor: 'rgba(255, 204, 0, 0.12)',
+    borderColor: 'rgba(255, 204, 0, 0.35)',
   },
 
   h2hRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

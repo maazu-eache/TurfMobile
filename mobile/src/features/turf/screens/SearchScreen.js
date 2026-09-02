@@ -510,11 +510,19 @@ const SearchScreen = ({ navigation, route }) => {
           {/* Team 1: Batting First */}
           <View style={styles.matchTeamRow}>
             <View style={styles.matchTeamInfo}>
-              <Image 
-                source={firstTeam?.logo ? { uri: getImageUrl(firstTeam.logo) } : SPORTVERSE_LOGO} 
-                style={styles.matchTeamLogoSmall}
-                resizeMode="cover"
-              />
+              {firstTeam?.logo ? (
+                <Image 
+                  source={{ uri: getImageUrl(firstTeam.logo) }} 
+                  style={styles.matchTeamLogoSmall}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.matchTeamLogoFallbackSmall}>
+                  <Text style={styles.matchTeamLogoLetterSmall}>
+                    {(firstTeam?.name || 'T').trim().charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
               <Text 
                 style={[
                   styles.matchTeamName, 
@@ -542,11 +550,19 @@ const SearchScreen = ({ navigation, route }) => {
           {/* Team 2: Chasing */}
           <View style={styles.matchTeamRow}>
             <View style={styles.matchTeamInfo}>
-              <Image 
-                source={secondTeam?.logo ? { uri: getImageUrl(secondTeam.logo) } : SPORTVERSE_LOGO} 
-                style={styles.matchTeamLogoSmall}
-                resizeMode="cover"
-              />
+              {secondTeam?.logo ? (
+                <Image 
+                  source={{ uri: getImageUrl(secondTeam.logo) }} 
+                  style={styles.matchTeamLogoSmall}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.matchTeamLogoFallbackSmall}>
+                  <Text style={styles.matchTeamLogoLetterSmall}>
+                    {(secondTeam?.name || 'T').trim().charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
               <Text 
                 style={[
                   styles.matchTeamName, 

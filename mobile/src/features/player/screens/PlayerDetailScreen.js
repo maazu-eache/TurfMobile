@@ -654,38 +654,51 @@ const PlayerDetailScreen = ({ navigation, route }) => {
               {/* Name */}
               <Text style={styles.heroName}>{viewedPlayer.name}</Text>
 
-              {/* Role pill + Tags row */}
-              <View style={styles.tagsRow}>
-                <View style={styles.rolePill}>
-                  <MCIcon name="cricket" size={12} color={Colors.primary} />
-                  <Text style={styles.roleText}>{viewedPlayer.playingRole || 'Cricket Player'}</Text>
+              {/* Clean Meta Info Row (Role • Batting Style • Bowling Style) */}
+              <View style={styles.heroMetaRow}>
+                <View style={styles.heroMetaItem}>
+                  <MCIcon name="cricket" size={13} color={Colors.primary} style={{ marginRight: 4 }} />
+                  <Text style={styles.heroRoleHighlight}>{viewedPlayer.playingRole || 'Cricket Player'}</Text>
                 </View>
-                {getPlayerTags(viewedPlayer).map((tag, tIdx) => (
-                  <TouchableOpacity
-                    key={tIdx}
-                    onPress={() => setSelectedTagDefinition(tag)}
-                    style={[
-                      styles.tagPill,
-                      tag.type === 'batting' ? styles.tagPillBatting : styles.tagPillBowling,
-                    ]}
-                  >
-                    <MCIcon
-                      name={tag.type === 'batting' ? 'cricket' : 'bowling'}
-                      size={10}
-                      color="#000"
-                      style={{ marginRight: 4 }}
-                    />
-                    <Text
-                      style={[
-                        styles.tagPillText,
-                        tag.type === 'batting' ? styles.tagPillTextBatting : styles.tagPillTextBowling,
-                      ]}
-                    >
-                      {tag.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {viewedPlayer.battingStyle ? (
+                  <>
+                    <Text style={styles.heroMetaDot}>•</Text>
+                    <Text style={styles.heroMetaText}>{viewedPlayer.battingStyle}</Text>
+                  </>
+                ) : null}
+                {viewedPlayer.bowlingStyle && viewedPlayer.bowlingStyle !== 'None' ? (
+                  <>
+                    <Text style={styles.heroMetaDot}>•</Text>
+                    <Text style={styles.heroMetaText}>{viewedPlayer.bowlingStyle}</Text>
+                  </>
+                ) : null}
               </View>
+
+              {/* Special Player Badges / Tags (Non-Pill Sleek Badges) */}
+              {(() => {
+                const tags = getPlayerTags(viewedPlayer);
+                if (!tags || tags.length === 0) return null;
+                return (
+                  <View style={styles.heroTagsRow}>
+                    {tags.map((tag, tIdx) => (
+                      <TouchableOpacity
+                        key={tIdx}
+                        onPress={() => setSelectedTagDefinition(tag)}
+                        activeOpacity={0.7}
+                        style={styles.heroTagBadge}
+                      >
+                        <MCIcon
+                          name={tag.type === 'batting' ? 'lightning-bolt' : 'fire'}
+                          size={12}
+                          color={Colors.primary}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={styles.heroTagBadgeText}>{tag.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                );
+              })()}
 
               {/* Location + Follow row */}
               <View style={styles.heroBottomRow}>
@@ -694,9 +707,9 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                   const state = viewedPlayer.state || viewedPlayer.userId?.state;
                   const locStr = [city, state].filter(Boolean).join(', ');
                   return (
-                    <View style={styles.locationPill}>
-                      <MCIcon name="map-marker" size={13} color={Colors.primary} />
-                      <Text style={styles.locationText}>{locStr || 'Location not set'}</Text>
+                    <View style={styles.heroLocationRow}>
+                      <MCIcon name="map-marker" size={13} color={Colors.primary} style={{ marginRight: 4 }} />
+                      <Text style={styles.heroLocationText}>{locStr || 'Location not set'}</Text>
                     </View>
                   );
                 })()}
@@ -1127,64 +1140,83 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  rolePill: {
+  heroMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#000',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    height: 28,
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: Colors.primary,
+    flexWrap: 'wrap',
+    marginTop: 6,
+    gap: 6,
   },
-  roleText: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-
-  // ── Tags ──────────────────────────────────────────────────────────────────
-  tagsRow: {
+  heroMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroRoleHighlight: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+    letterSpacing: 0.2,
+  },
+  heroMetaDot: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.4)',
+  },
+  heroMetaText: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: '#E0E0E0',
+  },
+  heroTagsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 10,
-    justifyContent: 'flex-start',
+    gap: 8,
+    marginTop: 7,
   },
-  tagPill: {
+  heroTagBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    height: 28,
-    borderRadius: 14,
+    backgroundColor: 'rgba(255, 204, 0, 0.12)',
     borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.35)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  tagPillBatting: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+  heroTagBadgeText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
-  tagPillBowling: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  tagPillText: { fontSize: 11, fontFamily: Typography.fontFamily.bold },
-  tagPillTextBatting: { color: '#000' },
-  tagPillTextBowling: { color: '#000' },
-
-  // ── Location ─────────────────────────────────────────────────────────────
-  locationPill: {
+  heroLocationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255,204,0,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,204,0,0.2)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    marginTop: 10,
   },
-  locationText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary },
+  heroLocationText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255, 255, 255, 0.75)',
+  },
+  heroFollowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  heroFollowingBtn: {
+    backgroundColor: 'rgba(255,204,0,0.12)',
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  heroFollowBtnText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#000',
+  },
+  heroFollowingBtnText: { color: Colors.primary },
 
   // ── Stats strip ──────────────────────────────────────────────────────────
   statsStrip: {

@@ -21,6 +21,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { getImageUrl } from '../../../api/axios';
 import api from '../../../api/axios';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
+import { LineChart, BarChart, PieChart, ProgressChart } from 'react-native-chart-kit';
+
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -29,6 +31,7 @@ const DETAIL_TABS = [
   { id: 'matches', label: 'Matches', icon: 'cricket' },
   { id: 'stats', label: 'Stats', icon: 'chart-bar' },
   { id: 'leaderboard', label: 'Leaderboard', icon: 'podium' },
+  { id: 'trophies', label: 'Trophies', icon: 'trophy' },
   { id: 'achievements', label: 'Achievements', icon: 'star-circle' },
   { id: 'analytics', label: 'Analytics', icon: 'trending-up' },
 ];
@@ -61,7 +64,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const { selectedTeam, teamStats, isLoading, statsLoading } = useSelector(s => s.team);
   const { user } = useSelector(s => s.auth);
 
-  const [activeTab, setActiveTab] = useState('players');
+  const [activeTab, setActiveTab] = useState('matches');
   const tabScrollRef = useRef(null);
   const indicatorAnim = useRef(new Animated.Value(0)).current;
 
@@ -89,6 +92,8 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const [updatingTeam, setUpdatingTeam] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [activeLeaderboardTab, setActiveLeaderboardTab] = useState('batters');
+  const [trendMetric, setTrendMetric] = useState('win_rate');
+  const [contribType, setContribType] = useState('batting');
 
   // UGC Report States
   const [showReportModal, setShowReportModal] = useState(false);
@@ -128,23 +133,25 @@ const TeamDetailScreen = ({ navigation, route }) => {
         dispatch(fetchTeamById(id)).unwrap(),
         dispatch(fetchTeamStats(id)).unwrap()
       ]);
-    } catch (e) {}
+    } catch (e) { }
     setRefreshing(false);
   };
 
   useEffect(() => {
     if (id) {
+      dispatch(clearSelectedTeam());
       dispatch(fetchTeamById(id));
+      dispatch(fetchTeamStats(id));
     }
     return () => { dispatch(clearSelectedTeam()); };
   }, [id, dispatch]);
 
-  // Fetch stats when stats/leaderboard/analytics tab selected
+  // Refetch stats when switching to stats/leaderboard/analytics tab
   useEffect(() => {
-    if (['stats', 'leaderboard', 'analytics', 'matches'].includes(activeTab) && id && !teamStats) {
+    if (['stats', 'leaderboard', 'analytics', 'matches'].includes(activeTab) && id) {
       dispatch(fetchTeamStats(id));
     }
-  }, [activeTab, id, teamStats, dispatch]);
+  }, [activeTab, id, dispatch]);
 
   // Derived — use userId from auth for reliable identity matching
   const myPlayer = useSelector(s => s.player?.myProfile);
@@ -323,11 +330,34 @@ const TeamDetailScreen = ({ navigation, route }) => {
     ]);
   };
 
+  // ── Player options menu ───────────────────────────────────────────────────
+  const handlePlayerOptions = (member) => {
+    showCustomAlert(
+      member.player?.name || 'Player Actions',
+      'Select an action to manage this player',
+      [
+        {
+          text: 'Change Role',
+          onPress: () => {
+            setSelectedPlayerToEdit(member);
+            setRoleModalVisible(true);
+          }
+        },
+        {
+          text: 'Remove Player',
+          style: 'destructive',
+          onPress: () => handleRemovePlayer(member)
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
   // ── Tab contents ──────────────────────────────────────────────────────────
 
   const renderPlayersTab = () => (
     <View style={{ flex: 1, position: 'relative' }}>
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, canManageRoster && { paddingTop: 8 }]} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
@@ -430,22 +460,14 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 </View>
               </View>
 
-              {/* Action buttons — ONLY captain/admin can manage roster */}
+              {/* Action button — ONLY captain/admin can manage roster */}
               {canManageRoster && !isMe && (
-                <View style={styles.playerActions}>
-                  <TouchableOpacity
-                    style={styles.actionIconBtn}
-                    onPress={(e) => { e.stopPropagation?.(); setSelectedPlayerToEdit(member); setRoleModalVisible(true); }}
-                  >
-                    <Icon name="account-edit" size={15} color={Colors.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionIconBtn, styles.actionIconBtnDanger]}
-                    onPress={(e) => { e.stopPropagation?.(); handleRemovePlayer(member); }}
-                  >
-                    <Icon name="account-remove" size={15} color={Colors.error} />
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={styles.actionIconBtn}
+                  onPress={(e) => { e.stopPropagation?.(); handlePlayerOptions(member); }}
+                >
+                  <Icon name="dots-vertical" size={18} color={Colors.textSecondary} />
+                </TouchableOpacity>
               )}
             </TouchableOpacity>
           );
@@ -468,7 +490,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
     if (!recentMatches.length) return <EmptyState icon="cricket" label="No match history yet" />;
 
     return (
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
@@ -514,56 +536,543 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const renderStatsTab = () => {
     if (statsLoading && !teamStats) return <LoadingState />;
     const s = selectedTeam?.stats || {};
-    const winPct = s.matches > 0 ? ((s.wins / s.matches) * 100).toFixed(1) : '0.0';
-    const lossPct = s.matches > 0 ? ((s.losses / s.matches) * 100).toFixed(1) : '0.0';
-    const formats = teamStats?.formatBreakdown || {};
+    const winPct = s.matches > 0 ? parseFloat(((s.wins / s.matches) * 100).toFixed(1)) : 0;
+    const lossPct = s.matches > 0 ? parseFloat(((s.losses / s.matches) * 100).toFixed(1)) : 0;
+    const nrPct = Math.max(0, parseFloat((100 - winPct - lossPct).toFixed(1)));
+    const recent = teamStats?.recentMatches || [];
+    const bat = teamStats?.battingStats || {};
+    const bowl = teamStats?.bowlingStats || {};
+    const records = teamStats?.teamRecords || {};
+    const h2h = teamStats?.headToHead || [];
+    const phases = teamStats?.phaseRunRates || {};
+    const topScorers = teamStats?.topScorers || [];
+    const topBowlers = teamStats?.topWicketTakers || [];
+
+    const last10 = recent.slice(0, 5);
+    const recentWins = last10.filter(m => m.result === 'W').length;
+
+    // ── Chart config (dark theme) ─────────────────────────────
+    const chartCfg = {
+      backgroundColor: 'transparent',
+      backgroundGradientFrom: '#161616',
+      backgroundGradientTo: '#161616',
+      decimalPlaces: 0,
+      color: (opacity = 1) => `rgba(255,204,0,${opacity})`,
+      labelColor: () => '#A0AAB5',
+      propsForDots: { r: '4', strokeWidth: '2', stroke: Colors.primary },
+      propsForBackgroundLines: { stroke: 'rgba(255,255,255,0.06)', strokeDasharray: '' },
+    };
+
+    // ── Line chart: recent form as run-rate-like momentum ─────
+    // Use W=3, L=0, T=1, NR=1.5 as "momentum points"
+    const momentumData = last10.length > 1
+      ? last10.map(m => m.result === 'W' ? 3 : m.result === 'L' ? 0 : m.result === 'T' ? 1.5 : 1)
+      : null;
+
+    // ── Pie chart data (win/loss/nr) ───────────────────────────
+    const hasPie = s.matches > 0;
+    const pieData = hasPie
+      ? [
+          { name: 'Won', population: s.wins || 0, color: Colors.primary, legendFontColor: Colors.textSecondary, legendFontSize: 11 },
+          { name: 'Lost', population: s.losses || 0, color: 'rgba(255,255,255,0.2)', legendFontColor: Colors.textSecondary, legendFontSize: 11 },
+          ...(nrPct > 0 ? [{ name: 'NR', population: s.noResults || 0, color: 'rgba(255,255,255,0.08)', legendFontColor: Colors.textSecondary, legendFontSize: 11 }] : []),
+        ]
+      : null;
+
+    // ── Bar chart: batting — fours vs sixes per 10 matches ─────
+    const hasBarData = bat.fours > 0 || bat.sixes > 0;
+    const barLabels = ['4s', '6s', 'Avg', 'RR×10'];
+    const barValues = [
+      Math.min(bat.fours || 0, 200),
+      Math.min(bat.sixes || 0, 200),
+      Math.min(parseFloat(bat.avgScore || 0), 200),
+      Math.min(parseFloat(bat.runRate || 0) * 10, 200),
+    ];
+    const barMax = Math.max(...barValues, 1);
+
+    // ── Phase data ─────────────────────────────────────────────
+    const phaseArr = [
+      { label: 'PP', full: 'Powerplay', val: phases.powerplay ? parseFloat(phases.powerplay) : null, color: Colors.primary },
+      { label: 'MID', full: 'Middle', val: phases.middle ? parseFloat(phases.middle) : null, color: '#FFFFFF' },
+      { label: 'DEATH', full: 'Death', val: phases.death ? parseFloat(phases.death) : null, color: 'rgba(255,255,255,0.6)' },
+    ];
+    const hasPhase = phaseArr.some(p => p.val !== null);
+    const maxPhase = hasPhase ? Math.max(...phaseArr.filter(p => p.val !== null).map(p => p.val)) : 1;
+
+    // ── Sub-components ─────────────────────────────────────────
+    const SectionHeader = ({ title, sub }) => (
+      <View style={stS.sectionHeader}>
+        <Text style={stS.sectionTitle}>{title}</Text>
+        {sub && <Text style={stS.sectionSub}>{sub}</Text>}
+      </View>
+    );
+
+    const StatItem = ({ label, value, accent, highlight }) => (
+      <View style={[stS.statItem, highlight && stS.statItemHighlight]}>
+        <Text style={[stS.statItemValue, accent && { color: accent }]} numberOfLines={1}>{value ?? '—'}</Text>
+        <Text style={stS.statItemLabel}>{label}</Text>
+      </View>
+    );
+
+    const chartW = SCREEN_W - 28;
 
     return (
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
-        keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 70 }}
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
       >
-        {/* Win/Loss overview */}
-        <View style={styles.statsCard}>
-          <Text style={styles.statsCardTitle}>Match Overview</Text>
-          <View style={styles.statsGrid}>
-            <BigStat label="Played" value={s.matches || 0} />
-            <BigStat label="Won" value={s.wins || 0} primary />
-            <BigStat label="Lost" value={s.losses || 0} danger />
-            <BigStat label="NR" value={s.noResults || 0} />
-          </View>
-          {/* Win rate bar */}
-          <View style={styles.winRateWrap}>
-            <View style={styles.winRateBarBg}>
-              <Animated.View style={[styles.winRateBarFill, { width: `${winPct}%` }]} />
+
+        {/* ═══════════════════════════════════════════════════
+            1. WIN / LOSS OVERVIEW  +  PIE CHART
+        ═══════════════════════════════════════════════════ */}
+        <SectionHeader title="Season Overview" />
+        <View style={stS.chartCard}>
+          {/* Big stats row */}
+          <View style={stS.overviewRow}>
+            <View style={stS.overviewStat}>
+              <Text style={stS.overviewVal}>{s.matches || 0}</Text>
+              <Text style={stS.overviewLabel}>Matches</Text>
             </View>
-            <View style={styles.winRateLabels}>
-              <Text style={{ color: Colors.success, fontSize: 11, fontFamily: Typography.fontFamily.bold }}>{winPct}% Win Rate</Text>
-              <Text style={{ color: Colors.error, fontSize: 11, fontFamily: Typography.fontFamily.bold }}>{lossPct}% Loss Rate</Text>
+            <View style={stS.overviewDivider} />
+            <View style={stS.overviewStat}>
+              <Text style={[stS.overviewVal, { color: Colors.primary }]}>{s.wins || 0}</Text>
+              <Text style={stS.overviewLabel}>Won</Text>
+            </View>
+            <View style={stS.overviewDivider} />
+            <View style={stS.overviewStat}>
+              <Text style={[stS.overviewVal, { color: Colors.textSecondary }]}>{s.losses || 0}</Text>
+              <Text style={stS.overviewLabel}>Lost</Text>
+            </View>
+            <View style={stS.overviewDivider} />
+            <View style={stS.overviewStat}>
+              <Text style={[stS.overviewVal, { color: Colors.primary }]}>{winPct}%</Text>
+              <Text style={stS.overviewLabel}>Win Rate</Text>
             </View>
           </View>
+
+          {/* Segmented progress bar */}
+          {s.matches > 0 && (
+            <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+              <View style={stS.progressBg}>
+                <View style={[stS.progressWin, { flex: winPct }]} />
+                <View style={[stS.progressLoss, { flex: lossPct }]} />
+                {nrPct > 0 && <View style={[stS.progressNR, { flex: nrPct }]} />}
+              </View>
+              <View style={stS.progressLabels}>
+                <View style={stS.progressLegItem}>
+                  <View style={[stS.progressLegDot, { backgroundColor: Colors.primary }]} />
+                  <Text style={[stS.progressLegText, { color: Colors.primary }]}>Win {winPct}%</Text>
+                </View>
+                <View style={stS.progressLegItem}>
+                  <View style={[stS.progressLegDot, { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
+                  <Text style={stS.progressLegText}>Loss {lossPct}%</Text>
+                </View>
+                {nrPct > 0 && (
+                  <View style={stS.progressLegItem}>
+                    <View style={[stS.progressLegDot, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
+                    <Text style={stS.progressLegText}>NR {nrPct}%</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Pie Chart */}
+          {hasPie && pieData && (
+            <View style={stS.pieWrap}>
+              <PieChart
+                data={pieData}
+                width={chartW - 16}
+                height={160}
+                chartConfig={chartCfg}
+                accessor="population"
+                backgroundColor="transparent"
+                paddingLeft="20"
+                absolute={false}
+                hasLegend={true}
+                center={[10, 0]}
+                avoidFalseZero
+              />
+            </View>
+          )}
         </View>
 
 
-
-        {/* Format Breakdown */}
-        {Object.keys(formats).length > 0 && (
-          <View style={styles.statsCard}>
-            <Text style={styles.statsCardTitle}>Format Breakdown</Text>
-            {Object.entries(formats).map(([fmt, data]) => (
-              <View key={fmt} style={styles.formatRow}>
-                <View style={styles.formatTag}><Text style={styles.formatTagText}>{fmt}</Text></View>
-                <View style={styles.formatBarWrap}>
-                  <View style={styles.formatBarBg}>
-                    <View style={[styles.formatBarFill, {
-                      width: data.matches > 0 ? `${(data.wins / data.matches) * 100}%` : '0%'
-                    }]} />
-                  </View>
+        {/* ═══════════════════════════════════════════════════
+            3. BATTING PERFORMANCE — Stats Grid + Bar Chart
+        ═══════════════════════════════════════════════════ */}
+        {bat.totalRuns > 0 && (
+          <View style={{ marginBottom: 0 }}>
+            <SectionHeader title="Batting Performance" />
+            <View style={stS.chartCard}>
+              {/* Key stats 4-grid */}
+              <View style={stS.miniGrid}>
+                <View style={stS.miniGridItem}>
+                  <Text style={[stS.miniGridVal, { color: Colors.primary }]}>{bat.totalRuns?.toLocaleString()}</Text>
+                  <Text style={stS.miniGridLabel}>Total Runs</Text>
                 </View>
-                <Text style={styles.formatStat}>{data.wins}W / {data.matches - data.wins}L</Text>
+                <View style={stS.miniGridItem}>
+                  <Text style={stS.miniGridVal}>{bat.avgScore}</Text>
+                  <Text style={stS.miniGridLabel}>Avg Score</Text>
+                </View>
+                <View style={stS.miniGridItem}>
+                  <Text style={[stS.miniGridVal, { color: Colors.primary }]}>{bat.highestScore?.score || '—'}</Text>
+                  <Text style={stS.miniGridLabel}>Highest</Text>
+                </View>
+                <View style={stS.miniGridItem}>
+                  <Text style={[stS.miniGridVal, { color: '#FFFFFF' }]}>{bat.lowestScore?.score || '—'}</Text>
+                  <Text style={stS.miniGridLabel}>Lowest</Text>
+                </View>
               </View>
-            ))}
+
+              {/* Horizontal divider */}
+              <View style={stS.cardDivider} />
+
+              {/* Run Rate + Boundary % + Fours + Sixes */}
+              <View style={stS.miniGrid}>
+                <View style={stS.miniGridItem}>
+                  <Text style={[stS.miniGridVal, { color: Colors.primary }]}>{bat.runRate}</Text>
+                  <Text style={stS.miniGridLabel}>Run Rate</Text>
+                </View>
+                <View style={stS.miniGridItem}>
+                  <Text style={stS.miniGridVal}>{bat.boundaryPct}%</Text>
+                  <Text style={stS.miniGridLabel}>Boundary %</Text>
+                </View>
+                <View style={stS.miniGridItem}>
+                  <Text style={stS.miniGridVal}>{bat.fours}</Text>
+                  <Text style={stS.miniGridLabel}>Fours</Text>
+                </View>
+                <View style={stS.miniGridItem}>
+                  <Text style={[stS.miniGridVal, { color: Colors.primary }]}>{bat.sixes}</Text>
+                  <Text style={stS.miniGridLabel}>Sixes</Text>
+                </View>
+              </View>
+
+              {/* Bar chart — Fours vs Sixes visual */}
+              {hasBarData && (
+                <>
+                  <View style={stS.cardDivider} />
+                  <Text style={stS.chartSubLabel}>Batting Metrics</Text>
+                  <BarChart
+                    data={{
+                      labels: ['4s', '6s', 'Avg', 'RR'],
+                      datasets: [{ data: barValues }],
+                    }}
+                    width={chartW - 8}
+                    height={175}
+                    chartConfig={{
+                      ...chartCfg,
+                      labelColor: () => '#A0AAB5',
+                      propsForLabels: { fontSize: 11, fontWeight: 'bold' },
+                      barPercentage: 0.55,
+                      fillShadowGradient: Colors.primary,
+                      fillShadowGradientOpacity: 1,
+                    }}
+                    withInnerLines={false}
+                    showValuesOnTopOfBars={true}
+                    fromZero={true}
+                    style={{ borderRadius: 10, marginLeft: -14, marginTop: 4 }}
+                    withHorizontalLabels={false}
+                  />
+                </>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ═══════════════════════════════════════════════════
+            4. BOWLING PERFORMANCE
+        ═══════════════════════════════════════════════════ */}
+        {bowl.totalWickets > 0 && (
+          <View style={{ marginBottom: 0 }}>
+            <SectionHeader title="Bowling Performance" />
+            <View style={stS.chartCard}>
+              <View style={stS.miniGrid}>
+                <View style={stS.miniGridItem}>
+                  <Text style={[stS.miniGridVal, { color: Colors.primary }]}>{bowl.totalWickets}</Text>
+                  <Text style={stS.miniGridLabel}>Wickets</Text>
+                </View>
+                <View style={stS.miniGridItem}>
+                  <Text style={stS.miniGridVal}>{bowl.economy}</Text>
+                  <Text style={stS.miniGridLabel}>Economy</Text>
+                </View>
+                <View style={stS.miniGridItem}>
+                  <Text style={stS.miniGridVal}>{bowl.bowlingAvg}</Text>
+                  <Text style={stS.miniGridLabel}>Avg</Text>
+                </View>
+                <View style={stS.miniGridItem}>
+                  <Text style={[stS.miniGridVal, { color: Colors.primary }]}>{bowl.bestBowling}</Text>
+                  <Text style={stS.miniGridLabel}>Best</Text>
+                </View>
+              </View>
+              {bowl.maidens > 0 && (
+                <>
+                  <View style={stS.cardDivider} />
+                  <View style={[stS.miniGrid, { gap: 0 }]}>
+                    <View style={stS.miniGridItem}>
+                      <Text style={stS.miniGridVal}>{bowl.maidens}</Text>
+                      <Text style={stS.miniGridLabel}>Maidens</Text>
+                    </View>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ═══════════════════════════════════════════════════
+            5. PHASE RUN RATE — Custom Arc/Bar visualization
+        ═══════════════════════════════════════════════════ */}
+        {hasPhase && (
+          <View style={{ marginBottom: 0 }}>
+            <SectionHeader title="Run Rate by Phase" />
+            <View style={stS.chartCard}>
+              <View style={stS.phaseVisRow}>
+                {phaseArr.map((ph, idx) => {
+                  const fillPct = ph.val !== null ? ph.val / (maxPhase * 1.2) : 0;
+                  const barH = 80;
+                  return (
+                    <View key={ph.label} style={stS.phaseCol}>
+                      <Text style={[stS.phaseRpoVal, { color: ph.color }]}>
+                        {ph.val !== null ? ph.val : '—'}
+                      </Text>
+                      <Text style={stS.phaseRpoUnit}>rpo</Text>
+                      {/* Vertical fill bar */}
+                      <View style={[stS.phaseVertBg, { height: barH }]}>
+                        <View style={[stS.phaseVertFill, {
+                          height: ph.val !== null ? fillPct * barH : 0,
+                          backgroundColor: ph.color,
+                        }]} />
+                      </View>
+                      <View style={[stS.phaseLabelBadge, { borderColor: ph.color + '55', backgroundColor: ph.color + '18' }]}>
+                        <Text style={[stS.phaseLabelBadgeText, { color: ph.color }]}>{ph.label}</Text>
+                      </View>
+                      <Text style={stS.phaseFullLabel}>{ph.full}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+              {/* ProgressChart: phase rings */}
+              {phaseArr.every(p => p.val !== null) && (
+                <>
+                  <View style={stS.cardDivider} />
+                  <ProgressChart
+                    data={{
+                      labels: phaseArr.map(p => p.label),
+                      data: phaseArr.map(p => p.val !== null ? Math.min(p.val / 15, 1) : 0),
+                    }}
+                    width={chartW - 8}
+                    height={120}
+                    strokeWidth={10}
+                    radius={28}
+                    chartConfig={{
+                      ...chartCfg,
+                      color: (opacity = 1, index) => {
+                        const cols = [Colors.primary, '#FFFFFF', 'rgba(255,255,255,0.4)'];
+                        return cols[index % cols.length] || Colors.primary;
+                      },
+                    }}
+                    hideLegend={false}
+                    style={{ borderRadius: 10, marginLeft: -10, marginBottom: -8 }}
+                  />
+                </>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ═══════════════════════════════════════════════════
+            6. TOP PERFORMERS
+        ═══════════════════════════════════════════════════ */}
+        {(topScorers.length > 0 || topBowlers.length > 0) && (
+          <View style={{ marginBottom: 0 }}>
+            <SectionHeader title="Top Performers" />
+
+            {topScorers.length > 0 && (
+              <View style={[stS.chartCard, { paddingHorizontal: 0, paddingVertical: 0, marginBottom: 8, overflow: 'hidden' }]}>
+                <View style={stS.perfSectionBanner}>
+                  <Icon name="cricket" size={12} color={Colors.primary} />
+                  <Text style={stS.perfSectionLabel}>BATTING</Text>
+                </View>
+                {topScorers.slice(0, 3).map((p, i) => {
+                  const photo = p.player?.photo || p.player?.userId?.photo;
+                  return (
+                    <TouchableOpacity
+                      key={p.player?._id || i}
+                      style={[stS.perfRow, i === topScorers.slice(0, 3).length - 1 && { borderBottomWidth: 0 }]}
+                      activeOpacity={0.82}
+                      onPress={() => p.player?._id && navigation.navigate('PlayerDetail', { id: p.player._id })}
+                    >
+                      <Text style={[stS.perfRankNum, i === 0 && { color: Colors.primary }, i === 1 && { color: '#FFFFFF' }, i === 2 && { color: 'rgba(255,255,255,0.6)' }]}>
+                        {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+                      </Text>
+                      <View style={stS.lbAvatar}>
+                        {photo
+                          ? <Image source={{ uri: getImageUrl(photo) }} style={styles.lbAvatarImg} />
+                          : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
+                        }
+                      </View>
+                      <View style={stS.perfInfo}>
+                        <Text style={stS.perfName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
+                        <Text style={stS.perfMeta}>Avg {p.average} · SR {p.strikeRate}</Text>
+                      </View>
+                      <View style={stS.perfPrimary}>
+                        <Text style={stS.perfPrimaryVal}>{p.runs}</Text>
+                        <Text style={stS.perfPrimaryLabel}>runs</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {topBowlers.length > 0 && (
+              <View style={[stS.chartCard, { paddingHorizontal: 0, paddingVertical: 0, overflow: 'hidden' }]}>
+                <View style={stS.perfSectionBanner}>
+                  <Icon name="baseball" size={12} color={Colors.primary} />
+                  <Text style={stS.perfSectionLabel}>BOWLING</Text>
+                </View>
+                {topBowlers.slice(0, 3).map((p, i) => {
+                  const photo = p.player?.photo || p.player?.userId?.photo;
+                  return (
+                    <TouchableOpacity
+                      key={p.player?._id || i}
+                      style={[stS.perfRow, i === topBowlers.slice(0, 3).length - 1 && { borderBottomWidth: 0 }]}
+                      activeOpacity={0.82}
+                      onPress={() => p.player?._id && navigation.navigate('PlayerDetail', { id: p.player._id })}
+                    >
+                      <Text style={[stS.perfRankNum]}>
+                        {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+                      </Text>
+                      <View style={stS.lbAvatar}>
+                        {photo
+                          ? <Image source={{ uri: getImageUrl(photo) }} style={styles.lbAvatarImg} />
+                          : <View style={styles.lbAvatarFb}><Text style={styles.lbAvatarLetter}>{p.player?.name?.[0] || '?'}</Text></View>
+                        }
+                      </View>
+                      <View style={stS.perfInfo}>
+                        <Text style={stS.perfName} numberOfLines={1}>{p.player?.name || 'Unknown'}</Text>
+                        <Text style={stS.perfMeta}>Econ {p.economy} · Avg {p.bowlingAvg}</Text>
+                      </View>
+                      <View style={stS.perfPrimary}>
+                        <Text style={stS.perfPrimaryVal}>{p.wickets}</Text>
+                        <Text style={stS.perfPrimaryLabel}>wkts</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ═══════════════════════════════════════════════════
+            7. TEAM RECORDS
+        ═══════════════════════════════════════════════════ */}
+        {(records.highestScore || records.biggestWinByRuns || records.longestWinStreak > 0) && (
+          <View style={{ marginBottom: 0 }}>
+            <SectionHeader title="Team Records" />
+            <View style={stS.chartCard}>
+              <View style={stS.recordsGrid}>
+                {records.highestScore && (
+                  <View style={stS.recordItem}>
+                    <Icon name="arrow-up-bold" size={18} color={Colors.primary} />
+                    <Text style={[stS.recordVal, { color: Colors.primary }]}>{records.highestScore.score}</Text>
+                    <Text style={stS.recordLabel}>Highest Score</Text>
+                    <Text style={stS.recordSub}>vs {records.highestScore.vs?.split(' ')[0]}</Text>
+                  </View>
+                )}
+                {records.lowestScore && (
+                  <View style={stS.recordItem}>
+                    <Icon name="arrow-down-bold" size={18} color="rgba(255,255,255,0.6)" />
+                    <Text style={[stS.recordVal, { color: '#FFFFFF' }]}>{records.lowestScore.score}</Text>
+                    <Text style={stS.recordLabel}>Lowest Score</Text>
+                    <Text style={stS.recordSub}>vs {records.lowestScore.vs?.split(' ')[0]}</Text>
+                  </View>
+                )}
+                {records.biggestWinByRuns && (
+                  <View style={stS.recordItem}>
+                    <Icon name="trophy-outline" size={18} color={Colors.primary} />
+                    <Text style={[stS.recordVal, { color: Colors.primary }]}>{records.biggestWinByRuns.margin}</Text>
+                    <Text style={stS.recordLabel}>Runs Won By</Text>
+                    <Text style={stS.recordSub}>vs {records.biggestWinByRuns.vs?.split(' ')[0]}</Text>
+                  </View>
+                )}
+                {records.biggestWinByWickets && (
+                  <View style={stS.recordItem}>
+                    <Icon name="trophy" size={18} color={Colors.primary} />
+                    <Text style={[stS.recordVal, { color: Colors.primary }]}>{records.biggestWinByWickets.margin}</Text>
+                    <Text style={stS.recordLabel}>Wickets Won By</Text>
+                    <Text style={stS.recordSub}>vs {records.biggestWinByWickets.vs?.split(' ')[0]}</Text>
+                  </View>
+                )}
+                {records.highestChase && (
+                  <View style={stS.recordItem}>
+                    <Icon name="flag-checkered" size={18} color={Colors.primary} />
+                    <Text style={[stS.recordVal, { color: Colors.primary }]}>{records.highestChase.score}</Text>
+                    <Text style={stS.recordLabel}>Highest Chase</Text>
+                    <Text style={stS.recordSub}>vs {records.highestChase.vs?.split(' ')[0]}</Text>
+                  </View>
+                )}
+                {records.longestWinStreak > 0 && (
+                  <View style={stS.recordItem}>
+                    <Icon name="fire" size={18} color={Colors.primary} />
+                    <Text style={[stS.recordVal, { color: Colors.primary }]}>{records.longestWinStreak}</Text>
+                    <Text style={stS.recordLabel}>Win Streak</Text>
+                    <Text style={stS.recordSub}>matches</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ═══════════════════════════════════════════════════
+            8. HEAD-TO-HEAD
+        ═══════════════════════════════════════════════════ */}
+        {h2h.length > 0 && (
+          <View style={{ marginBottom: 0 }}>
+            <SectionHeader title="Head-to-Head" />
+            <View style={stS.chartCard}>
+              {h2h.map((h, idx) => {
+                const wp = parseInt(h.winPct) || 0;
+                return (
+                  <View key={h.opponent?._id?.toString() || idx} style={[stS.h2hRow, idx === h2h.length - 1 && { borderBottomWidth: 0 }]}>
+                    <View style={stS.h2hOpponent}>
+                      {h.opponent?.logo
+                        ? <Image source={{ uri: getImageUrl(h.opponent.logo) }} style={stS.h2hLogo} />
+                        : <View style={stS.h2hLogoFb}><Text style={stS.h2hLogoLetter}>{h.opponent?.name?.[0] || '?'}</Text></View>
+                      }
+                      <Text style={stS.h2hName} numberOfLines={1}>{h.opponent?.name || '?'}</Text>
+                    </View>
+                    <View style={stS.h2hStats}>
+                      <View style={stS.h2hBarBg}>
+                        <View style={[stS.h2hBarFill, { width: `${wp}%`, backgroundColor: Colors.primary }]} />
+                      </View>
+                      <Text style={stS.h2hFigures}>
+                        <Text style={{ color: Colors.primary }}>{h.wins}W</Text>
+                        <Text style={{ color: Colors.textTertiary }}> · </Text>
+                        <Text style={{ color: Colors.textSecondary }}>{h.losses}L</Text>
+                        <Text style={{ color: Colors.textTertiary }}> / {h.matches}M</Text>
+                      </Text>
+                    </View>
+                    <Text style={[stS.h2hWinPct, { color: Colors.primary }]}>{wp}%</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Empty state */}
+        {!s.matches && !teamStats && (
+          <View style={stS.emptyWrap}>
+            <Icon name="chart-bar" size={52} color={Colors.primaryAlpha30} />
+            <Text style={stS.emptyTitle}>No Stats Yet</Text>
+            <Text style={stS.emptySub}>Play matches to unlock your team's analytics dashboard</Text>
           </View>
         )}
       </ScrollView>
@@ -577,7 +1086,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
     const topField = teamStats?.topFielders || [];
 
     return (
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
@@ -599,8 +1108,8 @@ const TeamDetailScreen = ({ navigation, route }) => {
             {topBat.length === 0 ? <EmptyState icon="cricket" label="No batting data yet" small /> : topBat.map((p, i) => {
               const photo = p.player?.photo || p.player?.userId?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
               return (
-                <TouchableOpacity 
-                  key={p.player?._id || i} 
+                <TouchableOpacity
+                  key={p.player?._id || i}
                   style={styles.lbRow}
                   activeOpacity={0.85}
                   onPress={() => p.player?._id && navigation.navigate('PlayerDetail', { id: p.player._id })}
@@ -637,8 +1146,8 @@ const TeamDetailScreen = ({ navigation, route }) => {
             {topBowl.length === 0 ? <EmptyState icon="baseball" label="No bowling data yet" small /> : topBowl.map((p, i) => {
               const photo = p.player?.photo || p.player?.userId?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
               return (
-                <TouchableOpacity 
-                  key={p.player?._id || i} 
+                <TouchableOpacity
+                  key={p.player?._id || i}
                   style={styles.lbRow}
                   activeOpacity={0.85}
                   onPress={() => p.player?._id && navigation.navigate('PlayerDetail', { id: p.player._id })}
@@ -675,8 +1184,8 @@ const TeamDetailScreen = ({ navigation, route }) => {
             {topField.length === 0 ? <EmptyState icon="hand-back-right" label="No fielding data yet" small /> : topField.map((p, i) => {
               const photo = p.player?.photo || p.player?.userId?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
               return (
-                <TouchableOpacity 
-                  key={p.player?._id || i} 
+                <TouchableOpacity
+                  key={p.player?._id || i}
                   style={styles.lbRow}
                   activeOpacity={0.85}
                   onPress={() => p.player?._id && navigation.navigate('PlayerDetail', { id: p.player._id })}
@@ -710,107 +1219,399 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const renderAchievementsTab = () => {
     const s = selectedTeam?.stats || {};
     return (
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
-        keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tabContent, { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }]} showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
       >
-        {ACHIEVEMENTS.map(ach => {
-          const current = s[ach.key] || 0;
-          const unlocked = current >= ach.target;
-          const pct = Math.min((current / ach.target) * 100, 100);
+        <View style={styles.achGrid}>
+          {ACHIEVEMENTS.map(ach => {
+            const current = s[ach.key] || 0;
+            const unlocked = current >= ach.target;
+            const pct = Math.min((current / ach.target) * 100, 100);
 
-          return (
-            <View key={ach.id} style={[styles.achCard, unlocked && styles.achCardUnlocked]}>
-              <View style={[styles.achIconWrap, unlocked && styles.achIconWrapUnlocked]}>
-                <Icon name={ach.icon} size={28} color={unlocked ? '#FFD700' : Colors.textTertiary} />
-              </View>
-              <Text style={[styles.achLabel, unlocked && styles.achLabelUnlocked]}>{ach.label}</Text>
-              <Text style={styles.achDesc}>{ach.desc}</Text>
-              {!unlocked && (
-                <>
-                  <View style={styles.achProgressBg}>
-                    <View style={[styles.achProgressFill, { width: `${pct}%` }]} />
-                  </View>
-                  <Text style={styles.achProgress}>{current}/{ach.target}</Text>
-                </>
-              )}
-              {unlocked && (
-                <View style={styles.achUnlockedBadge}>
-                  <Icon name="check-circle" size={12} color={Colors.primary} />
-                  <Text style={styles.achUnlockedText}>Unlocked!</Text>
+            return (
+              <View key={ach.id} style={[styles.achCard, unlocked && styles.achCardUnlocked]}>
+                <View style={[styles.achIconWrap, unlocked && styles.achIconWrapUnlocked]}>
+                  <Icon name={ach.icon} size={28} color={unlocked ? '#FFD700' : Colors.textTertiary} />
                 </View>
-              )}
-            </View>
-          );
-        })}
+                <Text style={[styles.achLabel, unlocked && styles.achLabelUnlocked]}>{ach.label}</Text>
+                <Text style={styles.achDesc}>{ach.desc}</Text>
+                {!unlocked && (
+                  <>
+                    <View style={styles.achProgressBg}>
+                      <View style={[styles.achProgressFill, { width: `${pct}%` }]} />
+                    </View>
+                    <Text style={styles.achProgress}>{current}/{ach.target}</Text>
+                  </>
+                )}
+                {unlocked && (
+                  <View style={styles.achUnlockedBadge}>
+                    <Icon name="check-circle" size={12} color={Colors.primary} />
+                    <Text style={styles.achUnlockedText}>Unlocked!</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
       </ScrollView>
     );
   };
 
   const renderAnalyticsTab = () => {
     if (statsLoading && !teamStats) return <LoadingState />;
-    const recent = teamStats?.recentMatches || [];
-    const s = selectedTeam?.stats || {};
-    const winPct = s.matches > 0 ? parseFloat(((s.wins / s.matches) * 100).toFixed(1)) : 0;
-    const lossPct = s.matches > 0 ? parseFloat(((s.losses / s.matches) * 100).toFixed(1)) : 0;
-    const nrPct = Math.max(0, 100 - winPct - lossPct);
+
+    const totalMatches = selectedTeam?.stats?.matches || teamStats?.recentMatches?.length || 0;
+    if (!totalMatches) {
+      return (
+        <ScrollView
+          style={{ flex: 1 }}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+        >
+          <EmptyState icon="chart-timeline-variant" label="No match has played yet" />
+        </ScrollView>
+      );
+    }
+
+    const perfTrend = teamStats?.performanceTrend || {
+      winRate: { current: 0, previous: 0, change: 0 },
+      avgScore: { current: 0, previous: 0, change: 0 },
+      runRate: { current: 0, previous: 0, change: 0 },
+      points: [],
+    };
+
+    const playerContrib = teamStats?.playerContribution || { batting: [], bowling: [] };
+    const contribList = contribType === 'batting' ? (playerContrib.batting || []) : (playerContrib.bowling || []);
+
+    const strengths = teamStats?.teamStrengths || [];
+
+    const last6Obj = teamStats?.recentFormLast6 || {};
+    const last6Matches = (last6Obj.matches || teamStats?.recentMatches || []).slice(0, 6);
+    const last6Wins = last6Obj.wins ?? last6Matches.filter(m => m.result === 'W').length;
+    const last6Losses = last6Obj.losses ?? last6Matches.filter(m => m.result === 'L').length;
+    const last6WinRate = last6Obj.winRate ?? (last6Matches.length > 0 ? parseFloat(((last6Wins / last6Matches.length) * 100).toFixed(1)) : 0);
+
+    const bFirstVsChasing = teamStats?.batFirstVsChasing || {
+      batFirst: { matches: 0, wins: 0, losses: 0, winRate: 0, avgScore: 0 },
+      chasing: { matches: 0, wins: 0, losses: 0, winRate: 0, avgScore: 0 },
+    };
+
+    const seasonList = teamStats?.seasonComparison || [];
+
+    // Performance trend points & metric
+    const points = perfTrend.points || [];
+    const trendLabels = points.map(p => p.period);
+    const trendValues = points.map(p =>
+      trendMetric === 'win_rate' ? (p.winRate || 0) :
+      trendMetric === 'avg_score' ? (p.avgScore || 0) : (p.runRate || 0)
+    );
+
+    const metricSummary = trendMetric === 'win_rate' ? perfTrend.winRate :
+      trendMetric === 'avg_score' ? perfTrend.avgScore : perfTrend.runRate;
+
+    const unitSuffix = trendMetric === 'win_rate' ? '%' : trendMetric === 'run_rate' ? ' rpo' : '';
+
+    const chartW = SCREEN_W - 28;
+
+    const SectionHeader = ({ title, sub }) => (
+      <View style={stS.sectionHeader}>
+        <Text style={stS.sectionTitle}>{title}</Text>
+        {sub && <Text style={stS.sectionSub}>{sub}</Text>}
+      </View>
+    );
 
     return (
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
-        keyboardShouldPersistTaps="handled" contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 80 }}
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
       >
-        {/* Donut-style result breakdown */}
-        <View style={styles.analyticsCard}>
-          <Text style={styles.statsCardTitle}>Result Breakdown</Text>
-          <View style={styles.resultBreakdownRow}>
-            <ResultBlock pct={winPct} label="Wins" color={Colors.success} />
-            <ResultBlock pct={lossPct} label="Losses" color={Colors.error} />
-            <ResultBlock pct={nrPct} label="No Result" color={Colors.textTertiary} />
-          </View>
-        </View>
 
-        {/* Win trend — last 5 matches as W/L dots */}
-        <View style={styles.analyticsCard}>
-          <Text style={styles.statsCardTitle}>Recent Form (Last {Math.min(recent.length, 5)})</Text>
-          <View style={styles.formRow}>
-            {recent.slice(0, 5).map((m, i) => (
-              <View key={i} style={[
-                styles.formDot,
-                m.result === 'W' ? styles.formDotWin : m.result === 'L' ? styles.formDotLoss : styles.formDotNR
-              ]}>
-                <Text style={styles.formDotText}>{m.result || 'NR'}</Text>
-              </View>
+        {/* ═══════════════════════════════════════════════════
+            2. PLAYER CONTRIBUTION
+        ═══════════════════════════════════════════════════ */}
+        <SectionHeader title="Player Contribution" />
+        <View style={stS.chartCard}>
+          <View style={stS.toggleRow}>
+            {[
+              { id: 'batting', label: 'Batting' },
+              { id: 'bowling', label: 'Bowling' },
+            ].map(t => (
+              <TouchableOpacity
+                key={t.id}
+                style={[stS.toggleBtn, contribType === t.id && stS.toggleBtnActive, { flex: 1 }]}
+                onPress={() => setContribType(t.id)}
+                activeOpacity={0.8}
+              >
+                <Text style={[stS.toggleBtnText, contribType === t.id && stS.toggleBtnTextActive]}>{t.label}</Text>
+              </TouchableOpacity>
             ))}
-            {recent.length === 0 && <Text style={styles.noDataText}>No matches yet</Text>}
+          </View>
+
+          <View style={{ marginTop: 14, gap: 12 }}>
+            {contribList.length > 0 ? contribList.map((item, idx) => {
+              const photo = item.photo;
+              const isPlayer = !!item.player?._id;
+              return (
+                <TouchableOpacity
+                  key={item.player?._id || idx}
+                  disabled={!isPlayer}
+                  activeOpacity={0.8}
+                  onPress={() => isPlayer && navigation.navigate('PlayerDetail', { id: item.player._id })}
+                  style={stS.contribRow}
+                >
+                  <View style={stS.contribAvatarWrap}>
+                    {photo ? (
+                      <Image source={{ uri: getImageUrl(photo) }} style={stS.contribAvatarImg} />
+                    ) : (
+                      <View style={stS.contribAvatarFb}>
+                        <Text style={stS.contribAvatarLetter}>{item.name?.[0] || '?'}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={stS.contribName} numberOfLines={1}>{item.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={stS.contribStat}>{item.statVal} {item.statLabel}</Text>
+                        <Text style={stS.contribPct}>{item.contributionPct}%</Text>
+                      </View>
+                    </View>
+                    <View style={stS.contribBarBg}>
+                      <View style={[stS.contribBarFill, { width: `${Math.min(100, item.contributionPct)}%` }]} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            }) : (
+              <Text style={{ color: Colors.textTertiary, fontSize: 12, textAlign: 'center', marginVertical: 10 }}>
+                No {contribType} contribution data available
+              </Text>
+            )}
           </View>
         </View>
 
-        {/* Format bar chart */}
-        {teamStats?.formatBreakdown && Object.keys(teamStats.formatBreakdown).length > 0 && (
-          <View style={styles.analyticsCard}>
-            <Text style={styles.statsCardTitle}>Matches by Format</Text>
-            <View style={styles.barChartWrap}>
-              {Object.entries(teamStats.formatBreakdown).map(([fmt, data]) => {
-                const maxMatches = Math.max(...Object.values(teamStats.formatBreakdown).map(d => d.matches));
-                const barH = maxMatches > 0 ? Math.max((data.matches / maxMatches) * 100, 8) : 8;
-                return (
-                  <View key={fmt} style={styles.barColumn}>
-                    <Text style={styles.barValue}>{data.matches}</Text>
-                    <View style={styles.barBg}>
-                      <LinearGradient colors={Colors.primaryGradient} style={[styles.barFill, { height: `${barH}%` }]} />
-                    </View>
-                    <Text style={styles.barLabel}>{fmt}</Text>
-                  </View>
-                );
-              })}
+
+        {/* ═══════════════════════════════════════════════════
+            4. RECENT FORM — LAST 6
+        ═══════════════════════════════════════════════════ */}
+        <SectionHeader title="Recent Form" sub="Last 6 Matches" />
+        <View style={stS.chartCard}>
+          <View style={stS.last6DotsRow}>
+            {last6Matches.map((m, idx) => (
+              <TouchableOpacity
+                key={m._id || idx}
+                activeOpacity={0.8}
+                onPress={() => (m.matchId || m._id) && navigation.navigate('MatchSummary', { id: m.matchId || m._id })}
+                style={[
+                  stS.last6Dot,
+                  m.result === 'W' ? stS.last6DotWin :
+                  m.result === 'L' ? stS.last6DotLoss : stS.last6DotNR
+                ]}
+              >
+                <Text style={[stS.last6DotText, m.result === 'W' && { color: '#000000' }]}>
+                  {m.result || 'NR'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            {last6Matches.length === 0 && (
+              <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>No matches played yet</Text>
+            )}
+          </View>
+
+          <View style={stS.cardDivider} />
+          <View style={stS.last6SummaryRow}>
+            <View>
+              <Text style={stS.last6SummaryMain}>{last6Wins} Wins · {last6Losses} Losses</Text>
+              <Text style={stS.last6SummarySub}>Last {last6Matches.length} Completed Matches</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={stS.last6WinRateVal}>{last6WinRate}%</Text>
+              <Text style={stS.last6SummarySub}>Win Rate</Text>
             </View>
           </View>
-        )}
+        </View>
 
 
+        {/* ═══════════════════════════════════════════════════
+            5. BATTING FIRST vs CHASING
+        ═══════════════════════════════════════════════════ */}
+        <SectionHeader title="Batting First vs Chasing" />
+        <View style={stS.chartCard}>
+          <View style={stS.versusGrid}>
+            <View style={stS.versusCol}>
+              <View style={stS.versusBadge}>
+                <Text style={stS.versusBadgeText}>BAT FIRST</Text>
+              </View>
+              <View style={stS.versusMetric}>
+                <Text style={stS.versusVal}>{bFirstVsChasing.batFirst.matches}</Text>
+                <Text style={stS.versusLabel}>Matches</Text>
+              </View>
+              <View style={stS.versusMetric}>
+                <Text style={[stS.versusVal, { color: Colors.primary }]}>{bFirstVsChasing.batFirst.wins}</Text>
+                <Text style={stS.versusLabel}>Wins</Text>
+              </View>
+              <View style={stS.versusMetric}>
+                <Text style={[stS.versusVal, { color: Colors.primary }]}>{bFirstVsChasing.batFirst.winRate}%</Text>
+                <Text style={stS.versusLabel}>Win Rate</Text>
+              </View>
+              <View style={stS.versusMetric}>
+                <Text style={stS.versusVal}>{bFirstVsChasing.batFirst.avgScore}</Text>
+                <Text style={stS.versusLabel}>Avg Score</Text>
+              </View>
+            </View>
+
+            <View style={stS.versusDivider} />
+
+            <View style={stS.versusCol}>
+              <View style={[stS.versusBadge, { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)' }]}>
+                <Text style={[stS.versusBadgeText, { color: Colors.textSecondary }]}>CHASING</Text>
+              </View>
+              <View style={stS.versusMetric}>
+                <Text style={stS.versusVal}>{bFirstVsChasing.chasing.matches}</Text>
+                <Text style={stS.versusLabel}>Matches</Text>
+              </View>
+              <View style={stS.versusMetric}>
+                <Text style={[stS.versusVal, { color: Colors.primary }]}>{bFirstVsChasing.chasing.wins}</Text>
+                <Text style={stS.versusLabel}>Wins</Text>
+              </View>
+              <View style={stS.versusMetric}>
+                <Text style={[stS.versusVal, { color: Colors.primary }]}>{bFirstVsChasing.chasing.winRate}%</Text>
+                <Text style={stS.versusLabel}>Win Rate</Text>
+              </View>
+              <View style={stS.versusMetric}>
+                <Text style={stS.versusVal}>{bFirstVsChasing.chasing.avgScore}</Text>
+                <Text style={stS.versusLabel}>Avg Score</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={stS.cardDivider} />
+          <View style={{ gap: 8, marginTop: 2 }}>
+            <View style={stS.versusBarRow}>
+              <Text style={stS.versusBarLabel}>Bat First</Text>
+              <View style={stS.versusBarBg}>
+                <View style={[stS.versusBarFill, { width: `${Math.min(100, bFirstVsChasing.batFirst.winRate)}%` }]} />
+              </View>
+              <Text style={stS.versusBarVal}>{bFirstVsChasing.batFirst.winRate}%</Text>
+            </View>
+            <View style={stS.versusBarRow}>
+              <Text style={stS.versusBarLabel}>Chasing</Text>
+              <View style={stS.versusBarBg}>
+                <View style={[stS.versusBarFill, { width: `${Math.min(100, bFirstVsChasing.chasing.winRate)}%`, backgroundColor: 'rgba(255,255,255,0.7)' }]} />
+              </View>
+              <Text style={stS.versusBarVal}>{bFirstVsChasing.chasing.winRate}%</Text>
+            </View>
+          </View>
+        </View>
+
+
+        {/* ═══════════════════════════════════════════════════
+            6. SEASON COMPARISON
+        ═══════════════════════════════════════════════════ */}
+        <SectionHeader title="Season Comparison" />
+        <View style={[stS.chartCard, { paddingHorizontal: 0, paddingVertical: 0, overflow: 'hidden' }]}>
+          <View style={stS.seasonTableHeader}>
+            <Text style={[stS.seasonTableCell, stS.seasonTableHeadText, { flex: 1.2 }]}>Season</Text>
+            <Text style={[stS.seasonTableCell, stS.seasonTableHeadText]}>Matches</Text>
+            <Text style={[stS.seasonTableCell, stS.seasonTableHeadText]}>Wins</Text>
+            <Text style={[stS.seasonTableCell, stS.seasonTableHeadText]}>Losses</Text>
+            <Text style={[stS.seasonTableCell, stS.seasonTableHeadText, { textAlign: 'right' }]}>Win %</Text>
+          </View>
+
+          {seasonList.map((sea, idx) => {
+            const isLatest = idx === 0;
+            return (
+              <View
+                key={sea.season || idx}
+                style={[
+                  stS.seasonTableRow,
+                  isLatest && stS.seasonTableRowHighlight,
+                  idx === seasonList.length - 1 && { borderBottomWidth: 0 }
+                ]}
+              >
+                <View style={[{ flex: 1.2, flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                  <Text style={[stS.seasonTableCellText, isLatest && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+                    {sea.season}
+                  </Text>
+                </View>
+                <Text style={stS.seasonTableCellText}>{sea.matches}</Text>
+                <Text style={[stS.seasonTableCellText, { color: Colors.primary }]}>{sea.wins}</Text>
+                <Text style={stS.seasonTableCellText}>{sea.losses}</Text>
+                <Text style={[stS.seasonTableCellText, { textAlign: 'right', color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+                  {sea.winPct}%
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+
+      </ScrollView>
+    );
+  };
+
+  // ── Trophies Tab ────────────────────────────────────────────────────────
+  const renderTrophiesTab = () => {
+    const trophies = team?.trophies || [];
+
+    if (trophies.length === 0) {
+      return (
+        <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.emptyTrophiesWrap}>
+            <LinearGradient colors={[Colors.primaryAlpha20, 'transparent']} style={styles.emptyTrophiesCircle}>
+              <Icon name="trophy-broken" size={44} color={Colors.primary} />
+            </LinearGradient>
+            <Text style={styles.emptyTrophiesTitle}>No Trophies Yet</Text>
+            <Text style={styles.emptyTrophiesSub}>
+              When {team?.name || 'this team'} wins tournaments, the championship trophies and titles will be showcased here!
+            </Text>
+          </View>
+        </ScrollView>
+      );
+    }
+
+    return (
+      <ScrollView contentContainerStyle={styles.tabContent} showsVerticalScrollIndicator={false}>
+        
+
+        <View style={styles.trophiesGrid}>
+          {trophies.map((tour, idx) => (
+            <View key={tour._id || idx} style={styles.trophyCardGrid}>
+              <LinearGradient
+                colors={['rgba(255, 204, 0, 0.2)', 'rgba(255, 204, 0, 0.03)']}
+                style={styles.trophyGridIconWrap}
+              >
+                <Icon name="trophy" size={26} color={Colors.primary} />
+              </LinearGradient>
+
+              <View style={styles.championPillGrid}>
+                <Icon name="crown" size={9} color="#000" />
+                <Text style={styles.championPillText}>CHAMPIONS</Text>
+              </View>
+
+              <Text style={styles.trophyGridName} numberOfLines={2}>{tour.name}</Text>
+
+              {tour.city ? (
+                <View style={styles.trophyGridMetaItem}>
+                  <Icon name="map-marker-outline" size={11} color={Colors.textTertiary} />
+                  <Text style={styles.trophyGridMetaText} numberOfLines={1}>{tour.city}</Text>
+                </View>
+              ) : tour.endDate ? (
+                <View style={styles.trophyGridMetaItem}>
+                  <Icon name="calendar-month-outline" size={11} color={Colors.textTertiary} />
+                  <Text style={styles.trophyGridMetaText} numberOfLines={1}>
+                    {new Date(tour.endDate).getFullYear()}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ))}
+        </View>
       </ScrollView>
     );
   };
@@ -819,6 +1620,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
     switch (activeTab) {
       case 'players': return renderPlayersTab();
       case 'matches': return renderMatchesTab();
+      case 'trophies': return renderTrophiesTab();
       case 'stats': return renderStatsTab();
       case 'leaderboard': return renderLeaderboardTab();
       case 'achievements': return renderAchievementsTab();
@@ -880,15 +1682,12 @@ const TeamDetailScreen = ({ navigation, route }) => {
               ? <Image source={{ uri: getImageUrl(team.logo) }} style={styles.teamLogo} />
               : (
                 <LinearGradient colors={[Colors.primaryAlpha20, Colors.primaryAlpha10]} style={styles.teamLogoFb}>
-                  <Icon name="shield" size={40} color={Colors.primary} />
+                  <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 32 }}>
+                    {(team?.name || 'T').trim().charAt(0).toUpperCase()}
+                  </Text>
                 </LinearGradient>
               )
             }
-            {winPct !== '—' && (
-              <View style={styles.winPctBadge}>
-                <Text style={styles.winPctText}>{winPct}%</Text>
-              </View>
-            )}
           </View>
           <View style={styles.teamMeta}>
             <Text style={styles.teamNameLarge} numberOfLines={1}>{team?.name || 'Team'}</Text>
@@ -898,25 +1697,48 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 <Text style={styles.teamCity}>{team.city}{team.state ? `, ${team.state}` : ''}</Text>
               </View>
             )}
-            <View style={styles.teamQuickStats}>
-              <QuickStat label="Players" value={team?.players?.length || 0} icon="account-multiple" />
-              <QuickStat label="Matches" value={team?.stats?.matches || 0} icon="cricket" />
-              <QuickStat label="Wins" value={team?.stats?.wins || 0} icon="trophy" primary />
-            </View>
+
+            {/* Follow button below location */}
+            <TouchableOpacity
+              style={[styles.followInlineBtn, team?.isFollowing && styles.followInlineBtnActive]}
+              onPress={handleFollow}
+              activeOpacity={0.8}
+            >
+              <Icon
+                name={team?.isFollowing ? 'check' : 'plus'}
+                size={12}
+                color={team?.isFollowing ? Colors.primary : '#FFFFFF'}
+                style={{ marginRight: 4 }}
+              />
+              <Text style={[styles.followInlineBtnText, team?.isFollowing && styles.followInlineBtnTextActive]}>
+                {team?.isFollowing ? 'Following' : 'Follow'} {team?.followerCount ? `· ${team.followerCount}` : ''}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Follow button row */}
-        <View style={styles.headerBtnsRow}>
-          <TouchableOpacity
-            style={[styles.followBigBtn, team?.isFollowing && styles.followBigBtnActive]}
-            onPress={handleFollow}
-          >
-            <Icon name={team?.isFollowing ? 'bell' : 'bell-outline'} size={15} color={team?.isFollowing ? '#000' : Colors.primary} />
-            <Text style={[styles.followBigBtnText, team?.isFollowing && { color: '#000' }]}>
-              {team?.isFollowing ? 'Following' : 'Follow'} {team?.followerCount ? `· ${team.followerCount}` : ''}
-            </Text>
-          </TouchableOpacity>
+        {/* Stats summary cards - Full Width Balanced Grid */}
+        <View style={styles.statsSummaryGrid}>
+          <View style={styles.summaryStatCard}>
+            <Icon name="account-group" size={16} color={Colors.textSecondary} style={{ marginBottom: 3 }} />
+            <Text style={styles.summaryStatValue}>{team?.players?.length || 0}</Text>
+            <Text style={styles.summaryStatLabel}>PLAYERS</Text>
+          </View>
+          <View style={styles.summaryStatCard}>
+            <Icon name="cricket" size={16} color={Colors.textSecondary} style={{ marginBottom: 3 }} />
+            <Text style={styles.summaryStatValue}>{team?.stats?.matches || 0}</Text>
+            <Text style={styles.summaryStatLabel}>MATCHES</Text>
+          </View>
+          <View style={styles.summaryStatCard}>
+            <Icon name="trophy" size={16} color={Colors.primary} style={{ marginBottom: 3 }} />
+            <Text style={[styles.summaryStatValue, { color: Colors.primary }]}>{team?.stats?.wins || 0}</Text>
+            <Text style={styles.summaryStatLabel}>WINS</Text>
+          </View>
+          <View style={styles.summaryStatCard}>
+            <Icon name="percent" size={16} color={Colors.accent} style={{ marginBottom: 3 }} />
+            <Text style={[styles.summaryStatValue, { color: Colors.accent }]}>{winPct === '—' ? '0%' : `${winPct}%`}</Text>
+            <Text style={styles.summaryStatLabel}>WIN RATE</Text>
+          </View>
         </View>
 
         {/* ── Tab Bar (horizontal scroll) ── */}
@@ -1127,7 +1949,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
               <Text style={{ fontSize: 14, color: Colors.textSecondary, fontFamily: 'Outfit-Regular', marginBottom: 16, lineHeight: 22 }}>
                 Please select a reason for reporting this team profile. Our team will review the team logo, name, and squad details and take appropriate action.
               </Text>
-              
+
               <View style={{ gap: 8, marginBottom: 20 }}>
                 {[
                   { key: 'inappropriate_name', label: 'Inappropriate Team Name' },
@@ -1138,16 +1960,16 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 ].map(item => {
                   const isSelected = reportReason === item.key;
                   return (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       key={item.key}
-                      style={{ 
-                        flexDirection: 'row', alignItems: 'center', padding: 14, 
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', padding: 14,
                         backgroundColor: isSelected ? 'rgba(255,204,0,0.1)' : Colors.surface,
                         borderRadius: 12, borderWidth: 1, borderColor: isSelected ? Colors.primary : Colors.border
                       }}
                       onPress={() => setReportReason(item.key)}
                     >
-                      <View style={{ 
+                      <View style={{
                         width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: isSelected ? Colors.primary : Colors.textTertiary,
                         justifyContent: 'center', alignItems: 'center', marginRight: 12
                       }}>
@@ -1164,7 +1986,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
               <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Outfit-SemiBold', marginBottom: 8, marginLeft: 4 }}>
                 Additional Details (Optional)
               </Text>
-              <View style={{ 
+              <View style={{
                 height: 80, backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
                 paddingHorizontal: 12, marginBottom: 24
               }}>
@@ -1179,9 +2001,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 />
               </View>
 
-              <TouchableOpacity 
-                style={{ 
-                  height: 48, borderRadius: 12, backgroundColor: Colors.primary, 
+              <TouchableOpacity
+                style={{
+                  height: 48, borderRadius: 12, backgroundColor: Colors.primary,
                   justifyContent: 'center', alignItems: 'center', flexDirection: 'row'
                 }}
                 onPress={handleReportTeam}
@@ -1274,26 +2096,199 @@ const styles = StyleSheet.create({
   },
   navActions: { flexDirection: 'row', gap: 8 },
 
-  teamIdentity: { flexDirection: 'row', gap: 14, marginBottom: 12, alignItems: 'flex-start' },
+  teamIdentity: { flexDirection: 'row', gap: 14, marginBottom: 14, alignItems: 'center' },
   teamLogoWrap: { position: 'relative' },
-  teamLogo: { width: 80, height: 80, borderRadius: 40, borderWidth: 3, borderColor: Colors.primaryAlpha30 },
-  teamLogoFb: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.primaryAlpha30 },
+  teamLogo: { width: 72, height: 72, borderRadius: 36, borderWidth: 2, borderColor: Colors.primaryAlpha30 },
+  teamLogoFb: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.primaryAlpha30 },
   winPctBadge: {
     position: 'absolute', bottom: -4, right: -4,
     backgroundColor: Colors.primary, borderRadius: 10,
     paddingHorizontal: 5, paddingVertical: 1,
   },
   winPctText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 9 },
-  teamMeta: { flex: 1 },
-  teamNameLarge: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 20, marginBottom: 4 },
+  teamMeta: { flex: 1, justifyContent: 'center' },
+  teamNameLarge: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 20, marginBottom: 2 },
   teamCityRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
   teamCity: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
-  teamQuickStats: { flexDirection: 'row', gap: 8 },
-  quickStat: { alignItems: 'center', backgroundColor: Colors.backgroundCard, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
-  quickStatVal: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
-  quickStatLabel: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 9 },
 
-  headerBtnsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  followInlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  followInlineBtnActive: {
+    backgroundColor: 'rgba(255, 204, 0, 0.12)',
+    borderColor: 'rgba(255, 204, 0, 0.4)',
+  },
+  followInlineBtnText: {
+    color: '#FFFFFF',
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 11,
+  },
+  followInlineBtnTextActive: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+  },
+
+  // Full-width Balanced Stats Grid
+  statsSummaryGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+    width: '100%',
+  },
+  summaryStatCard: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  summaryStatValue: {
+    color: '#fff',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+    marginBottom: 1,
+  },
+  summaryStatLabel: {
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 9,
+    letterSpacing: 0.5,
+  },
+
+  // Trophies tab
+  trophiesHeaderBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 204, 0, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.25)',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+  },
+  trophiesBannerTitle: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
+  trophiesBannerSub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginTop: 2 },
+  trophyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundCard,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    marginBottom: 10,
+  },
+  trophyIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.3)',
+    marginRight: 12,
+  },
+  trophyInfo: { flex: 1 },
+  trophyBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  championPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.primary,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  championPillText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 9, letterSpacing: 0.5 },
+  formatPill: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  formatPillText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 9 },
+  trophyTourName: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 15, marginBottom: 4 },
+  trophiesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  trophyCardGrid: {
+    width: (SCREEN_W - 38) / 2,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.2)',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  trophyGridIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.3)',
+    marginBottom: 8,
+  },
+  championPillGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.primary,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginBottom: 6,
+  },
+  trophyGridName: {
+    color: '#fff',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  trophyGridMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  trophyGridMetaText: {
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 11,
+  },
+  trophyMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  trophyMetaText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 11 },
+  emptyTrophiesWrap: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 24 },
+  emptyTrophiesCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.primaryAlpha30,
+  },
+  emptyTrophiesTitle: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 18, marginBottom: 6 },
+  emptyTrophiesSub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, textAlign: 'center', lineHeight: 20 },
+
   inviteCodeWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.backgroundCard, borderRadius: 8,
@@ -1302,15 +2297,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inviteCodeText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 12, letterSpacing: 1 },
-  followBigBtn: {
-    flex: 1, justifyContent: 'center',
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1, borderColor: Colors.primaryAlpha30,
-    backgroundColor: Colors.primaryAlpha10,
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8,
-  },
-  followBigBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  followBigBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
   // Detail Tab Bar
   detailTabBar: { gap: 20, paddingVertical: 8, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', marginBottom: 6 },
@@ -1373,8 +2359,7 @@ const styles = StyleSheet.create({
 
   playerActions: { gap: 6, alignItems: 'center' },
   actionIconBtn: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha30,
+    padding: 6,
     alignItems: 'center', justifyContent: 'center',
   },
   actionIconBtnDanger: { borderColor: 'rgba(244,67,54,0.3)', backgroundColor: 'rgba(244,67,54,0.08)' },
@@ -1479,9 +2464,14 @@ const styles = StyleSheet.create({
   lbPrimaryValLabel: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 9 },
 
   // Achievements
+  achGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
   achCard: {
-    width: (SCREEN_W - 14 * 2 - 12) / 2, backgroundColor: Colors.backgroundCard,
-    borderRadius: 14, padding: 14, alignItems: 'center', gap: 6,
+    width: (SCREEN_W - 14 * 2 - 10) / 2, backgroundColor: Colors.backgroundCard,
+    borderRadius: 14, padding: 12, alignItems: 'center', gap: 6,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
   },
   achCardUnlocked: { borderColor: 'rgba(255,215,0,0.4)', backgroundColor: 'rgba(255,215,0,0.05)' },
@@ -1601,4 +2591,245 @@ const styles = StyleSheet.create({
   },
 });
 
+// ── Stats Tab Styles ──────────────────────────────────────────────────────────
+const stS = StyleSheet.create({
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10, marginTop: 18,
+  },
+  sectionTitle: {
+    fontSize: 11, fontFamily: Typography.fontFamily.bold,
+    color: Colors.textTertiary, letterSpacing: 1.2, textTransform: 'uppercase',
+  },
+  sectionSub: {
+    fontSize: 11, fontFamily: Typography.fontFamily.medium,
+    color: Colors.textTertiary,
+  },
+
+  chartCard: {
+    backgroundColor: Colors.surface, borderRadius: 16,
+    marginBottom: 4, paddingVertical: 16, paddingHorizontal: 14, overflow: 'hidden',
+  },
+  cardDivider: {
+    height: 1, backgroundColor: Colors.border, marginVertical: 12, marginHorizontal: -14,
+  },
+  chartSubLabel: {
+    fontSize: 10, fontFamily: Typography.fontFamily.bold,
+    color: Colors.textTertiary, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8,
+  },
+
+  overviewRow: { flexDirection: 'row', paddingVertical: 4 },
+  overviewStat: { flex: 1, alignItems: 'center' },
+  overviewVal: {
+    fontSize: 28, fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary, lineHeight: 32,
+  },
+  overviewLabel: {
+    fontSize: 11, fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary, marginTop: 2,
+  },
+  overviewDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 6 },
+
+  progressBg: {
+    flexDirection: 'row', height: 6, borderRadius: 3, overflow: 'hidden',
+    backgroundColor: Colors.surfaceVariant, marginTop: 8,
+  },
+  progressWin: { backgroundColor: Colors.primary, borderRadius: 3 },
+  progressLoss: { backgroundColor: 'rgba(255,255,255,0.2)' },
+  progressNR: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  progressLabels: { flexDirection: 'row', marginTop: 8, gap: 14 },
+  progressLegItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  progressLegDot: { width: 8, height: 8, borderRadius: 4 },
+  progressLegText: {
+    fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary,
+  },
+  pieWrap: { alignItems: 'center', marginTop: 4, marginBottom: -8 },
+
+  miniGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  miniGridItem: {
+    flex: 1, minWidth: '22%', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4,
+  },
+  miniGridVal: {
+    fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, lineHeight: 24,
+  },
+  miniGridLabel: {
+    fontSize: 10, fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary, marginTop: 2, textAlign: 'center',
+  },
+
+  formRow: { flexDirection: 'row', gap: 7, paddingBottom: 2, paddingTop: 2, marginBottom: 8 },
+  formDot: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  formDotWin: { backgroundColor: Colors.primary },
+  formDotLoss: { backgroundColor: 'rgba(255,255,255,0.15)' },
+  formDotNR: { backgroundColor: Colors.surfaceVariant },
+  formDotTie: { backgroundColor: 'rgba(255,255,255,0.3)' },
+  formDotText: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: '#fff' },
+  formOpponents: {
+    fontSize: 10, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginBottom: 4,
+  },
+
+  phaseVisRow: {
+    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', paddingVertical: 8,
+  },
+  phaseCol: { flex: 1, alignItems: 'center', gap: 4 },
+  phaseRpoVal: { fontSize: 22, fontFamily: Typography.fontFamily.bold, lineHeight: 26 },
+  phaseRpoUnit: { fontSize: 10, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
+  phaseVertBg: {
+    width: 28, borderRadius: 6, backgroundColor: Colors.surfaceVariant, justifyContent: 'flex-end', overflow: 'hidden',
+  },
+  phaseVertFill: { width: '100%', borderRadius: 6 },
+  phaseLabelBadge: { borderRadius: 6, borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2, marginTop: 4 },
+  phaseLabelBadgeText: { fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.8 },
+  phaseFullLabel: { fontSize: 9, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
+
+  perfSectionBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.surfaceVariant,
+  },
+  perfSectionLabel: {
+    fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, letterSpacing: 1.2,
+  },
+  perfRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 11, paddingHorizontal: 14, gap: 10,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
+  },
+  perfRank: { width: 22, alignItems: 'center' },
+  perfRankNum: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary },
+  lbAvatar: { width: 36, height: 36, borderRadius: 18, overflow: 'hidden', backgroundColor: Colors.surfaceVariant },
+  perfInfo: { flex: 1 },
+  perfName: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  perfMeta: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 1 },
+  perfPrimary: { alignItems: 'flex-end', minWidth: 44 },
+  perfPrimaryVal: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.primary, lineHeight: 24 },
+  perfPrimaryLabel: { fontSize: 10, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
+
+  recordsGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  recordItem: { width: '33.33%', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4 },
+  recordVal: {
+    fontSize: 22, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: 4, lineHeight: 26,
+  },
+  recordLabel: {
+    fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, marginTop: 2, textAlign: 'center',
+  },
+  recordSub: { fontSize: 10, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, textAlign: 'center' },
+
+  h2hRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 10,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
+  },
+  h2hOpponent: { flexDirection: 'row', alignItems: 'center', gap: 8, width: 110 },
+  h2hLogo: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.surfaceVariant },
+  h2hLogoFb: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: Colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center',
+  },
+  h2hLogoLetter: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  h2hName: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary, flex: 1 },
+  h2hStats: { flex: 1, gap: 5 },
+  h2hFigures: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  h2hBarBg: { height: 5, backgroundColor: Colors.surfaceVariant, borderRadius: 3, overflow: 'hidden' },
+  h2hBarFill: { height: '100%', borderRadius: 3 },
+  h2hWinPct: { fontSize: 13, fontFamily: Typography.fontFamily.bold, width: 38, textAlign: 'right' },
+
+  // Legacy 2-col grid (used inside StatItem helpers)
+  statsGrid2col: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  statItem: {
+    flex: 1, minWidth: '44%', backgroundColor: Colors.surface,
+    borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14,
+  },
+  statItemHighlight: {
+    backgroundColor: Colors.surfaceVariant, borderWidth: 1, borderColor: Colors.primaryAlpha30,
+  },
+  statItemValue: {
+    fontSize: 22, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, lineHeight: 26,
+  },
+  statItemLabel: {
+    fontSize: 10, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 2,
+  },
+
+  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+  emptyTitle: {
+    fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, marginTop: 14,
+  },
+  emptySub: {
+    fontSize: 12, fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary, marginTop: 6, textAlign: 'center', paddingHorizontal: 32,
+  },
+
+  // ── Analytics Dashboard Specific Styles ──────────────────────────────────
+  toggleRow: {
+    flexDirection: 'row', backgroundColor: Colors.surfaceVariant, borderRadius: 10, padding: 3, gap: 4,
+  },
+  toggleBtn: {
+    flex: 1, paddingVertical: 7, alignItems: 'center', justifyContent: 'center', borderRadius: 8,
+  },
+  toggleBtnActive: { backgroundColor: Colors.primary },
+  toggleBtnText: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+  toggleBtnTextActive: { color: '#000000', fontFamily: Typography.fontFamily.bold },
+
+  trendSummaryRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
+    paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 6,
+  },
+  trendSummaryItem: { alignItems: 'center', flex: 1 },
+  trendSummaryVal: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, lineHeight: 22 },
+  trendSummaryLabel: { fontSize: 10, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 2 },
+  trendSummaryDivider: { width: 1, height: 24, backgroundColor: Colors.border },
+
+  contribRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  contribAvatarWrap: { width: 32, height: 32, borderRadius: 16, overflow: 'hidden', backgroundColor: Colors.surfaceVariant },
+  contribAvatarImg: { width: 32, height: 32 },
+  contribAvatarFb: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center' },
+  contribAvatarLetter: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  contribName: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, maxWidth: '55%' },
+  contribStat: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+  contribPct: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.primary, minWidth: 32, textAlign: 'right' },
+  contribBarBg: { height: 6, backgroundColor: Colors.surfaceVariant, borderRadius: 3, overflow: 'hidden' },
+  contribBarFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 3 },
+
+  strengthRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  strengthLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, width: 95 },
+  strengthBarCol: { flex: 1 },
+  strengthBarBg: { height: 8, backgroundColor: Colors.surfaceVariant, borderRadius: 4, overflow: 'hidden' },
+  strengthBarFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 4 },
+  strengthVal: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.primary, width: 28, textAlign: 'right' },
+
+  last6DotsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+  last6Dot: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  last6DotWin: { backgroundColor: Colors.primary },
+  last6DotLoss: { backgroundColor: 'rgba(255,255,255,0.15)' },
+  last6DotNR: { backgroundColor: Colors.surfaceVariant },
+  last6DotText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFFFFF' },
+  last6SummaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  last6SummaryMain: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  last6SummarySub: { fontSize: 10, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 2 },
+  last6WinRateVal: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+
+  versusGrid: { flexDirection: 'row', alignItems: 'center' },
+  versusCol: { flex: 1, alignItems: 'center', gap: 8 },
+  versusDivider: { width: 1, height: 120, backgroundColor: Colors.border },
+  versusBadge: { backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha30, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 4 },
+  versusBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.primary, letterSpacing: 0.5 },
+  versusMetric: { alignItems: 'center' },
+  versusVal: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  versusLabel: { fontSize: 10, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
+  versusBarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  versusBarLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, width: 60 },
+  versusBarBg: { flex: 1, height: 6, backgroundColor: Colors.surfaceVariant, borderRadius: 3, overflow: 'hidden' },
+  versusBarFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 3 },
+  versusBarVal: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, width: 44, textAlign: 'right' },
+
+  seasonTableHeader: { flexDirection: 'row', backgroundColor: Colors.surfaceVariant, paddingHorizontal: 14, paddingVertical: 10 },
+  seasonTableCell: { flex: 1 },
+  seasonTableHeadText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, letterSpacing: 0.5, textTransform: 'uppercase' },
+  seasonTableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  seasonTableRowHighlight: { backgroundColor: Colors.primaryAlpha10 },
+  seasonTableCellText: { flex: 1, fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary },
+  currentSeasonPill: { backgroundColor: Colors.primary, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
+  currentSeasonText: { fontSize: 8, fontFamily: Typography.fontFamily.bold, color: '#000000' },
+});
+
 export default TeamDetailScreen;
+

@@ -312,11 +312,19 @@ const MyCricketScreen = ({ route }) => {
         
         <View style={styles.teamScoreRow}>
           <View style={styles.matchTeamInfo}>
-            <Image 
-              source={firstTeam?.logo ? { uri: getImageUrl(firstTeam.logo) } : SPORTVERSE_LOGO} 
-              style={styles.matchTeamLogoSmall}
-              resizeMode="cover"
-            />
+            {firstTeam?.logo ? (
+              <Image 
+                source={{ uri: getImageUrl(firstTeam.logo) }} 
+                style={styles.matchTeamLogoSmall}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.matchTeamLogoFallbackSmall}>
+                <Text style={styles.matchTeamLogoLetterSmall}>
+                  {(firstTeam?.name || 'T').trim().charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
             <Text style={[styles.teamNameText, isFirstWinner && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{firstTeam?.name}</Text>
           </View>
           <Text style={styles.scoreText}>
@@ -325,11 +333,19 @@ const MyCricketScreen = ({ route }) => {
         </View>
         <View style={styles.teamScoreRow}>
           <View style={styles.matchTeamInfo}>
-            <Image 
-              source={secondTeam?.logo ? { uri: getImageUrl(secondTeam.logo) } : SPORTVERSE_LOGO} 
-              style={styles.matchTeamLogoSmall}
-              resizeMode="cover"
-            />
+            {secondTeam?.logo ? (
+              <Image 
+                source={{ uri: getImageUrl(secondTeam.logo) }} 
+                style={styles.matchTeamLogoSmall}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.matchTeamLogoFallbackSmall}>
+                <Text style={styles.matchTeamLogoLetterSmall}>
+                  {(secondTeam?.name || 'T').trim().charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
             <Text style={[styles.teamNameText, isSecondWinner && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{secondTeam?.name}</Text>
           </View>
           <Text style={styles.scoreText}>
@@ -424,7 +440,9 @@ const MyCricketScreen = ({ route }) => {
             <Image source={{ uri: getImageUrl(item.logo) }} style={styles.teamLogo} />
           ) : (
             <View style={[styles.teamLogo, { backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{color: Colors.primary, fontWeight: 'bold'}}>{item.name.substring(0, 2).toUpperCase()}</Text>
+              <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 18 }}>
+                {(item.name || 'T').trim().charAt(0).toUpperCase()}
+              </Text>
             </View>
           )}
           {item.isVerified && <View style={styles.verifiedBadge}><Icon name="check-decagram" size={16} color={Colors.accent} /></View>}

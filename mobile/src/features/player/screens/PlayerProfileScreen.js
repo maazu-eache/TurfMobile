@@ -6,7 +6,7 @@ import {
   ActivityIndicator, Modal, Platform, StatusBar,
   FlatList, Image, Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyPlayer, updatePlayerProfile, fetchMatchHistory } from '../playerSlice';
 import { Colors, Typography } from '../../../theme/theme';
@@ -15,10 +15,21 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api, { getImageUrl } from '../../../api/axios';
-import LinearGradient from '../../../components/SolidGradient';
+import LinearGradient from 'react-native-linear-gradient';
+import { getPlayerTags } from '../../../utils/playerTags';
+import SharePreviewModal from '../../tournament/components/SharePreviewModal';
+import { PlayerProfilePoster } from '../../tournament/components/PosterTemplates';
 
 const OUTDOOR_GROUND = require('../../../ground.png');
 const INDOOR_GROUND = require('../../../turf.png');
+const BallTypeImages = {
+  'Tennis': require('../../../../Tennis.jpeg'),
+  'Leather': require('../../../../Leather.jpeg'),
+  'Rubber': require('../../../../Others.jpeg'),
+  'Tape Ball': require('../../../../Others.jpeg'),
+  'Other': require('../../../../Others.jpeg'),
+  'Others': require('../../../../Others.jpeg'),
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -59,8 +70,8 @@ const Dropdown = ({ label, value, options, onSelect }) => {
 
 // ─── Stat Tile ───────────────────────────────────────────────────────────────
 const StatTile = ({ value, label, accent, flex }) => (
-  <View style={[styles.statTile, { borderColor: accent ? `${accent}30` : Colors.border }, flex ? { flex, width: 'auto' } : {}]}>
-    <Text style={[styles.statTileValue, { color: accent || Colors.primary }]}>{value ?? '-'}</Text>
+  <View style={[styles.statTile, flex ? { flex, width: 'auto' } : {}]}>
+    <Text style={[styles.statTileValue, accent ? { color: accent } : {}]}>{value ?? '-'}</Text>
     <Text style={styles.statTileLabel}>{label}</Text>
   </View>
 );
@@ -231,6 +242,7 @@ const AwardCard = ({ icon, color, title, count, matches }) => (
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 const PlayerProfileScreen = ({ navigation }) => {
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
   const { user } = useSelector(state => state.auth);
   const matchHistory = useSelector(state => state.player.matchHistory || []);
   const { myProfile, isLoading } = useSelector(state => state.player);
@@ -247,6 +259,8 @@ const PlayerProfileScreen = ({ navigation }) => {
   const [socialType, setSocialType] = useState('followers');
   const [socialList, setSocialList] = useState([]);
   const [socialLoading, setSocialLoading] = useState(false);
+  const [selectedTagDefinition, setSelectedTagDefinition] = useState(null);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
   const [imgErrors, setImgErrors] = useState({});
   const [activeStatTab, setActiveStatTab] = useState('Statistics');
   const [scoringWindowOffset, setScoringWindowOffset] = useState(0); // 0 = show latest 7
@@ -423,19 +437,46 @@ const PlayerProfileScreen = ({ navigation }) => {
   const overallBat = getStats('Overall').batting || {};
   const overallBowl = getStats('Overall').bowling || {};
 
-  // ── Ball Filter Strip ──────────────────────────────────────────────────────
+  // ── Ball Filter Strip (Using Ball Images) ──────────────────────────────────
   const BallFilter = () => (
-    <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ballFilterRow}>
-      {BALL_TYPES.map(b => (
-        <TouchableOpacity
-          key={b}
-          style={[styles.ballChip, activeBallType === b && styles.ballChipActive]}
-          onPress={() => setActiveBallType(b)}
-        >
-          <Text style={[styles.ballChipText, activeBallType === b && styles.ballChipTextActive]}>{b}</Text>
-        </TouchableOpacity>
-      ))}
-    </KeyboardAwareScrollView>
+    <View style={styles.filterSection}>
+      <View style={styles.filterHeaderRow}>
+        <View style={styles.filterIconWrap}>
+          <Icon name="filter-outline" size={12} color={Colors.primary} />
+        </View>
+        <Text style={styles.filterHeaderText}>FILTER BY BALL TYPE</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
+        {BALL_TYPES.map(bt => {
+          const isActive = activeBallType === bt;
+          if (bt === 'Overall') {
+            return (
+              <TouchableOpacity
+                key={bt}
+                style={[styles.filterPillCircular, isActive && styles.filterPillCircularActive, { opacity: isActive ? 1 : 0.45 }]}
+                onPress={() => setActiveBallType('Overall')}
+                activeOpacity={0.75}
+              >
+                <Icon name="globe-outline" size={20} color={isActive ? Colors.primary : Colors.textSecondary} />
+              </TouchableOpacity>
+            );
+          }
+          return (
+            <TouchableOpacity
+              key={bt}
+              style={[styles.filterPillCircular, isActive && styles.filterPillCircularActive, { opacity: isActive ? 1 : 0.45 }]}
+              onPress={() => setActiveBallType(bt)}
+              activeOpacity={0.75}
+            >
+              <Image 
+                source={BallTypeImages[bt] || BallTypeImages['Other']} 
+                style={styles.filterPillCircularImage} 
+              />
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 
   // ── Tab content ────────────────────────────────────────────────────────────
@@ -451,16 +492,16 @@ const PlayerProfileScreen = ({ navigation }) => {
           <View style={styles.statsCard}>
             <SectionHeading icon="cricket" title="Batting" color={Colors.primary} />
             <View style={styles.statGrid}>
-              <StatTile value={bat.innings ?? 0} label="Innings" accent={Colors.primary} />
-              <StatTile value={bat.runs ?? 0} label="Runs" accent={Colors.primary} />
-              <StatTile value={batAvg} label="Average" accent={Colors.primary} />
-              <StatTile value={batSR} label="S/R" accent={Colors.primary} />
-              <StatTile value={bat.highestScore ?? '—'} label="H/S" accent={Colors.primary} />
-              <StatTile value={bat.fifties ?? 0} label="50s" accent={Colors.primary} />
-              <StatTile value={bat.hundreds ?? 0} label="100s" accent={Colors.primary} />
-              <StatTile value={bat.fours ?? 0} label="4s" accent={Colors.primary} />
-              <StatTile value={bat.sixes ?? 0} label="6s" accent={Colors.primary} />
-              <StatTile value={bat.notOuts ?? 0} label="Not Outs" accent={Colors.primary} />
+              <StatTile value={bat.innings ?? 0} label="Innings" />
+              <StatTile value={bat.runs ?? 0} label="Runs" />
+              <StatTile value={batAvg} label="Average" />
+              <StatTile value={batSR} label="S/R" />
+              <StatTile value={bat.highestScore ?? '—'} label="H/S" />
+              <StatTile value={bat.fifties ?? 0} label="50s" />
+              <StatTile value={bat.hundreds ?? 0} label="100s" />
+              <StatTile value={bat.fours ?? 0} label="4s" />
+              <StatTile value={bat.sixes ?? 0} label="6s" />
+              <StatTile value={bat.notOuts ?? 0} label="Not Outs" />
             </View>
           </View>
 
@@ -468,17 +509,16 @@ const PlayerProfileScreen = ({ navigation }) => {
           <View style={styles.statsCard}>
             <SectionHeading icon="bowling" title="Bowling" color={Colors.primary} />
             <View style={styles.statGrid}>
-              <StatTile value={bowl.innings ?? 0} label="Innings" accent={Colors.primary} />
-              <StatTile value={bowl.wickets ?? 0} label="Wickets" accent={Colors.primary} />
-              <StatTile value={bowl.runs ?? 0} label="Runs" accent={Colors.primary} />
-              {/* <StatTile value={bowlOverDisplay} label="Overs" accent={Colors.primary} /> */}
-              <StatTile value={bowlAvg} label="Average" accent={Colors.primary} />
-              <StatTile value={bowlEcon} label="Economy" accent={Colors.primary} />
-              <StatTile value={bowlSR} label="S/R" accent={Colors.primary} />
-              <StatTile value={bestFig} label="Best" accent={Colors.primary} />
-              <StatTile value={bowl.threeWicketHauls ?? 0} label="3W" accent={Colors.primary} />
-              <StatTile value={bowl.fiveWicketHauls ?? 0} label="5W" accent={Colors.primary} />
-              <StatTile value={bowl.maidens ?? 0} label="Maidens" accent={Colors.primary} />
+              <StatTile value={bowl.innings ?? 0} label="Innings" />
+              <StatTile value={bowl.wickets ?? 0} label="Wickets" />
+              <StatTile value={bowl.runs ?? 0} label="Runs" />
+              <StatTile value={bowlAvg} label="Average" />
+              <StatTile value={bowlEcon} label="Economy" />
+              <StatTile value={bowlSR} label="S/R" />
+              <StatTile value={bestFig} label="Best" />
+              <StatTile value={bowl.threeWicketHauls ?? 0} label="3W" />
+              <StatTile value={bowl.fiveWicketHauls ?? 0} label="5W" />
+              <StatTile value={bowl.maidens ?? 0} label="Maidens" />
             </View>
           </View>
 
@@ -494,7 +534,7 @@ const PlayerProfileScreen = ({ navigation }) => {
               ].map(f => (
                 <View key={f.label} style={styles.fieldingBox}>
                   <MCIcon name={f.icon} size={20} color={f.color} />
-                  <Text style={[styles.fieldingVal, { color: f.color }]}>{f.val}</Text>
+                  <Text style={styles.fieldingVal}>{f.val}</Text>
                   <Text style={styles.fieldingLbl}>{f.label}</Text>
                 </View>
               ))}
@@ -538,12 +578,35 @@ const PlayerProfileScreen = ({ navigation }) => {
                   {/* Center row: Score/Stats + Live/Date Indicator */}
                   <View style={styles.matchCardBody}>
                     <View style={{ flex: 1 }}>
-                      {match.runs !== null ? (
-                        <>
+                      {/* Batting Stats */}
+                      {match.runs !== null && (
+                        <View>
                           <Text style={styles.matchRunsValue}>{match.runs}{match.isNotOut ? '*' : ''} <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular }}>runs</Text></Text>
                           <Text style={styles.matchRunsLabel}>{match.balls || 0} balls · {match.fours || 0}×4s · {match.sixes || 0}×6s</Text>
-                        </>
-                      ) : <Text style={styles.matchDNB}>Did Not Bat</Text>}
+                        </View>
+                      )}
+
+                      {/* Spacer if both are present */}
+                      {match.runs !== null && match.bowling && (
+                        <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: 8 }} />
+                      )}
+
+                      {/* Bowling Stats */}
+                      {match.bowling ? (
+                        <View>
+                          <Text style={styles.matchRunsValue}>
+                            {match.bowling.wickets}-{match.bowling.runs}{' '}
+                            <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular }}>
+                              ({match.bowling.overs}.{match.bowling.balls} ov)
+                            </Text>
+                          </Text>
+                          <Text style={styles.matchRunsLabel}>
+                            {match.bowling.maidens || 0} mdns · econ {(match.bowling.economy || 0).toFixed(2)}
+                          </Text>
+                        </View>
+                      ) : (
+                        match.runs === null && <Text style={styles.matchDNB}>Did Not Bat or Bowl</Text>
+                      )}
                     </View>
 
                     <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -803,7 +866,7 @@ const PlayerProfileScreen = ({ navigation }) => {
               <AchievementBadge icon="account-group" color={Colors.primary} title="Veteran" desc="Play 10+ matches" earned={careerMatches >= 10} />
               <AchievementBadge icon="crown" color={Colors.primary} title="Legend" desc="Play 50+ matches" earned={careerMatches >= 50} />
               <AchievementBadge icon="hand-back-right" color={Colors.primary} title="Safe Hands" desc="Take 5+ catches" earned={(field.catches || 0) >= 5} />
-              <AchievementBadge icon="hand" color={Colors.primary} title="Magic Hands" desc="Take 10+ catches" earned={(field.catches || 0) >= 10} />
+              <AchievementBadge icon="hand-wave" color={Colors.primary} title="Magic Hands" desc="Take 10+ catches" earned={(field.catches || 0) >= 10} />
               <AchievementBadge icon="bullseye" color={Colors.primary} title="Sniper" desc="Execute 5+ Run Outs" earned={(field.runOuts || 0) >= 5} />
               <AchievementBadge icon="medal" color={Colors.primary} title="Centurion" desc="Play 100+ matches" earned={careerMatches >= 100} />
 
@@ -860,76 +923,188 @@ const PlayerProfileScreen = ({ navigation }) => {
   };
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+  const avatarPhoto = myProfile?.photo || myProfile?.userId?.photo || myProfile?.userId?.profilePicture || user?.photo || user?.profilePicture;
+  const avatarUrl = getImageUrl(avatarPhoto);
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="arrow-back" size={24} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Cricket Profile</Text>
-        <TouchableOpacity onPress={() => setIsEditModalVisible(true)} style={styles.editBtn}>
-          <Text style={styles.editBtnText}>Edit</Text>
-        </TouchableOpacity>
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+      {/* Floating nav bar over banner */}
+      <View style={[styles.navBarAbsolute, { paddingTop: insets.top || 10 }]} pointerEvents="box-none">
+        <View style={styles.navBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Icon name="arrow-back" size={22} color={Colors.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navShareBtn} onPress={() => setShareModalVisible(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Icon name="share-social-outline" size={20} color={Colors.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-
-        {/* Profile Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{form.name}</Text>
-          <Text style={styles.cardSubtitle}>{form.playingRole} • {form.location || 'No Location'}</Text>
-
-          <View style={styles.socialCountsRow}>
-            <TouchableOpacity style={styles.socialCountItem} onPress={() => loadSocialList('followers')}>
-              <Text style={styles.socialCountVal}>{myProfile?.followers?.length || 0}</Text>
-              <Text style={styles.socialCountLbl}>Followers</Text>
-            </TouchableOpacity>
-            <View style={styles.socialDivider} />
-            <TouchableOpacity style={styles.socialCountItem} onPress={() => loadSocialList('following')}>
-              <Text style={styles.socialCountVal}>{myProfile?.following?.length || 0}</Text>
-              <Text style={styles.socialCountLbl}>Following</Text>
-            </TouchableOpacity>
-            <View style={styles.socialDivider} />
-            <View style={styles.socialCountItem}>
-              <Text style={styles.socialCountVal}>{myProfile?.profileViews || 0}</Text>
-              <Text style={styles.socialCountLbl}>Views</Text>
+      <KeyboardAwareScrollView
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── HERO BANNER — full-bleed profile photo with gradient overlay (exactly like Player Detail Screen) ── */}
+        <View style={styles.heroBanner}>
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.heroBgImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.heroBgImage, styles.heroBgFallback]}>
+              <Text style={styles.heroBgFallbackLetter}>{form.name?.[0]?.toUpperCase() || 'P'}</Text>
             </View>
-          </View>
+          )}
 
-          <View style={styles.divider} />
-          {[
-            { icon: 'call-outline', label: 'Mobile', val: form.mobile },
-            { icon: 'mail-outline', label: 'Email', val: form.email },
-            { icon: 'calendar-outline', label: 'Date of Birth', val: form.dob ? form.dob.split('-').reverse().join('-') : '' },
-            { icon: 'person-outline', label: 'Gender', val: form.gender },
-          ].map(r => (
-            <View key={r.label} style={styles.infoRow}>
-              <View style={styles.infoRowLeft}>
-                <Icon name={r.icon} size={18} color={Colors.primary} style={styles.infoIcon} />
-                <Text style={styles.infoLabel}>{r.label}</Text>
+          {/* Gradient + overlay content sits on top via zIndex */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0.78)', 'rgba(0,0,0,0.98)']}
+            locations={[0, 0.35, 0.70, 1]}
+            style={styles.heroBannerGradient}
+            pointerEvents="box-none"
+          >
+            {/* Bottom content block */}
+            <View style={styles.heroOverlayContent}>
+              {/* Name */}
+              <Text style={styles.heroName}>{form.name}</Text>
+
+              {/* Clean Meta Info Row (Role • Batting • Bowling) */}
+              <View style={styles.heroMetaRow}>
+                <View style={styles.heroMetaItem}>
+                  <MCIcon name="cricket" size={13} color={Colors.primary} style={{ marginRight: 4 }} />
+                  <Text style={styles.heroRoleHighlight}>{form.playingRole || 'Batsman'}</Text>
+                </View>
+                {form.battingStyle ? (
+                  <>
+                    <Text style={styles.heroMetaDot}>•</Text>
+                    <Text style={styles.heroMetaText}>{form.battingStyle}</Text>
+                  </>
+                ) : null}
+                {form.bowlingStyle && form.bowlingStyle !== 'None' ? (
+                  <>
+                    <Text style={styles.heroMetaDot}>•</Text>
+                    <Text style={styles.heroMetaText}>{form.bowlingStyle}</Text>
+                  </>
+                ) : null}
               </View>
-              <Text style={styles.infoValue}>{r.val || '-'}</Text>
+
+              {/* Special Player Badges / Tags (Non-Pill Sleek Badges) */}
+              {(() => {
+                const overallStats = getStats('Overall');
+                const playerObj = {
+                  ...myProfile,
+                  matches: careerMatches,
+                  batting: overallStats.batting || myProfile?.batting || {},
+                  bowling: overallStats.bowling || myProfile?.bowling || {},
+                };
+                const tags = getPlayerTags(playerObj);
+                if (!tags || tags.length === 0) return null;
+                return (
+                  <View style={styles.heroTagsRow}>
+                    {tags.map((tag, tIdx) => (
+                      <TouchableOpacity
+                        key={tIdx}
+                        onPress={() => setSelectedTagDefinition(tag)}
+                        activeOpacity={0.7}
+                        style={styles.heroTagBadge}
+                      >
+                        <MCIcon
+                          name={tag.type === 'batting' ? 'lightning-bolt' : 'fire'}
+                          size={12}
+                          color={Colors.primary}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={styles.heroTagBadgeText}>{tag.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                );
+              })()}
+
+              {/* Location */}
+              {form.location ? (
+                <View style={styles.heroLocationRow}>
+                  <MCIcon name="map-marker" size={13} color={Colors.primary} style={{ marginRight: 4 }} />
+                  <Text style={styles.heroLocationText}>{form.location}</Text>
+                </View>
+              ) : null}
             </View>
-          ))}
-          <View style={styles.divider} />
-          <View style={styles.infoRow}>
-            <View style={styles.infoRowLeft}>
-              <MCIcon name="cricket" size={18} color={Colors.primary} style={styles.infoIcon} />
-              <Text style={styles.infoLabel}>Batting</Text>
-            </View>
-            <Text style={styles.infoValue}>{form.battingStyle} ({form.battingOrder})</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <View style={styles.infoRowLeft}>
-              <MCIcon name="bowling" size={18} color={Colors.primary} style={styles.infoIcon} />
-              <Text style={styles.infoLabel}>Bowling</Text>
-            </View>
-            <Text style={styles.infoValue}>{form.bowlingStyle}</Text>
-          </View>
+          </LinearGradient>
         </View>
+
+        {/* Content body padding */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+
+          {/* Social counts card */}
+          <View style={[styles.card, { paddingVertical: 14, marginBottom: 12 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity style={styles.socialCountItem} onPress={() => loadSocialList('followers')}>
+                <Text style={[styles.socialCountVal, { color: Colors.primary }]}>{myProfile?.followers?.length || 0}</Text>
+                <Text style={styles.socialCountLbl}>Followers</Text>
+              </TouchableOpacity>
+              <View style={styles.socialDivider} />
+              <TouchableOpacity style={styles.socialCountItem} onPress={() => loadSocialList('following')}>
+                <Text style={[styles.socialCountVal, { color: Colors.primary }]}>{myProfile?.following?.length || 0}</Text>
+                <Text style={styles.socialCountLbl}>Following</Text>
+              </TouchableOpacity>
+              <View style={styles.socialDivider} />
+              <View style={styles.socialCountItem}>
+                <Text style={styles.socialCountVal}>{myProfile?.profileViews || 0}</Text>
+                <Text style={styles.socialCountLbl}>Views</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Profile info card */}
+          <View style={styles.card}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>Personal & Cricket Info</Text>
+              <TouchableOpacity onPress={() => setIsEditModalVisible(true)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name="create-outline" size={18} color={Colors.primary} />
+                <Text style={{ color: Colors.primary, marginLeft: 4 }}>Edit</Text>
+              </TouchableOpacity>
+            </View>
+
+            {[
+              { icon: 'call-outline', label: 'Mobile', val: form.mobile },
+              { icon: 'mail-outline', label: 'Email', val: form.email },
+              { icon: 'calendar-outline', label: 'Date of Birth', val: form.dob ? form.dob.split('-').reverse().join('-') : '' },
+              { icon: 'person-outline', label: 'Gender', val: form.gender },
+            ].map(r => (
+              <View key={r.label} style={styles.infoRow}>
+                <View style={styles.infoRowLeft}>
+                  <Icon name={r.icon} size={18} color={Colors.primary} style={styles.infoIcon} />
+                  <Text style={styles.infoLabel}>{r.label}</Text>
+                </View>
+                <Text style={styles.infoValue}>{r.val || '-'}</Text>
+              </View>
+            ))}
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoRowLeft}>
+                <MCIcon name="cricket" size={18} color={Colors.primary} style={styles.infoIcon} />
+                <Text style={styles.infoLabel}>Batting</Text>
+              </View>
+              <Text style={styles.infoValue}>{form.battingStyle} ({form.battingOrder})</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoRowLeft}>
+                <MCIcon name="bowling" size={18} color={Colors.primary} style={styles.infoIcon} />
+                <Text style={styles.infoLabel}>Bowling</Text>
+              </View>
+              <Text style={styles.infoValue}>{form.bowlingStyle}</Text>
+            </View>
+          </View>
 
         {/* My Teams */}
         <TouchableOpacity
@@ -953,10 +1128,10 @@ const PlayerProfileScreen = ({ navigation }) => {
           {/* Quick summary */}
           <View style={styles.quickSummaryRow}>
             {[
-              { val: careerMatches, label: 'Matches', color: Colors.primary },
-              { val: overallBat.runs ?? 0, label: 'Runs', color: Colors.primary },
-              { val: overallBowl.wickets ?? 0, label: 'Wickets', color: Colors.primary },
-              { val: (myProfile?.playingRole === 'Bowler' && bowl.bestWickets > 0) ? bestFig : ((overallBat.highestScore > 0) ? `${overallBat.highestScore}${overallBat.highestScoreNotOut ? '*' : ''}` : bestFig), label: (myProfile?.playingRole === 'Bowler' && bowl.bestWickets > 0) ? 'Best Bowl' : ((overallBat.highestScore > 0) ? 'High Score' : 'Best Bowl'), color: Colors.primary },
+              { val: careerMatches, label: 'Matches', color: '#FFFFFF' },
+              { val: overallBat.runs ?? 0, label: 'Runs', color: '#FFFFFF' },
+              { val: overallBowl.wickets ?? 0, label: 'Wickets', color: '#FFFFFF' },
+              { val: (myProfile?.playingRole === 'Bowler' && bowl.bestWickets > 0) ? bestFig : ((overallBat.highestScore > 0) ? `${overallBat.highestScore}${overallBat.highestScoreNotOut ? '*' : ''}` : bestFig), label: (myProfile?.playingRole === 'Bowler' && bowl.bestWickets > 0) ? 'Best Bowl' : ((overallBat.highestScore > 0) ? 'High Score' : 'Best Bowl'), color: '#FFFFFF' },
             ].map((s, i, arr) => (
               <View key={s.label} style={[styles.quickSummaryItem, i < arr.length - 1 && { borderRightWidth: 1, borderRightColor: Colors.border }]}>
                 <Text style={[styles.quickSummaryVal, { color: s.color }]}>{s.val}</Text>
@@ -977,73 +1152,130 @@ const PlayerProfileScreen = ({ navigation }) => {
 
           {renderStatContent()}
         </View>
+      </View>
 
       </KeyboardAwareScrollView>
 
       {/* Edit Modal */}
       <Modal visible={isEditModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setIsEditModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
+          {/* Header */}
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setIsEditModalVisible(false)}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
+            <TouchableOpacity onPress={() => setIsEditModalVisible(false)} style={styles.modalHeaderBtn}>
+              <Icon name="close" size={20} color={Colors.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Edit Profile</Text>
-            <TouchableOpacity onPress={handleSave} disabled={isSaving || isLoading}>
-              {isSaving ? <ActivityIndicator color={Colors.primary} size="small" /> : <Text style={styles.modalSaveText}>Save</Text>}
+            <TouchableOpacity 
+              onPress={handleSave} 
+              disabled={isSaving || isLoading} 
+              style={styles.modalSaveBtn}
+            >
+              {isSaving ? (
+                <ActivityIndicator color="#000000" size="small" />
+              ) : (
+                <Text style={styles.modalSaveBtnText}>Save</Text>
+              )}
             </TouchableOpacity>
           </View>
-          <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Name</Text>
-              <TextInput style={styles.input} value={form.name} onChangeText={t => setForm({ ...form, name: t })} />
-            </View>
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Mobile</Text>
-              <TextInput style={styles.input} value={form.mobile} keyboardType="phone-pad" onChangeText={t => setForm({ ...form, mobile: t })} />
-            </View>
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput style={styles.input} value={form.email} keyboardType="email-address" autoCapitalize="none" onChangeText={t => setForm({ ...form, email: t })} />
-            </View>
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Date of Birth</Text>
-              <TouchableOpacity style={styles.dropdownBtn} onPress={() => setShowDatePicker(true)}>
-                <Text style={[styles.dropdownBtnText, !form.dob && { color: Colors.textSecondary }]}>
-                  {form.dob ? form.dob.split('-').reverse().join('-') : 'Select Date of Birth'}
-                </Text>
-                <Icon name="calendar-outline" size={20} color={Colors.textSecondary} />
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={form.dob ? new Date(form.dob) : new Date()}
-                  mode="date" display="spinner" maximumDate={new Date()}
-                  textColor={Colors.textPrimary} accentColor={Colors.primary}
-                  onChange={onDateChange}
+
+          <KeyboardAwareScrollView
+            enableOnAndroid={true}
+            extraScrollHeight={20}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Section 1: Personal Details */}
+            <View style={styles.formSection}>
+              <View style={styles.formSectionHeader}>
+                <View style={styles.formSectionAccent} />
+                <Text style={styles.formSectionTitle}>Personal Details</Text>
+              </View>
+
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Full Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholderTextColor={Colors.textTertiary}
+                  value={form.name}
+                  onChangeText={t => setForm({ ...form, name: t })}
                 />
-              )}
+              </View>
+
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Mobile Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholderTextColor={Colors.textTertiary}
+                  value={form.mobile}
+                  keyboardType="phone-pad"
+                  onChangeText={t => setForm({ ...form, mobile: t })}
+                />
+              </View>
+
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Email Address</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholderTextColor={Colors.textTertiary}
+                  value={form.email}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  onChangeText={t => setForm({ ...form, email: t })}
+                />
+              </View>
+
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Date of Birth</Text>
+                <TouchableOpacity style={styles.dropdownBtn} onPress={() => setShowDatePicker(true)}>
+                  <Text style={[styles.dropdownBtnText, !form.dob && { color: Colors.textTertiary }]}>
+                    {form.dob ? form.dob.split('-').reverse().join('-') : 'Select Date of Birth'}
+                  </Text>
+                  <Icon name="calendar-outline" size={18} color={Colors.primary} />
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={form.dob ? new Date(form.dob) : new Date()}
+                    mode="date" display="spinner" maximumDate={new Date()}
+                    textColor={Colors.textPrimary} accentColor={Colors.primary}
+                    onChange={onDateChange}
+                  />
+                )}
+              </View>
+
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Location</Text>
+                <LocationAutocomplete
+                  value={form.location}
+                  onChangeText={t => setForm({ ...form, location: t })}
+                  onSelectLocation={(loc) => {
+                    setForm({
+                      ...form,
+                      location: loc ? loc.name : '',
+                      locationObj: loc ? { name: loc.name, latitude: loc.latitude, longitude: loc.longitude } : null
+                    });
+                  }}
+                  placeholder="City or Area"
+                  variant="none"
+                  style={styles.locationInputBox}
+                />
+              </View>
+
+              <Dropdown label="Gender" value={form.gender} options={GENDERS} onSelect={val => setForm({ ...form, gender: val })} />
             </View>
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Location</Text>
-              <LocationAutocomplete
-                value={form.location}
-                onChangeText={t => setForm({ ...form, location: t })}
-                onSelectLocation={(loc) => {
-                  setForm({
-                    ...form,
-                    location: loc ? loc.name : '',
-                    locationObj: loc ? { name: loc.name, latitude: loc.latitude, longitude: loc.longitude } : null
-                  });
-                }}
-                placeholder="City or Area"
-                variant="none"
-                style={{ backgroundColor: Colors.surfaceVariant, borderRadius: 8, paddingHorizontal: 12, minHeight: 48, paddingVertical: 12 }}
-              />
+
+            {/* Section 2: Cricket Details */}
+            <View style={[styles.formSection, { marginTop: 4 }]}>
+              <View style={styles.formSectionHeader}>
+                <View style={styles.formSectionAccent} />
+                <Text style={styles.formSectionTitle}>Cricket Profile</Text>
+              </View>
+
+              <Dropdown label="Playing Role" value={form.playingRole} options={ROLES} onSelect={val => setForm({ ...form, playingRole: val })} />
+              <Dropdown label="Batting Order" value={form.battingOrder} options={BATTING_ORDERS} onSelect={val => setForm({ ...form, battingOrder: val })} />
+              <Dropdown label="Batting Style" value={form.battingStyle} options={BATTING_STYLES} onSelect={val => setForm({ ...form, battingStyle: val })} />
+              <Dropdown label="Bowling Style" value={form.bowlingStyle} options={BOWLING_STYLES} onSelect={val => setForm({ ...form, bowlingStyle: val })} />
             </View>
-            <Dropdown label="Gender" value={form.gender} options={GENDERS} onSelect={val => setForm({ ...form, gender: val })} />
-            <Dropdown label="Role" value={form.playingRole} options={ROLES} onSelect={val => setForm({ ...form, playingRole: val })} />
-            <Dropdown label="Batting Order" value={form.battingOrder} options={BATTING_ORDERS} onSelect={val => setForm({ ...form, battingOrder: val })} />
-            <Dropdown label="Batting Style" value={form.battingStyle} options={BATTING_STYLES} onSelect={val => setForm({ ...form, battingStyle: val })} />
-            <Dropdown label="Bowling Style" value={form.bowlingStyle} options={BOWLING_STYLES} onSelect={val => setForm({ ...form, bowlingStyle: val })} />
           </KeyboardAwareScrollView>
         </SafeAreaView>
       </Modal>
@@ -1117,22 +1349,238 @@ const PlayerProfileScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+
+      {/* Tag Definition Popup Modal */}
+      <Modal visible={!!selectedTagDefinition} transparent animationType="fade" onRequestClose={() => setSelectedTagDefinition(null)}>
+        <TouchableOpacity style={styles.tagModalOverlay} activeOpacity={1} onPress={() => setSelectedTagDefinition(null)}>
+          <View style={styles.tagModalContent}>
+            <View style={styles.tagModalIconWrap}>
+              <MCIcon
+                name={selectedTagDefinition?.type === 'batting' ? 'lightning-bolt' : 'fire'}
+                size={28}
+                color={Colors.primary}
+              />
+            </View>
+            <Text style={styles.tagModalTitle}>{selectedTagDefinition?.name}</Text>
+            <Text style={styles.tagModalDesc}>{selectedTagDefinition?.desc}</Text>
+            <TouchableOpacity style={styles.tagModalCloseBtn} onPress={() => setSelectedTagDefinition(null)}>
+              <Text style={styles.tagModalCloseBtnText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── SHARE PREVIEW MODAL (POSTER TEMPLATES) ── */}
+      <SharePreviewModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        title={myProfile?.name}
+        shareUrl={`https://www.scoreverse.in/player/${myProfile?._id}`}
+      >
+        <PlayerProfilePoster
+          player={myProfile}
+          career={myProfile?.career || {}}
+          batting={overallBat}
+          bowling={overallBowl}
+        />
+      </SharePreviewModal>
+    </View>
   );
 };
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  backBtn: { padding: 5, marginLeft: -5 },
-  headerTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  editBtn: { padding: 5, marginRight: -5 },
-  editBtnText: { color: Colors.primary, fontSize: 16, fontFamily: Typography.fontFamily.bold },
-  content: { padding: 16, paddingBottom: 50 },
+  
+  // Floating nav bar
+  navBarAbsolute: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20 },
+  navBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, height: 52 },
+  navBackBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  navShareBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+
+  scrollContent: { paddingBottom: 50 },
+
+  // Hero Banner — full-bleed photo + gradient (1:1 with PlayerDetailScreen)
+  heroBanner: {
+    width: '100%',
+    height: Dimensions.get('window').height * 0.36,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#111',
+  },
+  heroBgImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    zIndex: 0,
+  },
+  heroBgFallback: {
+    backgroundColor: '#1A1A1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroBgFallbackLetter: {
+    fontSize: 80,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+    opacity: 0.4,
+  },
+  heroBannerGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  heroOverlayContent: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+    zIndex: 2,
+  },
+  heroName: {
+    fontSize: 26,
+    fontFamily: Typography.fontFamily.bold,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 0.3,
+    textAlign: 'left',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: 6,
+    gap: 6,
+  },
+  heroMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroRoleHighlight: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+    letterSpacing: 0.2,
+  },
+  heroMetaDot: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.69)',
+  },
+  heroMetaText: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: '#E0E0E0',
+  },
+  heroTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 7,
+  },
+  heroTagBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 204, 0, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.35)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  heroTagBadgeText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  heroLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  heroLocationText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255, 255, 255, 0.75)',
+  },
+
+  // Tag Definition Modal
+  tagModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  tagModalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    width: '85%',
+    maxWidth: 340,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  tagModalIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 204, 0, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.3)',
+  },
+  tagModalTitle: {
+    fontSize: 18,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  tagModalDesc: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 18,
+  },
+  tagModalCloseBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  tagModalCloseBtnText: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#000000',
+  },
 
   // Card
   card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 18, borderWidth: 1, borderColor: Colors.border, marginBottom: 14 },
+  profileHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
+  avatarWrap: { width: 68, height: 68, borderRadius: 34, position: 'relative', borderWidth: 2, borderColor: Colors.primary },
+  avatarImg: { width: '100%', height: '100%', borderRadius: 34 },
+  avatarFb: { width: '100%', height: '100%', borderRadius: 34, backgroundColor: Colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center' },
+  avatarLetter: { fontSize: 24, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  avatarEditBadge: { position: 'absolute', bottom: -2, right: -2, width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.surface },
+  profileHeaderInfo: { flex: 1, justifyContent: 'center' },
+  profileRoleTag: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   cardTitle: { fontSize: 22, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 4 },
   cardSubtitle: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginBottom: 14 },
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: 12 },
@@ -1168,12 +1616,65 @@ const styles = StyleSheet.create({
   statTabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
   statTabUnderline: { position: 'absolute', bottom: 0, left: 8, right: 8, height: 2, backgroundColor: Colors.primary, borderRadius: 1 },
 
-  // Ball filter
-  ballFilterRow: { flexDirection: 'row', paddingBottom: 12, gap: 8 },
-  ballChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: Colors.backgroundCard, borderWidth: 1, borderColor: Colors.border },
-  ballChipActive: { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
-  ballChipText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary },
-  ballChipTextActive: { color: Colors.primary },
+  // ── Ball type filter ──────────────────────────────────────────────────────
+  filterSection: {
+    marginVertical: 10,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  filterHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  filterIconWrap: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    backgroundColor: Colors.primaryAlpha10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primaryAlpha20,
+  },
+  filterHeaderText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textTertiary,
+    letterSpacing: 1.2,
+  },
+  filterScrollContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    gap: 12,
+    alignItems: 'center',
+  },
+  filterPillCircular: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  filterPillCircularActive: {
+    borderColor: Colors.primary,
+    borderWidth: 2,
+  },
+  filterPillCircularImage: {
+    width: '100%',
+    height: '100%',
+  },
 
   // Stats cards
   statsCard: { backgroundColor: Colors.backgroundCard, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: 12 },
@@ -1190,18 +1691,19 @@ const styles = StyleSheet.create({
     minWidth: 52,
     paddingVertical: 9,
     paddingHorizontal: 2,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
     borderRadius: 10,
     alignItems: 'center',
     borderWidth: 1,
+    borderColor: Colors.border,
   },
-  statTileValue: { fontSize: 14, fontFamily: Typography.fontFamily.bold },
+  statTileValue: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: '#FFFFFF' },
   statTileLabel: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 3, textAlign: 'center' },
 
   // Fielding
   fieldingRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
-  fieldingBox: { flex: 1, alignItems: 'center', paddingVertical: 12, backgroundColor: Colors.backgroundElevated, borderRadius: 12, borderWidth: 1, borderColor: Colors.border },
-  fieldingVal: { fontSize: 20, fontFamily: Typography.fontFamily.bold, marginTop: 5 },
+  fieldingBox: { flex: 1, alignItems: 'center', paddingVertical: 12, backgroundColor: 'rgba(255, 255, 255, 0.03)', borderRadius: 12, borderWidth: 1, borderColor: Colors.border },
+  fieldingVal: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: '#FFFFFF', marginTop: 5 },
   fieldingLbl: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 2 },
 
   // Analytics
@@ -1264,16 +1766,96 @@ const styles = StyleSheet.create({
   bestPerfValue: { fontSize: 18, fontFamily: Typography.fontFamily.bold },
 
   // Edit modal
-  modalContainer: { flex: 1, backgroundColor: Colors.background, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalCancelText: { color: Colors.textSecondary, fontSize: 16, fontFamily: Typography.fontFamily.medium },
-  modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  modalSaveText: { color: Colors.primary, fontSize: 16, fontFamily: Typography.fontFamily.bold },
-  fieldContainer: { marginBottom: 15 },
-  label: { color: Colors.textSecondary, fontSize: 14, marginBottom: 5, fontFamily: Typography.fontFamily.medium },
-  input: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 12, color: Colors.textPrimary, fontFamily: Typography.fontFamily.regular },
-  dropdownBtn: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalContainer: { flex: 1, backgroundColor: Colors.background },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  modalHeaderBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.backgroundCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  modalSaveBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSaveBtnText: { color: '#000000', fontSize: 13, fontFamily: Typography.fontFamily.bold },
+  modalScrollContent: { padding: 16, paddingBottom: 40 },
+  formSection: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 14,
+  },
+  formSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  formSectionAccent: {
+    width: 3,
+    height: 16,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+    marginRight: 8,
+  },
+  formSectionTitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
+    letterSpacing: 0.3,
+  },
+  fieldContainer: { marginBottom: 14 },
+  label: { color: Colors.textSecondary, fontSize: 13, marginBottom: 6, fontFamily: Typography.fontFamily.medium },
+  input: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    color: Colors.textPrimary,
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  dropdownBtn: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   dropdownBtnText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.regular, fontSize: 14 },
+  locationInputBox: {
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    minHeight: 46,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: '80%', backgroundColor: Colors.surface, borderRadius: 10, padding: 10, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 },
   modalItem: { paddingVertical: 15, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: Colors.border },

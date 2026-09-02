@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl, Share, TextInput, BackHandler, Pressable, Linking } from 'react-native';
-import LinearGradient from '../../../components/SolidGradient';
+import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -22,6 +22,10 @@ import Tts from 'react-native-tts';
 import Video from 'react-native-video';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const FALLBACK_BATTER = require('../../../../Batter.png');
+const FALLBACK_BOWLER = require('../../../../Bowl.png');
+const FALLBACK_FOTM = require('../../../../FOTM.png');
+const FALLBACK_POTM = require('../../../../POTM.png');
 
 const MvpPlayerRow = ({ player, idx, isPom, isTop, item }) => {
   const [expanded, setExpanded] = useState(false);
@@ -1925,8 +1929,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       if (!p) return null;
       const photo = p.photo || p.user?.photo || p.userId?.photo || p.avatar || p.profileImage || p.image || p.user?.avatar || p.profilePic;
       if (photo) return getImageUrl(photo);
-      const name = p.name || p.user?.name || 'Player';
-      return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=FFD700&color=000000&bold=true&size=256`;
+      return null;
     };
 
     const isTeamABatting = match.battingTeam?.toString() === match.teamA?._id?.toString() || liveState?.battingTeam?.toString() === match.teamA?._id?.toString();
@@ -2035,8 +2038,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       }
     }
 
-    // ─── Premium performer card (2-col grid) ────────────────────────────────
-    const renderPerformerCard = (title, titleIcon, accentColor, player, statsText, subText, isNotOut = false) => {
+    const renderPerformerCard = (title, titleIcon, accentColor, player, statsText, subText, isNotOut = false, fallbackImage = FALLBACK_BATTER) => {
       return (
         <TouchableOpacity
           activeOpacity={0.82}
@@ -2056,15 +2058,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             shadowRadius: 8,
           }}
         >
-          <View style={{ height: 120, backgroundColor: Colors.backgroundElevated }}>
+          <View style={{ height: 160, backgroundColor: Colors.backgroundElevated, overflow: 'hidden' }}>
             {getPlayerPhotoUrl(player) ? (
               <Image source={{ uri: getPlayerPhotoUrl(player) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surfaceVariant }}>
-                <Icon name="account" size={48} color={accentColor} />
-              </View>
+              <Image source={fallbackImage} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             )}
-            <LinearGradient colors={['transparent', Colors.backgroundCard]} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 55 }} />
           </View>
           <View style={{ padding: 10, paddingTop: 7 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
@@ -2211,9 +2210,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         {mvpPhoto ? (
                           <Image source={{ uri: mvpPhoto }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                         ) : (
-                          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surfaceVariant }}>
-                            <Icon name="account" size={90} color={Colors.warning} />
-                          </View>
+                          <Image source={FALLBACK_POTM} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                         )}
                         {/* Gold badge strip at top */}
                         <LinearGradient colors={['rgba(0,0,0,0.75)', 'transparent']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
@@ -2239,8 +2236,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                           </TouchableOpacity>
                         </LinearGradient>
 
-                        {/* Bottom info overlay */}
-                        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)', 'rgba(0,0,0,1)']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 220, justifyContent: 'flex-end', padding: 18 }}>
+                        {/* Bottom info overlay (light soft gradient) */}
+                        <LinearGradient
+                          colors={['transparent', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.85)', 'rgba(0,0,0,0.98)']}
+                          locations={[0, 0.28, 0.65, 1]}
+                          style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 230, justifyContent: 'flex-end', padding: 18 }}
+                          pointerEvents="box-none"
+                        >
                           <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 28, lineHeight: 32, letterSpacing: -0.3, textShadowColor: 'rgba(0, 0, 0, 1)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>{mvp.name}</Text>
                           <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: Typography.fontFamily.medium, fontSize: 12, marginTop: 2, marginBottom: 14, textShadowColor: 'rgba(0, 0, 0, 1)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>
                             {mvp.team?.name || (mvp._id && match.playingXI?.teamA?.some(p => p._id === mvp._id) ? match.teamA?.name : match.teamB?.name) || ''}
@@ -2299,9 +2301,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       {getPlayerPhotoUrl(fighterOfTheMatch) ? (
                         <Image source={{ uri: getPlayerPhotoUrl(fighterOfTheMatch) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       ) : (
-                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surfaceVariant }}>
-                          <Icon name="account" size={54} color="#FF4081" />
-                        </View>
+                        <Image source={FALLBACK_FOTM} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       )}
                       <LinearGradient colors={['transparent', Colors.backgroundCard]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 44 }} />
                     </View>
@@ -2333,12 +2333,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
                       {topBatters.map((batter, index) => (
                         <React.Fragment key={`batter-${index}`}>
-                          {renderPerformerCard('Top Batter', 'cricket', Colors.primary, batter.player, `${batter.runs}(${batter.balls})`, batter.teamName, batter.isNotOut)}
+                          {renderPerformerCard('Top Batter', 'cricket', Colors.primary, batter.player, `${batter.runs}(${batter.balls})`, batter.teamName, batter.isNotOut, FALLBACK_BATTER)}
                         </React.Fragment>
                       ))}
                       {topBowlers.map((bowler, index) => (
                         <React.Fragment key={`bowler-${index}`}>
-                          {renderPerformerCard('Top Bowler', 'bowling', Colors.info, bowler.player, `${bowler.wickets}/${bowler.runs}`, bowler.teamName)}
+                          {renderPerformerCard('Top Bowler', 'bowling', Colors.info, bowler.player, `${bowler.wickets}/${bowler.runs}`, bowler.teamName, false, FALLBACK_BOWLER)}
                         </React.Fragment>
                       ))}
                     </View>
@@ -3472,9 +3472,51 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     );
   };
 
+  const getCaptainIdA = () => {
+    const cA = match.captain?.teamA || match.teamA?.captain;
+    if (cA) return typeof cA === 'object' ? (cA._id || cA.id)?.toString() : cA.toString();
+    const capMember = match.teamA?.players?.find(m => m.role === 'captain');
+    if (capMember?.player) return (capMember.player._id || capMember.player.id || capMember.player)?.toString();
+    return null;
+  };
+
+  const getCaptainIdB = () => {
+    const cB = match.captain?.teamB || match.teamB?.captain;
+    if (cB) return typeof cB === 'object' ? (cB._id || cB.id)?.toString() : cB.toString();
+    const capMember = match.teamB?.players?.find(m => m.role === 'captain');
+    if (capMember?.player) return (capMember.player._id || capMember.player.id || capMember.player)?.toString();
+    return null;
+  };
+
+  const isCaptainPlayerA = (p) => {
+    if (!p) return false;
+    const pId = (p._id || p.id)?.toString();
+    const capId = getCaptainIdA();
+    return p.role === 'captain' || p.isCaptain || (capId && pId === capId);
+  };
+
+  const isCaptainPlayerB = (p) => {
+    if (!p) return false;
+    const pId = (p._id || p.id)?.toString();
+    const capId = getCaptainIdB();
+    return p.role === 'captain' || p.isCaptain || (capId && pId === capId);
+  };
+
   const renderSquads = () => {
-    const teamAXI = match.playingXI?.teamA || [];
-    const teamBXI = match.playingXI?.teamB || [];
+    const rawTeamAXI = match.playingXI?.teamA || [];
+    const rawTeamBXI = match.playingXI?.teamB || [];
+
+    const teamAXI = [...rawTeamAXI].sort((a, b) => {
+      const isCapA = isCaptainPlayerA(a) ? 1 : 0;
+      const isCapB = isCaptainPlayerA(b) ? 1 : 0;
+      return isCapB - isCapA;
+    });
+
+    const teamBXI = [...rawTeamBXI].sort((a, b) => {
+      const isCapA = isCaptainPlayerB(a) ? 1 : 0;
+      const isCapB = isCaptainPlayerB(b) ? 1 : 0;
+      return isCapB - isCapA;
+    });
 
     const maxLength = Math.max(teamAXI.length, teamBXI.length);
     const rows = [];
@@ -3551,7 +3593,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       )}
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, fontSize: 13 }} numberOfLines={1}>{row.playerA.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, fontSize: 13 }} numberOfLines={1}>{row.playerA.name}</Text>
+                        {isCaptainPlayerA(row.playerA) && (
+                          <View style={{ backgroundColor: Colors.primary, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginLeft: 5 }}>
+                            <Text style={{ fontSize: 9, fontFamily: Typography.fontFamily.bold, color: '#000000' }}>C</Text>
+                          </View>
+                        )}
+                      </View>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 2, marginTop: 2 }}>
                         {getPlayerTags(row.playerA).map((tag, tIdx) => (
                           <TouchableOpacity key={tIdx} onPress={() => setSelectedTagDefinition(tag)}>
@@ -3573,7 +3622,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 {row.playerB ? (
                   <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }} onPress={() => navigation.navigate('PlayerDetail', { id: row.playerB._id })}>
                     <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                      <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, fontSize: 13, textAlign: 'right' }} numberOfLines={1}>{row.playerB.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
+                        {isCaptainPlayerB(row.playerB) && (
+                          <View style={{ backgroundColor: Colors.primary, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginRight: 5 }}>
+                            <Text style={{ fontSize: 9, fontFamily: Typography.fontFamily.bold, color: '#000000' }}>C</Text>
+                          </View>
+                        )}
+                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, fontSize: 13, textAlign: 'right' }} numberOfLines={1}>{row.playerB.name}</Text>
+                      </View>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 2, marginTop: 2 }}>
                         {getPlayerTags(row.playerB).map((tag, tIdx) => (
                           <TouchableOpacity key={tIdx} onPress={() => setSelectedTagDefinition(tag)}>
@@ -5775,9 +5831,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     resizeMode="cover"
                   />
                 ) : (
-                  <View style={[styles.ppCoverImage, styles.ppCoverFallback]}>
-                    <Text style={styles.ppCoverFallbackLetter}>{selectedPlayerPreview.name?.charAt(0).toUpperCase()}</Text>
-                  </View>
+                  <Image
+                    source={selectedPlayerPreview.playingRole === 'Bowler' ? FALLBACK_BOWLER : FALLBACK_BATTER}
+                    style={styles.ppCoverImage}
+                    resizeMode="cover"
+                  />
                 )}
                 {/* Black gradient with name */}
                 <LinearGradient

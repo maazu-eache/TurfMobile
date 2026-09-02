@@ -18,7 +18,7 @@ const ProfileScreen = ({ navigation }) => {
   const isOwner = user?.roles?.includes('owner');
 
   const [loggingOut, setLoggingOut] = useState(false);
-
+  const [moreExpanded, setMoreExpanded] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
@@ -44,20 +44,29 @@ const ProfileScreen = ({ navigation }) => {
 
 
 
-  const renderOption = (icon, title, subtitle, onPress, destructive = false, isLoading = false) => (
-    <TouchableOpacity style={styles.optionRow} onPress={onPress} disabled={isLoading}>
-      <View style={[styles.iconBox, destructive && {backgroundColor: 'rgba(244,67,54,0.1)'}]}>
+  const renderOption = (icon, title, subtitle, onPress, destructive = false, isLoading = false, isSub = false) => (
+    <TouchableOpacity 
+      style={[styles.optionRow, isSub && styles.subOptionRow]} 
+      onPress={onPress} 
+      disabled={isLoading}
+      activeOpacity={0.7}
+    >
+      <View style={[
+        styles.iconBox, 
+        destructive && { backgroundColor: 'rgba(244,67,54,0.1)' },
+        isSub && styles.subIconBox
+      ]}>
         {isLoading ? (
           <ActivityIndicator size="small" color={destructive ? Colors.error : Colors.primary} />
         ) : (
-          <Icon name={icon} size={22} color={destructive ? Colors.error : Colors.primary} />
+          <Icon name={icon} size={isSub ? 19 : 22} color={destructive ? Colors.error : Colors.primary} />
         )}
       </View>
       <View style={styles.optionTextContainer}>
-        <Text style={[styles.optionTitle, destructive && {color: Colors.error}]}>{title}</Text>
+        <Text style={[styles.optionTitle, destructive && { color: Colors.error }, isSub && { fontSize: 15 }]}>{title}</Text>
         {subtitle && <Text style={styles.optionSubtitle}>{subtitle}</Text>}
       </View>
-      {isLoading ? null : <Icon name="chevron-right" size={24} color={destructive ? Colors.error : Colors.textSecondary} />}
+      {isLoading ? null : <Icon name="chevron-right" size={isSub ? 20 : 24} color={destructive ? Colors.error : Colors.textSecondary} />}
     </TouchableOpacity>
   );
 
@@ -97,7 +106,7 @@ const ProfileScreen = ({ navigation }) => {
           {!isOwner && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Player Profile</Text>
-              {renderOption('cricket', 'Cricket Stats', 'View your career and matches', () => navigation.navigate('PlayerProfile'))}
+              {renderOption('cricket', 'My Cricket Profile', 'View your career and matches', () => navigation.navigate('PlayerProfile'))}
               {renderOption('account-group', 'My Teams', 'Manage your teams', () => navigation.navigate('TeamList'))}
             </View>
           )}
@@ -120,13 +129,54 @@ const ProfileScreen = ({ navigation }) => {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Other</Text>
+            
+            {/* ── More Expandable Option Row ── */}
+            <TouchableOpacity 
+              style={styles.optionRow} 
+              onPress={() => setMoreExpanded(prev => !prev)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.iconBox}>
+                <Icon name="dots-horizontal-circle-outline" size={22} color={Colors.primary} />
+              </View>
+              <View style={styles.optionTextContainer}>
+                <Text style={styles.optionTitle}>More</Text>
+                <Text style={styles.optionSubtitle}>Support tickets & account actions</Text>
+              </View>
+              <Icon 
+                name={moreExpanded ? "chevron-up" : "chevron-down"} 
+                size={24} 
+                color={Colors.textSecondary} 
+              />
+            </TouchableOpacity>
+
+            {/* Sub-options indented seamlessly when expanded */}
+            {moreExpanded && (
+              <View style={styles.subOptionsBlock}>
+                {renderOption(
+                  'ticket-confirmation-outline', 
+                  'Raise a Ticket / Contact Us', 
+                  'Get help, report an issue or contact support', 
+                  () => navigation.navigate('CreateTicketScreen'),
+                  false,
+                  false,
+                  true
+                )}
+                {renderOption(
+                  'delete-forever', 
+                  'Delete Account', 
+                  'Permanently delete your account and data', 
+                  () => setDeleteModalVisible(true), 
+                  true,
+                  false,
+                  true
+                )}
+              </View>
+            )}
+
             {renderOption('headset', 'Help & Support', 'Get help with your bookings', () => navigation.navigate('TicketListScreen'))}
             {renderOption('shield-check', 'Privacy Policy', 'Your data and privacy rights', () => navigation.navigate('PrivacyPolicy'))}
             {renderOption('logout', 'Logout', 'Sign out of your account', handleLogout, true, loggingOut)}
-            
-            <TouchableOpacity onPress={() => setDeleteModalVisible(true)} style={styles.deleteLinkContainer}>
-              <Text style={styles.deleteLinkText}>More</Text>
-            </TouchableOpacity>
           </View>
                   </ScrollView>
       </View>
@@ -224,8 +274,23 @@ const styles = StyleSheet.create({
   modalContent: { backgroundColor: Colors.backgroundElevated, width: '100%', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: Colors.border },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18 },
-  deleteLinkContainer: { alignSelf: 'flex-end', marginTop: Spacing.md, marginRight: Spacing.xs },
-  deleteLinkText: { color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium, textDecorationLine: 'underline' },
+  
+  // ── More sub-options ──
+  subOptionsBlock: {
+    paddingLeft: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  subOptionRow: {
+    borderBottomWidth: 0,
+    paddingVertical: 12,
+  },
+  subIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
 });
 
 export default ProfileScreen;
