@@ -1748,12 +1748,12 @@ const SlotManagerScreen = ({ navigation, route }) => {
                     ? slot.originalSlots.every(os => modalSelectedSlots.includes(os._id))
                     : modalSelectedSlots.includes(slot._id);
 
-                  const borderColor = isSelected ? '#FFD400'
+                  const borderColor = isSelected ? (isDark ? '#FFD400' : colors.primaryDark)
                     : isBooked ? '#2196F3'
                     : isOffline ? '#9C27B0'
                     : isMaintenance ? '#FF4757'
-                    : past ? '#333'
-                    : '#2A2A2A';
+                    : past ? (isDark ? '#333' : colors.border)
+                    : colors.border;
 
                   const badgeLabel = isBooked ? 'Online'
                     : past ? 'Past'
@@ -1762,13 +1762,13 @@ const SlotManagerScreen = ({ navigation, route }) => {
                     : 'Available';
 
                   const badgeBg = isBooked ? 'rgba(33, 150, 243, 0.15)'
-                    : past ? 'rgba(255, 255, 255, 0.08)'
+                    : past ? (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)')
                     : isOffline ? 'rgba(156, 39, 176, 0.15)'
                     : isMaintenance ? 'rgba(255, 71, 87, 0.15)'
                     : 'rgba(46, 213, 115, 0.15)';
 
                   const badgeText = isBooked ? '#2196F3'
-                    : past ? 'rgba(255, 255, 255, 0.5)'
+                    : past ? (isDark ? 'rgba(255, 255, 255, 0.5)' : colors.textTertiary)
                     : isOffline ? '#9C27B0'
                     : isMaintenance ? '#FF4757'
                     : '#2ed573';
@@ -1789,7 +1789,7 @@ const SlotManagerScreen = ({ navigation, route }) => {
                         styles.fsSlotRow,
                         {
                           borderColor,
-                          backgroundColor: isSelected ? 'rgba(255, 212, 0, 0.08)' : '#1B1B1B',
+                          backgroundColor: isSelected ? (isDark ? 'rgba(255, 212, 0, 0.08)' : '#FFF9D6') : (isDark ? '#1B1B1B' : colors.surfaceVariant),
                           opacity: isBooked ? 0.6 : 1,
                         }
                       ]}
@@ -1798,9 +1798,9 @@ const SlotManagerScreen = ({ navigation, route }) => {
                         {isBooked ? (
                           <Icon name="lock" size={15} color="#2196F3" />
                         ) : isSelected ? (
-                          <Icon name="check-circle" size={16} color="#FFD400" />
+                          <Icon name="check-circle" size={16} color={isDark ? "#FFD400" : colors.primaryDark} />
                         ) : (
-                          <Icon name="circle-outline" size={16} color="rgba(255,255,255,0.3)" />
+                          <Icon name="circle-outline" size={16} color={colors.textTertiary} />
                         )}
                       </View>
 
@@ -2747,7 +2747,7 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
   legendContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#111',
+    backgroundColor: isDark ? '#111' : colors.surfaceVariant,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,

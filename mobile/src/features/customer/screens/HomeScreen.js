@@ -5,7 +5,7 @@ import {
   Image, FlatList, Animated, Dimensions, Modal, TouchableWithoutFeedback, RefreshControl
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -63,8 +63,9 @@ const CRICKET_ACTIONS = [
 ];
 
 const HomeScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { colors, shadows, isDark } = useTheme();
-  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, insets), [colors, shadows, isDark, insets]);
 
 // ── Animated Pulse for Live Dot ─────────────────────────────────────────────
 const PulseDot = () => {
@@ -760,7 +761,7 @@ const PulseDot = () => {
 };
 
 /* ─── Styles ────────────────────────────────────────────────────────────────── */
-const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingBottom: 120 },
 
@@ -855,10 +856,8 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
 
   
   /* ── Top Search Section ── */
-  
-  /* ── Top Search Section ── */
   topSearchSection: {
-    paddingTop: 80,
+    paddingTop: (insets?.top || 20) + 74,
     paddingHorizontal: 16,
     marginBottom: 20,
   },

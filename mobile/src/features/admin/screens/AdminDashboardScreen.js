@@ -585,17 +585,16 @@ const AdminDashboardScreen = ({ navigation }) => {
 
         <View style={styles.cardFooter}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Icon name="calendar-outline" size={12} color={Colors.textTertiary} />
-            <Text style={styles.joinedLabel}>Joined {joinedDate}</Text>
+            <Icon name="calendar-outline" size={11} color={colors.textTertiary} />
+            <Text style={styles.joinedLabel}>JOINED {joinedDate}</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <TouchableOpacity
               onPress={() => openRoleChangeModal(item)}
               style={styles.roleActionBtn}
               activeOpacity={0.7}
             >
-              <Icon name="account-convert-outline" size={13} color="#BA68C8" />
-              <Text style={styles.roleActionText}>Role</Text>
+              <Icon name="account-convert-outline" size={16} color="#BA68C8" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -605,12 +604,9 @@ const AdminDashboardScreen = ({ navigation }) => {
             >
               <Icon
                 name={isSuspended ? 'account-check-outline' : 'account-off-outline'}
-                size={13}
+                size={16}
                 color={isSuspended ? Colors.success : '#FF9800'}
               />
-              <Text style={[styles.suspendUserText, isSuspended ? { color: Colors.success } : { color: '#FF9800' }]}>
-                {isSuspended ? 'Reactivate' : 'Suspend'}
-              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -618,8 +614,7 @@ const AdminDashboardScreen = ({ navigation }) => {
               style={styles.deleteBtn}
               activeOpacity={0.7}
             >
-              <Icon name="trash-can-outline" size={14} color={Colors.error} />
-              <Text style={styles.deleteUserText}>Delete</Text>
+              <Icon name="trash-can-outline" size={16} color={Colors.error} />
             </TouchableOpacity>
           </View>
         </View>
@@ -2196,14 +2191,21 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
   roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
   roleText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
 
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.md, paddingBottom: Spacing.md },
-  deleteBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 7,
-    backgroundColor: 'rgba(255,71,87,0.1)',
-    borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,71,87,0.25)',
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  roleActionBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(186,104,200,0.12)',
+    borderWidth: 1, borderColor: 'rgba(186,104,200,0.25)',
   },
-  deleteUserText: { color: '#FF4757', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  roleActionText: { color: '#BA68C8', fontFamily: Typography.fontFamily.bold, fontSize: 10 },
+  deleteBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(255,71,87,0.1)',
+    borderWidth: 1, borderColor: 'rgba(255,71,87,0.25)',
+  },
+  deleteUserText: { color: '#FF4757', fontFamily: Typography.fontFamily.bold, fontSize: 10 },
 
   // ── Turf Card ──────────────────────────────────────
   turfCard: {
@@ -2577,23 +2579,14 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
     color: colors.textSecondary,
   },
   suspendBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    width: 32, height: 32, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center',
     backgroundColor: 'rgba(255,152,0,0.1)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,152,0,0.25)',
+    borderWidth: 1, borderColor: 'rgba(255,152,0,0.25)',
   },
   reactivateBtn: {
     backgroundColor: 'rgba(46,213,115,0.1)',
     borderColor: 'rgba(46,213,115,0.3)',
-  },
-  suspendUserText: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: 12,
   },
 
   // ── Profile Image Full View Modal ──

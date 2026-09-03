@@ -312,7 +312,7 @@ const ListRow = ({ item, rank, tab, ballType, statFilter, navigation, entryAnim 
     <Animated.View style={{
       opacity: entryAnim,
       transform: [{ translateY: entryAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
-      marginBottom: 10,
+      marginBottom: 6,
     }}>
       <TouchableOpacity
         activeOpacity={0.82}
@@ -325,7 +325,7 @@ const ListRow = ({ item, rank, tab, ballType, statFilter, navigation, entryAnim 
         </View>
 
         {/* Avatar */}
-        <Avatar uri={uri} name={item.name} size={46} />
+        <Avatar uri={uri} name={item.name} size={36} />
 
         {/* Info */}
         <View style={styles.listInfo}>
@@ -407,19 +407,19 @@ const SkeletonRow = () => {
   }, []);
   const bg = shimmer.interpolate({ inputRange: [0, 1], outputRange: ['rgba(255,255,255,0.04)', 'rgba(255,255,255,0.09)'] });
   return (
-    <View style={[styles.listCard, { marginBottom: 10 }]}>
-      <Animated.View style={{ width: 28, height: 16, borderRadius: 4, backgroundColor: bg }} />
-      <Animated.View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: bg }} />
-      <View style={{ flex: 1, gap: 8 }}>
-        <Animated.View style={{ width: 120, height: 14, borderRadius: 4, backgroundColor: bg }} />
-        <Animated.View style={{ width: 80, height: 10, borderRadius: 4, backgroundColor: bg }} />
-        <View style={{ flexDirection: 'row', gap: 6 }}>
+    <View style={[styles.listCard, { marginBottom: 6 }]}>
+      <Animated.View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: bg }} />
+      <Animated.View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: bg }} />
+      <View style={{ flex: 1, gap: 4 }}>
+        <Animated.View style={{ width: 90, height: 11, borderRadius: 4, backgroundColor: bg }} />
+        <Animated.View style={{ width: 50, height: 8, borderRadius: 4, backgroundColor: bg }} />
+        <View style={{ flexDirection: 'row', gap: 3 }}>
           {[1,2,3,4].map(i => (
-            <Animated.View key={i} style={{ width: 48, height: 26, borderRadius: 8, backgroundColor: bg }} />
+            <Animated.View key={i} style={{ width: 30, height: 15, borderRadius: 4, backgroundColor: bg }} />
           ))}
         </View>
       </View>
-      <Animated.View style={{ width: 40, height: 28, borderRadius: 6, backgroundColor: bg }} />
+      <Animated.View style={{ width: 34, height: 22, borderRadius: 4, backgroundColor: bg }} />
     </View>
   );
 };
@@ -1116,22 +1116,23 @@ const createStyles = (colors, shadows, isDark, S) => StyleSheet.create({
     paddingBottom: 32,
   },
   listCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, ...(isDark ? {} : shadows.xs),
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: S.border,
-    padding: 14,
-    gap: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 6,
     // Glass shadow
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   rankBubble: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
     borderColor: S.border,
@@ -1140,56 +1141,57 @@ const createStyles = (colors, shadows, isDark, S) => StyleSheet.create({
   },
   rankBubbleText: {
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 12,
+    fontSize: 10,
     color: S.textSecondary,
   },
-  listInfo: { flex: 1 },
+  listInfo: { flex: 1, overflow: 'hidden' },
   listName: {
     fontFamily: Typography.fontFamily.semiBold,
-    fontSize: 14,
+    fontSize: 12,
     color: S.white,
-    marginBottom: 2,
+    marginBottom: 0,
   },
   listRole: {
     fontFamily: Typography.fontFamily.regular,
-    fontSize: 11,
+    fontSize: 9,
     color: S.textSecondary,
-    marginBottom: 8,
+    marginBottom: 2,
   },
   subStatsRow: {
     flexDirection: 'row',
-    gap: 6,
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 3,
   },
   subStatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
     borderColor: S.border,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    alignItems: 'center',
-    minWidth: 40,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
   subStatVal: {
     fontFamily: Typography.fontFamily.bold,
-    fontSize: 11,
+    fontSize: 9,
     color: S.white,
   },
   subStatLbl: {
-    fontFamily: Typography.fontFamily.regular,
-    fontSize: 9,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 8,
     color: S.textSecondary,
   },
-  listStatBlock: { alignItems: 'flex-end' },
+  listStatBlock: { alignItems: 'flex-end', justifyContent: 'center', minWidth: 38 },
   listStatValue: {
     fontFamily: Typography.fontFamily.extraBold,
-    fontSize: 22,
+    fontSize: 15,
     color: S.yellow,
   },
   listStatLabel: {
     fontFamily: Typography.fontFamily.medium,
-    fontSize: 10,
+    fontSize: 8,
     color: S.textSecondary,
   },
 

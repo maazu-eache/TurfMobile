@@ -15,13 +15,6 @@ import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/them
 
 const { width } = Dimensions.get('window');
 
-
-
-
-
-
-
-
 const slides = [
   {
     id: '1',
@@ -224,8 +217,8 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     paddingBottom: 44,
     paddingTop: Spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: BORDER,
-    backgroundColor: BG,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
   },
 
   /* Pagination */
@@ -262,7 +255,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: ACCENT,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 28,
     borderRadius: BorderRadius.full,

@@ -757,7 +757,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                 )}
 
                 <TouchableOpacity onPress={() => setShowFilteredSlotsModal(false)} style={styles.fsModalCloseBtn}>
-                  <Icon name="close" size={18} color="#FFF" />
+                  <Icon name="close" size={18} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
 
@@ -778,21 +778,21 @@ const SlotPickerScreen = ({ route, navigation }) => {
                     ? slot.originalSlots.every(os => selectedSlots.some(sel => sel._id === os._id))
                     : selectedSlots.some(sel => sel._id === slot._id);
 
-                  const borderColor = isSelected ? '#FFD400'
+                  const borderColor = isSelected ? (isDark ? '#FFD400' : colors.primaryDark)
                     : isBooked ? '#2196F3'
-                    : past ? '#333'
-                    : '#2A2A2A';
+                    : past ? (isDark ? '#333' : colors.border)
+                    : colors.border;
 
                   const badgeLabel = isBooked ? 'Booked'
                     : past ? 'Past'
                     : 'Available';
 
                   const badgeBg = isBooked ? 'rgba(33, 150, 243, 0.15)'
-                    : past ? 'rgba(255, 255, 255, 0.08)'
+                    : past ? (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)')
                     : 'rgba(46, 213, 115, 0.15)';
 
                   const badgeText = isBooked ? '#2196F3'
-                    : past ? 'rgba(255, 255, 255, 0.5)'
+                    : past ? (isDark ? 'rgba(255, 255, 255, 0.5)' : colors.textTertiary)
                     : '#2ed573';
 
                   const priceVal = slot.discountPrice !== undefined && slot.discountPrice !== null ? slot.discountPrice : slot.price;
@@ -807,7 +807,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                         styles.fsSlotRow,
                         {
                           borderColor,
-                          backgroundColor: isSelected ? 'rgba(255, 212, 0, 0.08)' : '#1B1B1B',
+                          backgroundColor: isSelected ? (isDark ? 'rgba(255, 212, 0, 0.08)' : '#FFF9D6') : (isDark ? '#1B1B1B' : colors.surfaceVariant),
                           opacity: (isBooked || past) ? 0.6 : 1,
                         }
                       ]}
@@ -816,15 +816,15 @@ const SlotPickerScreen = ({ route, navigation }) => {
                         {isBooked ? (
                           <Icon name="lock" size={15} color="#2196F3" />
                         ) : past ? (
-                          <Icon name="clock-remove-outline" size={15} color="rgba(255,255,255,0.4)" />
+                          <Icon name="clock-remove-outline" size={15} color={colors.textDisabled} />
                         ) : isSelected ? (
-                          <Icon name="check-circle" size={16} color="#FFD400" />
+                          <Icon name="check-circle" size={16} color={isDark ? "#FFD400" : colors.primaryDark} />
                         ) : (
-                          <Icon name="circle-outline" size={16} color="rgba(255,255,255,0.3)" />
+                          <Icon name="circle-outline" size={16} color={colors.textTertiary} />
                         )}
                       </View>
 
-                      <Text style={[styles.fsSlotTime, isSelected && { color: '#FFD400', fontFamily: Typography.fontFamily.bold }]}>
+                      <Text style={[styles.fsSlotTime, isSelected && { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold }]}>
                         {formatTime(slot.startTime)} – {formatTime(slot.endTime)}
                       </Text>
 
@@ -832,7 +832,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                         <Text style={[styles.fsSlotBadgeText, { color: badgeText }]}>{badgeLabel}</Text>
                       </View>
 
-                      <Text style={[styles.fsSlotPrice, isSelected && { color: '#FFD400' }]}>
+                      <Text style={[styles.fsSlotPrice, isSelected && { color: isDark ? '#FFD400' : colors.primaryDark }]}>
                         ₹{priceVal}
                       </Text>
                     </TouchableOpacity>
@@ -847,7 +847,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                     {selectedSlots.length} slot{selectedSlots.length === 1 ? '' : 's'} selected
                   </Text>
                   <Text style={styles.fsFooterPriceLabel}>
-                    Total: <Text style={{ color: '#FFD400', fontFamily: Typography.fontFamily.bold }}>₹{totalSelectedPrice}</Text>
+                    Total: <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold }}>₹{totalSelectedPrice}</Text>
                   </Text>
                 </View>
 
@@ -1503,7 +1503,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   /* ── Filtered Slots Center Modal ── */
   fsModalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
@@ -1511,7 +1511,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   fsModalCard: {
     width: '100%',
     maxHeight: '85%',
-    backgroundColor: '#161616',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1522,7 +1522,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#222',
+    borderBottomColor: colors.border,
   },
   fsModalTitle: {
     fontSize: 16,
@@ -1532,22 +1532,22 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   fsModalSubtitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
-    color: '#FFD400',
+    color: isDark ? '#FFD400' : colors.primaryDark,
     marginTop: 2,
   },
   fsSelectAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 212, 0, 0.1)',
+    backgroundColor: isDark ? 'rgba(255, 212, 0, 0.1)' : '#FFF9D6',
     borderWidth: 1,
-    borderColor: 'rgba(255, 212, 0, 0.3)',
+    borderColor: isDark ? 'rgba(255, 212, 0, 0.3)' : '#FFEAA7',
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 6,
     marginRight: 10,
   },
   fsSelectAllText: {
-    color: '#FFD400',
+    color: isDark ? '#FFD400' : '#8A6D00',
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -1555,7 +1555,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#222',
+    backgroundColor: colors.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1599,7 +1599,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   fsModalFooter: {
     borderTopWidth: 1,
-    borderTopColor: '#222',
+    borderTopColor: colors.border,
     paddingTop: 12,
   },
   fsFooterSummaryRow: {
@@ -1646,7 +1646,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   legendContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#111',
+    backgroundColor: isDark ? '#111' : colors.surfaceVariant,
     borderWidth: 1,
     borderColor: colors.borderLight,
     borderRadius: 12,

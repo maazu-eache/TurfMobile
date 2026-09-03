@@ -1,6 +1,6 @@
 {
   "name": "scoreverse",
-  "version": "1.16",
+  "version": "1.19",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
