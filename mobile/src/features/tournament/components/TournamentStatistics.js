@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ImageBackground, TouchableOpacity } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 
 const GROUND_TYPES = ['Open Ground', 'Indoor', 'Box Cricket', 'Other'];
 
 const TournamentStatistics = ({ tournament }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const selectedGround = tournament?.groundType || 'Open Ground';
   
   if (!tournament?.statistics) {
@@ -153,7 +155,7 @@ const TournamentStatistics = ({ tournament }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -167,7 +169,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
   },
   statsGrid: {
@@ -178,20 +180,20 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: '48%',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.md,
     alignItems: 'center',
   },
   statLabel: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
     marginBottom: 4,
   },
   statValue: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 24,
   },
@@ -199,40 +201,40 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   highlightCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     padding: Spacing.lg,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.sm,
     alignItems: 'center',
     borderLeftWidth: 4,
-    borderLeftColor: Colors.secondary,
+    borderLeftColor: colors.secondary,
   },
   highlightTitle: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 14,
     marginBottom: 8,
   },
   highlightScore: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 28,
   },
   highlightTeam: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 14,
     marginTop: 4,
   },
   wagonWheelContainer: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     alignItems: 'center',
     marginBottom: Spacing.xl,
   },
   wagonTitle: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 16,
     marginBottom: Spacing.md,
@@ -263,7 +265,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   legendText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
   }

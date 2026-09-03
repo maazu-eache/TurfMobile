@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
 import {
   View,
   Text,
@@ -29,6 +30,8 @@ import socketService from '../../../services/socketService';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const BookingConfirmScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const insets = useSafeAreaInsets();
   const paymentProcessed = useRef(false);
 
@@ -197,13 +200,13 @@ const BookingConfirmScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
       {showConfetti && <ConfettiCannon count={200} origin={{x: -10, y: 0}} fallSpeed={3000} fadeOut />}
       
       {/* ── Floating Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-          <Icon name="arrow-left" size={20} color="#FFF" />
+          <Icon name="arrow-left" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Confirm Checkout</Text>
         <View style={{ width: 36 }} />
@@ -404,30 +407,30 @@ const BookingConfirmScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 160 },
 
   /* ── Header ── */
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingBottom: 16,
-    backgroundColor: '#0E0E0E',
-    borderBottomWidth: 1, borderColor: '#2B2B2B',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1, borderColor: colors.border,
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#171717',
+    backgroundColor: colors.surface,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#2B2B2B',
+    borderWidth: 1, borderColor: colors.border,
   },
-  headerTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
+  headerTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
 
   /* ── Apple Wallet Overlapping Stack Cards ── */
   walletCard: {
-    backgroundColor: '#171717',
+    backgroundColor: colors.surface,
     borderRadius: 24,
-    borderWidth: 1, borderColor: '#2B2B2B',
+    borderWidth: 1, borderColor: colors.border,
     padding: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -439,7 +442,7 @@ const styles = StyleSheet.create({
   },
   cardSectionTitle: {
     fontSize: 13, fontFamily: Typography.fontFamily.bold,
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 14,
@@ -462,7 +465,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column', gap: 6,
   },
   heroHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
-  heroName: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: '#FFF', flex: 1 },
+  heroName: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: '#FFFFFF', flex: 1 },
   ratingBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: '#FFD400',
@@ -471,16 +474,10 @@ const styles = StyleSheet.create({
   },
   ratingValue: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 10 },
   heroLocRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  heroLoc: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: Typography.fontFamily.medium, flex: 1 },
+  heroLoc: { color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium, flex: 1 },
   heroBadgeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  heroBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)',
-  },
-  heroBadgeText: { color: '#FFF', fontSize: 9, fontFamily: Typography.fontFamily.bold },
+  heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)' },
+  heroBadgeText: { color: '#FFFFFF', fontSize: 9, fontFamily: Typography.fontFamily.bold },
 
   /* ── Booking Summary Card ── */
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
@@ -492,16 +489,16 @@ const styles = StyleSheet.create({
     borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.05)',
   },
   summaryTextCol: { flexDirection: 'column', marginLeft: 8, flex: 1 },
-  summaryLabel: { fontSize: 8, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' },
-  summaryValue: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginTop: 1 },
+  summaryLabel: { fontSize: 8, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, textTransform: 'uppercase' },
+  summaryValue: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginTop: 1 },
 
   /* ── Selected Slots Card ── */
   slotChipsContainer: { gap: 12 },
   slotDateSection: { flexDirection: 'column', gap: 6 },
-  slotDateHeader: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginBottom: 4 },
+  slotDateHeader: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 4 },
   slotFloatingChip: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#1C1C1C',
+    backgroundColor: isDark ? '#1C1C1C' : colors.surfaceVariant,
     borderRadius: 14, padding: 12,
     borderWidth: 1, borderColor: '#FFD400',
     shadowColor: '#FFD400',
@@ -510,7 +507,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   slotChipLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  slotChipTime: { color: '#FFF', fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  slotChipTime: { color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.bold },
   slotChipPrice: { color: '#FFD400', fontSize: 13, fontFamily: Typography.fontFamily.extraBold },
 
   /* ── Coupon Code Card ── */
@@ -520,7 +517,7 @@ const styles = StyleSheet.create({
     borderRadius: 14, paddingHorizontal: 12, height: 48,
     alignItems: 'center', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)',
   },
-  couponTextInput: { flex: 1, color: '#FFF', fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  couponTextInput: { flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
   couponApplyBtn: { paddingHorizontal: 16, height: '100%', justifyContent: 'center' },
   couponApplyText: { color: '#FFD400', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
   couponRemoveBtn: { opacity: 0.8 },
@@ -529,12 +526,12 @@ const styles = StyleSheet.create({
   billTable: { flexDirection: 'column', gap: 8 },
   billRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   billLabelBlock: { flexDirection: 'row', alignItems: 'center' },
-  billLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.5)' },
-  billVal: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: '#FFF' },
+  billLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary },
+  billVal: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: colors.textPrimary },
   billDashedDivider: { height: 1, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)', borderStyle: 'dashed', marginVertical: 8 },
   billTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  billTotalLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
-  billTotalValue: { fontSize: 20, fontFamily: Typography.fontFamily.extraBold, color: '#FFD400' },
+  billTotalLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  billTotalValue: { fontSize: 20, fontFamily: Typography.fontFamily.extraBold, color: isDark ? '#FFD400' : colors.primaryDark },
 
   /* ── Secure Card ── */
   secureFeaturesGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
@@ -542,20 +539,20 @@ const styles = StyleSheet.create({
     width: '48%',
     flexDirection: 'row', alignItems: 'center', gap: 6,
   },
-  secureText: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.6)' },
+  secureText: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary },
 
   /* ── Cancellation Policy Card ── */
   cancellationHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  cancellationTitle: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
-  cancellationDesc: { fontSize: 10, fontFamily: Typography.fontFamily.regular, color: 'rgba(255,255,255,0.5)', lineHeight: 15, marginBottom: 8 },
+  cancellationTitle: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  cancellationDesc: { fontSize: 10, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, lineHeight: 15, marginBottom: 8 },
   cancellationLink: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: '#FFD400' },
 
   /* ── Floating Sticky Bottom Payment Panel ── */
   floatingPaymentPanel: {
     position: 'absolute', bottom: 16, left: 16, right: 16,
     height: 72, borderRadius: 36,
-    backgroundColor: 'rgba(22,22,22,0.95)',
-    borderWidth: 1, borderColor: '#2B2B2B',
+    backgroundColor: isDark ? 'rgba(22,22,22,0.95)' : colors.surface,
+    borderWidth: 1, borderColor: colors.border,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 24,
     shadowColor: '#000',
@@ -565,7 +562,7 @@ const styles = StyleSheet.create({
     zIndex: 200,
   },
   paymentLeft: { flexDirection: 'column' },
-  paymentTotalLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
+  paymentTotalLabel: { color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
   paymentTotalVal: { color: '#FFD400', fontSize: 20, fontFamily: Typography.fontFamily.bold },
   confirmPillBtn: { borderRadius: 20, overflow: 'hidden', shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 },
   confirmPillBtnGrad: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 20 },

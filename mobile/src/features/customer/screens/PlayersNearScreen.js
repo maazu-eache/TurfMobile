@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated, Easing, Dimensions, Image, TextInput,
@@ -98,14 +99,14 @@ const RadarMarker = ({ player, position, isScanned, isSelected, onPress }) => {
   );
 };
 
-const StatChip = ({ label, value }) => (
+const StatChip = ({ label, value, styles }) => (
   <View style={styles.statChip}>
     <Text style={styles.statChipVal}>{value}</Text>
     <Text style={styles.statChipLbl}>{label}</Text>
   </View>
 );
 
-const MetricCard = ({ icon, label, value }) => (
+const MetricCard = ({ icon, label, value, styles }) => (
   <View style={styles.metricCard}>
     <Icon name={icon} size={18} color="#FFD400" style={{ marginBottom: 4 }} />
     <Text style={styles.metricVal}>{value}</Text>
@@ -113,7 +114,7 @@ const MetricCard = ({ icon, label, value }) => (
   </View>
 );
 
-const PlayerCard = ({ player, isHighlighted, onPress, onFollowPress, isFollowing, index }) => {
+const PlayerCard = ({ player, isHighlighted, onPress, onFollowPress, isFollowing, index, styles }) => {
   const cardAnim  = useRef(new Animated.Value(0)).current;
   const pressAnim = useRef(new Animated.Value(1)).current;
   const photo   = player?.photo || player?.userId?.photo;
@@ -159,6 +160,8 @@ const PlayerCard = ({ player, isHighlighted, onPress, onFollowPress, isFollowing
 };
 
 const PlayersNearScreen = ({ navigation }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const dispatch   = useDispatch();
   const { user, isAuthenticated } = useSelector(s => s.auth);
   const { myProfile } = useSelector(s => s.player || {});
@@ -243,7 +246,7 @@ const PlayersNearScreen = ({ navigation }) => {
   };
 
   const beamRotate = radarAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const searchBorderColor = searchBorderAnim.interpolate({ inputRange: [0, 1], outputRange: ['rgba(255,255,255,0.08)', 'rgba(255,212,0,0.6)'] });
+  const searchBorderColor = searchBorderAnim.interpolate({ inputRange: [0, 1], outputRange: [colors.border, Colors.primary] });
   const handleSearchFocus = () => { setSearchFocused(true);  Animated.timing(searchBorderAnim, { toValue: 1, duration: 250, useNativeDriver: false }).start(); };
   const handleSearchBlur  = () => { setSearchFocused(false); Animated.timing(searchBorderAnim, { toValue: 0, duration: 250, useNativeDriver: false }).start(); };
 
@@ -252,7 +255,7 @@ const PlayersNearScreen = ({ navigation }) => {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor="transparent" translucent />
       <View style={styles.glowOrb1} />
       <View style={styles.glowOrb2} />
       <View style={styles.particle1} />
@@ -262,7 +265,7 @@ const PlayersNearScreen = ({ navigation }) => {
       <SafeAreaView edges={['top']} style={{ flex: 1 }}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-            <Icon name="arrow-left" size={20} color="#FFF" />
+            <Icon name="arrow-left" size={20} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={{ flex: 1, marginHorizontal: 12 }}>
             <Text style={styles.headerTitle}>Players Near Me</Text>
@@ -330,9 +333,9 @@ const PlayersNearScreen = ({ navigation }) => {
 
           {/* Metrics */}
           <View style={styles.metricsRow}>
-            <MetricCard icon="account-group"    label="Nearby Players" value={players.length} />
-            <MetricCard icon="account-heart"    label="Following"      value={followingCount} />
-            <MetricCard icon="circle"           label="Online Now"     value={onlineCount} />
+            <MetricCard icon="account-group" label="Nearby Players" value={players.length} styles={styles} />
+            <MetricCard icon="account-heart" label="Following" value={followingCount} styles={styles} />
+            <MetricCard icon="circle" label="Online Now" value={onlineCount} styles={styles} />
           </View>
 
           {/* Filters */}
@@ -369,6 +372,7 @@ const PlayersNearScreen = ({ navigation }) => {
                     index={index}
                     isHighlighted={selectedIdx === index}
                     isFollowing={isFollowing}
+                    styles={styles}
                     onPress={() => handleCardPress(index)}
                     onFollowPress={() => handleFollow(item._id)}
                   />
@@ -382,67 +386,68 @@ const PlayersNearScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000000' },
+const createStyles = (colors, isDark) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: 120 },
-  glowOrb1: { position: 'absolute', width: SW * 1.1, height: SW * 1.1, borderRadius: SW * 0.55, top: -SW * 0.3, left: -SW * 0.05, backgroundColor: 'rgba(255,212,0,0.045)' },
-  glowOrb2: { position: 'absolute', width: SW * 0.7, height: SW * 0.7, borderRadius: SW * 0.35, top: SH * 0.45, right: -SW * 0.2, backgroundColor: 'rgba(255,212,0,0.025)' },
-  particle1: { position: 'absolute', width: 3, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,212,0,0.15)', top: SH * 0.22, left: SW * 0.15 },
-  particle2: { position: 'absolute', width: 2, height: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.08)', top: SH * 0.55, right: SW * 0.12 },
-  particle3: { position: 'absolute', width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,212,0,0.1)', top: SH * 0.72, left: SW * 0.65 },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', backgroundColor: 'rgba(0,0,0,0.6)' },
-  headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: '#FFFFFF', letterSpacing: 0.2 },
-  headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: Typography.fontFamily.regular, marginTop: 1 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 16, marginBottom: 8, backgroundColor: 'rgba(23,23,23,0.85)', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, gap: 10 },
-  searchInput: { flex: 1, color: '#FFFFFF', fontFamily: Typography.fontFamily.regular, fontSize: 14, padding: 0 },
-  radarContainer: { alignItems: 'center', marginTop: 10, marginBottom: 8 },
-  radarGlass: { width: RADAR_SIZE, height: RADAR_SIZE, borderRadius: RADAR_R, backgroundColor: 'rgba(10,10,10,0.6)', borderWidth: 1.5, borderColor: 'rgba(255,212,0,0.12)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  radarRing: { position: 'absolute', borderWidth: 1, borderColor: 'rgba(255,212,0,0.4)' },
-  crossHair: { position: 'absolute', backgroundColor: 'rgba(255,212,0,0.06)' },
-  radarCenter: { position: 'absolute', width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,212,0,0.08)', borderWidth: 1, borderColor: 'rgba(255,212,0,0.3)' },
-  radarCenterCore: { position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: '#FFD400', opacity: 0.7 },
-  radarBeamWrap: { position: 'absolute', width: RADAR_SIZE, height: RADAR_SIZE, alignItems: 'center', justifyContent: 'center' },
-  radarBeam: { position: 'absolute', top: RADAR_R - 1, left: RADAR_R, width: RADAR_R * 0.85, height: 2, borderRadius: 1, backgroundColor: 'rgba(255,212,0,0.4)' },
-  radarLabel: { marginTop: 10, fontSize: 10, letterSpacing: 2.5, color: 'rgba(255,212,0,0.4)', fontFamily: Typography.fontFamily.semiBold },
-  markerWrap: { position: 'absolute', width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  markerRipple: { position: 'absolute', width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: 'rgba(255,212,0,0.5)' },
-  markerSelectedHalo: { position: 'absolute', width: 58, height: 58, borderRadius: 29, borderWidth: 1.5, borderColor: 'rgba(255,212,0,0.35)', backgroundColor: 'rgba(255,212,0,0.06)' },
-  markerAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: 'rgba(255,212,0,0.5)', overflow: 'hidden' },
-  markerAvatarSelected: { borderColor: '#FFD400', borderWidth: 2.5 },
-  markerImg: { width: '100%', height: '100%' },
-  markerImgFallback: { flex: 1, backgroundColor: '#171717', alignItems: 'center', justifyContent: 'center' },
-  markerOnlineDot: { position: 'absolute', bottom: 1, right: 1, width: 10, height: 10, borderRadius: 5, backgroundColor: '#FFD400', borderWidth: 1.5, borderColor: '#000' },
-  metricsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 4, marginBottom: 12 },
-  metricCard: { flex: 1, backgroundColor: 'rgba(23,23,23,0.8)', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,212,0,0.1)' },
-  metricVal: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: '#FFFFFF' },
-  metricLbl: { fontSize: 9, color: 'rgba(255,255,255,0.35)', fontFamily: Typography.fontFamily.regular, marginTop: 2, textAlign: 'center' },
+  glowOrb1: { position: "absolute", width: SW * 1.1, height: SW * 1.1, borderRadius: SW * 0.55, top: -SW * 0.3, left: -SW * 0.05, backgroundColor: isDark ? "rgba(255,212,0,0.045)" : "rgba(255,212,0,0.03)" },
+  glowOrb2: { position: "absolute", width: SW * 0.7, height: SW * 0.7, borderRadius: SW * 0.35, top: SH * 0.45, right: -SW * 0.2, backgroundColor: isDark ? "rgba(255,212,0,0.025)" : "rgba(255,212,0,0.02)" },
+  particle1: { position: "absolute", width: 3, height: 3, borderRadius: 2, backgroundColor: "rgba(255,212,0,0.15)", top: SH * 0.22, left: SW * 0.15 },
+  particle2: { position: "absolute", width: 2, height: 2, borderRadius: 1, backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)", top: SH * 0.55, right: SW * 0.12 },
+  particle3: { position: "absolute", width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,212,0,0.1)", top: SH * 0.72, left: SW * 0.65 },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: isDark ? "rgba(0,0,0,0.6)" : colors.surface },
+  headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, letterSpacing: 0.2 },
+  headerSub: { fontSize: 11, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginTop: 1 },
+  searchBar: { flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginTop: 16, marginBottom: 8, backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDark ? 0.2 : 0.05, shadowRadius: 4, elevation: 2 },
+  searchInput: { flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.regular, fontSize: 14, padding: 0 },
+  radarContainer: { alignItems: "center", marginTop: 10, marginBottom: 8 },
+  radarGlass: { width: RADAR_SIZE, height: RADAR_SIZE, borderRadius: RADAR_R, backgroundColor: isDark ? "rgba(10,10,10,0.6)" : "rgba(255,255,255,0.7)", borderWidth: 1.5, borderColor: isDark ? "rgba(255,212,0,0.12)" : "rgba(255,212,0,0.25)", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  radarRing: { position: "absolute", borderWidth: 1, borderColor: "rgba(255,212,0,0.4)" },
+  crossHair: { position: "absolute", backgroundColor: "rgba(255,212,0,0.1)" },
+  radarCenter: { position: "absolute", width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,212,0,0.08)", borderWidth: 1, borderColor: "rgba(255,212,0,0.3)" },
+  radarCenterCore: { position: "absolute", width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFD400", opacity: 0.7 },
+  radarBeamWrap: { position: "absolute", width: RADAR_SIZE, height: RADAR_SIZE, alignItems: "center", justifyContent: "center" },
+  radarBeam: { position: "absolute", top: RADAR_R - 1, left: RADAR_R, width: RADAR_R * 0.85, height: 2, borderRadius: 1, backgroundColor: "rgba(255,212,0,0.4)" },
+  radarLabel: { marginTop: 10, fontSize: 10, letterSpacing: 2.5, color: isDark ? "rgba(255,212,0,0.4)" : "#8A6D00", fontFamily: Typography.fontFamily.semiBold },
+  markerWrap: { position: "absolute", width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  markerRipple: { position: "absolute", width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: "rgba(255,212,0,0.5)" },
+  markerSelectedHalo: { position: "absolute", width: 58, height: 58, borderRadius: 29, borderWidth: 1.5, borderColor: "rgba(255,212,0,0.35)", backgroundColor: "rgba(255,212,0,0.06)" },
+  markerAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: "rgba(255,212,0,0.5)", overflow: "hidden" },
+  markerAvatarSelected: { borderColor: "#FFD400", borderWidth: 2.5 },
+  markerImg: { width: "100%", height: "100%" },
+  markerImgFallback: { flex: 1, backgroundColor: colors.surfaceVariant, alignItems: "center", justifyContent: "center" },
+  markerOnlineDot: { position: "absolute", bottom: 1, right: 1, width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFD400", borderWidth: 1.5, borderColor: colors.background },
+  metricsRow: { flexDirection: "row", gap: 10, paddingHorizontal: 16, marginTop: 4, marginBottom: 12 },
+  metricCard: { flex: 1, backgroundColor: colors.surface, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 10, alignItems: "center", borderWidth: 1, borderColor: colors.border, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDark ? 0.2 : 0.04, shadowRadius: 4, elevation: 2 },
+  metricVal: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  metricLbl: { fontSize: 9, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginTop: 2, textAlign: "center" },
   filtersRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 12, paddingTop: 2 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 22, backgroundColor: 'rgba(23,23,23,0.85)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  filterChipActive: { backgroundColor: '#FFD400', borderColor: '#FFD400' },
-  filterChipText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: 'rgba(255,255,255,0.6)' },
-  filterChipTextActive: { color: '#000000' },
-  playerCard: { marginHorizontal: 16, borderRadius: 20, backgroundColor: 'rgba(17,17,17,0.9)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
-  playerCardHighlighted: { borderColor: 'rgba(255,212,0,0.5)' },
-  playerCardInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
-  playerAvatarWrap: { position: 'relative', width: 56, height: 56 },
-  playerAvatarImg: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: 'rgba(255,212,0,0.4)' },
-  playerAvatarFallback: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#171717', borderWidth: 2, borderColor: 'rgba(255,212,0,0.2)', alignItems: 'center', justifyContent: 'center' },
-  playerOnlineDot: { position: 'absolute', bottom: 1, right: 1, width: 12, height: 12, borderRadius: 6, backgroundColor: '#FFD400', borderWidth: 2, borderColor: '#000' },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  filterChipActive: { backgroundColor: "#FFD400", borderColor: "#FFD400" },
+  filterChipText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: colors.textSecondary },
+  filterChipTextActive: { color: "#000000" },
+  playerCard: { marginHorizontal: 16, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDark ? 0.2 : 0.04, shadowRadius: 4, elevation: 2 },
+  playerCardHighlighted: { borderColor: "rgba(255,212,0,0.6)" },
+  playerCardInner: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  playerAvatarWrap: { position: "relative", width: 56, height: 56 },
+  playerAvatarImg: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: "rgba(255,212,0,0.4)" },
+  playerAvatarFallback: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.surfaceVariant, borderWidth: 2, borderColor: "rgba(255,212,0,0.2)", alignItems: "center", justifyContent: "center" },
+  playerOnlineDot: { position: "absolute", bottom: 1, right: 1, width: 12, height: 12, borderRadius: 6, backgroundColor: "#FFD400", borderWidth: 2, borderColor: colors.background },
   playerCardBody: { flex: 1 },
-  playerName: { fontSize: 14, fontFamily: Typography.fontFamily.semiBold, color: '#FFFFFF', marginBottom: 8 },
-  statsRow: { flexDirection: 'row', gap: 6 },
-  statChip: { backgroundColor: 'rgba(255,212,0,0.07)', borderWidth: 1, borderColor: 'rgba(255,212,0,0.12)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5, alignItems: 'center' },
-  statChipVal: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: '#FFFFFF' },
-  statChipLbl: { fontSize: 9, color: 'rgba(255,255,255,0.35)', fontFamily: Typography.fontFamily.regular, marginTop: 1 },
-  followBtn: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 24, backgroundColor: '#FFD400' },
-  followingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#FFD400' },
-  followBtnText: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: '#000000' },
-  followingBtnText: { color: '#FFFFFF' },
+  playerName: { fontSize: 14, fontFamily: Typography.fontFamily.semiBold, color: colors.textPrimary, marginBottom: 8 },
+  statsRow: { flexDirection: "row", gap: 6 },
+  statChip: { backgroundColor: isDark ? "rgba(255,212,0,0.07)" : "#FFF9D6", borderWidth: 1, borderColor: isDark ? "rgba(255,212,0,0.12)" : "#FFEAA7", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5, alignItems: "center" },
+  statChipVal: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: isDark ? "#FFFFFF" : colors.textPrimary },
+  statChipLbl: { fontSize: 9, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginTop: 1 },
+  followBtn: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 24, backgroundColor: "#FFD400" },
+  followingBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#FFD400" },
+  followBtnText: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: "#000000" },
+  followingBtnText: { color: isDark ? "#FFFFFF" : colors.textPrimary },
   loadingWrap: { paddingHorizontal: 16, gap: 12 },
-  skeletonCard: { height: 90, borderRadius: 20, backgroundColor: 'rgba(23,23,23,0.7)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  emptyWrap: { alignItems: 'center', paddingTop: 50, gap: 12 },
-  emptyText: { fontSize: 14, color: 'rgba(255,255,255,0.25)', fontFamily: Typography.fontFamily.regular },
+  skeletonCard: { height: 90, borderRadius: 20, backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.border },
+  emptyWrap: { alignItems: "center", paddingTop: 50, gap: 12 },
+  emptyText: { fontSize: 14, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular },
 });
+
 
 export default PlayersNearScreen;

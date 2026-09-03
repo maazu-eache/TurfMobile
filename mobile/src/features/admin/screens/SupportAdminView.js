@@ -5,10 +5,13 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
 import api from '../../../api/axios';
 import { Colors, Typography } from '../../../theme/theme';
+import { useTheme } from '../../../theme/ThemeContext';
 import { formatISTDateTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 export default function SupportAdminView({ navigation, onStatusChanged }) {
+  const { colors, isDark, shadows } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('open'); // 'open', 'in_progress', 'resolved', 'closed'
@@ -810,64 +813,64 @@ export default function SupportAdminView({ navigation, onStatusChanged }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  tabsContainer: { flexDirection: 'row', backgroundColor: Colors.backgroundElevated, padding: 8, gap: 8 },
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  tabsContainer: { flexDirection: 'row', backgroundColor: colors.surface, padding: 8, gap: 8 },
   tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 20 },
-  activeTab: { backgroundColor: Colors.primary },
-  tabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
-  activeTabText: { color: '#000', fontFamily: Typography.fontFamily.bold },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundCard, margin: 16, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
-  searchInput: { flex: 1, padding: 12, color: Colors.textPrimary, fontFamily: Typography.fontFamily.regular },
+  activeTab: { backgroundColor: isDark ? '#FFD400' : colors.primaryDark },
+  tabText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  activeTabText: { color: isDark ? '#000' : '#FFF', fontFamily: Typography.fontFamily.bold },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, margin: 16, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  searchInput: { flex: 1, padding: 12, color: colors.textPrimary, fontFamily: Typography.fontFamily.regular },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, paddingTop: 0 },
-  card: { backgroundColor: Colors.backgroundCard, padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
+  card: { backgroundColor: colors.surface, padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  subject: { flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginRight: 8 },
-  date: { color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.regular },
-  category: { color: Colors.primary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 4 },
-  emailText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginBottom: 2 },
-  bookingRef: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginBottom: 4 },
-  descriptionPreview: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginTop: 4, marginBottom: 12 },
+  subject: { flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginRight: 8 },
+  date: { color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.regular },
+  category: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 4 },
+  emailText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginBottom: 2 },
+  bookingRef: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginBottom: 4 },
+  descriptionPreview: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginTop: 4, marginBottom: 12 },
   
   cardActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   actionBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
   actionBtnText: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40 },
-  emptyText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginTop: 16 },
+  emptyText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginTop: 16 },
 
   // Modal styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 16 },
-  modalContent: { backgroundColor: Colors.backgroundModal, borderRadius: 16, padding: 20, maxHeight: '85%', borderWidth: 1, borderColor: Colors.border },
+  modalContent: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, maxHeight: '85%', borderWidth: 1, borderColor: colors.border },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18 },
-  modalSubject: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 17, marginBottom: 8 },
-  modalMeta: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 6 },
-  modalSectionTitle: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginTop: 16, marginBottom: 8 },
-  descriptionBox: { backgroundColor: Colors.background, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
-  modalDescription: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.regular, fontSize: 14 },
+  modalTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18 },
+  modalSubject: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 17, marginBottom: 8 },
+  modalMeta: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 6 },
+  modalSectionTitle: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginTop: 16, marginBottom: 8 },
+  descriptionBox: { backgroundColor: colors.surfaceVariant, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  modalDescription: { color: colors.textPrimary, fontFamily: Typography.fontFamily.regular, fontSize: 14 },
   attachedImage: { width: '100%', height: 220, borderRadius: 8, marginBottom: 12 },
   modalActionsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   modalActionBtn: { flex: 1, padding: 10, borderRadius: 8, alignItems: 'center' },
-  closeBtn: { backgroundColor: Colors.primary, padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 16 },
-  closeBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
+  closeBtn: { backgroundColor: isDark ? '#FFD400' : colors.primaryDark, padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 16 },
+  closeBtnText: { color: isDark ? '#000' : '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
 
-  disputeCard: { backgroundColor: Colors.background, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
+  disputeCard: { backgroundColor: colors.surfaceVariant, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
   disputeHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  disputeTitle: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  disputeDetail: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginBottom: 4 },
+  disputeTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  disputeDetail: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginBottom: 4 },
   deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.error, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 6 },
   deleteBtnText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
 
-  contactSubBox: { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingBottom: 8, marginBottom: 4 },
-  contactRoleTitle: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13, marginBottom: 4 },
+  contactSubBox: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8, marginBottom: 4 },
+  contactRoleTitle: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 13, marginBottom: 4 },
 
-  requestProofBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 4, marginTop: 4, alignSelf: 'flex-start', gap: 4 },
-  requestProofText: { color: '#000', fontSize: 11, fontFamily: Typography.fontFamily.bold },
+  requestProofBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#FFD400' : colors.primaryDark, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 4, marginTop: 4, alignSelf: 'flex-start', gap: 4 },
+  requestProofText: { color: isDark ? '#000' : '#FFF', fontSize: 11, fontFamily: Typography.fontFamily.bold },
 
-  recipientBadge: { backgroundColor: 'rgba(255,204,0,0.06)', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,204,0,0.15)', marginBottom: 12 },
-  recipientTitle: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13, marginBottom: 4 },
-  recipientDetail: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginBottom: 2 },
-  modalInput: { backgroundColor: Colors.background, color: '#fff', borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, fontSize: 14, textAlignVertical: 'top', height: 120 },
+  recipientBadge: { backgroundColor: colors.surfaceVariant, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  recipientTitle: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 13, marginBottom: 4 },
+  recipientDetail: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginBottom: 2 },
+  modalInput: { backgroundColor: colors.surfaceVariant, color: colors.textPrimary, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 12, fontSize: 14, textAlignVertical: 'top', height: 120 },
 });

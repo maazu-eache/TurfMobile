@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Image, BackHandler, Modal, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Typography, BorderRadius, Spacing } from '../../../theme/theme';
+import { Colors, Typography, BorderRadius, Spacing, useTheme } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import { useDispatch, useSelector } from 'react-redux';
@@ -11,6 +11,8 @@ import socketService from '../../../services/socketService';
 // Removed imageUtils import
 
 const SelectBowlerScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { matchId } = route.params;
   const dispatch = useDispatch();
   
@@ -271,14 +273,14 @@ const SelectBowlerScreen = ({ route, navigation }) => {
     <SafeAreaView style={styles.container}>
       {submitting && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }]}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       )}
 
       {/* Premium Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('LiveScorer', { matchId, skipAutoBowler: true })}>
-          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+          <Icon name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={styles.headerTitle}>Select Bowler</Text>
@@ -289,7 +291,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -383,7 +385,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                 </View>
 
                 {!isDisabled && (
-                  <Icon name="chevron-right" size={22} color={Colors.primary} />
+                  <Icon name="chevron-right" size={22} color={colors.primary} />
                 )}
               </TouchableOpacity>
             );
@@ -399,14 +401,14 @@ const SelectBowlerScreen = ({ route, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Playing XI (Bowlers)</Text>
               <TouchableOpacity onPress={() => setShowEditSquadModal(false)}>
-                <Icon name="close" size={24} color={Colors.textPrimary} />
+                <Icon name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
             <Text style={styles.instructionText}>Check the players you want in the playing XI. Pull down to refresh.</Text>
 
             <ScrollView 
               style={styles.modalList}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshModal} colors={[Colors.primary]} tintColor={Colors.primary} />}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshModal} colors={[colors.primary]} tintColor={colors.primary} />}
             >
               {fullSquad.map((p, idx) => {
                 const isSelected = editingSquad.some(s => String(s._id || s) === String(p._id || p));
@@ -419,7 +421,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                     <Icon
                       name={isSelected ? "checkbox-marked" : "checkbox-blank-outline"}
                       size={24}
-                      color={isSelected ? Colors.primary : Colors.textTertiary}
+                      color={isSelected ? colors.primary : colors.textTertiary}
                     />
                     <View style={styles.avatarPlaceholderSm}>
                       <Text style={styles.avatarTextSm}>{p.name.charAt(0).toUpperCase()}</Text>
@@ -478,7 +480,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                   });
                 }}
               >
-                <Icon name="plus" size={20} color={Colors.textSecondary} />
+                <Icon name="plus" size={20} color={colors.textSecondary} />
                 <Text style={styles.addNewBtnText}>Add New Player to Team</Text>
               </TouchableOpacity>
 
@@ -494,7 +496,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
         {score ? (
           <View style={styles.scoreFooterBanner}>
             <View style={styles.scoreFooterLeft}>
-              <Icon name="cricket" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Icon name="cricket" size={14} color={colors.primary} style={{ marginRight: 6 }} />
               <Text style={styles.scoreFooterTeam} numberOfLines={1}>
                 {isTeamABatting ? match?.teamA?.name : match?.teamB?.name}
               </Text>
@@ -517,7 +519,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
             setShowEditSquadModal(true);
           }}
         >
-          <Icon name="account-edit" size={20} color={Colors.primary} />
+          <Icon name="account-edit" size={20} color={colors.primary} />
           <Text style={styles.editBtnText}>Edit Squad / Add Player</Text>
         </TouchableOpacity>
       </View>
@@ -525,10 +527,10 @@ const SelectBowlerScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -538,19 +540,19 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   backBtn: { padding: 4 },
   headerTitle: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 17,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   headerSubtitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: 1,
   },
   loadingContainer: {
@@ -566,11 +568,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.lg,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 6,
@@ -588,15 +590,15 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.primaryAlpha20,
+    borderColor: colors.primaryAlpha20,
   },
   avatarText: {
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 20,
   },
   prevBadge: {
@@ -606,35 +608,35 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: Colors.textSecondary,
+    backgroundColor: colors.textSecondary,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.surface,
+    borderColor: colors.surface,
   },
   playerName: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 15,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     flex: 1,
   },
   statsBadge: {
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 2,
     marginLeft: 8,
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha20,
+    borderColor: colors.primaryAlpha20,
   },
   statsBadgeText: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
   },
   statusTextError: {
     fontSize: 12,
-    color: Colors.error,
+    color: colors.error,
     fontFamily: Typography.fontFamily.medium,
     marginTop: 2,
   },
@@ -647,23 +649,23 @@ const styles = StyleSheet.create({
   quotaBarBg: {
     flex: 1,
     height: 4,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: colors.borderLight,
     borderRadius: 2,
     flexDirection: 'row',
     overflow: 'hidden',
   },
   quotaBarFill: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 2,
   },
   quotaText: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   emptyText: {
     textAlign: 'center',
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     marginTop: Spacing.lg,
   },
@@ -671,19 +673,19 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingBottom: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
   scoreFooterBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
     borderRadius: BorderRadius.sm,
     paddingVertical: 10,
     paddingHorizontal: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha20,
+    borderColor: colors.primaryAlpha20,
     flexWrap: 'wrap',
     gap: 4,
   },
@@ -695,23 +697,23 @@ const styles = StyleSheet.create({
   scoreFooterTeam: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     flex: 1,
   },
   scoreFooterScore: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
   },
   scoreFooterOvers: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   scoreFooterNeed: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.primary,
+    color: colors.primary,
     width: '100%',
   },
   editBtn: {
@@ -719,16 +721,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.md,
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha20,
+    borderColor: colors.primaryAlpha20,
     gap: 8,
   },
   editBtnText: {
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 15,
-    color: Colors.primary,
+    color: colors.primary,
   },
   modalOverlay: {
     flex: 1,
@@ -736,7 +738,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContentFull: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     padding: Spacing.base,
     height: '100%',
   },
@@ -749,11 +751,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   instructionText: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.md,
   },
   modalList: {
@@ -764,37 +766,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: Spacing.base,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
   },
   avatarPlaceholderSm: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha20,
+    borderColor: colors.primaryAlpha20,
   },
   avatarTextSm: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 15,
     fontWeight: 'bold',
   },
   modalListText: {
     fontSize: 15,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   editSquadFooter: {
     marginTop: Spacing.base,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: colors.borderLight,
     paddingTop: Spacing.base,
   },
   addNewBtn: {
@@ -805,16 +807,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
     gap: 6,
   },
   addNewBtnText: {
     marginLeft: 8,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 15,
   },
   saveBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     padding: 14,
     borderRadius: BorderRadius.md,
     alignItems: 'center',

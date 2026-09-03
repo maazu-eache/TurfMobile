@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Image, TouchableOpacity,
   Modal, Pressable, Dimensions, ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { getImageUrl } from '../../../api/axios';
 import api from '../../../api/axios';
 import Icon from 'react-native-vector-icons/Feather';
@@ -17,6 +17,8 @@ const TABS = ['Batters', 'Bowlers', 'Fielders', 'MVP'];
 const RANK_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'];
 
 const TournamentLeaderboard = ({ tournament, onShare }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [activeTab, setActiveTab] = useState('Batters');
   const [previewPlayer, setPreviewPlayer] = useState(null);
   const [careerStats, setCareerStats] = useState(null);
@@ -45,7 +47,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
   if (!tournament?.leaderboard) {
     return (
       <View style={styles.emptyContainer}>
-        <MCIcon name="trophy-outline" size={52} color={Colors.textTertiary} />
+        <MCIcon name="trophy-outline" size={52} color={colors.textTertiary} />
         <Text style={styles.emptyTitle}>No leaderboard yet</Text>
         <Text style={styles.emptyText}>Stats will appear once matches are played.</Text>
       </View>
@@ -165,7 +167,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
           const stat = getPrimaryValue(item);
           const pills = getStatPills(item);
           const isFirst = realIdx === 0;
-          const rankColor = RANK_COLORS[realIdx] || Colors.primary;
+          const rankColor = RANK_COLORS[realIdx] || colors.primary;
           const photoUrl = player.photo || player.userId?.photo;
 
           return (
@@ -179,7 +181,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
                 {photoUrl && getPhotoUrl(photoUrl) ? (
                   <Image source={{ uri: getPhotoUrl(photoUrl) }} style={styles.podiumAvatar} />
                 ) : (
-                  <View style={[styles.podiumAvatar, { backgroundColor: Colors.backgroundElevated, justifyContent: 'center', alignItems: 'center' }]}>
+                  <View style={[styles.podiumAvatar, { backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
                     <Text style={[styles.podiumAvatarLetter, { color: rankColor }]}>
                       {(player.name || 'U').charAt(0).toUpperCase()}
                     </Text>
@@ -276,7 +278,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
             <MCIcon
               name={getTabIcon(tab)}
               size={15}
-              color={activeTab === tab ? Colors.primary : Colors.textTertiary}
+              color={activeTab === tab ? colors.primary : colors.textTertiary}
               style={{ marginBottom: 2 }}
             />
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
@@ -301,8 +303,8 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
               onShare({ type: 'leaderboard', data: { type: shareType, data: resolvedData } });
             }}
           >
-            <Icon name="share-2" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
-            <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share {activeTab}</Text>
+            <Icon name="share-2" size={14} color={colors.primary} style={{ marginRight: 6 }} />
+            <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share {activeTab}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -310,7 +312,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {data.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <MCIcon name="trophy-outline" size={40} color={Colors.textTertiary} />
+            <MCIcon name="trophy-outline" size={40} color={colors.textTertiary} />
             <Text style={styles.emptyText}>No {activeTab} data yet</Text>
           </View>
         ) : (
@@ -370,7 +372,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
             {/* Overall Career Stats */}
             <View style={styles.lbCareerRow}>
               {careerLoading ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
+                <ActivityIndicator size="small" color={colors.primary} />
               ) : (
                 [{
                   label: 'Matches', value: careerStats?.career?.matches ?? '-'
@@ -408,15 +410,15 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
   /* Sub-tabs */
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   tabItem: {
     flex: 1,
@@ -425,9 +427,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2.5,
     borderBottomColor: 'transparent',
   },
-  tabItemActive: { borderBottomColor: Colors.primary },
-  tabText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 11, letterSpacing: 0.2 },
-  tabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 11 },
+  tabItemActive: { borderBottomColor: colors.primary },
+  tabText: { color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 11, letterSpacing: 0.2 },
+  tabTextActive: { color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 11 },
 
   scrollContent: { paddingBottom: 20 },
 
@@ -440,9 +442,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 16,
     gap: 8,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
     marginBottom: 12,
   },
   podiumItem: {
@@ -470,11 +472,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.background,
+    borderColor: colors.background,
   },
-  podiumRankText: { fontSize: 9, color: Colors.background, fontFamily: Typography.fontFamily.bold },
-  podiumName: { fontSize: 12, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' },
-  podiumTeam: { fontSize: 10, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginBottom: 6 },
+  podiumRankText: { fontSize: 9, color: colors.background, fontFamily: Typography.fontFamily.bold },
+  podiumName: { fontSize: 12, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' },
+  podiumTeam: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginBottom: 6 },
   podiumStat: {
     borderWidth: 1,
     borderRadius: 10,
@@ -485,12 +487,12 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   podiumStatValue: { fontSize: 14, fontFamily: Typography.fontFamily.bold },
-  podiumStatUnit: { fontSize: 10, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  podiumStatUnit: { fontSize: 10, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
 
   /* Ranking list (4th onwards) */
   restHeader: {
     fontSize: 12,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.semiBold,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -500,36 +502,36 @@ const styles = StyleSheet.create({
   listCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     marginHorizontal: 12,
     marginBottom: 8,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     gap: 10,
   },
-  listRank: { width: 26, fontSize: 13, color: Colors.textTertiary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' },
+  listRank: { width: 26, fontSize: 13, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' },
   listAvatar: { width: 42, height: 42, borderRadius: 21 },
-  listAvatarFallback: { backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center' },
-  listAvatarLetter: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-  listName: { fontSize: 14, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
-  listTeam: { fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: 4 },
+  listAvatarFallback: { backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center' },
+  listAvatarLetter: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: colors.primary },
+  listName: { fontSize: 14, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
+  listTeam: { fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: 4 },
 
   /* Stat pills */
   pillRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  pill: { flexDirection: 'row', gap: 3, backgroundColor: Colors.background, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
-  pillLabel: { fontSize: 10, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium },
-  pillValue: { fontSize: 10, color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold },
+  pill: { flexDirection: 'row', gap: 3, backgroundColor: colors.background, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
+  pillLabel: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium },
+  pillValue: { fontSize: 10, color: colors.textSecondary, fontFamily: Typography.fontFamily.bold },
 
   listStatBox: { alignItems: 'flex-end' },
-  listStatValue: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-  listStatUnit: { fontSize: 10, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  listStatValue: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.primary },
+  listStatUnit: { fontSize: 10, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
 
   /* Empty */
   emptyContainer: { padding: 40, alignItems: 'center', gap: 10 },
-  emptyTitle: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: 4 },
-  emptyText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 13, textAlign: 'center' },
+  emptyTitle: { fontSize: 16, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: 4 },
+  emptyText: { color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 13, textAlign: 'center' },
 
   /* Player Preview Modal */
   modalOverlay: {
@@ -541,20 +543,22 @@ const styles = StyleSheet.create({
   },
   previewCard: {
     width: '100%',
-    backgroundColor: '#111',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     overflow: 'hidden',
     elevation: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
+    shadowOpacity: isDark ? 0.5 : 0.15,
     shadowRadius: 20,
   },
   coverImageContainer: {
     width: '100%',
     height: SCREEN_HEIGHT * 0.38,
     position: 'relative',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: colors.surfaceVariant,
   },
   coverImage: {
     width: '100%',
@@ -586,7 +590,7 @@ const styles = StyleSheet.create({
   coverTeam: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.65)',
+    color: 'rgba(255,255,255,0.85)',
   },
   closeBtn: {
     position: 'absolute',
@@ -604,15 +608,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     paddingHorizontal: 20,
-    backgroundColor: '#111',
+    backgroundColor: colors.surfaceVariant,
   },
   statPill: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 6,
-    backgroundColor: 'rgba(154,188,47,0.12)',
+    backgroundColor: isDark ? 'rgba(255,212,0,0.12)' : 'rgba(212,160,0,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(154,188,47,0.35)',
+    borderColor: isDark ? 'rgba(255,212,0,0.35)' : 'rgba(212,160,0,0.35)',
     borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 8,
@@ -620,18 +624,18 @@ const styles = StyleSheet.create({
   statPillValue: {
     fontSize: 28,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: isDark ? '#FFD400' : colors.primaryDark,
   },
   statPillUnit: {
     fontSize: 14,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   viewProfileBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: isDark ? '#FFD400' : colors.primaryDark,
     marginHorizontal: 16,
     marginBottom: 16,
     marginTop: 4,
@@ -641,7 +645,7 @@ const styles = StyleSheet.create({
   viewProfileBtnText: {
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
-    color: '#000',
+    color: isDark ? '#000' : '#FFF',
     letterSpacing: 0.3,
   },
   lbCareerRow: {
@@ -650,9 +654,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 12,
-    backgroundColor: '#0d0d0d',
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+    borderTopColor: colors.border,
   },
   lbCareerPill: {
     flex: 1,
@@ -662,12 +666,12 @@ const styles = StyleSheet.create({
   lbCareerValue: {
     fontSize: 22,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: isDark ? '#FFD400' : colors.primaryDark,
   },
   lbCareerLabel: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.45)',
+    color: colors.textSecondary,
     marginTop: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.6,

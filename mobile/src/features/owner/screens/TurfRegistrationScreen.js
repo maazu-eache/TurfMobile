@@ -1,23 +1,23 @@
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  Image, KeyboardAvoidingView, Platform, ActivityIndicator, Modal
+  Image, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, StatusBar
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useForm, Controller } from 'react-hook-form';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme } from '../../../theme/ThemeContext';
 import { createTurf, updateTurf } from '../../turf/turfSlice';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import CustomTimePicker from '../../../components/CustomTimePicker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import moment from 'moment';
-
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 const AMENITIES_LIST = [
   { id: 'parking', label: 'Parking', icon: 'car' },
@@ -54,6 +54,9 @@ const formatTime12Hour = (time24) => {
 
 const TurfRegistrationScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
+  const { colors, isDark, shadows } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
+
   const editTurf = route.params?.editTurf;
   const isEditing = !!editTurf;
   const dispatch = useDispatch();
@@ -80,7 +83,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
       nightStartTime: editTurf?.operatingHours?.nightStartTime || '17:00',
       nightEndTime: editTurf?.operatingHours?.nightEndTime || '06:00',
       weekendDays: editTurf?.operatingHours?.weekendDays || [0, 6],
-      bookingMode: editTurf?.bookingMode || 'both',
+      bookingMode: editTurf?.bookingMode || '60_min',
       specialDays: editTurf?.specialDays || [],
       amenities: editTurf?.amenities || {},
       googleMapsUrl: editTurf?.googleMapsUrl || ''
@@ -302,7 +305,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
           <TextInput
             style={[styles.input, multiline && styles.textArea, errors[name] && styles.inputError]}
             placeholder={placeholder}
-            placeholderTextColor={Colors.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             onBlur={onBlur}
             onChangeText={onChange}
             value={value}
@@ -319,7 +322,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-left" size={28} color={Colors.textPrimary} />
+          <Icon name="arrow-left" size={28} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isEditing ? 'Edit Turf' : 'Add New Turf'}</Text>
         <View style={{ width: 40 }} />
@@ -335,14 +338,14 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
               <Image source={{ uri: getImageUrl(coverImage.uri) }} style={styles.coverImagePreview} />
             ) : (
               <View style={styles.uploadPlaceholder}>
-                <Icon name="camera-plus" size={40} color={Colors.primary} />
+                <Icon name="camera-plus" size={40} color={isDark ? colors.primary : colors.primaryDark} />
                 <Text style={styles.uploadText}>Upload Cover Image *</Text>
               </View>
             )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.galleryUpload} onPress={pickGalleryImages}>
-            <Icon name="image-multiple" size={24} color={Colors.primary} />
+            <Icon name="image-multiple" size={24} color={isDark ? colors.primary : colors.primaryDark} />
             <Text style={styles.galleryText}>+ Add Gallery Images</Text>
           </TouchableOpacity>
 
@@ -391,7 +394,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                   <TextInput
                     style={[styles.input, { flex: 1, textAlign: 'center' }]}
                     placeholder="e.g. 50"
-                    placeholderTextColor={Colors.textSecondary}
+                    placeholderTextColor={colors.textSecondary}
                     value={customSize1}
                     onChangeText={(val) => {
                       setCustomSize1(val);
@@ -399,11 +402,11 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                     }}
                     keyboardType="numeric"
                   />
-                  <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>v</Text>
+                  <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: 'bold' }}>v</Text>
                   <TextInput
                     style={[styles.input, { flex: 1, textAlign: 'center' }]}
                     placeholder="e.g. 50"
-                    placeholderTextColor={Colors.textSecondary}
+                    placeholderTextColor={colors.textSecondary}
                     value={customSize2}
                     onChangeText={(val) => {
                       setCustomSize2(val);
@@ -435,7 +438,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
 
           {/* Location */}
           <View style={styles.sectionHeader}>
-            <Icon name="map-marker-outline" size={20} color={Colors.primary} />
+            <Icon name="map-marker-outline" size={20} color={isDark ? colors.primary : colors.primaryDark} />
             <Text style={styles.sectionTitle}>Location</Text>
           </View>
 
@@ -448,11 +451,11 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
               rules={{ required: 'Address is required' }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <View style={[styles.inputWrapper, errors.address && styles.inputWrapperError]}>
-                  <Icon name="road" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                  <Icon name="road" size={18} color={colors.textTertiary} style={styles.inputIcon} />
                   <TextInput
                     style={styles.inputField}
                     placeholder="e.g. 24 Main Road, Koramangala"
-                    placeholderTextColor={Colors.textTertiary}
+                    placeholderTextColor={colors.textTertiary}
                     onChangeText={onChange}
                     onBlur={onBlur}
                     value={value}
@@ -508,11 +511,11 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                   rules={{ required: 'State is required' }}
                   render={({ field: { onChange, onBlur, value } }) => (
                     <View style={[styles.inputWrapper, errors.state && styles.inputWrapperError]}>
-                      <Icon name="map" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                      <Icon name="map" size={18} color={colors.textTertiary} style={styles.inputIcon} />
                       <TextInput
                         style={styles.inputField}
                         placeholder="State"
-                        placeholderTextColor={Colors.textTertiary}
+                        placeholderTextColor={colors.textTertiary}
                         onChangeText={onChange}
                         onBlur={onBlur}
                         value={value}
@@ -531,11 +534,11 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                   name="pincode"
                   render={({ field: { onChange, onBlur, value } }) => (
                     <View style={styles.inputWrapper}>
-                      <Icon name="numeric" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                      <Icon name="numeric" size={18} color={colors.textTertiary} style={styles.inputIcon} />
                       <TextInput
                         style={styles.inputField}
                         placeholder="e.g. 560001"
-                        placeholderTextColor={Colors.textTertiary}
+                        placeholderTextColor={colors.textTertiary}
                         onChangeText={onChange}
                         onBlur={onBlur}
                         value={value}
@@ -567,11 +570,11 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
               }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <View style={styles.inputWrapper}>
-                  <Icon name="google-maps" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                  <Icon name="google-maps" size={18} color={colors.textTertiary} style={styles.inputIcon} />
                   <TextInput
                     style={styles.inputField}
                     placeholder="Paste Google Maps link"
-                    placeholderTextColor={Colors.textSecondary}
+                    placeholderTextColor={colors.textSecondary}
                     onChangeText={onChange}
                     onBlur={onBlur}
                     value={value}
@@ -593,7 +596,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
             <View style={{ flex: 1, marginRight: 8 }}>
               <Text style={styles.label}>Open Time</Text>
               <TouchableOpacity style={[styles.input, { justifyContent: 'center' }]} onPress={() => setShowOpenTimePicker(true)}>
-                <Text style={{ color: watch('openTime') ? Colors.textPrimary : Colors.textSecondary, textAlign: 'center' }}>
+                <Text style={{ color: watch('openTime') ? colors.textPrimary : colors.textSecondary, textAlign: 'center' }}>
                   {watch('openTime') ? formatTime12Hour(watch('openTime')) : 'Select Time'}
                 </Text>
               </TouchableOpacity>
@@ -601,7 +604,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
             <View style={{ flex: 1, marginLeft: 8 }}>
               <Text style={styles.label}>Close Time</Text>
               <TouchableOpacity style={[styles.input, { justifyContent: 'center' }]} onPress={() => setShowCloseTimePicker(true)}>
-                <Text style={{ color: watch('closeTime') ? Colors.textPrimary : Colors.textSecondary, textAlign: 'center' }}>
+                <Text style={{ color: watch('closeTime') ? colors.textPrimary : colors.textSecondary, textAlign: 'center' }}>
                   {watch('closeTime') ? formatTime12Hour(watch('closeTime')) : 'Select Time'}
                 </Text>
               </TouchableOpacity>
@@ -612,7 +615,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
             <View style={{ flex: 1, marginRight: 8 }}>
               <Text style={styles.label}>Lights Provided</Text>
               <TouchableOpacity style={[styles.input, { justifyContent: 'center' }]} onPress={() => setShowNightTimePicker(true)}>
-                <Text style={{ color: watch('nightStartTime') ? Colors.textPrimary : Colors.textSecondary, textAlign: 'center' }}>
+                <Text style={{ color: watch('nightStartTime') ? colors.textPrimary : colors.textSecondary, textAlign: 'center' }}>
                   {watch('nightStartTime') ? formatTime12Hour(watch('nightStartTime')) : 'Select Time'}
                 </Text>
               </TouchableOpacity>
@@ -620,7 +623,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
             <View style={{ flex: 1, marginLeft: 8 }}>
               <Text style={styles.label}>Lights Offed</Text>
               <TouchableOpacity style={[styles.input, { justifyContent: 'center' }]} onPress={() => setShowNightEndTimePicker(true)}>
-                <Text style={{ color: watch('nightEndTime') ? Colors.textPrimary : Colors.textSecondary, textAlign: 'center' }}>
+                <Text style={{ color: watch('nightEndTime') ? colors.textPrimary : colors.textSecondary, textAlign: 'center' }}>
                   {watch('nightEndTime') ? formatTime12Hour(watch('nightEndTime')) : 'Select Time'}
                 </Text>
               </TouchableOpacity>
@@ -649,9 +652,9 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
             <Text style={styles.label}>Supported Booking Mode</Text>
             <View style={styles.bookingModeGrid}>
               {[
-                { id: '60_min', title: '1 Hour', subtitle: '60 Mins Only', icon: 'clock-outline' },
+                { id: '60_min', title: '1 Hour', subtitle: '60 Mins Only', icon: 'clock-outline', defaultTag: true },
                 { id: '30_min', title: '30 Mins', subtitle: '30 Mins Only', icon: 'timer-sand' },
-                { id: 'both', title: 'Both Modes', subtitle: '30m & 1 Hour', icon: 'star-circle-outline', defaultTag: true },
+                { id: 'both', title: 'Both Modes', subtitle: '30m & 1 Hour', icon: 'star-circle-outline' },
               ].map(mode => {
                 const isSelected = watch('bookingMode') === mode.id;
                 return (
@@ -750,7 +753,7 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
                   style={[styles.amenityCard, isActive && styles.amenityCardActive]}
                   onPress={() => toggleAmenity(amenity.id)}
                 >
-                  <Icon name={amenity.icon} size={24} color={isActive ? Colors.primary : Colors.textTertiary} />
+                  <Icon name={amenity.icon} size={24} color={isActive ? isDark ? colors.primary : colors.primaryDark : colors.textTertiary} />
                   <Text style={[styles.amenityText, isActive && styles.amenityTextActive]}>{amenity.label}</Text>
                 </TouchableOpacity>
               );
@@ -1025,35 +1028,35 @@ const TurfRegistrationScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: { 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
     paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg,
-    backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border
   },
   backButton: { width: 40, height: 40, justifyContent: 'center' },
   
   // Header Title & Status Badge
   headerTitleWrap: { alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  headerTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   statusBadge: { 
     flexDirection: 'row', alignItems: 'center', gap: 5, 
     paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, marginTop: 2 
   },
-  statusBadgeCreate: { backgroundColor: 'rgba(76, 175, 80, 0.15)', borderWidth: 1, borderColor: Colors.success },
-  statusBadgeEdit: { backgroundColor: 'rgba(255, 204, 0, 0.15)', borderWidth: 1, borderColor: Colors.primary },
+  statusBadgeCreate: { backgroundColor: 'rgba(76, 175, 80, 0.15)', borderWidth: 1, borderColor: isDark ? '#4CAF50' : '#2E7D32' },
+  statusBadgeEdit: { backgroundColor: 'rgba(255, 204, 0, 0.15)', borderWidth: 1, borderColor: isDark ? colors.primary : colors.primaryDark },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusDotCreate: { backgroundColor: Colors.success },
-  statusDotEdit: { backgroundColor: Colors.primary },
+  statusDotCreate: { backgroundColor: isDark ? '#4CAF50' : '#2E7D32' },
+  statusDotEdit: { backgroundColor: isDark ? colors.primary : colors.primaryDark },
   statusBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
-  statusBadgeTextCreate: { color: Colors.success },
-  statusBadgeTextEdit: { color: Colors.primary },
+  statusBadgeTextCreate: { color: isDark ? '#4CAF50' : '#2E7D32' },
+  statusBadgeTextEdit: { color: isDark ? colors.primary : colors.primaryDark },
 
   // Scroll & Sections
   scroll: { flex: 1 },
   scrollContent: { padding: Spacing.lg, paddingBottom: 100 },
-  sectionTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: Spacing.md, marginBottom: Spacing.sm },
+  sectionTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginTop: Spacing.md, marginBottom: Spacing.sm },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.md, marginBottom: Spacing.sm },
   
   // Mode Banner
@@ -1064,22 +1067,22 @@ const styles = StyleSheet.create({
   modeBannerCreate: { backgroundColor: 'rgba(76, 175, 80, 0.08)', borderColor: 'rgba(76, 175, 80, 0.3)' },
   modeBannerEdit: { backgroundColor: 'rgba(255, 204, 0, 0.08)', borderColor: 'rgba(255, 204, 0, 0.3)' },
   modeBannerText: { fontSize: 13, fontFamily: Typography.fontFamily.medium, flex: 1 },
-  modeBannerTextCreate: { color: Colors.success },
-  modeBannerTextEdit: { color: Colors.primary },
+  modeBannerTextCreate: { color: isDark ? '#4CAF50' : '#2E7D32' },
+  modeBannerTextEdit: { color: isDark ? colors.primary : colors.primaryDark },
 
   // Inputs & Groups
   inputGroup: { marginBottom: Spacing.md },
   input: { 
-    backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, 
-    borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.lg, 
-    height: 52, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium 
+    backgroundColor: colors.surfaceVariant, borderRadius: BorderRadius.lg, 
+    borderWidth: 1, borderColor: colors.border, paddingHorizontal: Spacing.lg, 
+    height: 52, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium 
   },
   inputWrapper: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg,
-    borderWidth: 1, borderColor: Colors.border, height: 52, paddingHorizontal: Spacing.md,
+    backgroundColor: colors.surfaceVariant, borderRadius: BorderRadius.lg,
+    borderWidth: 1, borderColor: colors.border, height: 52, paddingHorizontal: Spacing.md,
   },
-  inputWrapperError: { borderColor: Colors.error },
+  inputWrapperError: { borderColor: colors.error },
   inputIcon: { marginRight: 8 },
 
   /* ── Special Day Occasion Modal Styles ── */
@@ -1091,23 +1094,23 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '85%',
-    backgroundColor: '#1E1E1E',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: colors.border,
   },
   modalTitle: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFF',
+    color: colors.textPrimary,
     marginBottom: 16,
     textAlign: 'center',
   },
   modalLabel: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
@@ -1117,13 +1120,13 @@ const styles = StyleSheet.create({
     color: '#FFD400',
   },
   modalTextInput: {
-    backgroundColor: '#111',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: colors.border,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: '#FFF',
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 14,
     marginTop: 6,
@@ -1142,10 +1145,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalBtnCancel: {
-    backgroundColor: '#2D2D2D',
+    backgroundColor: colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   modalBtnCancelText: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 14,
   },
@@ -1158,40 +1163,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   inputField: {
-    flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14, padding: 0,
+    flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14, padding: 0,
   },
   textArea: { height: 100, textAlignVertical: 'top', paddingTop: Spacing.md },
-  inputError: { borderColor: Colors.error },
-  errorText: { color: Colors.error, fontSize: 12, marginTop: 4, marginLeft: 4 },
+  inputError: { borderColor: colors.error },
+  errorText: { color: colors.error, fontSize: 12, marginTop: 4, marginLeft: 4 },
   row: { marginBottom: Spacing.sm },
   rowInputs: { flexDirection: 'row', marginBottom: Spacing.sm },
-  label: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 6 },
+  label: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 6 },
   
   // Chips
   chipScroll: { flexDirection: 'row' },
   chip: { 
     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, 
-    backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border, marginRight: 8 
+    backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.border, marginRight: 8 
   },
-  chipActive: { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  chipTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  chipActive: { backgroundColor: isDark ? 'rgba(255, 204, 0, 0.15)' : '#FFF9DB', borderColor: isDark ? colors.primary : colors.primaryDark },
+  chipText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  chipTextActive: { color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
 
   // Media
   coverUpload: { 
-    height: 180, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.xl, 
-    borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed', 
+    height: 180, backgroundColor: colors.surfaceVariant, borderRadius: BorderRadius.xl, 
+    borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed', 
     justifyContent: 'center', alignItems: 'center', overflow: 'hidden' 
   },
   coverImagePreview: { width: '100%', height: '100%' },
   uploadPlaceholder: { alignItems: 'center' },
-  uploadText: { color: Colors.primary, marginTop: 8, fontFamily: Typography.fontFamily.medium },
+  uploadText: { color: isDark ? colors.primary : colors.primaryDark, marginTop: 8, fontFamily: Typography.fontFamily.medium },
   galleryUpload: { 
-    marginTop: Spacing.md, padding: Spacing.md, backgroundColor: Colors.backgroundElevated, 
-    borderRadius: BorderRadius.lg, alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
+    marginTop: Spacing.md, padding: Spacing.md, backgroundColor: colors.surfaceVariant, 
+    borderRadius: BorderRadius.lg, alignItems: 'center', borderWidth: 1, borderColor: colors.border,
     flexDirection: 'row', justifyContent: 'center', gap: 8
   },
-  galleryText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  galleryText: { color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
   galleryScroll: { marginTop: Spacing.md, flexDirection: 'row' },
   galleryImageWrapper: { width: 100, height: 100, marginRight: Spacing.md, borderRadius: BorderRadius.md, overflow: 'hidden', position: 'relative' },
   galleryImage: { width: '100%', height: '100%' },
@@ -1200,26 +1205,26 @@ const styles = StyleSheet.create({
   // Amenities
   amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
   amenityCard: { 
-    width: '48%', backgroundColor: Colors.backgroundElevated, padding: Spacing.md, 
-    borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, 
+    width: '48%', backgroundColor: colors.surfaceVariant, padding: Spacing.md, 
+    borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: colors.border, 
     flexDirection: 'row', alignItems: 'center', gap: 10 
   },
-  amenityCardActive: { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
-  amenityText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 13, flex: 1 },
-  amenityTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  amenityCardActive: { backgroundColor: isDark ? 'rgba(255, 204, 0, 0.15)' : '#FFF9DB', borderColor: isDark ? colors.primary : colors.primaryDark },
+  amenityText: { color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 13, flex: 1 },
+  amenityTextActive: { color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
 
   // Submit
   submitButton: { 
-    backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: BorderRadius.lg, 
+    backgroundColor: isDark ? colors.primary : colors.primaryDark, paddingVertical: 16, borderRadius: BorderRadius.lg, 
     alignItems: 'center', marginTop: Spacing['2xl'] 
   },
   submitButtonDisabled: { opacity: 0.7 },
   submitButtonText: { color: '#000', fontSize: 16, fontFamily: Typography.fontFamily.bold },
   bottomButtonContainer: {
     padding: Spacing.md,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: colors.border,
   },
 
   // Loading Overlay
@@ -1231,30 +1236,30 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   loadingCard: {
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.xl,
     padding: Spacing.xl,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     width: '80%',
   },
   loadingTitle: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 16,
     marginTop: Spacing.md,
     textAlign: 'center',
   },
   loadingSubtitle: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 12,
     marginTop: 4,
     textAlign: 'center',
   },
   helperText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 11,
     marginTop: 6,
     marginLeft: 4,
@@ -1266,9 +1271,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#161616',
+    backgroundColor: colors.surfaceVariant,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 14,
@@ -1285,12 +1290,12 @@ const styles = StyleSheet.create({
   specialDaysTriggerTitle: {
     fontSize: 14,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFF',
+    color: colors.textPrimary,
   },
   specialDaysTriggerSubtitle: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   specialModalOverlay: {
@@ -1302,10 +1307,10 @@ const styles = StyleSheet.create({
   },
   specialModalCard: {
     width: '100%',
-    backgroundColor: '#161616',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     padding: 18,
   },
   specialModalHeader: {
@@ -1319,12 +1324,12 @@ const styles = StyleSheet.create({
   specialModalTitle: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFF',
+    color: colors.textPrimary,
   },
   specialModalSubtitle: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   specialModalCloseBtn: {
@@ -1359,7 +1364,7 @@ const styles = StyleSheet.create({
   specialDayDetailDate: {
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFF',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   specialDayDetailBadge: {
@@ -1379,7 +1384,7 @@ const styles = StyleSheet.create({
   specialDayDetailDesc: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 8,
   },
@@ -1392,7 +1397,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   specialDayDetailCancelText: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
   },
@@ -1406,7 +1411,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   specialDayDetailRemoveText: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 13,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -1420,7 +1425,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   regCalendarTitle: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 14,
   },
@@ -1431,7 +1436,7 @@ const styles = StyleSheet.create({
   regDayOfWeek: {
     width: '14.28%',
     textAlign: 'center',
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.textTertiary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
     marginBottom: 10,
@@ -1450,7 +1455,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFD400',
   },
   regCalDayText: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
   },
@@ -1471,10 +1476,10 @@ const styles = StyleSheet.create({
   },
   bookingModeCard: {
     flex: 1,
-    backgroundColor: '#161616',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     paddingVertical: 12,
     paddingHorizontal: 4,
     alignItems: 'center',
@@ -1502,7 +1507,7 @@ const styles = StyleSheet.create({
   bookingModeTitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
-    color: 'rgba(255,255,255,0.8)',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   bookingModeTitleActive: {
@@ -1511,7 +1516,7 @@ const styles = StyleSheet.create({
   bookingModeSub: {
     fontSize: 8,
     fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.textTertiary,
     textAlign: 'center',
     marginTop: 2,
     marginBottom: 8,

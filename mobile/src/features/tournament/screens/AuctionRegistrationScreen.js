@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import moment from 'moment';
-import { Colors, Spacing, Typography } from '../../../theme/theme';
+import { Colors, Spacing, Typography, useTheme } from '../../../theme/theme';
 import auctionService from '../../../services/auctionService';
 import { useSelector } from 'react-redux';
 import RazorpayCheckout from 'react-native-razorpay';
@@ -43,6 +43,8 @@ const BOWLING_STYLES = [
 ];
 
 const AuctionRegistrationScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { tournamentId } = route.params || {};
 
   const [step, setStep] = useState('form');
@@ -162,7 +164,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
         contact: user?.mobile || '',
         name: fullName,
       },
-      theme: { color: Colors.primary },
+      theme: { color: colors.primary },
     };
     RazorpayCheckout.open(options).then(async (data) => {
       try {
@@ -214,7 +216,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
   if (loading && !auction) {
     return (
       <SafeAreaView style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading auction details...</Text>
       </SafeAreaView>
     );
@@ -229,11 +231,11 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-          <Icon name="arrow-left" size={22} color={Colors.textPrimary} />
+          <Icon name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Player Registration</Text>
         <TouchableOpacity onPress={handleShare} style={styles.headerBtn}>
-          <Icon name="share-variant-outline" size={22} color={Colors.primary} />
+          <Icon name="share-variant-outline" size={22} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -248,11 +250,11 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
           <View style={styles.tournamentCard}>
             <View style={styles.tournamentCardTop}>
               <View style={styles.auctionBadge}>
-                <Icon name="gavel" size={12} color={Colors.primary} />
+                <Icon name="gavel" size={12} color={colors.primary} />
                 <Text style={styles.auctionBadgeText}>AUCTION</Text>
               </View>
               <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
-                <Icon name="share-variant-outline" size={16} color={Colors.textTertiary} />
+                <Icon name="share-variant-outline" size={16} color={colors.textTertiary} />
               </TouchableOpacity>
             </View>
             <Text style={styles.tournamentName} numberOfLines={2}>
@@ -260,7 +262,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
             </Text>
             <View style={styles.infoStrip}>
               <View style={styles.infoStripItem}>
-                <Icon name="currency-inr" size={14} color={Colors.textTertiary} />
+                <Icon name="currency-inr" size={14} color={colors.textTertiary} />
                 <View>
                   <Text style={styles.infoStripLabel}>Entry Fee</Text>
                   <Text style={styles.infoStripValue}>₹{entryFee}</Text>
@@ -271,13 +273,13 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                 <Icon
                   name={isRegistrationClosed ? 'lock' : 'calendar-clock'}
                   size={14}
-                  color={isRegistrationClosed ? Colors.error : Colors.textTertiary}
+                  color={isRegistrationClosed ? colors.error : colors.textTertiary}
                 />
                 <View>
                   <Text style={styles.infoStripLabel}>
                     {isRegistrationClosed ? 'Ended On' : 'Closes On'}
                   </Text>
-                  <Text style={[styles.infoStripValue, isRegistrationClosed && { color: Colors.error }]}>
+                  <Text style={[styles.infoStripValue, isRegistrationClosed && { color: colors.error }]}>
                     {formatEndDate(auction?.registrationEndDate)}
                   </Text>
                 </View>
@@ -285,7 +287,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
             </View>
             {isRegistrationClosed && (
               <View style={styles.closedPill}>
-                <Icon name="lock-outline" size={13} color={Colors.error} />
+                <Icon name="lock-outline" size={13} color={colors.error} />
                 <Text style={styles.closedPillText}>Registration Closed</Text>
               </View>
             )}
@@ -295,7 +297,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
             /* Closed State */
             <View style={styles.closedCard}>
               <View style={styles.closedIconRing}>
-                <Icon name="lock-outline" size={36} color={Colors.error} />
+                <Icon name="lock-outline" size={36} color={colors.error} />
               </View>
               <Text style={styles.closedTitle}>Registration Closed</Text>
               <Text style={styles.closedSub}>
@@ -338,13 +340,13 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                         <Image source={photo ? { uri: photo.uri } : { uri: user.avatar }} style={styles.photoImg} />
                       ) : (
                         <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-                          <Icon name="camera-plus" size={28} color={Colors.primary} />
-                          <Text style={{ color: Colors.textSecondary, fontSize: 10, marginTop: 4 }}>Add Photo</Text>
+                          <Icon name="camera-plus" size={28} color={colors.primary} />
+                          <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 4 }}>Add Photo</Text>
                         </View>
                       )}
                     </TouchableOpacity>
                   </View>
-                  <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
+                  <Text style={{ color: colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
                     Note: Maximum image size allowed is under 3 MB.
                   </Text>
                 </View>
@@ -353,13 +355,13 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                 <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>FULL NAME</Text>
                   <View style={styles.inputWrapper}>
-                    <Icon name="account-outline" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                    <Icon name="account-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
                     <TextInput
                       style={styles.input}
                       value={fullName}
                       onChangeText={setFullName}
                       placeholder="Enter your full name"
-                      placeholderTextColor={Colors.textTertiary}
+                      placeholderTextColor={colors.textTertiary}
                     />
                   </View>
                 </View>
@@ -368,10 +370,10 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                 <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>MOBILE NUMBER</Text>
                   <View style={[styles.inputWrapper, styles.inputWrapperReadonly]}>
-                    <Icon name="phone-outline" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                    <Icon name="phone-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
                     <Text style={styles.readonlyText}>{user?.mobile || 'Not available'}</Text>
                     <View style={styles.verifiedPill}>
-                      <Icon name="shield-check" size={12} color={Colors.success} />
+                      <Icon name="shield-check" size={12} color={colors.success} />
                       <Text style={styles.verifiedText}> Verified</Text>
                     </View>
                   </View>
@@ -399,14 +401,14 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                           <Icon
                             name={r.icon}
                             size={20}
-                            color={active ? Colors.primary : Colors.textTertiary}
+                            color={active ? colors.primary : colors.textTertiary}
                           />
                           <Text style={[styles.roleCardText, active && styles.roleCardTextActive]}>
                             {r.label}
                           </Text>
                           {active && (
                             <View style={styles.roleCardCheck}>
-                              <Icon name="check-circle" size={14} color={Colors.primary} />
+                              <Icon name="check-circle" size={14} color={colors.primary} />
                             </View>
                           )}
                         </TouchableOpacity>
@@ -430,7 +432,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                           <Icon
                             name={b === 'Right Handed' ? 'hand-pointing-right' : 'hand-pointing-left'}
                             size={15}
-                            color={active ? Colors.white : Colors.textSecondary}
+                            color={active ? colors.white : colors.textSecondary}
                           />
                           <Text style={[styles.chipText, active && styles.chipTextActive]}> {b}</Text>
                         </TouchableOpacity>
@@ -466,14 +468,14 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                 >
                   <View style={[styles.termsCheckbox, agreed && styles.termsCheckboxAgreed]}>
                     {agreed
-                      ? <Icon name="check" size={14} color={Colors.white} />
+                      ? <Icon name="check" size={14} color={colors.white} />
                       : null}
                   </View>
                   <Text style={styles.termsText}>
                     I have read and agree to the{' '}
                     <Text style={styles.termsLink}>Terms & Conditions</Text>
                   </Text>
-                  <Icon name="chevron-right" size={18} color={Colors.textTertiary} />
+                  <Icon name="chevron-right" size={18} color={colors.textTertiary} />
                 </TouchableOpacity>
               </View>
 
@@ -491,8 +493,8 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                   </View>
                 ) : (
                   <View style={styles.payBtnInner}>
-                    <Icon name="lock" size={18} color={agreed ? '#000' : Colors.textTertiary} />
-                    <Text style={[styles.payBtnText, !agreed && { color: Colors.textTertiary }]}>
+                    <Icon name="lock" size={18} color={agreed ? '#000' : colors.textTertiary} />
+                    <Text style={[styles.payBtnText, !agreed && { color: colors.textTertiary }]}>
                       {`  PAY ₹${entryFee} SECURELY`}
                     </Text>
                   </View>
@@ -513,16 +515,16 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
           {/* Celebration Header */}
           <View style={styles.celebrationHeader}>
             {/* Decorative dots */}
-            <View style={[styles.confettiDot, { top: 20, left: 30, backgroundColor: Colors.primary }]} />
-            <View style={[styles.confettiDot, { top: 40, right: 50, backgroundColor: Colors.warning, width: 8, height: 8 }]} />
-            <View style={[styles.confettiDot, { top: 10, right: 30, backgroundColor: Colors.success }]} />
-            <View style={[styles.confettiDot, { top: 60, left: 60, backgroundColor: Colors.error, width: 6, height: 6 }]} />
+            <View style={[styles.confettiDot, { top: 20, left: 30, backgroundColor: colors.primary }]} />
+            <View style={[styles.confettiDot, { top: 40, right: 50, backgroundColor: colors.warning, width: 8, height: 8 }]} />
+            <View style={[styles.confettiDot, { top: 10, right: 30, backgroundColor: colors.success }]} />
+            <View style={[styles.confettiDot, { top: 60, left: 60, backgroundColor: colors.error, width: 6, height: 6 }]} />
 
             {/* Icon */}
             <View style={styles.successOuterRing}>
               <View style={styles.successInnerRing}>
                 <View style={styles.successCircle}>
-                  <Icon name="check-bold" size={36} color={Colors.white} />
+                  <Icon name="check-bold" size={36} color={colors.white} />
                 </View>
               </View>
             </View>
@@ -533,7 +535,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
               Congratulations! You've successfully{'\n'}registered for
             </Text>
             <View style={styles.successTournamentBadge}>
-              <Icon name="trophy" size={14} color={Colors.primary} />
+              <Icon name="trophy" size={14} color={colors.primary} />
               <Text style={styles.successTournamentName}>
                 {auction?.tournament?.name || 'the auction'}
               </Text>
@@ -544,7 +546,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
           <View style={styles.receiptCard}>
             {/* Top stripe */}
             <View style={styles.receiptStripe}>
-              <Icon name="receipt" size={16} color={Colors.white} />
+              <Icon name="receipt" size={16} color={colors.white} />
               <Text style={styles.receiptStripeText}>Payment Receipt</Text>
               <View style={styles.receiptStripePill}>
                 <View style={styles.receiptStripeDot} />
@@ -562,7 +564,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                   </Text>
                 </View>
                 <View style={styles.receiptAmountIcon}>
-                  <Icon name="check-circle" size={28} color={Colors.success} />
+                  <Icon name="check-circle" size={28} color={colors.success} />
                 </View>
               </View>
 
@@ -577,7 +579,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
               ].map((item, idx) => (
                 <View key={idx} style={styles.receiptDetailRow}>
                   <View style={styles.receiptDetailIcon}>
-                    <Icon name={item.icon} size={14} color={Colors.textTertiary} />
+                    <Icon name={item.icon} size={14} color={colors.textTertiary} />
                   </View>
                   <Text style={styles.receiptDetailLabel}>{item.label}</Text>
                   <Text
@@ -601,7 +603,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
             ].map((s, i) => (
               <View key={i} style={styles.nextStep}>
                 <View style={styles.nextStepIcon}>
-                  <Icon name={s.icon} size={16} color={Colors.primary} />
+                  <Icon name={s.icon} size={16} color={colors.primary} />
                 </View>
                 <Text style={styles.nextStepText}>{s.text}</Text>
               </View>
@@ -614,12 +616,12 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
             onPress={() => setStep('my_reg')}
             activeOpacity={0.85}
           >
-            <Icon name="card-account-details-outline" size={20} color={Colors.white} />
+            <Icon name="card-account-details-outline" size={20} color={colors.white} />
             <Text style={[styles.payBtnText, { marginLeft: 8 }]}>VIEW MY REGISTRATION</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.shareFullBtn} onPress={handleShare}>
-            <Icon name="share-variant-outline" size={16} color={Colors.primary} />
+            <Icon name="share-variant-outline" size={16} color={colors.primary} />
             <Text style={styles.shareFullBtnText}>Share with friends</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -635,7 +637,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
           {/* Registered Banner */}
           <View style={styles.registeredBanner}>
             <View style={styles.registeredIconWrap}>
-              <Icon name="trophy-outline" size={28} color={Colors.primary} />
+              <Icon name="trophy-outline" size={28} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.registeredBannerTitle}>You're Registered!</Text>
@@ -658,7 +660,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
             ].map((item, idx) => (
               <View key={idx} style={[styles.detailRow, idx > 0 && styles.detailRowBorder]}>
                 <View style={styles.detailIconWrap}>
-                  <Icon name={item.icon} size={16} color={Colors.primary} />
+                  <Icon name={item.icon} size={16} color={colors.primary} />
                 </View>
                 <Text style={styles.detailLabel}>{item.label}</Text>
                 <Text style={styles.detailValue}>{item.value}</Text>
@@ -680,7 +682,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
               <View style={styles.paymentInfoRow}>
                 <Text style={styles.paymentInfoLabel}>Payment Status</Text>
                 <View style={styles.paidPill}>
-                  <Icon name="check-circle" size={13} color={Colors.success} />
+                  <Icon name="check-circle" size={13} color={colors.success} />
                   <Text style={styles.paidPillText}> Paid</Text>
                 </View>
               </View>
@@ -693,7 +695,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
 
           {/* Share */}
           <TouchableOpacity style={styles.shareFullBtn} onPress={handleShare}>
-            <Icon name="share-variant-outline" size={18} color={Colors.primary} />
+            <Icon name="share-variant-outline" size={18} color={colors.primary} />
             <Text style={styles.shareFullBtnText}>Share with friends</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -726,7 +728,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
                 setShowTermsModal(false);
               }}
             >
-              <Icon name="check-circle-outline" size={18} color={Colors.white} />
+              <Icon name="check-circle-outline" size={18} color={colors.white} />
               <Text style={styles.agreeBtnText}> I AGREE & CONTINUE</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -756,10 +758,10 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
-  loadingText: { color: Colors.textSecondary, marginTop: 12, fontSize: 14 },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  loadingText: { color: colors.textSecondary, marginTop: 12, fontSize: 14 },
 
   // Header
   header: {
@@ -767,40 +769,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
-  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  headerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
 
   scrollContent: { padding: 16, paddingBottom: 32 },
 
   // Tournament Card
   tournamentCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 18,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   tournamentCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  auctionBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: `${Colors.primary}22`, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, gap: 4 },
-  auctionBadgeText: { color: Colors.primary, fontSize: 10, fontFamily: Typography.fontFamily.bold, letterSpacing: 1 },
+  auctionBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: `${colors.primary}22`, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, gap: 4 },
+  auctionBadgeText: { color: colors.primary, fontSize: 10, fontFamily: Typography.fontFamily.bold, letterSpacing: 1 },
   shareBtn: { padding: 6 },
-  tournamentName: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 14 },
-  infoStrip: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 14, overflow: 'hidden' },
+  tournamentName: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 14 },
+  infoStrip: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 14, overflow: 'hidden' },
   infoStripItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
-  infoStripDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 10 },
-  infoStripLabel: { color: Colors.textTertiary, fontSize: 11 },
-  infoStripValue: { color: Colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.bold },
+  infoStripDivider: { width: 1, backgroundColor: colors.border, marginVertical: 10 },
+  infoStripLabel: { color: colors.textTertiary, fontSize: 11 },
+  infoStripValue: { color: colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.bold },
   closedPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, marginTop: 10, alignSelf: 'flex-start', gap: 4 },
-  closedPillText: { color: Colors.error, fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  closedPillText: { color: colors.error, fontSize: 12, fontFamily: Typography.fontFamily.bold },
 
   // Fee Card
   feeCard: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 20,
     padding: 18,
     marginBottom: 14,
@@ -809,43 +811,43 @@ const styles = StyleSheet.create({
   feeCardItem: { flex: 1, alignItems: 'center' },
   feeCardSep: { width: 1, height: 36, backgroundColor: 'rgba(255,255,255,0.25)' },
   feeCardLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 11, marginBottom: 3 },
-  feeCardAmount: { color: Colors.white, fontSize: 17, fontFamily: Typography.fontFamily.bold },
+  feeCardAmount: { color: colors.white, fontSize: 17, fontFamily: Typography.fontFamily.bold },
   feeCardTotal: { fontSize: 22 },
 
   // Form Card
   formCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     marginBottom: 14,
   },
-  formCardTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 16 },
+  formCardTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 16 },
 
   fieldGroup: { marginBottom: 16 },
-  fieldLabel: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, letterSpacing: 1.2, marginBottom: 8 },
+  fieldLabel: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, letterSpacing: 1.2, marginBottom: 8 },
 
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     paddingHorizontal: 12,
     height: 50,
   },
-  inputWrapperReadonly: { backgroundColor: `${Colors.surface}cc` },
+  inputWrapperReadonly: { backgroundColor: `${colors.surface}cc` },
   inputIcon: { marginRight: 8 },
-  input: { flex: 1, color: Colors.textPrimary, fontSize: 15 },
-  readonlyText: { flex: 1, color: Colors.textPrimary, fontSize: 15 },
+  input: { flex: 1, color: colors.textPrimary, fontSize: 15 },
+  readonlyText: { flex: 1, color: colors.textPrimary, fontSize: 15 },
   verifiedPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  verifiedText: { color: Colors.success, fontSize: 11, fontFamily: Typography.fontFamily.bold },
+  verifiedText: { color: colors.success, fontSize: 11, fontFamily: Typography.fontFamily.bold },
 
   sectionDivider: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, marginTop: 4 },
-  sectionDividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
-  sectionDividerText: { color: Colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.bold, marginHorizontal: 10, letterSpacing: 0.8 },
+  sectionDividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  sectionDividerText: { color: colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.bold, marginHorizontal: 10, letterSpacing: 0.8 },
 
   // Role cards
   roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -853,17 +855,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     position: 'relative',
   },
-  roleCardActive: { borderColor: Colors.primary, backgroundColor: `${Colors.primary}15` },
-  roleCardText: { color: Colors.textSecondary, fontSize: 13 },
-  roleCardTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  roleCardActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}15` },
+  roleCardText: { color: colors.textSecondary, fontSize: 13 },
+  roleCardTextActive: { color: colors.primary, fontFamily: Typography.fontFamily.bold },
   roleCardCheck: { position: 'absolute', top: -5, right: -5 },
 
   // Chips
@@ -875,61 +877,61 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontSize: 13 },
-  chipTextActive: { color: Colors.white, fontFamily: Typography.fontFamily.bold },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { color: colors.textSecondary, fontSize: 13 },
+  chipTextActive: { color: colors.white, fontFamily: Typography.fontFamily.bold },
 
   // Terms
   termsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     marginTop: 4,
     gap: 10,
   },
-  termsRowAgreed: { borderColor: Colors.primary, backgroundColor: `${Colors.primary}10` },
+  termsRowAgreed: { borderColor: colors.primary, backgroundColor: `${colors.primary}10` },
   termsCheckbox: {
     width: 22,
     height: 22,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  termsCheckboxAgreed: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  termsText: { flex: 1, color: Colors.textSecondary, fontSize: 13 },
-  termsLink: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, textDecorationLine: 'underline' },
+  termsCheckboxAgreed: { backgroundColor: colors.primary, borderColor: colors.primary },
+  termsText: { flex: 1, color: colors.textSecondary, fontSize: 13 },
+  termsLink: { color: colors.primary, fontFamily: Typography.fontFamily.bold, textDecorationLine: 'underline' },
 
   // Pay Button
   payBtn: {
     height: 56,
     borderRadius: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
     ...Platform.select({
-      ios: { shadowColor: Colors.primary, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } },
+      ios: { shadowColor: colors.primary, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } },
       android: { elevation: 6 },
     }),
   },
-  payBtnDisabled: { backgroundColor: Colors.surface, elevation: 0, shadowOpacity: 0 },
+  payBtnDisabled: { backgroundColor: colors.surface, elevation: 0, shadowOpacity: 0 },
   payBtnInner: { flexDirection: 'row', alignItems: 'center' },
   payBtnText: { color: '#000', fontSize: 16, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
-  payNote: { textAlign: 'center', color: Colors.textTertiary, fontSize: 12, marginBottom: 4 },
+  payNote: { textAlign: 'center', color: colors.textTertiary, fontSize: 12, marginBottom: 4 },
 
   // Closed card
   closedCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 30,
     alignItems: 'center',
@@ -948,9 +950,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  closedTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.error, marginBottom: 8 },
-  closedSub: { color: Colors.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 8 },
-  closedHint: { color: Colors.textTertiary, fontSize: 13, textAlign: 'center' },
+  closedTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.error, marginBottom: 8 },
+  closedSub: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 8 },
+  closedHint: { color: colors.textTertiary, fontSize: 13, textAlign: 'center' },
 
   // Success Screen
   successScreen: { flexGrow: 1, padding: 20, paddingBottom: 36 },
@@ -994,127 +996,127 @@ const styles = StyleSheet.create({
     width: 76,
     height: 76,
     borderRadius: 38,
-    backgroundColor: Colors.success,
+    backgroundColor: colors.success,
     justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({
-      ios: { shadowColor: Colors.success, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
+      ios: { shadowColor: colors.success, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
       android: { elevation: 8 },
     }),
   },
   successEmoji: { fontSize: 32, marginVertical: 10 },
-  successTitle: { fontSize: 30, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 6 },
-  successSub: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 10 },
+  successTitle: { fontSize: 30, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 6 },
+  successSub: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 10 },
   successTournamentBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: `${Colors.primary}18`,
+    backgroundColor: `${colors.primary}18`,
     borderWidth: 1,
-    borderColor: `${Colors.primary}30`,
+    borderColor: `${colors.primary}30`,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 6,
   },
-  successTournamentName: { color: Colors.primary, fontSize: 13, fontFamily: Typography.fontFamily.bold },
+  successTournamentName: { color: colors.primary, fontSize: 13, fontFamily: Typography.fontFamily.bold },
 
   // Receipt Card
   receiptCard: {
     width: '100%',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: 14,
   },
   receiptStripe: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  receiptStripeText: { flex: 1, color: Colors.white, fontSize: 14, fontFamily: Typography.fontFamily.bold },
+  receiptStripeText: { flex: 1, color: colors.white, fontSize: 14, fontFamily: Typography.fontFamily.bold },
   receiptStripePill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, gap: 5 },
-  receiptStripeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.success },
-  receiptStripeStatus: { color: Colors.white, fontSize: 10, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.8 },
+  receiptStripeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success },
+  receiptStripeStatus: { color: colors.white, fontSize: 10, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.8 },
   receiptBody: { padding: 16 },
   receiptAmountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  receiptAmountLabel: { color: Colors.textTertiary, fontSize: 12, marginBottom: 4 },
-  receiptAmountValue: { fontSize: 32, fontFamily: Typography.fontFamily.bold, color: Colors.success },
+  receiptAmountLabel: { color: colors.textTertiary, fontSize: 12, marginBottom: 4 },
+  receiptAmountValue: { fontSize: 32, fontFamily: Typography.fontFamily.bold, color: colors.success },
   receiptAmountIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(34,197,94,0.12)', justifyContent: 'center', alignItems: 'center' },
-  receiptDividerDashed: { height: 1, borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed', marginBottom: 14 },
+  receiptDividerDashed: { height: 1, borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed', marginBottom: 14 },
   receiptDetailRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 10 },
-  receiptDetailIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' },
-  receiptDetailLabel: { flex: 1, color: Colors.textSecondary, fontSize: 13 },
-  receiptDetailValue: { color: Colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold, maxWidth: '50%', textAlign: 'right' },
-  receiptDetailMono: { fontFamily: 'monospace', color: Colors.textTertiary, fontSize: 12 },
+  receiptDetailIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+  receiptDetailLabel: { flex: 1, color: colors.textSecondary, fontSize: 13 },
+  receiptDetailValue: { color: colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold, maxWidth: '50%', textAlign: 'right' },
+  receiptDetailMono: { fontFamily: 'monospace', color: colors.textTertiary, fontSize: 12 },
 
   // Next Steps
   nextStepsCard: {
     width: '100%',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 18,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     marginBottom: 20,
   },
-  nextStepsTitle: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 12 },
+  nextStepsTitle: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 12 },
   nextStep: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  nextStepIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: `${Colors.primary}15`, justifyContent: 'center', alignItems: 'center' },
-  nextStepText: { color: Colors.textSecondary, fontSize: 13, flex: 1 },
+  nextStepIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: `${colors.primary}15`, justifyContent: 'center', alignItems: 'center' },
+  nextStepText: { color: colors.textSecondary, fontSize: 13, flex: 1 },
 
   paidPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  paidPillText: { color: Colors.success, fontSize: 13, fontFamily: Typography.fontFamily.bold },
+  paidPillText: { color: colors.success, fontSize: 13, fontFamily: Typography.fontFamily.bold },
 
   // My Registration
   registeredBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: `${Colors.primary}18`,
+    backgroundColor: `${colors.primary}18`,
     borderRadius: 18,
     padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: `${Colors.primary}30`,
+    borderColor: `${colors.primary}30`,
     gap: 12,
   },
   registeredIconWrap: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: `${Colors.primary}20`,
+    backgroundColor: `${colors.primary}20`,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  registeredBannerTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-  registeredBannerSub: { color: Colors.textSecondary, fontSize: 13, marginTop: 2 },
-  registeredDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.success },
+  registeredBannerTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.primary },
+  registeredBannerSub: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
+  registeredDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success },
 
   detailCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     marginBottom: 14,
   },
-  detailCardTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 14 },
+  detailCardTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 14 },
   detailRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
-  detailRowBorder: { borderTopWidth: 1, borderTopColor: Colors.border },
-  detailIconWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: `${Colors.primary}15`, justifyContent: 'center', alignItems: 'center' },
-  detailLabel: { flex: 1, color: Colors.textSecondary, fontSize: 14 },
-  detailValue: { color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold, maxWidth: '50%', textAlign: 'right' },
-  detailSep: { height: 1, backgroundColor: Colors.border, marginVertical: 8 },
+  detailRowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+  detailIconWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: `${colors.primary}15`, justifyContent: 'center', alignItems: 'center' },
+  detailLabel: { flex: 1, color: colors.textSecondary, fontSize: 14 },
+  detailValue: { color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold, maxWidth: '50%', textAlign: 'right' },
+  detailSep: { height: 1, backgroundColor: colors.border, marginVertical: 8 },
 
   paymentInfo: { gap: 2 },
   paymentInfoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
-  paymentInfoLabel: { color: Colors.textSecondary, fontSize: 14 },
-  paymentInfoAmount: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  paymentInfoReceipt: { color: Colors.textTertiary, fontSize: 12, maxWidth: '60%', textAlign: 'right' },
+  paymentInfoLabel: { color: colors.textSecondary, fontSize: 14 },
+  paymentInfoAmount: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  paymentInfoReceipt: { color: colors.textTertiary, fontSize: 12, maxWidth: '60%', textAlign: 'right' },
 
   shareFullBtn: {
     flexDirection: 'row',
@@ -1124,19 +1126,19 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: Colors.primary,
-    backgroundColor: `${Colors.primary}10`,
+    borderColor: colors.primary,
+    backgroundColor: `${colors.primary}10`,
     marginBottom: 8,
   },
-  shareFullBtnText: { color: Colors.primary, fontSize: 15, fontFamily: Typography.fontFamily.bold },
+  shareFullBtnText: { color: colors.primary, fontSize: 15, fontFamily: Typography.fontFamily.bold },
 
   photoBox: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: `${Colors.primary}15`,
+    backgroundColor: `${colors.primary}15`,
     borderWidth: 1,
-    borderColor: `${Colors.primary}30`,
+    borderColor: `${colors.primary}30`,
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1151,30 +1153,30 @@ const styles = StyleSheet.create({
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 24,
     paddingBottom: 36,
   },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 16 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 16 },
   termItem: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  termNumber: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginTop: 1 },
-  termText: { flex: 1, color: Colors.textSecondary, fontSize: 14, lineHeight: 22 },
+  termNumber: { color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginTop: 1 },
+  termText: { flex: 1, color: colors.textSecondary, fontSize: 14, lineHeight: 22 },
   agreeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     height: 52,
     borderRadius: 14,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     marginTop: 20,
     marginBottom: 10,
   },
-  agreeBtnText: { color: Colors.white, fontSize: 15, fontFamily: Typography.fontFamily.bold },
+  agreeBtnText: { color: colors.white, fontSize: 15, fontFamily: Typography.fontFamily.bold },
   declineBtn: { alignItems: 'center', paddingVertical: 8 },
-  declineBtnText: { color: Colors.textTertiary, fontSize: 14 },
+  declineBtnText: { color: colors.textTertiary, fontSize: 14 },
 });
 
 export default AuctionRegistrationScreen;

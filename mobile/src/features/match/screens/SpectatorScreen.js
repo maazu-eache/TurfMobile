@@ -1,9 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { Colors } from '../../../theme/theme';
+import { Colors, useTheme } from '../../../theme/theme';
 import api from '../../../api/axios';
 
 const SpectatorScreen = ({ navigation, route }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const matchId = route.params?.matchId || route.params?.id;
 
   useEffect(() => {
@@ -33,13 +35,13 @@ const SpectatorScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color={Colors.primary} />
+      <ActivityIndicator size="large" color={colors.primary} />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }
 });
 
 export default SpectatorScreen;

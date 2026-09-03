@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api from '../../../api/axios';
 import { useSelector } from 'react-redux';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
@@ -10,6 +10,8 @@ import LocationAutocomplete from '../../../components/LocationAutocomplete';
 const TABS = ['Upcoming', 'Ongoing', 'Completed', 'My Tournaments'];
 
 const TournamentListScreen = ({ navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [activeTab, setActiveTab] = useState('Upcoming');
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -71,11 +73,11 @@ const TournamentListScreen = ({ navigation }) => {
         
         <View style={styles.cardDetails}>
           <View style={styles.detailItem}>
-            <Icon name="calendar" size={14} color={Colors.textSecondary} />
+            <Icon name="calendar" size={14} color={colors.textSecondary} />
             <Text style={styles.detailText}>{new Date(item.startDate).toLocaleDateString()}</Text>
           </View>
           <View style={styles.detailItem}>
-            <Icon name="map-pin" size={14} color={Colors.textSecondary} />
+            <Icon name="map-pin" size={14} color={colors.textSecondary} />
             <Text style={styles.detailText}>{item.turf?.name || item.city || 'TBD'}</Text>
           </View>
         </View>
@@ -89,13 +91,13 @@ const TournamentListScreen = ({ navigation }) => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Tournaments</Text>
         <TouchableOpacity style={styles.filterBtn}>
-          <Icon name="filter" size={20} color={Colors.primary} />
+          <Icon name="filter" size={20} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
       {/* Search */}
       <View style={styles.searchContainer}>
-        <Icon name="search" size={20} color={Colors.textSecondary} />
+        <Icon name="search" size={20} color={colors.textSecondary} />
         <LocationAutocomplete 
            variant="none"
            placeholder="Search tournaments..."
@@ -138,37 +140,37 @@ const TournamentListScreen = ({ navigation }) => {
         style={styles.fab}
         onPress={() => navigation.navigate('TournamentCreate')}
       >
-        <Icon name="plus" size={24} color={Colors.white} />
+        <Icon name="plus" size={24} color={colors.textOnPrimary} />
       </TouchableOpacity>
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg },
-  headerTitle: { fontSize: 24, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  filterBtn: { padding: Spacing.sm, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, paddingHorizontal: Spacing.md, height: 50, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, marginBottom: Spacing.md },
+  headerTitle: { fontSize: 24, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  filterBtn: { padding: Spacing.sm, backgroundColor: colors.surface, borderRadius: BorderRadius.md },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, paddingHorizontal: Spacing.md, height: 50, backgroundColor: colors.surface, borderRadius: BorderRadius.lg, marginBottom: Spacing.md },
   tabsWrapper: { marginBottom: Spacing.md, paddingLeft: Spacing.lg },
-  tabBtn: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: 20, backgroundColor: Colors.backgroundElevated, marginRight: Spacing.sm },
-  tabBtnActive: { backgroundColor: Colors.primary },
-  tabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  tabTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold },
+  tabBtn: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: 20, backgroundColor: colors.surface, marginRight: Spacing.sm },
+  tabBtnActive: { backgroundColor: colors.primary },
+  tabText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  tabTextActive: { color: colors.textOnPrimary, fontFamily: Typography.fontFamily.bold },
   listContent: { padding: Spacing.lg, paddingBottom: 100 },
-  card: { backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, marginBottom: Spacing.lg, overflow: 'hidden', elevation: 2 },
+  card: { backgroundColor: colors.surface, borderRadius: BorderRadius.lg, marginBottom: Spacing.lg, overflow: 'hidden', elevation: 2 },
   cardBanner: { width: '100%', height: 140, backgroundColor: '#e1e4e8' },
   cardBody: { padding: Spacing.md },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  cardTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, flex: 1 },
-  badge: { backgroundColor: Colors.primaryLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, marginLeft: 10 },
-  badgeText: { color: Colors.primary, fontSize: 10, fontFamily: Typography.fontFamily.bold },
-  cardSub: { color: Colors.textSecondary, fontSize: 13, marginTop: 4, marginBottom: 12 },
+  cardTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, flex: 1 },
+  badge: { backgroundColor: colors.primaryAlpha10, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, marginLeft: 10 },
+  badgeText: { color: isDark ? colors.primary : colors.primaryDark, fontSize: 10, fontFamily: Typography.fontFamily.bold },
+  cardSub: { color: colors.textSecondary, fontSize: 13, marginTop: 4, marginBottom: 12 },
   cardDetails: { flexDirection: 'row', alignItems: 'center' },
   detailItem: { flexDirection: 'row', alignItems: 'center', marginRight: Spacing.lg },
-  detailText: { color: Colors.textSecondary, fontSize: 12, marginLeft: 6 },
-  emptyText: { textAlign: 'center', color: Colors.textSecondary, marginTop: Spacing.xl },
-  fab: { position: 'absolute', bottom: 30, right: 30, width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', elevation: 5 },
+  detailText: { color: colors.textSecondary, fontSize: 12, marginLeft: 6 },
+  emptyText: { textAlign: 'center', color: colors.textSecondary, marginTop: Spacing.xl },
+  fab: { position: 'absolute', bottom: 30, right: 30, width: 56, height: 56, borderRadius: 28, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', elevation: 5 },
 });
 
 export default TournamentListScreen;

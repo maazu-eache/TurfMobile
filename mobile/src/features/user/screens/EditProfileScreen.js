@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useSelector, useDispatch } from 'react-redux';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { updateUser } from '../../auth/authSlice';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -14,12 +14,15 @@ import ImageCropperModal from '../../../components/ImageCropperModal';
 const EditProfileScreen = ({ navigation }) => {
   const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
+  const { colors, shadows, isDark } = useTheme();
 
   const [name, setName] = useState(user?.name || '');
   const [photo, setPhoto] = useState(user?.photo ? { uri: getImageUrl(user.photo) } : null);
   const [isLoading, setIsLoading] = useState(false);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [tempImageUri, setTempImageUri] = useState('');
+
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
 
   const handlePickImage = async () => {
     const result = await launchImageLibrary({
@@ -77,8 +80,8 @@ const EditProfileScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="arrow-left" size={24} color="#FFF" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+          <Icon name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
         <View style={styles.backBtn} />
@@ -86,7 +89,7 @@ const EditProfileScreen = ({ navigation }) => {
 
       <KeyboardAwareScrollView style={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.avatarSection}>
-          <TouchableOpacity onPress={handlePickImage} style={styles.avatarWrapper}>
+          <TouchableOpacity onPress={handlePickImage} style={styles.avatarWrapper} activeOpacity={0.8}>
             {photo ? (
               <Image source={{ uri: photo.uri }} style={styles.avatar} />
             ) : (
@@ -95,22 +98,22 @@ const EditProfileScreen = ({ navigation }) => {
               </View>
             )}
             <View style={styles.editIconBadge}>
-              <Icon name="camera" size={16} color="#FFF" />
+              <Icon name="camera" size={16} color={colors.textOnPrimary} />
             </View>
           </TouchableOpacity>
-          <Text style={{ color: Colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 8 }}>Max 3 MB</Text>
+          <Text style={styles.maxSizeText}>Max 3 MB</Text>
         </View>
 
         <View style={styles.formGroup}>
           <Text style={styles.label}>Full Name</Text>
           <View style={styles.inputContainer}>
-            <Icon name="account" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+            <Icon name="account" size={20} color={colors.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
               placeholder="Enter your name"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textTertiary}
             />
           </View>
         </View>
@@ -118,9 +121,9 @@ const EditProfileScreen = ({ navigation }) => {
         <View style={styles.formGroup}>
           <Text style={styles.label}>Phone Number</Text>
           <View style={[styles.inputContainer, styles.inputDisabled]}>
-            <Icon name="phone" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+            <Icon name="phone" size={20} color={colors.textSecondary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, { color: Colors.textSecondary }]}
+              style={[styles.input, { color: colors.textSecondary }]}
               value={user?.mobile || 'Not provided'}
               editable={false}
             />
@@ -131,9 +134,9 @@ const EditProfileScreen = ({ navigation }) => {
         <View style={styles.formGroup}>
           <Text style={styles.label}>Email Address</Text>
           <View style={[styles.inputContainer, styles.inputDisabled]}>
-            <Icon name="email" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+            <Icon name="email" size={20} color={colors.textSecondary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, { color: Colors.textSecondary }]}
+              style={[styles.input, { color: colors.textSecondary }]}
               value={user?.email || ''}
               editable={false}
             />
@@ -145,9 +148,10 @@ const EditProfileScreen = ({ navigation }) => {
           style={styles.saveBtn} 
           onPress={handleSave} 
           disabled={isLoading}
+          activeOpacity={0.8}
         >
           {isLoading ? (
-            <ActivityIndicator color="#000" />
+            <ActivityIndicator color={colors.textOnPrimary} />
           ) : (
             <Text style={styles.saveBtnText}>Save Changes</Text>
           )}
@@ -171,84 +175,139 @@ const EditProfileScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { 
+    flex: 1, 
+    backgroundColor: colors.background,
+  },
   header: {
-    backgroundColor: Colors.surface,
+    backgroundColor: isDark ? colors.surface : colors.background,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     height: 60,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
-  backBtn: { padding: Spacing.xs, width: 40 },
-  headerTitle: { color: Colors.textPrimary, fontSize: 18, fontFamily: Typography.fontFamily.semiBold },
-  content: { padding: Spacing.lg },
-  avatarSection: { alignItems: 'center', marginBottom: Spacing.xl },
+  backBtn: { 
+    padding: Spacing.xs, 
+    width: 40,
+  },
+  headerTitle: { 
+    color: colors.textPrimary, 
+    fontSize: 18, 
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  content: { 
+    padding: Spacing.lg,
+  },
+  avatarSection: { 
+    alignItems: 'center', 
+    marginBottom: Spacing.xl,
+  },
   avatarWrapper: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surfaceVariant,
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     position: 'relative',
+    ...(isDark ? {} : shadows.sm),
   },
-  avatar: { width: '100%', height: '100%', borderRadius: 50 },
+  avatar: { 
+    width: '100%', 
+    height: '100%', 
+    borderRadius: 50,
+  },
   avatarPlaceholder: {
     width: '100%',
     height: '100%',
     borderRadius: 50,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontSize: 36, color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  avatarText: { 
+    fontSize: 36, 
+    color: colors.primary, 
+    fontFamily: Typography.fontFamily.bold,
+  },
   editIconBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     width: 30,
     height: 30,
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: Colors.background,
+    borderColor: colors.background,
   },
-  formGroup: { marginBottom: Spacing.lg },
-  label: { color: Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.xs },
+  maxSizeText: { 
+    color: colors.textSecondary, 
+    fontSize: 12, 
+    textAlign: 'center', 
+    marginTop: 8,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  formGroup: { 
+    marginBottom: Spacing.lg,
+  },
+  label: { 
+    color: colors.textSecondary, 
+    fontSize: 13, 
+    fontFamily: Typography.fontFamily.medium, 
+    marginBottom: Spacing.xs,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.sm,
+    ...(isDark ? {} : shadows.sm),
   },
-  inputDisabled: { backgroundColor: '#1A1D24', opacity: 0.7 },
-  inputIcon: { marginRight: Spacing.sm },
+  inputDisabled: { 
+    backgroundColor: colors.surfaceVariant, 
+    borderColor: colors.borderLight,
+    opacity: 0.85,
+  },
+  inputIcon: { 
+    marginRight: Spacing.sm,
+  },
   input: {
     flex: 1,
     height: 48,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 15,
   },
-  helpText: { color: Colors.textSecondary, fontSize: 11, marginTop: Spacing.xs },
+  helpText: { 
+    color: colors.textTertiary, 
+    fontSize: 11, 
+    marginTop: Spacing.xs,
+    fontFamily: Typography.fontFamily.regular,
+  },
   saveBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     height: 50,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.lg,
+    ...(isDark ? {} : shadows.sm),
   },
-  saveBtnText: { color: '#000', fontSize: 16, fontFamily: Typography.fontFamily.bold },
+  saveBtnText: { 
+    color: colors.textOnPrimary, 
+    fontSize: 16, 
+    fontFamily: Typography.fontFamily.bold,
+  },
 });
 
 export default EditProfileScreen;

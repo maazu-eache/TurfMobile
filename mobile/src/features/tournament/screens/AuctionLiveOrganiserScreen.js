@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,11 +14,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Spacing, Typography } from '../../../theme/theme';
+import { Colors, Spacing, Typography, useTheme } from '../../../theme/theme';
 import auctionService from '../../../services/auctionService';
 import { getImageUrl } from '../../../api/axios';
 
 const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { auctionId } = route.params || {};
 
   const [liveState, setLiveState] = useState(null);
@@ -375,7 +377,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
         <View style={styles.alertOverlay}>
           <View style={styles.alertBox}>
             <View style={styles.alertHeader}>
-              <Icon name="alert-circle" size={24} color={Colors.primary} />
+              <Icon name="alert-circle" size={24} color={colors.primary} />
               <Text style={styles.alertTitle}>{customAlert.title}</Text>
             </View>
             <Text style={styles.alertMessage}>{customAlert.message}</Text>
@@ -398,27 +400,27 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
         <View style={styles.alertOverlay}>
           <View style={styles.alertBox}>
             <View style={styles.alertHeader}>
-              <Icon name="help-circle" size={24} color={confirmAlert.isDestructive ? '#dc2626' : Colors.primary} />
+              <Icon name="help-circle" size={24} color={confirmAlert.isDestructive ? '#dc2626' : colors.primary} />
               <Text style={styles.alertTitle}>{confirmAlert.title}</Text>
             </View>
             <Text style={styles.alertMessage}>{confirmAlert.message}</Text>
             
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
               <TouchableOpacity 
-                style={[styles.alertBtn, { flex: 1, backgroundColor: 'transparent', borderColor: Colors.border }]} 
+                style={[styles.alertBtn, { flex: 1, backgroundColor: 'transparent', borderColor: colors.border }]} 
                 onPress={() => setConfirmAlert({ ...confirmAlert, visible: false })}
               >
-                <Text style={[styles.alertBtnText, { color: Colors.textSecondary }]}>CANCEL</Text>
+                <Text style={[styles.alertBtnText, { color: colors.textSecondary }]}>CANCEL</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.alertBtn, { flex: 1, backgroundColor: confirmAlert.isDestructive ? 'rgba(220, 38, 38, 0.15)' : Colors.primaryAlpha20, borderColor: confirmAlert.isDestructive ? '#dc2626' : Colors.primary }]} 
+                style={[styles.alertBtn, { flex: 1, backgroundColor: confirmAlert.isDestructive ? 'rgba(220, 38, 38, 0.15)' : colors.primaryAlpha20, borderColor: confirmAlert.isDestructive ? '#dc2626' : colors.primary }]} 
                 onPress={() => {
                   setConfirmAlert({ ...confirmAlert, visible: false });
                   if (confirmAlert.onConfirm) confirmAlert.onConfirm();
                 }}
               >
-                <Text style={[styles.alertBtnText, { color: confirmAlert.isDestructive ? '#dc2626' : Colors.primary }]}>{confirmAlert.confirmText.toUpperCase()}</Text>
+                <Text style={[styles.alertBtnText, { color: confirmAlert.isDestructive ? '#dc2626' : colors.primary }]}>{confirmAlert.confirmText.toUpperCase()}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -428,7 +430,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="arrow-left" size={22} color={Colors.textPrimary} />
+          <Icon name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Auction Control</Text>
@@ -437,9 +439,9 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
           )}
         </View>
         {liveState?.auction?.status === 'completed' ? (
-          <View style={[styles.liveBadge, { borderColor: Colors.textTertiary }]}>
-            <Icon name="check-circle" size={12} color={Colors.textTertiary} />
-            <Text style={[styles.liveBadgeText, { color: Colors.textTertiary, marginLeft: 4 }]}>CLOSED</Text>
+          <View style={[styles.liveBadge, { borderColor: colors.textTertiary }]}>
+            <Icon name="check-circle" size={12} color={colors.textTertiary} />
+            <Text style={[styles.liveBadgeText, { color: colors.textTertiary, marginLeft: 4 }]}>CLOSED</Text>
           </View>
         ) : (
           <Animated.View style={[styles.liveBadge, { opacity: fadeAnim }]}>
@@ -471,9 +473,9 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
           
           {liveState?.auction?.status === 'completed' ? (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-              <Icon name="check-decagram" size={80} color={Colors.primary} />
-              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 26, color: Colors.textPrimary, marginTop: 20 }}>Auction Completed</Text>
-              <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 16, color: Colors.textTertiary, marginTop: 10, textAlign: 'center', lineHeight: 24 }}>
+              <Icon name="check-decagram" size={80} color={colors.primary} />
+              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 26, color: colors.textPrimary, marginTop: 20 }}>Auction Completed</Text>
+              <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 16, color: colors.textTertiary, marginTop: 10, textAlign: 'center', lineHeight: 24 }}>
                 This auction has been successfully closed.
               </Text>
             </View>
@@ -542,7 +544,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
 
                   {/* Role pill */}
                   <View style={styles.soldRolePill}>
-                    <Icon name="cricket" size={11} color={Colors.primary} />
+                    <Icon name="cricket" size={11} color={colors.primary} />
                     <Text style={styles.soldRoleText}>{soldData.player?.role}</Text>
                     {soldData.player?.battingStyle ? (
                       <Text style={styles.soldStyleText}> · {soldData.player.battingStyle}</Text>
@@ -558,8 +560,8 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                       {soldData.team?.logo ? (
                         <Image source={{ uri: getImageUrl(soldData.team.logo) }} style={styles.soldTeamLogo} />
                       ) : (
-                        <View style={[styles.soldTeamLogo, { backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
-                          <Icon name="shield-crown" size={18} color={Colors.primary} />
+                        <View style={[styles.soldTeamLogo, { backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
+                          <Icon name="shield-crown" size={18} color={colors.primary} />
                         </View>
                       )}
                       <View style={{ marginLeft: 10 }}>
@@ -575,8 +577,8 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                   </View>
 
                   <TouchableOpacity style={styles.primaryBtn} onPress={handleNextPlayer}>
-                    {loading ? <ActivityIndicator color={Colors.background} /> : (
-                      <><Icon name="skip-next" size={18} color={Colors.background} />
+                    {loading ? <ActivityIndicator color={colors.background} /> : (
+                      <><Icon name="skip-next" size={18} color={colors.background} />
                         <Text style={styles.primaryBtnText}>NEXT PLAYER</Text></>
                     )}
                   </TouchableOpacity>
@@ -601,9 +603,9 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                     </View>
                     <View style={styles.setCardRight}>
                       {isStarting ? (
-                        <ActivityIndicator size="small" color={Colors.primary} />
+                        <ActivityIndicator size="small" color={colors.primary} />
                       ) : (
-                        <Icon name="play-circle-outline" size={32} color={Colors.primary} />
+                        <Icon name="play-circle-outline" size={32} color={colors.primary} />
                       )}
                     </View>
                   </TouchableOpacity>
@@ -614,7 +616,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                 return (
                   <View style={styles.allSetsCompleteBox}>
                     <View style={styles.allSetsCompleteIcon}>
-                      <Icon name="check-all" size={36} color={Colors.primary} />
+                      <Icon name="check-all" size={36} color={colors.primary} />
                     </View>
                     <Text style={styles.allSetsCompleteTitle}>All Sets Completed!</Text>
                     <Text style={styles.allSetsCompleteSub}>
@@ -629,9 +631,9 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                         onPress={handleGenerateUnsoldSet}
                         disabled={loading}
                       >
-                        {loading ? <ActivityIndicator color={Colors.background} size="small" /> : (
+                        {loading ? <ActivityIndicator color={colors.background} size="small" /> : (
                           <>
-                            <Icon name="account-reactivate" size={18} color={Colors.background} style={{ marginRight: 8 }} />
+                            <Icon name="account-reactivate" size={18} color={colors.background} style={{ marginRight: 8 }} />
                             <Text style={styles.unsoldSetBtnText}>RE-AUCTION {totalUnsold} UNSOLD PLAYER{totalUnsold > 1 ? 'S' : ''}</Text>
                           </>
                         )}
@@ -660,21 +662,21 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
               {loading ? (
                 <>
-                  <ActivityIndicator size="large" color={Colors.primary} style={{ marginBottom: 16 }} />
-                  <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 20, color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>Loading Next Player...</Text>
-                  <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 14, color: Colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>
+                  <ActivityIndicator size="large" color={colors.primary} style={{ marginBottom: 16 }} />
+                  <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 20, color: colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>Loading Next Player...</Text>
+                  <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 14, color: colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>
                     Please wait while we fetch the player details.
                   </Text>
                 </>
               ) : (
                 <>
-                  <Icon name="account-clock-outline" size={64} color={Colors.primary} style={{ marginBottom: 16 }} />
-                  <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 20, color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>Ready for Next Player</Text>
-                  <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 14, color: Colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>
+                  <Icon name="account-clock-outline" size={64} color={colors.primary} style={{ marginBottom: 16 }} />
+                  <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 20, color: colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>Ready for Next Player</Text>
+                  <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 14, color: colors.textSecondary, marginBottom: 24, textAlign: 'center' }}>
                     Tap below to bring up the next player.
                   </Text>
                   <TouchableOpacity style={[styles.primaryBtn, { width: '100%' }]} onPress={handleNextPlayer}>
-                    <Icon name="skip-next" size={18} color={Colors.background} />
+                    <Icon name="skip-next" size={18} color={colors.background} />
                     <Text style={styles.primaryBtnText}>FETCH NEXT PLAYER</Text>
                   </TouchableOpacity>
                 </>
@@ -691,8 +693,8 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                   <Image source={{ uri: getImageUrl(currentPlayer.photo) }} style={styles.avatarImage} />
                 ) : (
                   <View style={styles.avatarPlaceholder}>
-                    <Icon name="account-circle" size={100} color={Colors.textTertiary} />
-                    <Text style={{ color: Colors.textTertiary, fontSize: 13, marginTop: 8 }}>No photo available</Text>
+                    <Icon name="account-circle" size={100} color={colors.textTertiary} />
+                    <Text style={{ color: colors.textTertiary, fontSize: 13, marginTop: 8 }}>No photo available</Text>
                   </View>
                 )}
 
@@ -747,7 +749,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                           ]}>
                             {isDone
                               ? <Icon name="check" size={11} color="#fff" />
-                              : <Text style={[styles.setDotText, isActive && { color: Colors.primary }]}>{idx + 1}</Text>
+                              : <Text style={[styles.setDotText, isActive && { color: colors.primary }]}>{idx + 1}</Text>
                             }
                           </View>
                         );
@@ -803,11 +805,11 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                         ) : (
                           <View style={[
                             styles.teamLogoPlaceholder,
-                            isSelected && { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
+                            isSelected && { backgroundColor: colors.primaryAlpha20, borderColor: colors.primary },
                             isHighest && { backgroundColor: '#FFD70022', borderColor: '#FFD700' },
                           ]}>
                             <Icon name="shield-crown" size={20}
-                              color={isHighest ? '#FFD700' : isSelected ? Colors.primary : Colors.textTertiary} />
+                              color={isHighest ? '#FFD700' : isSelected ? colors.primary : colors.textTertiary} />
                           </View>
                         )}
                         <Text style={[
@@ -857,7 +859,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                       <TextInput
                         style={styles.manualInput}
                         placeholder="Custom amount"
-                        placeholderTextColor={Colors.textTertiary}
+                        placeholderTextColor={colors.textTertiary}
                         keyboardType="numeric"
                         value={manualBid}
                         onChangeText={setManualBid}
@@ -914,7 +916,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                 {starPlayer.photo ? (
                   <Image source={{ uri: getImageUrl(starPlayer.photo) }} style={styles.starAvatar} />
                 ) : (
-                  <View style={[styles.starAvatar, { backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
+                  <View style={[styles.starAvatar, { backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
                     <Icon name="account" size={20} color="#FFD700" />
                   </View>
                 )}
@@ -932,7 +934,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
           )}
 
           {teams.length === 0 ? (
-            <Text style={{ color: Colors.textSecondary, textAlign: 'center', marginTop: 20 }}>No teams found.</Text>
+            <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: 20 }}>No teams found.</Text>
           ) : (
             teams.map((t) => {
               const squadPlayers = t.players || [];
@@ -954,7 +956,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                       <Image source={{ uri: getImageUrl(t.logo) }} style={styles.teamDetailsLogo} />
                     ) : (
                       <View style={styles.teamLogoCircle}>
-                        <Icon name="shield-crown-outline" size={26} color={Colors.primary} />
+                        <Icon name="shield-crown-outline" size={26} color={colors.primary} />
                       </View>
                     )}
                     <View style={{ flex: 1, marginLeft: Spacing.md }}>
@@ -965,7 +967,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                     <Icon
                       name={isExpanded ? 'chevron-up' : 'chevron-down'}
                       size={18}
-                      color={Colors.textTertiary}
+                      color={colors.textTertiary}
                     />
                   </TouchableOpacity>
 
@@ -975,11 +977,11 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                       <Text style={styles.purseLabel}>Total</Text>
                       <Text style={styles.purseVal}>{t.auctionPurse} Pts</Text>
                     </View>
-                    <View style={[styles.purseBox, { borderLeftWidth: 1, borderLeftColor: Colors.border }]}>
+                    <View style={[styles.purseBox, { borderLeftWidth: 1, borderLeftColor: colors.border }]}>
                       <Text style={styles.purseLabel}>Remaining</Text>
-                      <Text style={[styles.purseVal, { color: Colors.primary }]}>{t.purseRemaining} Pts</Text>
+                      <Text style={[styles.purseVal, { color: colors.primary }]}>{t.purseRemaining} Pts</Text>
                     </View>
-                    <View style={[styles.purseBox, { borderLeftWidth: 1, borderLeftColor: Colors.border }]}>
+                    <View style={[styles.purseBox, { borderLeftWidth: 1, borderLeftColor: colors.border }]}>
                       <Text style={styles.purseLabel}>Spent</Text>
                       <Text style={[styles.purseVal, { color: '#EF4444' }]}>{(t.auctionPurse || 0) - (t.purseRemaining || 0)} Pts</Text>
                     </View>
@@ -989,7 +991,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                   {isExpanded && (
                     <View style={styles.squadSection}>
                       <View style={styles.squadSectionHeader}>
-                        <Icon name="account-group" size={13} color={Colors.textTertiary} />
+                        <Icon name="account-group" size={13} color={colors.textTertiary} />
                         <Text style={styles.squadTitle}>Squad ({squadPlayers.length})</Text>
                       </View>
                       {squadPlayers.length > 0 ? (
@@ -1004,7 +1006,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                                 <Image source={{ uri: getImageUrl(p.photo) }} style={styles.squadPlayerAvatar} />
                               ) : (
                                 <View style={styles.squadPlayerAvatarPlaceholder}>
-                                  <Icon name="account" size={14} color={Colors.textTertiary} />
+                                  <Icon name="account" size={14} color={colors.textTertiary} />
                                 </View>
                               )}
                               <View style={{ flex: 1, marginLeft: 8 }}>
@@ -1035,8 +1037,8 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
   // Custom Alert Modal
   alertOverlay: {
@@ -1047,12 +1049,12 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
   },
   alertBox: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     width: '100%',
     borderRadius: 16,
     padding: Spacing.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   alertHeader: {
     flexDirection: 'row',
@@ -1063,25 +1065,25 @@ const styles = StyleSheet.create({
   alertTitle: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   alertMessage: {
     fontSize: 15,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.xl,
     lineHeight: 22,
   },
   alertBtn: {
-    backgroundColor: Colors.primaryAlpha20,
+    backgroundColor: colors.primaryAlpha20,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
   alertBtnText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -1092,38 +1094,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   backBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   headerTitle: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   headerSub: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginTop: 1,
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primaryAlpha20,
+    backgroundColor: colors.primaryAlpha20,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
@@ -1132,11 +1134,11 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     marginRight: 5,
   },
   liveBadgeText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
     fontWeight: '700',
@@ -1146,9 +1148,9 @@ const styles = StyleSheet.create({
   // Tabs
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   tabBtn: {
     flex: 1,
@@ -1158,15 +1160,15 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabBtnActive: {
-    borderBottomColor: Colors.primary,
+    borderBottomColor: colors.primary,
   },
   tabText: {
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 14,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
   tabTextActive: {
-    color: Colors.primary,
+    color: colors.primary,
   },
 
   // Teams Tab
@@ -1182,9 +1184,9 @@ const styles = StyleSheet.create({
   starBannerTitle: { color: '#FFD700', fontSize: 12, fontFamily: Typography.fontFamily.bold },
   starBannerBody: { flexDirection: 'row', alignItems: 'center' },
   starAvatar: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, borderColor: '#FFD700' },
-  starName: { color: Colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.bold },
-  starTeam: { color: Colors.textTertiary, fontSize: 11, marginTop: 1 },
-  starRole: { color: Colors.textTertiary, fontSize: 11 },
+  starName: { color: colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.bold },
+  starTeam: { color: colors.textTertiary, fontSize: 11, marginTop: 1 },
+  starRole: { color: colors.textTertiary, fontSize: 11 },
   starPricePill: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: 'rgba(255,215,0,0.18)', borderRadius: 8,
@@ -1193,41 +1195,41 @@ const styles = StyleSheet.create({
   starPriceText: { color: '#FFD700', fontSize: 14, fontFamily: Typography.fontFamily.bold },
 
   teamDetailsCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     marginHorizontal: Spacing.md, marginBottom: Spacing.md,
-    borderRadius: 16, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 16, borderWidth: 1, borderColor: colors.border,
     overflow: 'hidden',
   },
   teamDetailsHeader: {
     flexDirection: 'row', alignItems: 'center',
     padding: Spacing.lg,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   teamDetailsLogo: {
     width: 46, height: 46, borderRadius: 23,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   teamLogoCircle: {
     width: 46, height: 46, borderRadius: 23,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1.5, borderColor: Colors.primary,
+    borderWidth: 1.5, borderColor: colors.primary,
   },
-  teamDetailsName: { fontFamily: Typography.fontFamily.bold, fontSize: 17, color: Colors.textPrimary },
-  teamOwnerText: { fontFamily: Typography.fontFamily.regular, fontSize: 11, color: Colors.textTertiary, marginTop: 1, marginBottom: 2 },
-  teamDetailsSub: { color: Colors.textTertiary, fontSize: 11, marginTop: 2 },
+  teamDetailsName: { fontFamily: Typography.fontFamily.bold, fontSize: 17, color: colors.textPrimary },
+  teamOwnerText: { fontFamily: Typography.fontFamily.regular, fontSize: 11, color: colors.textTertiary, marginTop: 1, marginBottom: 2 },
+  teamDetailsSub: { color: colors.textTertiary, fontSize: 11, marginTop: 2 },
   purseRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   purseBox: { flex: 1, alignItems: 'center', paddingVertical: 6 },
-  purseLabel: { fontFamily: Typography.fontFamily.semiBold, fontSize: 11, color: Colors.textTertiary, marginBottom: 3 },
-  purseVal: { fontFamily: Typography.fontFamily.bold, fontSize: 14, color: Colors.textPrimary },
+  purseLabel: { fontFamily: Typography.fontFamily.semiBold, fontSize: 11, color: colors.textTertiary, marginBottom: 3 },
+  purseVal: { fontFamily: Typography.fontFamily.bold, fontSize: 14, color: colors.textPrimary },
   squadSection: {
-    borderTopWidth: 1, borderTopColor: Colors.border,
-    backgroundColor: Colors.background,
+    borderTopWidth: 1, borderTopColor: colors.border,
+    backgroundColor: colors.background,
     paddingBottom: 8,
   },
   squadSectionHeader: {
@@ -1235,55 +1237,55 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: 6,
   },
-  squadTitle: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textTertiary, letterSpacing: 0.5 },
+  squadTitle: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: colors.textTertiary, letterSpacing: 0.5 },
   squadRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.lg, paddingVertical: 8,
     borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)',
   },
   squadRowTop: { backgroundColor: 'rgba(255,215,0,0.04)' },
-  squadPlayerIdx: { color: Colors.textTertiary, fontSize: 11, width: 18 },
-  squadPlayerAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: Colors.border },
+  squadPlayerIdx: { color: colors.textTertiary, fontSize: 11, width: 18 },
+  squadPlayerAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: colors.border },
   squadPlayerAvatarPlaceholder: {
     width: 30, height: 30, borderRadius: 15,
-    backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1.5, borderColor: Colors.border,
+    backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: colors.border,
   },
-  squadPlayerName: { fontFamily: Typography.fontFamily.semiBold, fontSize: 13, color: Colors.textPrimary },
-  squadPlayerRole: { fontFamily: Typography.fontFamily.regular, fontSize: 11, color: Colors.textTertiary, marginTop: 1 },
+  squadPlayerName: { fontFamily: Typography.fontFamily.semiBold, fontSize: 13, color: colors.textPrimary },
+  squadPlayerRole: { fontFamily: Typography.fontFamily.regular, fontSize: 11, color: colors.textTertiary, marginTop: 1 },
   squadPricePill: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.surface, borderRadius: 6,
+    backgroundColor: colors.surface, borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 3,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   squadPricePillRetained: { backgroundColor: 'rgba(96,165,250,0.15)', borderColor: 'rgba(96,165,250,0.4)' },
-  squadPriceText: { color: Colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.bold },
-  noPlayersText: { fontFamily: Typography.fontFamily.regular, fontSize: 13, color: Colors.textTertiary, fontStyle: 'italic', padding: Spacing.lg },
+  squadPriceText: { color: colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.bold },
+  noPlayersText: { fontFamily: Typography.fontFamily.regular, fontSize: 13, color: colors.textTertiary, fontStyle: 'italic', padding: Spacing.lg },
 
   // Content (only used by teams tab now)
   content: { padding: 12, paddingBottom: 20 },
 
   // Sold Card
   soldCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: Spacing.xl,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha30,
+    borderColor: colors.primaryAlpha30,
     marginTop: Spacing.md,
   },
   // Sold Card — Stamp UI
   soldCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     marginTop: 8,
-    shadowColor: Colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
@@ -1296,7 +1298,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
@@ -1326,7 +1328,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 8,
     borderWidth: 2.5,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     position: 'relative',
   },
   soldPlayerPhoto: {
@@ -1342,14 +1344,14 @@ const styles = StyleSheet.create({
   },
   stampInner: {
     borderWidth: 2.5,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     borderRadius: 5,
     paddingHorizontal: 8,
     paddingVertical: 2,
     backgroundColor: 'rgba(0,0,0,0.72)',
   },
   stampText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
     letterSpacing: 5,
@@ -1360,7 +1362,7 @@ const styles = StyleSheet.create({
   soldPlayerName: {
     fontSize: 20,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
     textAlign: 'center',
   },
@@ -1368,20 +1370,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     marginBottom: 12,
   },
-  soldRoleText: { color: Colors.primary, fontSize: 12, fontFamily: Typography.fontFamily.bold },
-  soldStyleText: { color: Colors.textTertiary, fontSize: 11 },
+  soldRoleText: { color: colors.primary, fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  soldStyleText: { color: colors.textTertiary, fontSize: 11 },
   soldDivider: {
     width: '100%',
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     marginVertical: 12,
   },
   soldTeamPriceRow: {
@@ -1402,17 +1404,17 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 23,
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   soldTeamLabel: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 9,
     fontFamily: Typography.fontFamily.bold,
     letterSpacing: 1,
     marginBottom: 2,
   },
   soldTeamName: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
     maxWidth: 120,
@@ -1424,22 +1426,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   soldPriceLabel: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 8,
     fontFamily: Typography.fontFamily.bold,
     letterSpacing: 1,
   },
   soldPriceValue: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 26,
     fontFamily: Typography.fontFamily.bold,
     lineHeight: 28,
   },
   soldPriceUnit: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 10,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -1448,32 +1450,32 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 17,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
     marginTop: Spacing.md,
   },
   sectionSubtitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginBottom: Spacing.lg,
   },
   setCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     padding: Spacing.base,
     borderRadius: 14,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   setCardLeft: { flex: 1 },
-  setCardName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  setCardSub: { fontSize: 12, color: Colors.textTertiary, marginTop: 2 },
+  setCardName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  setCardSub: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
   setCardRight: { marginLeft: Spacing.md },
   emptyBox: { alignItems: 'center', paddingVertical: Spacing['2xl'] },
-  emptyText: { color: Colors.textSecondary, marginTop: Spacing.sm, fontFamily: Typography.fontFamily.medium },
+  emptyText: { color: colors.textSecondary, marginTop: Spacing.sm, fontFamily: Typography.fontFamily.medium },
 
   // ── Player Card: Large Photo Banner ──
   playerBidCard: {
@@ -1484,7 +1486,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a2e',
     position: 'relative',
     // Shadow
-    shadowColor: Colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1517,10 +1519,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   photoLiveText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
     letterSpacing: 1,
@@ -1562,9 +1564,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
-  rolePillText: { color: Colors.primary, fontSize: 11, fontFamily: Typography.fontFamily.bold },
+  rolePillText: { color: colors.primary, fontSize: 11, fontFamily: Typography.fontFamily.bold },
   basePrice: { color: 'rgba(255,255,255,0.65)', fontSize: 11 },
   leadingTeamLabel: {
     color: '#FFD700',
@@ -1580,12 +1582,12 @@ const styles = StyleSheet.create({
   },
   bidBubble: {
     alignItems: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
     minWidth: 72,
-    shadowColor: Colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.5,
     shadowRadius: 6,
@@ -1608,38 +1610,38 @@ const styles = StyleSheet.create({
 
   // ── Progress Block ──
   progressBlock: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   progressRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   progressLabel: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
   },
   progressCount: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 11,
     fontFamily: Typography.fontFamily.semiBold,
   },
   progressBarBg: {
     height: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 3,
     overflow: 'hidden',
     marginTop: 4,
   },
   progressBarFill: {
     height: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 3,
   },
   // Set dots strip
@@ -1651,23 +1653,23 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   setDotActive: {
-    backgroundColor: Colors.primaryAlpha20,
-    borderColor: Colors.primary,
+    backgroundColor: colors.primaryAlpha20,
+    borderColor: colors.primary,
     borderWidth: 2,
   },
   setDotDone: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   setDotText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -1680,10 +1682,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 14,
     paddingVertical: 15,
-    shadowColor: Colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.5,
     shadowRadius: 6,
@@ -1711,13 +1713,13 @@ const styles = StyleSheet.create({
   incBtnText: { color: '#5bc8ff', fontSize: 13, fontFamily: Typography.fontFamily.bold },
   manualInput: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 8,
     height: 42,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 13,
     textAlign: 'center',
@@ -1734,7 +1736,7 @@ const styles = StyleSheet.create({
 
   // ── Section Label ──
   sectionLabel: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 10,
     fontFamily: Typography.fontFamily.semiBold,
     letterSpacing: 1.2,
@@ -1750,17 +1752,17 @@ const styles = StyleSheet.create({
   },
   teamChip: {
     width: '22.5%',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 4,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     position: 'relative',
   },
   teamChipSelected: {
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     backgroundColor: 'transparent',
   },
   teamChipHighest: {
@@ -1772,22 +1774,22 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   teamChipName: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 11,
     fontFamily: Typography.fontFamily.semiBold,
     marginTop: 5,
     textAlign: 'center',
   },
-  teamChipNameActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  teamChipNameActive: { color: colors.primary, fontFamily: Typography.fontFamily.bold },
   teamChipPurse: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 9,
     marginTop: 1,
     textAlign: 'center',
@@ -1795,14 +1797,14 @@ const styles = StyleSheet.create({
   purseMiniBar: {
     width: '80%',
     height: 3,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 2,
     overflow: 'hidden',
     marginTop: 4,
   },
   purseMiniBarFill: {
     height: 3,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 2,
   },
   leadingCrown: {
@@ -1811,7 +1813,7 @@ const styles = StyleSheet.create({
     right: 4,
   },
   leadingBadge: { position: 'absolute', top: 4, right: 4 },
-  leadingBadgeText: { color: Colors.primary, fontSize: 8 },
+  leadingBadgeText: { color: colors.primary, fontSize: 8 },
 
   // ── Action Buttons (SOLD=green / UNSOLD=red / SKIP=indigo) ──
   actionRow: {
@@ -1859,10 +1861,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: Spacing.xl,
     marginTop: 20,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   allSetsCompleteIcon: {
     width: 64,
@@ -1874,13 +1876,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   allSetsCompleteTitle: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 18,
     marginBottom: 6,
   },
   allSetsCompleteSub: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 13,
     textAlign: 'center',
     marginBottom: 24,
@@ -1890,14 +1892,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,
     width: '100%',
   },
   unsoldSetBtnText: {
-    color: Colors.background,
+    color: colors.background,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 14,
   },
@@ -1925,13 +1927,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     width: '100%',
     height: 50,
     borderRadius: 12,
     marginTop: Spacing.sm,
   },
-  primaryBtnText: { color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 15 },
+  primaryBtnText: { color: colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 15 },
 });
 
 export default AuctionLiveOrganiserScreen;

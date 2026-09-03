@@ -1,5 +1,6 @@
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
 import {
   View,
   Text,
@@ -89,6 +90,61 @@ const MATCH_QUICK_FILTERS = [
   { id: 'completed', icon: 'check-circle-outline', label: 'Completed', value: 'completed' },
 ];
 const SearchScreen = ({ navigation, route }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+
+// ── Small helper components ──────────────────────────────────────────────────
+
+const AmenityChip = ({ icon, label }) => (
+  <View style={styles.amenityChip}>
+    <Icon name={icon} size={11} color={Colors.primary} />
+    <Text style={styles.amenityChipText}>{label}</Text>
+  </View>
+);
+
+const StatChip = ({ icon, label, primary }) => (
+  <View style={styles.statChip}>
+    <Icon name={icon} size={10} color={primary ? Colors.primary : colors.textSecondary} />
+    <Text style={[styles.statChipText, primary && { color: Colors.primary }]}>{label}</Text>
+  </View>
+);
+
+const TeamBlock = ({ logo, name, right }) => (
+  <View style={[styles.teamBlock, right && { alignItems: 'flex-end' }]}>
+    {logo
+      ? <Image source={{ uri: logo }} style={styles.teamLogo} />
+      : <View style={styles.teamLogoFb}><Text style={styles.teamLogoLetter}>{name?.[0]}</Text></View>
+    }
+    <Text style={styles.teamName} numberOfLines={2}>{name}</Text>
+  </View>
+);
+
+const FilterSection = ({ icon, label, children }) => (
+  <View style={styles.filterSection}>
+    <View style={styles.filterLabelRow}>
+      <Icon name={icon} size={15} color={Colors.primary} />
+      <Text style={styles.filterLabel}>{label}</Text>
+    </View>
+    {children}
+  </View>
+);
+
+const SortChip = ({ label, icon, active, onPress }) => (
+  <TouchableOpacity style={[styles.sortChip, active && styles.sortChipActive]} onPress={onPress}>
+    {active
+      ? <LinearGradient colors={Colors.primaryGradient} style={styles.sortChipGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+        <Icon name={icon} size={13} color="#000" />
+        <Text style={styles.sortChipTextActive}>{label}</Text>
+      </LinearGradient>
+      : <>
+        <Icon name={icon} size={13} color={colors.textSecondary} />
+        <Text style={styles.sortChipText}>{label}</Text>
+      </>
+    }
+  </TouchableOpacity>
+);
+
+
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const user = useSelector((s) => s.auth?.user);
@@ -393,7 +449,7 @@ const SearchScreen = ({ navigation, route }) => {
           </View>
 
           <View style={styles.listCardMetaRow}>
-            <Icon name="map-marker" size={12} color={Colors.textTertiary} />
+            <Icon name="map-marker" size={12} color={colors.textTertiary} />
             <Text style={styles.listCardMeta} numberOfLines={1}>{item.city}</Text>
             <Text style={styles.listCardDot}>•</Text>
             <Icon name="star" size={12} color={Colors.primary} />
@@ -442,12 +498,12 @@ const SearchScreen = ({ navigation, route }) => {
         }
         <View style={styles.playerMeta}>
           <Text style={styles.playerName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.playerRole} numberOfLines={1}>{item.playingRole || 'Cricket Player'} · {item.city || item.location || item.locationObj?.name || '—'}</Text>
+          <Text style={styles.playerRole} numberOfLines={1}>{item.playingRole || 'Cricket Player'} · {item.locationObj?.name || item.location || item.city || item.userId?.city || '—'}</Text>
           <View style={styles.playerStats}>
             <StatChip icon="account-group" label={`${item.followers?.length || 0} Followers`} />
           </View>
         </View>
-        <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
+        <Icon name="chevron-right" size={20} color={colors.textTertiary} />
       </TouchableOpacity>
     );
   };
@@ -526,7 +582,7 @@ const SearchScreen = ({ navigation, route }) => {
               <Text 
                 style={[
                   styles.matchTeamName, 
-                  isCompleted && { color: isFirstWinner ? '#FFFFFF' : 'rgba(255,255,255,0.45)' }
+                  isCompleted && { color: isFirstWinner ? colors.textPrimary : colors.textTertiary, fontFamily: isFirstWinner ? Typography.fontFamily.bold : Typography.fontFamily.medium }
                 ]} 
                 numberOfLines={1}
               >
@@ -537,7 +593,7 @@ const SearchScreen = ({ navigation, route }) => {
               <Text 
                 style={[
                   styles.matchTeamScore, 
-                  isCompleted && { color: isFirstWinner ? Colors.primary : 'rgba(255,255,255,0.45)' }
+                  isCompleted && { color: isFirstWinner ? (isDark ? colors.primary : colors.primaryDark) : colors.textTertiary }
                 ]}
               >
                 {firstScore.runs}/{firstScore.wickets}
@@ -566,7 +622,7 @@ const SearchScreen = ({ navigation, route }) => {
               <Text 
                 style={[
                   styles.matchTeamName, 
-                  isCompleted && { color: isSecondWinner ? '#FFFFFF' : 'rgba(255,255,255,0.45)' }
+                  isCompleted && { color: isSecondWinner ? colors.textPrimary : colors.textTertiary, fontFamily: isSecondWinner ? Typography.fontFamily.bold : Typography.fontFamily.medium }
                 ]} 
                 numberOfLines={1}
               >
@@ -577,7 +633,7 @@ const SearchScreen = ({ navigation, route }) => {
               <Text 
                 style={[
                   styles.matchTeamScore, 
-                  isCompleted && { color: isSecondWinner ? Colors.primary : 'rgba(255,255,255,0.45)' }
+                  isCompleted && { color: isSecondWinner ? (isDark ? colors.primary : colors.primaryDark) : colors.textTertiary }
                 ]}
               >
                 {secondScore.runs}/{secondScore.wickets}
@@ -595,7 +651,7 @@ const SearchScreen = ({ navigation, route }) => {
 
         {/* Venue footer */}
         <View style={styles.matchVenueRow}>
-          <Icon name="map-marker" size={12} color={Colors.textTertiary} />
+          <Icon name="map-marker" size={12} color={colors.textTertiary} />
           <Text style={styles.matchVenueText} numberOfLines={1}>{venue}</Text>
         </View>
       </TouchableOpacity>
@@ -617,7 +673,7 @@ const SearchScreen = ({ navigation, route }) => {
           {item.banner
             ? <Image source={{ uri: getImageUrl(item.banner) }} style={styles.tBanner} />
             : <LinearGradient colors={['#0D2136', '#000000']} style={styles.tBannerFallback}>
-              <Icon name="trophy" size={44} color={Colors.primaryAlpha30} />
+              <Icon name="trophy" size={44} color={colors.primaryAlpha30} />
             </LinearGradient>
           }
           {/* Status pill — solid filled badge */}
@@ -633,11 +689,11 @@ const SearchScreen = ({ navigation, route }) => {
           <Text style={styles.tMeta}>{item.format} · {item.overs} Ov · {item.ballType} ball</Text>
           <View style={styles.tFooter}>
             <View style={styles.tInfoRow}>
-              <Icon name="account-group-outline" size={13} color={Colors.textSecondary} />
+              <Icon name="account-group-outline" size={13} color={colors.textSecondary} />
               <Text style={styles.tVenue}>{item.teamCount || item.registeredTeams?.length || item.teams?.length || 0} Teams</Text>
             </View>
             <View style={styles.tInfoRow}>
-              <Icon name="map-marker-outline" size={13} color={Colors.textSecondary} />
+              <Icon name="map-marker-outline" size={13} color={colors.textSecondary} />
               <Text style={styles.tVenue} numberOfLines={1}>
                 {item.city || item.turf?.city || item.turf?.name || 'Local Ground'}
               </Text>
@@ -649,7 +705,7 @@ const SearchScreen = ({ navigation, route }) => {
   };
 
   const renderSkeleton = () => (
-    <SkeletonPlaceholder backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
+    <SkeletonPlaceholder backgroundColor={isDark ? colors.backgroundElevated : colors.surfaceVariant} highlightColor={colors.surfaceVariant}>
       <View style={{ gap: 14, padding: 16 }}>
         {activeTab === 'turfs' ? (
           [1, 2, 3, 4, 5, 6].map(i => (
@@ -694,7 +750,7 @@ const SearchScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
 
       {/* ── HEADER ── */}
       <View style={styles.header}>
@@ -718,11 +774,11 @@ const SearchScreen = ({ navigation, route }) => {
         {selectedLocation && (
           <View style={styles.searchRow}>
             <View style={styles.searchBar}>
-              <Icon name="magnify" size={18} color={Colors.textTertiary} />
+              <Icon name="magnify" size={18} color={colors.textTertiary} />
               <TextInput
                 style={styles.searchInput}
                 placeholder={`Search ${activeTab === 'turfs' ? 'grounds' : activeTab}…`}
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={searchQuery}
                 onChangeText={t => dispatch(setSearchQuery(t))}
                 autoCorrect={false}
@@ -731,7 +787,7 @@ const SearchScreen = ({ navigation, route }) => {
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => dispatch(setSearchQuery(''))} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Icon name="close-circle" size={16} color={Colors.textTertiary} />
+                  <Icon name="close-circle" size={16} color={colors.textTertiary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -769,7 +825,7 @@ const SearchScreen = ({ navigation, route }) => {
                   </LinearGradient>
                 ) : (
                   <View style={styles.mainTabGrad}>
-                    <Icon name={tab.icon} size={12} color={Colors.textTertiary} />
+                    <Icon name={tab.icon} size={12} color={colors.textTertiary} />
                     <Text 
                       style={[styles.mainTabText, { fontSize: 10.5 }]} 
                       numberOfLines={1}
@@ -790,7 +846,7 @@ const SearchScreen = ({ navigation, route }) => {
       {selectedLocation ? (
         (activeLoading && page === 1) ? (
           <View style={styles.loadingWrap}>
-            <SkeletonPlaceholder backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
+            <SkeletonPlaceholder backgroundColor={isDark ? colors.backgroundElevated : colors.surfaceVariant} highlightColor={colors.surfaceVariant}>
               <SkeletonPlaceholder.Item paddingHorizontal={20}>
                 {[...Array(5)].map((_, i) => (
                   <SkeletonPlaceholder.Item key={i} width="100%" height={120} borderRadius={16} marginBottom={16} />
@@ -817,7 +873,7 @@ const SearchScreen = ({ navigation, route }) => {
             }
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
-                <Icon name="magnify" size={48} color={Colors.textTertiary} />
+                <Icon name="magnify" size={48} color={colors.textTertiary} />
                 <Text style={styles.emptyText}>
                   {searchQuery ? `No ${emptyTabLabel} exists with "${searchQuery}"` : `No ${emptyTabLabel} found in ${selectedLocation?.name || 'this location'}`}
                 </Text>
@@ -853,21 +909,21 @@ const SearchScreen = ({ navigation, route }) => {
               </View>
             </View>
             <TouchableOpacity style={styles.sheetCloseBtn} onPress={closeLocationModal}>
-              <Icon name="close" size={18} color={Colors.textPrimary} />
+              <Icon name="close" size={18} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
 
           {/* Inline search input */}
           <View style={styles.locationSheetBody}>
             <View style={styles.locSearchRow}>
-              <Icon name="magnify" size={18} color={Colors.textTertiary} />
+              <Icon name="magnify" size={18} color={colors.textTertiary} />
               <TextInput
                 ref={locInputRef}
                 style={styles.locSearchInput}
                 value={locQuery}
                 onChangeText={handleLocQueryChange}
                 placeholder="Search city, area..."
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 autoCorrect={false}
                 autoCapitalize="none"
                 returnKeyType="search"
@@ -876,7 +932,7 @@ const SearchScreen = ({ navigation, route }) => {
                 ? <ActivityIndicator size="small" color={Colors.primary} />
                 : locQuery.length > 0 && (
                   <TouchableOpacity onPress={() => { setLocQuery(''); setLocResults([]); }}>
-                    <Icon name="close-circle" size={16} color={Colors.textTertiary} />
+                    <Icon name="close-circle" size={16} color={colors.textTertiary} />
                   </TouchableOpacity>
                 )
               }
@@ -890,7 +946,7 @@ const SearchScreen = ({ navigation, route }) => {
                   {selectedLocation.city || selectedLocation.name}
                 </Text>
                 <TouchableOpacity onPress={() => setSelectedLocation(null)}>
-                  <Icon name="close" size={14} color={Colors.textTertiary} />
+                  <Icon name="close" size={14} color={colors.textTertiary} />
                 </TouchableOpacity>
               </View>
             )}
@@ -915,7 +971,7 @@ const SearchScreen = ({ navigation, route }) => {
                         <Text style={styles.locResultTitle} numberOfLines={1}>{city}</Text>
                         {sub ? <Text style={styles.locResultSub} numberOfLines={1}>{sub}</Text> : null}
                       </View>
-                      <Icon name="chevron-right" size={14} color={Colors.textTertiary} />
+                      <Icon name="chevron-right" size={14} color={colors.textTertiary} />
                     </TouchableOpacity>
                   );
                 })}
@@ -929,7 +985,7 @@ const SearchScreen = ({ navigation, route }) => {
                   <Text style={{ color: Colors.warning, fontFamily: Typography.fontFamily.bold, fontSize: 13, marginBottom: 4 }}>
                     Area not found in our city list
                   </Text>
-                  <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12, lineHeight: 18 }}>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12, lineHeight: 18 }}>
                     Localities and neighbourhoods aren't listed directly. Try entering the <Text style={{ color: '#fff' }}>well-known city name</Text> instead of "{locQuery}" — for example, type <Text style={{ color: '#fff' }}>"Chennai"</Text> or <Text style={{ color: '#fff' }}>"Mumbai"</Text>.
                   </Text>
                 </View>
@@ -960,7 +1016,7 @@ const SearchScreen = ({ navigation, route }) => {
               </View>
             </View>
             <TouchableOpacity style={styles.sheetCloseBtn} onPress={closeModal}>
-              <Icon name="close" size={18} color={Colors.textPrimary} />
+              <Icon name="close" size={18} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
 
@@ -971,8 +1027,8 @@ const SearchScreen = ({ navigation, route }) => {
               <>
                 <FilterSection icon="shield-star-outline" label="Min Trust Score">
                   <View style={styles.inputRow}>
-                    <Icon name="shield-star-outline" size={17} color={Colors.textTertiary} />
-                    <TextInput style={styles.input} placeholder="e.g. 80" keyboardType="numeric" placeholderTextColor={Colors.textTertiary} value={minTrustScore} onChangeText={setMinTrustScore} />
+                    <Icon name="shield-star-outline" size={17} color={colors.textTertiary} />
+                    <TextInput style={styles.input} placeholder="e.g. 80" keyboardType="numeric" placeholderTextColor={colors.textTertiary} value={minTrustScore} onChangeText={setMinTrustScore} />
                   </View>
                 </FilterSection>
 
@@ -984,7 +1040,7 @@ const SearchScreen = ({ navigation, route }) => {
                       value={maxPrice}
                       onChangeText={setMaxPrice}
                       placeholder="Max per hr (e.g. 1500)"
-                      placeholderTextColor={Colors.textTertiary}
+                      placeholderTextColor={colors.textTertiary}
                       keyboardType="numeric"
                     />
                   </View>
@@ -1028,7 +1084,7 @@ const SearchScreen = ({ navigation, route }) => {
 
           <View style={styles.sheetFooter}>
             <TouchableOpacity style={styles.resetBtn} onPress={resetFilters}>
-              <Icon name="refresh" size={16} color={Colors.textSecondary} />
+              <Icon name="refresh" size={16} color={colors.textSecondary} />
               <Text style={styles.resetBtnText}>Reset</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.applyBtnWrap} onPress={closeModal}>
@@ -1044,71 +1100,13 @@ const SearchScreen = ({ navigation, route }) => {
   );
 };
 
-// ── Small helper components ──────────────────────────────────────────────────
-
-const AmenityChip = ({ icon, label }) => (
-  <View style={styles.amenityChip}>
-    <Icon name={icon} size={11} color={Colors.primary} />
-    <Text style={styles.amenityChipText}>{label}</Text>
-  </View>
-);
-
-const StatChip = ({ icon, label, primary }) => (
-  <View style={styles.statChip}>
-    <Icon name={icon} size={10} color={primary ? Colors.primary : Colors.textSecondary} />
-    <Text style={[styles.statChipText, primary && { color: Colors.primary }]}>{label}</Text>
-  </View>
-);
-
-const TeamBlock = ({ logo, name, right }) => (
-  <View style={[styles.teamBlock, right && { alignItems: 'flex-end' }]}>
-    {logo
-      ? <Image source={{ uri: logo }} style={styles.teamLogo} />
-      : <View style={styles.teamLogoFb}><Text style={styles.teamLogoLetter}>{name?.[0]}</Text></View>
-    }
-    <Text style={styles.teamName} numberOfLines={2}>{name}</Text>
-  </View>
-);
-
-const FilterSection = ({ icon, label, children }) => (
-  <View style={styles.filterSection}>
-    <View style={styles.filterLabelRow}>
-      <Icon name={icon} size={15} color={Colors.primary} />
-      <Text style={styles.filterLabel}>{label}</Text>
-    </View>
-    {children}
-  </View>
-);
-
-const SortChip = ({ label, icon, active, onPress }) => (
-  <TouchableOpacity style={[styles.sortChip, active && styles.sortChipActive]} onPress={onPress}>
-    {active
-      ? <LinearGradient colors={Colors.primaryGradient} style={styles.sortChipGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-        <Icon name={icon} size={13} color="#000" />
-        <Text style={styles.sortChipTextActive}>{label}</Text>
-      </LinearGradient>
-      : <>
-        <Icon name={icon} size={13} color={Colors.textSecondary} />
-        <Text style={styles.sortChipText}>{label}</Text>
-      </>
-    }
-  </TouchableOpacity>
-);
-
 // ── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
 
   header: {
-    backgroundColor: Colors.background,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    backgroundColor: colors.background,
+    paddingBottom: 6,
   },
   titleRow: {
     flexDirection: 'row',
@@ -1126,8 +1124,7 @@ const styles = StyleSheet.create({
     marginBottom: 1,
     opacity: 0.9,
   },
-  screenTitle: {
-    color: '#FFFFFF',
+  screenTitle: { color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 20,
     letterSpacing: -0.3,
@@ -1137,18 +1134,18 @@ const styles = StyleSheet.create({
   locationBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,212,0,0.1)',
+    backgroundColor: isDark ? 'rgba(255,212,0,0.1)' : '#FFF9D6',
     borderWidth: 1,
-    borderColor: 'rgba(255,212,0,0.3)',
+    borderColor: isDark ? 'rgba(255,212,0,0.3)' : '#FFEAA7',
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 6,
     gap: 4,
-    maxWidth: 120,
+    maxWidth: 130,
   },
   locationBtnText: {
-    color: Colors.primary,
-    fontFamily: Typography.fontFamily.semiBold,
+    color: isDark ? Colors.primary : colors.primaryDark,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: 12,
     flex: 1,
   },
@@ -1156,7 +1153,7 @@ const styles = StyleSheet.create({
   /* Location modal sheet */
   locationModalBox: {
     width: '90%',
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     paddingTop: 16,
     paddingBottom: 24,
@@ -1193,7 +1190,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,212,0,0.2)',
   },
   selectedLocText: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 13,
     flex: 1,
@@ -1203,7 +1200,7 @@ const styles = StyleSheet.create({
   locSearchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     borderRadius: 14,
@@ -1211,16 +1208,14 @@ const styles = StyleSheet.create({
     height: 48,
     gap: 10,
   },
-  locSearchInput: {
-    flex: 1,
-    color: '#FFFFFF',
+  locSearchInput: { flex: 1, color: colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 14,
     height: '100%',
     padding: 0,
   },
   locResultsContainer: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
@@ -1246,12 +1241,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   locResultTitle: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 13,
   },
   locResultSub: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 11,
     marginTop: 1,
@@ -1262,7 +1257,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   locEmptyText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 13,
   },
@@ -1279,17 +1274,20 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 42,
     gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: isDark ? 0.15 : 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  searchInput: {
-    flex: 1,
-    color: '#FFFFFF',
+  searchInput: { flex: 1, color: colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 13,
     height: '100%',
@@ -1298,9 +1296,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1343,7 +1341,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   mainTabText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 13,
   },
@@ -1382,7 +1380,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   tabText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
   },
@@ -1412,11 +1410,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   qfPillActive: {
-    backgroundColor: Colors.primaryAlpha20,
+    backgroundColor: colors.primaryAlpha20,
     borderColor: Colors.primary,
   },
   qfText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 11,
   },
@@ -1431,20 +1429,24 @@ const styles = StyleSheet.create({
     padding: 14,
     paddingBottom: 90,
     gap: 14,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     flexGrow: 1,
   },
 
   /* ── Turf List Compact Card ── */
   listCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 10,
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    ...Shadows.sm,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.25 : 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
   listCardImgWrap: { width: 90, height: 90, borderRadius: 12, overflow: 'hidden' },
   listCardImg: { width: '100%', height: '100%' },
@@ -1452,42 +1454,60 @@ const styles = StyleSheet.create({
   favBtnActiveCompact: { backgroundColor: 'rgba(255,71,87,0.2)' },
   listCardBody: { flex: 1, justifyContent: 'center' },
   listCardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  listCardTitle: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 15, flex: 1, marginRight: 8 },
+  listCardTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 15, flex: 1, marginRight: 8 },
   badgeVerifiedCompact: { backgroundColor: Colors.primary, borderRadius: 10, padding: 3 },
   listCardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
-  listCardMeta: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 11 },
-  listCardDot: { color: Colors.textTertiary, fontSize: 10 },
+  listCardMeta: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 11 },
+  listCardDot: { color: colors.textTertiary, fontSize: 10 },
   listCardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   priceTagCompact: { flexDirection: 'row', alignItems: 'baseline' },
-  priceAmountCompact: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  priceUnitCompact: { color: Colors.textSecondary, fontSize: 10, marginLeft: 2 },
+  priceAmountCompact: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  priceUnitCompact: { color: colors.textSecondary, fontSize: 10, marginLeft: 2 },
   badgeTrustCompact: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   badgeTextCompact: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 9 },
   cardLocationBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: Colors.primary },
   cardLocationBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 9 },
 
   /* ── Player Card ── */
-  playerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundCard, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 14, gap: 12 },
-  avatar: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: Colors.primaryAlpha30 },
-  avatarFallback: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha30, alignItems: 'center', justifyContent: 'center' },
-  avatarLetter: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 20 },
+  playerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 18,
+    padding: 14,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.25 : 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  avatar: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: colors.primaryAlpha30 },
+  avatarFallback: { width: 56, height: 56, borderRadius: 28, backgroundColor: isDark ? colors.primaryAlpha10 : '#FFF9D6', borderWidth: 1, borderColor: isDark ? colors.primaryAlpha30 : '#FFEAA7', alignItems: 'center', justifyContent: 'center' },
+  avatarLetter: { color: isDark ? Colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 20 },
   playerMeta: { flex: 1 },
-  playerName: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  playerRole: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginTop: 2 },
+  playerName: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  playerRole: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 11, marginTop: 2 },
   playerStats: { flexDirection: 'row', gap: 6, marginTop: 6 },
-  statChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.backgroundElevated, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  statChipText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 10 },
+  statChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isDark ? 'rgba(255,204,0,0.1)' : '#FFF9D6', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: isDark ? 'rgba(255,204,0,0.2)' : '#FFEAA7' },
+  statChipText: { color: isDark ? Colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 10 },
 
   /* ── Match Card ── */
   matchCard: {
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.border,
     gap: 10,
     marginBottom: 10,
-    ...Shadows.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.25 : 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
   matchCardHeader: {
     flexDirection: 'row',
@@ -1495,7 +1515,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   matchFormat: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 11,
     flex: 1,
@@ -1505,24 +1525,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.border,
   },
   matchStatusLive: {
     backgroundColor: 'rgba(239,68,68,0.15)',
     borderColor: 'rgba(239,68,68,0.4)',
   },
   matchStatusDone: {
-    backgroundColor: Colors.primaryAlpha10,
-    borderColor: Colors.primaryAlpha30,
+    backgroundColor: colors.primaryAlpha10,
+    borderColor: colors.primaryAlpha30,
   },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
   matchStatusText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 10,
   },
@@ -1566,18 +1586,16 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
     fontSize: 10,
   },
-  matchTeamName: {
-    color: '#FFFFFF',
+  matchTeamName: { color: colors.textPrimary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 13,
   },
-  matchTeamScore: {
-    color: '#FFFFFF',
+  matchTeamScore: { color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 13,
   },
   matchTeamScorePlaceholder: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 13,
   },
@@ -1596,7 +1614,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   matchVenueText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 11,
     flex: 1,
@@ -1611,76 +1629,76 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   paginationLoaderText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 13,
   },
 
 
   /* ── Tournament Card ── */
-  tCard: { backgroundColor: Colors.backgroundCard, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden', ...Shadows.sm },
-  tBannerWrap: { width: '100%', height: 110, backgroundColor: Colors.backgroundElevated, position: 'relative' },
+  tCard: { backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDark ? 0.25 : 0.06, shadowRadius: 6, elevation: 3 },
+  tBannerWrap: { width: '100%', height: 110, backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant, position: 'relative' },
   tBanner: { width: '100%', height: '100%' },
   tBannerFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tStatusPill: { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1 },
   tStatusDot: { width: 6, height: 6, borderRadius: 3 },
   tStatusText: { fontFamily: Typography.fontFamily.bold, fontSize: 10 },
   tBody: { padding: 14 },
-  tName: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
-  tMeta: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginTop: 3 },
-  tFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingTop: 8 },
+  tName: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 15 },
+  tMeta: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginTop: 3 },
+  tFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : colors.border, paddingTop: 8 },
   tInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   tPrize: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
-  tVenue: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11, maxWidth: 130 },
+  tVenue: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11, maxWidth: 130 },
 
   /* ── Empty State ── */
   emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 72, paddingHorizontal: 32 },
-  emptyCircle: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 16, borderWidth: 1, borderColor: Colors.primaryAlpha30 },
-  emptyTitle: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
-  emptyText: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 16, marginTop: 12 },
-  emptySub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 19 },
+  emptyCircle: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 16, borderWidth: 1, borderColor: colors.primaryAlpha30 },
+  emptyTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  emptyText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginTop: 12 },
+  emptySub: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 19 },
 
   /* ── Location Prompt ── */
   locationPromptWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingTop: 20 },
-  locationPromptTitle: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 18, marginTop: 16, textAlign: 'center' },
-  locationPromptSub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 20 },
+  locationPromptTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18, marginTop: 16, textAlign: 'center' },
+  locationPromptSub: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 20 },
 
   /* ── Loading Wrap ── */
-  loadingWrap: { flex: 1, backgroundColor: Colors.background },
+  loadingWrap: { flex: 1, backgroundColor: colors.background },
 
   /* ── Modal ── */
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: Colors.backgroundCard, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingBottom: 32, maxHeight: '85%' },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingBottom: 32, maxHeight: '85%' },
   sheetHandle: { width: 38, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 6 },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)' },
-  sheetIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha30, alignItems: 'center', justifyContent: 'center' },
-  sheetTitle: { color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
-  sheetSub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 11 },
-  sheetCloseBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
+  sheetIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryAlpha10, borderWidth: 1, borderColor: colors.primaryAlpha30, alignItems: 'center', justifyContent: 'center' },
+  sheetTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 15 },
+  sheetSub: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 11 },
+  sheetCloseBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
   sheetBody: { paddingHorizontal: 20, paddingTop: 4 },
 
   filterSection: { marginTop: 14 },
   filterLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  filterLabel: { color: '#FFFFFF', fontFamily: Typography.fontFamily.semiBold, fontSize: 13 },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.background, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 12, paddingHorizontal: 14, height: 48 },
-  input: { flex: 1, color: '#FFFFFF', fontFamily: Typography.fontFamily.regular, fontSize: 14, height: '100%' },
-  rupee: { color: Colors.textTertiary, fontSize: 16, fontFamily: Typography.fontFamily.bold },
+  filterLabel: { color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.background, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 12, paddingHorizontal: 14, height: 48 },
+  input: { flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.regular, fontSize: 14, height: '100%' },
+  rupee: { color: colors.textTertiary, fontSize: 16, fontFamily: Typography.fontFamily.bold },
 
   sortRow: { flexDirection: 'row', gap: 10 },
-  sortChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: Colors.background, overflow: 'hidden' },
+  sortChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: colors.background, overflow: 'hidden' },
   sortChipActive: { borderColor: Colors.primary },
   sortChipGrad: { flex: 1, width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  sortChipText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  sortChipText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
   sortChipTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
-  roleChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: Colors.background },
-  roleChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryAlpha10 },
-  roleChipText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  roleChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: colors.background },
+  roleChipActive: { borderColor: Colors.primary, backgroundColor: colors.primaryAlpha10 },
+  roleChipText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
   roleChipTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
 
   sheetFooter: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)' },
-  resetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 0.38, height: 50, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: Colors.background },
-  resetBtnText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  resetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 0.38, height: 50, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: colors.background },
+  resetBtnText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
   applyBtnWrap: { flex: 1, borderRadius: 12, overflow: 'hidden' },
   applyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50 },
   applyBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },

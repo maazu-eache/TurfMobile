@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,13 @@ import {
 } from 'react-native';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Typography, BorderRadius } from '../../../theme/theme';
+import { Colors, Typography, BorderRadius, useTheme } from '../../../theme/theme';
 import api from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
+
+const AuctionFinanceTab = ({ auctionId, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -34,16 +38,16 @@ const PlayerCard = ({ item, index }) => {
   return (
     <View style={styles.playerCard}>
       <View style={styles.playerCardLeft}>
-        <View style={[styles.avatar, { backgroundColor: isOnline ? Colors.primary + '33' : Colors.primary + '33' }]}>
-          <Text style={[styles.avatarText, { color: isOnline ? Colors.primary : Colors.primary }]}>
+        <View style={[styles.avatar, { backgroundColor: isOnline ? colors.primary + '33' : colors.primary + '33' }]}>
+          <Text style={[styles.avatarText, { color: isOnline ? colors.primary : colors.primary }]}>
             {item.fullName.charAt(0).toUpperCase()}
           </Text>
         </View>
         <View style={styles.playerInfo}>
           <Text style={styles.playerName} numberOfLines={1}>{item.fullName}</Text>
           <View style={styles.playerMeta}>
-            <View style={[styles.rolePill, { backgroundColor: Colors.primary + '22' }]}>
-              <Text style={[styles.rolePillText, { color: Colors.primary }]}>{item.role}</Text>
+            <View style={[styles.rolePill, { backgroundColor: colors.primary + '22' }]}>
+              <Text style={[styles.rolePillText, { color: colors.primary }]}>{item.role}</Text>
             </View>
             {item.receiptId && (
               <Text style={styles.receiptText}>{item.receiptId}</Text>
@@ -81,7 +85,7 @@ const SectionHeader = ({ icon, title, count, color, bg }) => (
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const AuctionFinanceTab = ({ auctionId, navigation }) => {
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [financeData, setFinanceData] = useState(null);
@@ -142,7 +146,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
   if (loading) {
     return (
       <View style={{ flex: 1, padding: 16 }}>
-        <SkeletonPlaceholder backgroundColor={Colors.surface} highlightColor="#2A2A2A">
+        <SkeletonPlaceholder backgroundColor={colors.surface} highlightColor="#2A2A2A">
           <SkeletonPlaceholder.Item>
             <SkeletonPlaceholder.Item width="100%" height={160} borderRadius={16} marginBottom={24} />
             <SkeletonPlaceholder.Item flexDirection="row" justifyContent="space-between" marginBottom={24}>
@@ -151,7 +155,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
             </SkeletonPlaceholder.Item>
             <SkeletonPlaceholder.Item width={150} height={20} borderRadius={4} marginBottom={16} />
             {[1, 2, 3].map(i => (
-              <SkeletonPlaceholder.Item key={i} flexDirection="row" justifyContent="space-between" alignItems="center" padding={12} marginBottom={12} borderWidth={1} borderColor={Colors.border} borderRadius={12}>
+              <SkeletonPlaceholder.Item key={i} flexDirection="row" justifyContent="space-between" alignItems="center" padding={12} marginBottom={12} borderWidth={1} borderColor={colors.border} borderRadius={12}>
                 <SkeletonPlaceholder.Item flexDirection="row" alignItems="center">
                   <SkeletonPlaceholder.Item width={40} height={40} borderRadius={20} />
                   <SkeletonPlaceholder.Item marginLeft={12}>
@@ -171,7 +175,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
   if (isUnauthorized) {
     return (
       <View style={[styles.emptyContainer, { paddingHorizontal: 24, paddingVertical: 40 }]}>
-        <Icon name="shield-lock-outline" size={56} color={Colors.primary} />
+        <Icon name="shield-lock-outline" size={56} color={colors.primary} />
         <Text style={[styles.emptyTitle, { textAlign: 'center', lineHeight: 22 }]}>Only organisers will handle this section</Text>
       </View>
     );
@@ -180,7 +184,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
   if (!financeData) {
     return (
       <View style={styles.emptyContainer}>
-        <Icon name="alert-circle-outline" size={56} color={Colors.textTertiary} />
+        <Icon name="alert-circle-outline" size={56} color={colors.textTertiary} />
         <Text style={styles.emptyTitle}>No Finance Data</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={() => loadFinanceData()}>
           <Text style={styles.retryText}>Retry</Text>
@@ -207,7 +211,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
       <Animated.View style={[styles.heroCard, { transform: [{ scale: scaleAnim }] }]}>
         <View style={styles.heroTop}>
           <View style={styles.heroIcon}>
-            <Icon name="wallet" size={24} color={Colors.primary} />
+            <Icon name="wallet" size={24} color={colors.primary} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.heroLabel}>Available Wallet Balance</Text>
@@ -217,7 +221,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
             style={styles.withdrawBtn}
             onPress={() => navigation.navigate('Profile', { screen: 'Wallet' })}
           >
-            <Icon name="bank-transfer-out" size={16} color={Colors.secondary} />
+            <Icon name="bank-transfer-out" size={16} color={colors.secondary} />
             <Text style={styles.withdrawBtnText}>Withdraw</Text>
           </TouchableOpacity>
         </View>
@@ -245,26 +249,26 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
 
       {/* ── Registration Type Summary ── */}
       <View style={styles.typeSummaryRow}>
-        <View style={[styles.typeSummaryCard, { borderColor: Colors.primary + '66' }]}>
-          <View style={[styles.typeSummaryIcon, { backgroundColor: Colors.primary + '22' }]}>
-            <Icon name="wifi" size={18} color={Colors.primary} />
+        <View style={[styles.typeSummaryCard, { borderColor: colors.primary + '66' }]}>
+          <View style={[styles.typeSummaryIcon, { backgroundColor: colors.primary + '22' }]}>
+            <Icon name="wifi" size={18} color={colors.primary} />
           </View>
           <Text style={styles.typeSummaryCount}>{onlinePlayers.length}</Text>
           <Text style={styles.typeSummaryLabel}>Online</Text>
-          <Text style={[styles.typeSummaryAmt, { color: Colors.primary }]}>{fmt(onlineTotal)}</Text>
+          <Text style={[styles.typeSummaryAmt, { color: colors.primary }]}>{fmt(onlineTotal)}</Text>
         </View>
 
         <View style={styles.typeSummaryVs}>
           <Text style={styles.vsText}>+</Text>
         </View>
 
-        <View style={[styles.typeSummaryCard, { borderColor: Colors.primary + '66' }]}>
-          <View style={[styles.typeSummaryIcon, { backgroundColor: Colors.primary + '22' }]}>
-            <Icon name="pencil-plus" size={18} color={Colors.primary} />
+        <View style={[styles.typeSummaryCard, { borderColor: colors.primary + '66' }]}>
+          <View style={[styles.typeSummaryIcon, { backgroundColor: colors.primary + '22' }]}>
+            <Icon name="pencil-plus" size={18} color={colors.primary} />
           </View>
           <Text style={styles.typeSummaryCount}>{offlinePlayers.length}</Text>
           <Text style={styles.typeSummaryLabel}>Offline</Text>
-          <Text style={[styles.typeSummaryAmt, { color: Colors.primary }]}>{fmt(offlineTotal)}</Text>
+          <Text style={[styles.typeSummaryAmt, { color: colors.primary }]}>{fmt(offlineTotal)}</Text>
         </View>
       </View>
 
@@ -280,7 +284,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
             style={[styles.filterPill, activeFilter === f.id && styles.filterPillActive]}
             onPress={() => setActiveFilter(f.id)}
           >
-            <Icon name={f.icon} size={13} color={activeFilter === f.id ? Colors.secondary : Colors.textSecondary} />
+            <Icon name={f.icon} size={13} color={activeFilter === f.id ? colors.secondary : colors.textSecondary} />
             <Text style={[styles.filterPillText, activeFilter === f.id && styles.filterPillTextActive]}>
               {f.label}
             </Text>
@@ -294,24 +298,24 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
           icon="wifi"
           title="Online Registrations"
           count={onlinePlayers.length}
-          color={Colors.primary}
-          bg={Colors.primary + '11'}
+          color={colors.primary}
+          bg={colors.primary + '11'}
         />
       ) : activeFilter === 'online' ? (
         <SectionHeader
           icon="wifi"
           title="Online Registrations"
           count={onlinePlayers.length}
-          color={Colors.primary}
-          bg={Colors.primary + '11'}
+          color={colors.primary}
+          bg={colors.primary + '11'}
         />
       ) : activeFilter === 'offline' ? (
         <SectionHeader
           icon="pencil-plus"
           title="Offline Registrations"
           count={offlinePlayers.length}
-          color={Colors.primary}
-          bg={Colors.primary + '11'}
+          color={colors.primary}
+          bg={colors.primary + '11'}
         />
       ) : null}
     </View>
@@ -326,8 +330,8 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
               icon="pencil-plus"
               title="Offline Registrations"
               count={offlinePlayers.length}
-              color={Colors.primary}
-              bg={Colors.primary + '11'}
+              color={colors.primary}
+              bg={colors.primary + '11'}
             />
           )}
           {offlinePlayers.map((item, i) => (
@@ -335,7 +339,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
           ))}
           <View style={styles.listEnd}>
             <View style={styles.listEndLine} />
-            <Icon name="check-all" size={16} color={Colors.textTertiary} />
+            <Icon name="check-all" size={16} color={colors.textTertiary} />
             <View style={styles.listEndLine} />
           </View>
         </View>
@@ -344,7 +348,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
     return (
       <View style={styles.listEnd}>
         <View style={styles.listEndLine} />
-        <Icon name="check-all" size={16} color={Colors.textTertiary} />
+        <Icon name="check-all" size={16} color={colors.textTertiary} />
         <View style={styles.listEndLine} />
       </View>
     );
@@ -365,7 +369,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
       ListEmptyComponent={() =>
         activeFilter !== 'all' ? (
           <View style={styles.emptySection}>
-            <Icon name={activeFilter === 'online' ? 'wifi-off' : 'pencil-off'} size={40} color={Colors.textTertiary} />
+            <Icon name={activeFilter === 'online' ? 'wifi-off' : 'pencil-off'} size={40} color={colors.textTertiary} />
             <Text style={styles.emptySectionText}>
               No {activeFilter} registrations yet.
             </Text>
@@ -373,7 +377,7 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
         ) : null
       }
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => loadFinanceData(true)} tintColor={Colors.primary} />
+        <RefreshControl refreshing={refreshing} onRefresh={() => loadFinanceData(true)} tintColor={colors.primary} />
       }
       contentContainerStyle={styles.listContent}
       showsVerticalScrollIndicator={false}
@@ -383,16 +387,16 @@ const AuctionFinanceTab = ({ auctionId, navigation }) => {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   loaderContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   loaderText: {
     marginTop: 12,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 14,
   },
@@ -400,22 +404,22 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     gap: 12,
   },
   emptyTitle: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 16,
   },
   retryBtn: {
     paddingHorizontal: 24,
     paddingVertical: 10,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: BorderRadius.full,
   },
   retryText: {
-    color: Colors.secondary,
+    color: colors.secondary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 14,
   },
@@ -424,11 +428,11 @@ const styles = StyleSheet.create({
   heroCard: {
     margin: 16,
     marginBottom: 12,
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: Colors.primary + '33',
+    borderColor: colors.primary + '33',
   },
   heroTop: {
     flexDirection: 'row',
@@ -439,18 +443,18 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: Colors.primary + '22',
+    backgroundColor: colors.primary + '22',
     justifyContent: 'center',
     alignItems: 'center',
   },
   heroLabel: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
     marginBottom: 2,
   },
   heroBalance: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 28,
     letterSpacing: -0.5,
@@ -459,19 +463,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: BorderRadius.full,
   },
   withdrawBtnText: {
-    color: Colors.secondary,
+    color: colors.secondary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 13,
   },
   heroDivider: {
     height: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: colors.borderLight,
     marginVertical: 16,
   },
   heroStats: {
@@ -483,13 +487,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroStatValue: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 15,
     marginBottom: 3,
   },
   heroStatLabel: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 10,
     textAlign: 'center',
@@ -497,7 +501,7 @@ const styles = StyleSheet.create({
   heroStatDivider: {
     width: 1,
     height: 32,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     alignSelf: 'center',
   },
 
@@ -511,7 +515,7 @@ const styles = StyleSheet.create({
   },
   typeSummaryCard: {
     flex: 1,
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderRadius: 14,
     borderWidth: 1,
     padding: 14,
@@ -527,12 +531,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   typeSummaryCount: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 22,
   },
   typeSummaryLabel: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 11,
   },
@@ -545,12 +549,12 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
   vsText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 16,
   },
@@ -567,21 +571,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   filterPillActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   filterPillText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 12,
   },
   filterPillTextActive: {
-    color: Colors.secondary,
+    color: colors.secondary,
   },
 
   // ── Section Header ──
@@ -630,13 +634,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     marginHorizontal: 16,
     marginBottom: 10,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   playerCardLeft: {
     flexDirection: 'row',
@@ -660,7 +664,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   playerName: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 15,
   },
@@ -680,7 +684,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   receiptText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 10,
   },
@@ -689,7 +693,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   playerFee: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 16,
   },
@@ -721,7 +725,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptySectionText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 14,
   },
@@ -736,7 +740,7 @@ const styles = StyleSheet.create({
   listEndLine: {
     flex: 1,
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
   },
 
   // ── Stat cards (unused now but kept) ──
@@ -759,7 +763,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   statLabel: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 10,
     textAlign: 'center',

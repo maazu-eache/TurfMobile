@@ -1,10 +1,14 @@
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Platform, StatusBar, Image, RefreshControl } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api, { getImageUrl } from '../../../api/axios';
-import { Colors, Typography, Spacing } from '../../../theme/theme';
-import { useEffect, useState } from 'react';
+import { Typography, Spacing } from '../../../theme/theme';
+import { useTheme } from '../../../theme/ThemeContext';
 
 const OwnerCustomersScreen = ({ navigation }) => {
+  const { colors, isDark, shadows } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
+
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -67,13 +71,13 @@ const OwnerCustomersScreen = ({ navigation }) => {
         <View style={styles.contactRow}>
           {!!item.phone && (
             <View style={styles.contactItem}>
-              <Icon name="phone" size={12} color={Colors.textTertiary} />
+              <Icon name="phone" size={12} color={colors.textTertiary} />
               <Text style={styles.contactText} numberOfLines={1} ellipsizeMode="tail">{item.phone}</Text>
             </View>
           )}
           {!!item.email && (
             <View style={styles.contactItem}>
-              <Icon name="email" size={12} color={Colors.textTertiary} />
+              <Icon name="email" size={12} color={colors.textTertiary} />
               <Text style={styles.contactText} numberOfLines={1} ellipsizeMode="tail">{item.email}</Text>
             </View>
           )}
@@ -94,10 +98,12 @@ const OwnerCustomersScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+          <Icon name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Customers</Text>
         <View style={{ width: 40 }} />
@@ -105,17 +111,17 @@ const OwnerCustomersScreen = ({ navigation }) => {
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Icon name="magnify" size={20} color={Colors.textTertiary} style={styles.searchIcon} />
+        <Icon name="magnify" size={20} color={colors.textTertiary} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search by name, phone, or email..."
-          placeholderTextColor={Colors.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
-            <Icon name="close-circle" size={18} color={Colors.textTertiary} />
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn} activeOpacity={0.7}>
+            <Icon name="close-circle" size={18} color={colors.textTertiary} />
           </TouchableOpacity>
         )}
       </View>
@@ -123,7 +129,7 @@ const OwnerCustomersScreen = ({ navigation }) => {
       {/* Content */}
       {loading ? (
         <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -135,13 +141,13 @@ const OwnerCustomersScreen = ({ navigation }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[Colors.primary]}
-              tintColor={Colors.primary}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
             />
           }
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
-              <Icon name="account-search" size={48} color={Colors.border} />
+              <Icon name="account-search" size={48} color={colors.border} />
               <Text style={styles.emptyText}>
                 {searchQuery ? 'No customers found matching your search.' : 'No customers found yet.'}
               </Text>
@@ -153,10 +159,10 @@ const OwnerCustomersScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -165,9 +171,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Platform.OS === 'ios' ? 60 : (StatusBar.currentHeight || 24) + Spacing.md,
     paddingBottom: Spacing.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   backBtn: {
     width: 40,
@@ -175,22 +181,22 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: colors.surfaceVariant,
   },
   headerTitle: {
     fontSize: 20,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     margin: Spacing.md,
     borderRadius: 12,
     paddingHorizontal: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   searchIcon: {
     marginRight: 8,
@@ -198,7 +204,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: 46,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
   },
   clearBtn: {
@@ -210,20 +216,21 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   customerCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
+    ...shadows.small,
   },
   customerAvatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: Colors.primaryAlpha20,
+    backgroundColor: isDark ? 'rgba(255, 204, 0, 0.15)' : '#FFF9DB',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -231,7 +238,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 20,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: isDark ? colors.primary : colors.primaryDark,
   },
   avatarImage: {
     width: 50,
@@ -244,7 +251,7 @@ const styles = StyleSheet.create({
   customerName: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   contactRow: {
@@ -258,7 +265,7 @@ const styles = StyleSheet.create({
   },
   contactText: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginLeft: 4,
     flexShrink: 1,
   },
@@ -272,17 +279,17 @@ const styles = StyleSheet.create({
   },
   revenueLabel: {
     fontSize: 10,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.medium,
     textTransform: 'uppercase',
   },
   revenueValue: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: isDark ? colors.primary : colors.primaryDark,
   },
   bookingsBox: {
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -290,7 +297,7 @@ const styles = StyleSheet.create({
   bookingsText: {
     fontSize: 10,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   loaderContainer: {
     flex: 1,
@@ -306,7 +313,7 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 12,
     fontSize: 16,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.medium,
     textAlign: 'center',
   },

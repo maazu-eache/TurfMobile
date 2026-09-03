@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ActivityIndicator, Image } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/Feather';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const RoleManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [loading, setLoading] = useState(false);
   const [mobileToSearch, setMobileToSearch] = useState('');
   const [searching, setSearching] = useState(false);
@@ -82,7 +84,7 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Manage Co-Organizer</Text>
             <TouchableOpacity onPress={onClose}>
-              <Icon name="x" size={24} color={Colors.textSecondary} />
+              <Icon name="x" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -93,14 +95,14 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
                   <TextInput
                     style={styles.input}
                     placeholder="Enter 10-digit mobile number"
-                    placeholderTextColor={Colors.textTertiary}
+                    placeholderTextColor={colors.textTertiary}
                     value={mobileToSearch}
                     onChangeText={setMobileToSearch}
                     keyboardType="phone-pad"
                     maxLength={10}
                   />
                   <TouchableOpacity style={styles.searchBtn} onPress={handleSearch} disabled={searching}>
-                    {searching ? <ActivityIndicator size="small" color={Colors.white} /> : <Icon name="search" size={20} color={Colors.white} />}
+                    {searching ? <ActivityIndicator size="small" color={colors.white} /> : <Icon name="search" size={20} color={colors.white} />}
                   </TouchableOpacity>
                 </View>
 
@@ -110,7 +112,7 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
                       <Image source={{ uri: getImageUrl(searchResults.photo) }} style={styles.userPhoto} />
                     ) : (
                       <View style={styles.userPhotoPlaceholder}>
-                        <Icon name="user" size={20} color={Colors.primary} />
+                        <Icon name="user" size={20} color={colors.primary} />
                       </View>
                     )}
                     <View style={{ flex: 1 }}>
@@ -132,12 +134,12 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
                   <Image source={{ uri: getImageUrl(coOrganizer.photo) }} style={styles.userPhoto} />
                 ) : (
                   <View style={styles.userPhotoPlaceholder}>
-                    <Icon name="user" size={20} color={Colors.primary} />
+                    <Icon name="user" size={20} color={colors.primary} />
                   </View>
                 )}
                 <Text style={[styles.userName, { flex: 1 }]}>{coOrganizer.name || coOrganizer.mobile || 'User'}</Text>
                 <TouchableOpacity onPress={handleRemoveCoOrganizer} style={{ padding: Spacing.xs }}>
-                  <Icon name="trash-2" size={20} color={Colors.error} />
+                  <Icon name="trash-2" size={20} color={colors.error} />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -146,11 +148,11 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
           </KeyboardAwareScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={onClose}>
-              <Text style={[styles.saveBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginRight: Spacing.sm }]} onPress={onClose}>
+              <Text style={[styles.saveBtnText, { color: colors.textSecondary }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={loading}>
-              {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.saveBtnText}>Save</Text>}
+              {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.saveBtnText}>Save</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -159,26 +161,26 @@ const RoleManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: Colors.background, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, height: '70%', padding: Spacing.lg },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  modalContainer: { backgroundColor: colors.background, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, height: '70%', padding: Spacing.lg },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   searchContainer: { flexDirection: 'row', marginBottom: Spacing.lg, alignItems: 'center' },
-  input: { flex: 1, backgroundColor: Colors.backgroundElevated, color: Colors.textPrimary, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border },
-  searchBtn: { backgroundColor: Colors.primary, padding: Spacing.md, borderRadius: BorderRadius.md, marginLeft: Spacing.sm, height: 50, width: 50, alignItems: 'center', justifyContent: 'center' },
-  resultCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.primary },
+  input: { flex: 1, backgroundColor: colors.surface, color: colors.textPrimary, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border },
+  searchBtn: { backgroundColor: colors.primary, padding: Spacing.md, borderRadius: BorderRadius.md, marginLeft: Spacing.sm, height: 50, width: 50, alignItems: 'center', justifyContent: 'center' },
+  resultCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.lg, borderWidth: 1, borderColor: colors.primary },
   userPhoto: { width: 40, height: 40, borderRadius: 20, marginRight: Spacing.md },
   userPhotoPlaceholder: { width: 40, height: 40, borderRadius: 20, marginRight: Spacing.md, backgroundColor: 'rgba(46, 204, 113, 0.15)', justifyContent: 'center', alignItems: 'center' },
-  userName: { fontSize: 16, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary },
-  addBtn: { backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: BorderRadius.sm },
-  addBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold },
-  subTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, marginBottom: Spacing.md },
-  userCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
-  emptyText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, textAlign: 'center', marginTop: Spacing.sm },
+  userName: { fontSize: 16, fontFamily: Typography.fontFamily.medium, color: colors.textPrimary },
+  addBtn: { backgroundColor: colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: BorderRadius.sm },
+  addBtnText: { color: colors.white, fontFamily: Typography.fontFamily.bold },
+  subTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textSecondary, marginBottom: Spacing.md },
+  userCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: colors.border },
+  emptyText: { color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, textAlign: 'center', marginTop: Spacing.sm },
   footer: { flexDirection: 'row', marginTop: Spacing.md, paddingBottom: Spacing.lg },
-  saveBtn: { flex: 1, backgroundColor: Colors.primary, paddingVertical: Spacing.md, borderRadius: BorderRadius.lg, alignItems: 'center' },
-  saveBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 16 }
+  saveBtn: { flex: 1, backgroundColor: colors.primary, paddingVertical: Spacing.md, borderRadius: BorderRadius.lg, alignItems: 'center' },
+  saveBtnText: { color: colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 16 }
 });
 
 export default RoleManagementModal;

@@ -22,13 +22,15 @@ import { navigate, reset } from '../../../navigation/navigationRef';
 import { useFocusEffect } from '@react-navigation/native';
 import NotificationBell from '../../../components/NotificationBell';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-const AdminSearchBar = React.memo(({ searchQuery, setSearchQuery }) => (
+import { useTheme } from '../../../theme/ThemeContext';
+
+const AdminSearchBar = React.memo(({ searchQuery, setSearchQuery, colors, styles }) => (
   <View style={styles.searchBar}>
-    <Icon name="magnify" size={18} color={Colors.textTertiary} />
+    <Icon name="magnify" size={18} color={colors.textTertiary} />
     <TextInput
       style={styles.searchInput}
       placeholder="Search by name or email..."
-      placeholderTextColor={Colors.textTertiary}
+      placeholderTextColor={colors.textTertiary}
       value={searchQuery}
       onChangeText={setSearchQuery}
       autoCapitalize="none"
@@ -37,13 +39,16 @@ const AdminSearchBar = React.memo(({ searchQuery, setSearchQuery }) => (
     />
     {searchQuery.length > 0 && (
       <TouchableOpacity onPress={() => setSearchQuery('')}>
-        <Icon name="close-circle" size={17} color={Colors.textTertiary} />
+        <Icon name="close-circle" size={17} color={colors.textTertiary} />
       </TouchableOpacity>
     )}
   </View>
 ));
 
 const AdminDashboardScreen = ({ navigation }) => {
+  const { colors, isDark, shadows, toggleTheme } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
+
   const [activeTab, setActiveTab] = useState('owners');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -112,6 +117,42 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [selectedVerificationPayment, setSelectedVerificationPayment] = useState(null);
   const [processingRefundId, setProcessingRefundId] = useState(null);
 
+  // Role Change Modal state
+  const [roleModalUser, setRoleModalUser] = useState(null);
+  const [selectedRole, setSelectedRole] = useState('player');
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+
+  const openRoleChangeModal = (user) => {
+    if (user?.role === 'admin') {
+      showCustomAlert('Admin Account', 'Administrator accounts cannot have their role changed.');
+      return;
+    }
+    setRoleModalUser(user);
+    setSelectedRole(user?.role === 'owner' ? 'owner' : 'player');
+  };
+
+  const handleUpdateRole = async () => {
+    if (!roleModalUser || !selectedRole) return;
+    if (selectedRole === roleModalUser.role) {
+      setRoleModalUser(null);
+      return;
+    }
+    setIsUpdatingRole(true);
+    try {
+      await api.put(`/admin/users/${roleModalUser._id}/role`, { role: selectedRole });
+      showCustomAlert(
+        'Role Updated',
+        `Role for "${roleModalUser.name || roleModalUser.email}" updated to ${selectedRole.toUpperCase()}.\n\nThe user's active session has been logged out.`
+      );
+      setRoleModalUser(null);
+      fetchData();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to update user role');
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
   const dispatch = useDispatch();
 
   useFocusEffect(
@@ -124,11 +165,28 @@ const AdminDashboardScreen = ({ navigation }) => {
   const fetchSettings = async () => {
     try {
       const res = await api.get('/admin/settings');
-      if (res.data.data?.cancellationRefundPercent !== undefined) setCancellationRefundPercent(res.data.data.cancellationRefundPercent.toString());
-      if (res.data.data?.cancellationOwnerPercent !== undefined) setCancellationOwnerPercent(res.data.data.cancellationOwnerPercent.toString());
-      if (res.data.data?.cancellationPlatformPercent !== undefined) setCancellationPlatformPercent(res.data.data.cancellationPlatformPercent.toString());
-      if (res.data.data?.latestAndroidVersion !== undefined) setLatestAndroidVersion(res.data.data.latestAndroidVersion);
-      if (res.data.data?.forceUpdateRequired !== undefined) setForceUpdateRequired(res.data.data.forceUpdateRequired);
+      const data = res.data?.data || res.data || {};
+      if (data.bookingPlatformFeePercent !== undefined && data.bookingPlatformFeePercent !== null) {
+        setBookingPlatformFeePercent(data.bookingPlatformFeePercent.toString());
+      }
+      if (data.auctionPlatformFeePercent !== undefined && data.auctionPlatformFeePercent !== null) {
+        setAuctionPlatformFeePercent(data.auctionPlatformFeePercent.toString());
+      }
+      if (data.cancellationRefundPercent !== undefined && data.cancellationRefundPercent !== null) {
+        setCancellationRefundPercent(data.cancellationRefundPercent.toString());
+      }
+      if (data.cancellationOwnerPercent !== undefined && data.cancellationOwnerPercent !== null) {
+        setCancellationOwnerPercent(data.cancellationOwnerPercent.toString());
+      }
+      if (data.cancellationPlatformPercent !== undefined && data.cancellationPlatformPercent !== null) {
+        setCancellationPlatformPercent(data.cancellationPlatformPercent.toString());
+      }
+      if (data.latestAndroidVersion !== undefined && data.latestAndroidVersion !== null) {
+        setLatestAndroidVersion(data.latestAndroidVersion);
+      }
+      if (data.forceUpdateRequired !== undefined && data.forceUpdateRequired !== null) {
+        setForceUpdateRequired(data.forceUpdateRequired);
+      }
     } catch (err) {
       console.log('Failed to fetch admin settings', err);
     }
@@ -217,14 +275,62 @@ const AdminDashboardScreen = ({ navigation }) => {
     );
   };
 
-  const handleDeleteUser = async (userId) => {
+  const handleSoftDeleteUser = async (userId, userName) => {
     try {
       await api.delete(`/admin/users/${userId}`);
-      showCustomAlert('Success', 'User and their bookings deleted successfully');
+      showCustomAlert('Soft Deleted', `User "${userName || 'User'}" has been soft-deleted and anonymized.`);
       fetchData();
     } catch (err) {
-      showCustomAlert('Error', 'Failed to delete user');
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to soft delete user');
     }
+  };
+
+  const handleHardDeleteUser = async (userId, userName) => {
+    try {
+      await api.delete(`/admin/users/${userId}/hard-delete`);
+      showCustomAlert('Permanently Deleted', `User "${userName || 'User'}" and all associated data have been completely removed from the database.`);
+      fetchData();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to hard delete user');
+    }
+  };
+
+  const promptDeleteUser = (user) => {
+    if (user?.role === 'admin') {
+      showCustomAlert('Admin Account', 'Administrator accounts cannot be deleted.');
+      return;
+    }
+
+    showCustomAlert(
+      'Delete User Account',
+      `Choose deletion type for "${user.name || user.email}":\n\n• Soft Delete: Deactivates account, anonymizes name to "Deleted User", and preserves match history.\n\n• Hard Delete: PERMANENTLY purges the user and all associated records completely from MongoDB.`,
+      [
+        {
+          text: 'Soft Delete (Anonymize)',
+          style: 'default',
+          onPress: () => handleSoftDeleteUser(user._id, user.name)
+        },
+        {
+          text: '🔥 Hard Delete (Remove from DB)',
+          style: 'destructive',
+          onPress: () => {
+            showCustomAlert(
+              '⚠️ CONFIRM HARD DELETE',
+              `Are you 100% sure you want to PERMANENTLY REMOVE "${user.name || user.email}" from the database?\n\nThis CANNOT be undone. Zero data will remain.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'PERMANENTLY DELETE FROM DB',
+                  style: 'destructive',
+                  onPress: () => handleHardDeleteUser(user._id, user.name)
+                }
+              ]
+            );
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
   };
 
   const handleDeleteTurf = async (turfId) => {
@@ -460,12 +566,17 @@ const AdminDashboardScreen = ({ navigation }) => {
             ) : null}
           </View>
           <View>
-            <View style={[styles.roleBadge, { backgroundColor: roleBg }]}>
+            <TouchableOpacity
+              onPress={() => openRoleChangeModal(item)}
+              activeOpacity={0.7}
+              style={[styles.roleBadge, { backgroundColor: roleBg }]}
+            >
               <Icon name={isOwner ? 'briefcase' : item.role === 'admin' ? 'shield-crown' : isPlayer ? 'cricket' : 'account'} size={11} color={roleColor} />
               <Text style={[styles.roleText, { color: roleColor }]}>
                 {item.role?.toUpperCase() || 'USER'}
               </Text>
-            </View>
+              <Icon name="pencil" size={10} color={roleColor} style={{ marginLeft: 2 }} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -477,7 +588,16 @@ const AdminDashboardScreen = ({ navigation }) => {
             <Icon name="calendar-outline" size={12} color={Colors.textTertiary} />
             <Text style={styles.joinedLabel}>Joined {joinedDate}</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              onPress={() => openRoleChangeModal(item)}
+              style={styles.roleActionBtn}
+              activeOpacity={0.7}
+            >
+              <Icon name="account-convert-outline" size={13} color="#BA68C8" />
+              <Text style={styles.roleActionText}>Role</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               onPress={() => handleToggleSuspendUser(item)}
               style={[styles.suspendBtn, isSuspended ? styles.reactivateBtn : null]}
@@ -493,16 +613,11 @@ const AdminDashboardScreen = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => {
-              showCustomAlert(
-                'PERMANENT USER DELETION',
-                `⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nAre you sure you want to permanently delete user "${item.name || 'User'}"?\n\nThis will purge ALL bookings, wallet balance, stats, player profile, owner turfs, and team captaincy records. ZERO data will remain.`,
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'PERMANENTLY DELETE', style: 'destructive', onPress: () => handleDeleteUser(item._id) }
-                ]
-              );
-            }} style={styles.deleteBtn} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={() => promptDeleteUser(item)}
+              style={styles.deleteBtn}
+              activeOpacity={0.7}
+            >
               <Icon name="trash-can-outline" size={14} color={Colors.error} />
               <Text style={styles.deleteUserText}>Delete</Text>
             </TouchableOpacity>
@@ -1074,10 +1189,10 @@ const AdminDashboardScreen = ({ navigation }) => {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, paddingBottom: 10 }}>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-              <Icon name="cloud-check" size={14} color={Colors.primary} />
-              <Text style={{ fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.5 }}>ONLINE BOOKING</Text>
+              <Icon name="cloud-check" size={14} color={isDark ? '#FFD400' : colors.primaryDark} />
+              <Text style={{ fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.5 }}>ONLINE BOOKING</Text>
             </View>
-            <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{bookingRef}</Text>
+            <Text style={{ fontSize: 14, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{bookingRef}</Text>
           </View>
           <View style={[{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: statusBg, borderWidth: 1, borderColor: statusColor + '55' }]}>
             <Text style={{ fontSize: 10, fontFamily: Typography.fontFamily.bold, color: statusColor, letterSpacing: 0.8 }}>
@@ -1093,34 +1208,34 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Icon name="soccer-field" size={14} color="#2ED573" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{turfName}</Text>
-              {turfCity ? <Text style={{ fontSize: 11, color: Colors.textTertiary }}>{turfCity}</Text> : null}
+              <Text style={{ fontSize: 13, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{turfName}</Text>
+              {turfCity ? <Text style={{ fontSize: 11, color: colors.textTertiary }}>{turfCity}</Text> : null}
             </View>
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center' }}>
-              <Icon name="account" size={14} color={Colors.primary} />
+            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: isDark ? 'rgba(255,212,0,0.15)' : 'rgba(212,160,0,0.15)', justifyContent: 'center', alignItems: 'center' }}>
+              <Icon name="account" size={14} color={isDark ? '#FFD400' : colors.primaryDark} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium }}>{userName}</Text>
-              <Text style={{ fontSize: 11, color: Colors.textTertiary }}>{userPhone} {item.user?.email ? `• ${item.user.email}` : ''}</Text>
+              <Text style={{ fontSize: 13, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium }}>{userName}</Text>
+              <Text style={{ fontSize: 11, color: colors.textTertiary }}>{userPhone} {item.user?.email ? `• ${item.user.email}` : ''}</Text>
             </View>
           </View>
         </View>
 
         {/* Bottom bar with slot & price */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.surfaceVariant, borderTopWidth: 1, borderTopColor: colors.border }}>
           <View style={{ flex: 1 }}>
             {slotInfo ? (
-              <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium }}>
-                <Icon name="clock-outline" size={12} color={Colors.primary} /> {slotInfo}
+              <Text style={{ fontSize: 12, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium }}>
+                <Icon name="clock-outline" size={12} color={isDark ? '#FFD400' : colors.primaryDark} /> {slotInfo}
               </Text>
             ) : (
-              <Text style={{ fontSize: 11, color: Colors.textTertiary }}>{dateStr}</Text>
+              <Text style={{ fontSize: 11, color: colors.textTertiary }}>{dateStr}</Text>
             )}
           </View>
-          <Text style={{ fontSize: 16, color: Colors.primary, fontFamily: Typography.fontFamily.bold }}>
+          <Text style={{ fontSize: 16, color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold }}>
             ₹{item.finalAmount || item.totalAmount || 0}
           </Text>
         </View>
@@ -1147,7 +1262,7 @@ const AdminDashboardScreen = ({ navigation }) => {
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
               <Icon name="calendar-clock" size={14} color="#5B8DEF" />
-              <Text style={{ fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.5 }}>OFFLINE BOOKING</Text>
+              <Text style={{ fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.5 }}>OFFLINE BOOKING</Text>
             </View>
             <Text style={{ fontSize: 13, color: '#5B8DEF', fontFamily: Typography.fontFamily.bold }}>{reasonLabel}</Text>
           </View>
@@ -1165,8 +1280,8 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Icon name="soccer-field" size={14} color="#2ED573" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{turfName}</Text>
-              <Text style={{ fontSize: 11, color: Colors.textTertiary }}>Owner: {ownerName}</Text>
+              <Text style={{ fontSize: 13, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{turfName}</Text>
+              <Text style={{ fontSize: 11, color: colors.textTertiary }}>Owner: {ownerName}</Text>
             </View>
           </View>
 
@@ -1175,16 +1290,16 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Icon name="account-outline" size={14} color="#5B8DEF" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium }}>{customerName}</Text>
-              <Text style={{ fontSize: 11, color: Colors.textTertiary }}>{customerMobile}</Text>
+              <Text style={{ fontSize: 13, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium }}>{customerName}</Text>
+              <Text style={{ fontSize: 11, color: colors.textTertiary }}>{customerMobile}</Text>
             </View>
           </View>
         </View>
 
         {/* Bottom bar with date/time & price */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.surfaceVariant, borderTopWidth: 1, borderTopColor: colors.border }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium }}>
+            <Text style={{ fontSize: 12, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium }}>
               <Icon name="clock-outline" size={12} color="#5B8DEF" /> {dateStr} • {timeStr}
             </Text>
           </View>
@@ -1308,13 +1423,13 @@ const AdminDashboardScreen = ({ navigation }) => {
       <View style={styles.header}>
         {/* Top row: title + actions */}
         <View style={styles.headerTop}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
             <TouchableOpacity
               onPress={openSidebar}
               style={styles.hamburgerBtn}
               activeOpacity={0.75}
             >
-              <Icon name="menu" size={22} color={Colors.textPrimary} />
+              <Icon name="menu" size={22} color={colors.textPrimary} />
               {totalAlerts > 0 && (
                 <View style={styles.hamburgerBadge}>
                   <Text style={styles.hamburgerBadgeText}>{totalAlerts}</Text>
@@ -1323,21 +1438,28 @@ const AdminDashboardScreen = ({ navigation }) => {
             </TouchableOpacity>
             <View style={styles.headerTitleBlock}>
               <View style={styles.adminBadge}>
-                <Icon name="shield-crown" size={13} color={Colors.primary} />
+                <Icon name="shield-crown" size={12} color={isDark ? '#FFD400' : colors.primaryDark} />
                 <Text style={styles.adminBadgeText}>ADMIN</Text>
               </View>
-              <Text style={styles.headerTitle}>Dashboard</Text>
+              <Text style={styles.headerTitle} numberOfLines={1}>Dashboard</Text>
             </View>
           </View>
 
           <View style={styles.headerActions}>
-            <NotificationBell onPress={() => navigation.navigate('Notifications')} />
+            <NotificationBell onPress={() => navigation.navigate('Notifications')} size={20} />
             <TouchableOpacity
-              onPress={() => setShowSettings(true)}
-              style={[styles.headerActionBtn, { backgroundColor: 'rgba(255,212,0,0.12)', borderColor: 'rgba(255,212,0,0.25)', marginRight: 6 }]}
+              onPress={toggleTheme}
+              style={[styles.headerActionBtn, { backgroundColor: isDark ? 'rgba(255,212,0,0.12)' : 'rgba(91,141,239,0.12)', borderColor: isDark ? 'rgba(255,212,0,0.25)' : 'rgba(91,141,239,0.25)' }]}
               activeOpacity={0.8}
             >
-              <Icon name="cog" size={19} color="#FFD400" />
+              <Icon name={isDark ? "weather-sunny" : "weather-night"} size={18} color={isDark ? "#FFD400" : "#5B8DEF"} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { fetchSettings(); setShowSettings(true); }}
+              style={[styles.headerActionBtn, { backgroundColor: 'rgba(255,212,0,0.12)', borderColor: 'rgba(255,212,0,0.25)' }]}
+              activeOpacity={0.8}
+            >
+              <Icon name="cog" size={18} color="#FFD400" />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleLogout}
@@ -1346,13 +1468,10 @@ const AdminDashboardScreen = ({ navigation }) => {
               disabled={isLoggingOut}
             >
               {isLoggingOut ? (
-                <ActivityIndicator size="small" color="#FF4757" style={{ marginRight: 4 }} />
+                <ActivityIndicator size="small" color="#FF4757" />
               ) : (
-                <Icon name="logout" size={19} color="#FF4757" />
+                <Icon name="logout" size={18} color="#FF4757" />
               )}
-              <Text style={[styles.headerActionLabel, { color: '#FF4757' }]}>
-                {isLoggingOut ? 'Logging out...' : 'Logout'}
-              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1363,23 +1482,23 @@ const AdminDashboardScreen = ({ navigation }) => {
         {/* Stats Row */}
         <View style={styles.statsContainer}>
           <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('users'); setSearchQuery(''); }} activeOpacity={0.8}>
-            <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
+            <View style={[styles.statGrad, { backgroundColor: colors.surface }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Icon name="account-group" size={20} color={Colors.primary} />
+                <Icon name="account-group" size={20} color={isDark ? '#FFD400' : colors.primaryDark} />
               </View>
               <Text style={styles.statValue}>{owners.length + users.length}</Text>
               <Text style={styles.statLabel}>Total Users</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('owners'); setSearchQuery(''); }} activeOpacity={0.8}>
-            <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
+            <View style={[styles.statGrad, { backgroundColor: colors.surface }]}>
               <Icon name="briefcase-account" size={20} color="#5B8DEF" />
               <Text style={[styles.statValue, { color: '#5B8DEF' }]}>{owners.length}</Text>
               <Text style={styles.statLabel}>Owners</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('turfs'); setSearchQuery(''); }} activeOpacity={0.8}>
-            <View style={[styles.statGrad, { backgroundColor: Colors.surface }]}>
+            <View style={[styles.statGrad, { backgroundColor: colors.surface }]}>
               <Icon name="soccer-field" size={20} color="#2ED573" />
               <Text style={[styles.statValue, { color: '#2ED573' }]}>{turfs.length}</Text>
               <Text style={styles.statLabel}>Turfs</Text>
@@ -1594,7 +1713,7 @@ const AdminDashboardScreen = ({ navigation }) => {
       {/* Main Content */}
       <View style={styles.contentArea}>
         {['owners', 'turfs', 'users', 'online_bookings', 'offline_bookings', 'refunds', 'waitlist', 'settlements_requests', 'settlements_turf', 'settlements_org'].includes(activeTab) && (
-          <AdminSearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+          <AdminSearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} colors={colors} styles={styles} />
         )}
         {loading ? (
           <View style={styles.center}>
@@ -1739,6 +1858,23 @@ const AdminDashboardScreen = ({ navigation }) => {
           <SidebarItem tab="settlements_turf" icon="stadium-variant" label="Turf Wallets" badge={0} />
           <SidebarItem tab="settlements_org" icon="account-tie-hat" label="Organizers" badge={0} />
 
+          {/* ── PREFERENCES ── */}
+          <View style={styles.sidebarDivider} />
+          <Text style={styles.sidebarSectionLabel}>PREFERENCES</Text>
+          <TouchableOpacity
+            style={styles.sidebarItem}
+            onPress={toggleTheme}
+            activeOpacity={0.7}
+          >
+            <View style={styles.sidebarActiveBar} />
+            <View style={styles.sidebarIconWrap}>
+              <Icon name={isDark ? "weather-sunny" : "weather-night"} size={18} color={isDark ? "#FFD400" : "#5B8DEF"} />
+            </View>
+            <Text style={[styles.sidebarText, { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>
+              {isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            </Text>
+          </TouchableOpacity>
+
         </ScrollView>
       </Animated.View>
       {/* Processing overlay */}
@@ -1748,6 +1884,90 @@ const AdminDashboardScreen = ({ navigation }) => {
           <Text style={styles.overlayText}>Processing transaction...</Text>
         </View>
       )}
+
+      {/* ── ROLE CHANGE MODAL ── */}
+      <Modal visible={!!roleModalUser} transparent animationType="fade" onRequestClose={() => !isUpdatingRole && setRoleModalUser(null)}>
+        <View style={styles.roleModalOverlay}>
+          <View style={styles.roleModalCard}>
+            <View style={styles.roleModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.roleModalTitle}>Change User Role</Text>
+                <Text style={styles.roleModalSubtitle} numberOfLines={1}>
+                  {roleModalUser?.name || 'User'} ({roleModalUser?.email || roleModalUser?.mobile || ''})
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setRoleModalUser(null)}
+                disabled={isUpdatingRole}
+                style={styles.roleModalCloseBtn}
+              >
+                <Icon name="close" size={20} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.roleModalLabel}>Select New Role:</Text>
+
+            <View style={styles.roleOptionList}>
+              {[
+                { id: 'player', title: 'Player', desc: 'Can join matches, tournaments, auctions and book turfs', icon: 'cricket', color: '#BA68C8' },
+                { id: 'owner', title: 'Turf Owner', desc: 'Can register and manage turfs, slots, and bookings', icon: 'briefcase', color: Colors.primary },
+              ].map((r) => {
+                const isSelected = selectedRole === r.id;
+                return (
+                  <TouchableOpacity
+                    key={r.id}
+                    style={[styles.roleOptionCard, isSelected && { borderColor: r.color, backgroundColor: r.color + '15' }]}
+                    onPress={() => setSelectedRole(r.id)}
+                    activeOpacity={0.8}
+                    disabled={isUpdatingRole}
+                  >
+                    <View style={[styles.roleOptionIconWrap, { backgroundColor: r.color + '25' }]}>
+                      <Icon name={r.icon} size={20} color={r.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.roleOptionTitle, isSelected && { color: r.color }]}>{r.title}</Text>
+                      <Text style={styles.roleOptionDesc}>{r.desc}</Text>
+                    </View>
+                    <Icon
+                      name={isSelected ? 'radiobox-marked' : 'radiobox-blank'}
+                      size={20}
+                      color={isSelected ? r.color : Colors.textTertiary}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.roleModalNotice}>
+              <Icon name="information-outline" size={15} color="#FF9800" style={{ marginTop: 1 }} />
+              <Text style={styles.roleModalNoticeText}>
+                Changing the role will automatically invalidate the user's active session, force them to log out, and prompt them to log in again with updated access.
+              </Text>
+            </View>
+
+            <View style={styles.roleModalActions}>
+              <TouchableOpacity
+                style={styles.roleModalCancelBtn}
+                onPress={() => setRoleModalUser(null)}
+                disabled={isUpdatingRole}
+              >
+                <Text style={styles.roleModalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.roleModalSaveBtn}
+                onPress={handleUpdateRole}
+                disabled={isUpdatingRole}
+              >
+                {isUpdatingRole ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={styles.roleModalSaveText}>Apply & Logout User</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── PROFILE IMAGE FULL VIEW MODAL ── */}
       <Modal visible={!!selectedImageModal} transparent animationType="fade" onRequestClose={() => setSelectedImageModal(null)}>
@@ -1781,49 +2001,50 @@ const AdminDashboardScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
   // ── Header ──────────────────────────────────────────────────────────────
   header: {
     paddingTop: 52, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  headerTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  headerTitleBlock: { gap: 4 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTitleBlock: { gap: 2, flex: 1 },
   adminBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
-    backgroundColor: Colors.primaryAlpha20, paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 8, borderWidth: 1, borderColor: Colors.primaryAlpha30,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.15)' : 'rgba(212,160,0,0.15)', paddingHorizontal: 8, paddingVertical: 2,
+    borderRadius: 8, borderWidth: 1, borderColor: isDark ? 'rgba(255,212,0,0.3)' : 'rgba(212,160,0,0.3)',
   },
-  adminBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.primary, letterSpacing: 1.2 },
-  headerTitle: { fontSize: 26, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
+  adminBadgeText: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark, letterSpacing: 1.2 },
+  headerTitle: { fontSize: 24, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary },
 
-  // Header action buttons (icon + label)
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 4 },
+  // Header action buttons (icon-only 36x36 buttons)
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   headerActionBtn: {
-    alignItems: 'center', gap: 3, paddingHorizontal: 10, paddingVertical: 7,
-    backgroundColor: Colors.surface, borderRadius: 12,
-    borderWidth: 1, borderColor: Colors.border,
-    minWidth: 52,
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: colors.surfaceVariant,
+    borderWidth: 1, borderColor: colors.border,
+    justifyContent: 'center', alignItems: 'center',
   },
-  headerActionLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: Colors.primary, letterSpacing: 0.3 },
+  headerActionLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark, letterSpacing: 0.3 },
 
-  headerDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.07)', marginVertical: Spacing.md },
+  headerDivider: { height: 1, backgroundColor: colors.border, marginVertical: Spacing.md },
 
   // ── Stats ──────────────────────────────────────────────────────────────
   statsContainer: { flexDirection: 'row', gap: 10 },
-  statBox: { flex: 1, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
+  statBox: { flex: 1, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   statGrad: { alignItems: 'center', paddingVertical: Spacing.md, paddingHorizontal: 4, gap: 4 },
-  statValue: { fontSize: 22, fontFamily: Typography.fontFamily.extraBold, color: Colors.primary },
-  statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  statValue: { fontSize: 22, fontFamily: Typography.fontFamily.extraBold, color: isDark ? '#FFD400' : colors.primaryDark },
+  statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
 
   // ── Layout ──────────────────────────────────────────────────────────────
-  contentArea: { flex: 1, backgroundColor: Colors.background },
+  contentArea: { flex: 1, backgroundColor: colors.background },
   hamburgerBtn: {
     width: 38, height: 38, borderRadius: 12,
-    backgroundColor: Colors.surface,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: colors.surfaceVariant,
+    borderWidth: 1, borderColor: colors.border,
     justifyContent: 'center', alignItems: 'center',
   },
   hamburgerBadge: {
@@ -1831,18 +2052,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.error, borderRadius: 9,
     paddingHorizontal: 4, minWidth: 18, height: 18,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1.5, borderColor: Colors.background,
+    borderWidth: 1.5, borderColor: colors.background,
   },
   hamburgerBadgeText: { color: '#FFF', fontSize: 8, fontFamily: Typography.fontFamily.bold },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginHorizontal: Spacing.md, marginTop: Spacing.md, marginBottom: 4,
-    backgroundColor: Colors.surface, borderRadius: 14,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: colors.surface, borderRadius: 14,
+    borderWidth: 1, borderColor: colors.border,
     paddingHorizontal: 12, paddingVertical: 10,
   },
   searchInput: {
-    flex: 1, fontSize: 13, color: Colors.textPrimary,
+    flex: 1, fontSize: 13, color: colors.textPrimary,
     fontFamily: Typography.fontFamily.regular, padding: 0,
   },
   sidebarOverlay: {
@@ -1852,37 +2073,38 @@ const styles = StyleSheet.create({
   sidebar: {
     position: 'absolute', top: 0, bottom: 0, left: 0,
     width: SIDEBAR_WIDTH,
-    backgroundColor: '#0A0A0A',
-    borderRightWidth: 1, borderRightColor: 'rgba(255,204,0,0.12)',
+    backgroundColor: colors.surface,
+    borderRightWidth: 1, borderRightColor: colors.border,
     zIndex: 100,
     elevation: 20,
-    shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 20, shadowOffset: { width: 6, height: 0 },
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 6, height: 0 },
   },
 
   // ── Sidebar identity block ──────────────────────────────────────────────
   sidebarIdentity: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingTop: 54, paddingHorizontal: 16, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   sidebarAvatarRing: {
     width: 40, height: 40, borderRadius: 14,
-    backgroundColor: 'rgba(255,204,0,0.1)',
-    borderWidth: 1, borderColor: 'rgba(255,204,0,0.25)',
+    backgroundColor: isDark ? 'rgba(255,204,0,0.1)' : 'rgba(212,160,0,0.1)',
+    borderWidth: 1, borderColor: colors.border,
     justifyContent: 'center', alignItems: 'center',
   },
   sidebarIdentityTitle: {
     fontSize: 14, fontFamily: Typography.fontFamily.extraBold,
-    color: Colors.textPrimary, letterSpacing: 0.3,
+    color: colors.textPrimary, letterSpacing: 0.3,
   },
   sidebarIdentityRole: {
     fontSize: 10, fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary, letterSpacing: 0.8, textTransform: 'uppercase',
+    color: isDark ? '#FFD400' : colors.primaryDark, letterSpacing: 0.8, textTransform: 'uppercase',
     marginTop: 1,
   },
   sidebarCloseBtn: {
     width: 30, height: 30, borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: colors.surfaceVariant,
+    borderWidth: 1, borderColor: colors.border,
     justifyContent: 'center', alignItems: 'center',
   },
 
@@ -1899,7 +2121,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   sidebarItemActive: {
-    backgroundColor: 'rgba(255,204,0,0.08)',
+    backgroundColor: isDark ? 'rgba(255,204,0,0.12)' : 'rgba(212,160,0,0.12)',
   },
   sidebarActiveBar: {
     position: 'absolute',
@@ -1908,23 +2130,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   sidebarActiveBarVisible: {
-    backgroundColor: Colors.primary,
+    backgroundColor: isDark ? '#FFD400' : colors.primaryDark,
   },
   sidebarIconWrap: {
     width: 32, height: 32, borderRadius: 9,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.surfaceVariant,
     justifyContent: 'center', alignItems: 'center',
   },
   sidebarIconWrapActive: {
-    backgroundColor: 'rgba(255,204,0,0.12)',
+    backgroundColor: isDark ? 'rgba(255,204,0,0.18)' : 'rgba(212,160,0,0.18)',
   },
   sidebarText: {
     flex: 1,
     fontSize: 13, fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   sidebarTextActive: {
-    color: Colors.primary,
+    color: isDark ? '#FFD400' : colors.primaryDark,
     fontFamily: Typography.fontFamily.bold,
   },
   sidebarBadge: {
@@ -1934,42 +2156,42 @@ const styles = StyleSheet.create({
   },
   sidebarBadgeText: { color: '#FFF', fontSize: 9, fontFamily: Typography.fontFamily.bold },
   sidebarDivider: {
-    height: 1, backgroundColor: 'rgba(255,255,255,0.05)',
+    height: 1, backgroundColor: colors.border,
     marginVertical: 6, marginHorizontal: 16,
   },
   sidebarSectionLabel: {
     fontSize: 9, fontFamily: Typography.fontFamily.bold,
-    color: Colors.textTertiary, letterSpacing: 1.2,
+    color: colors.textTertiary, letterSpacing: 1.2,
     paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4,
     textTransform: 'uppercase',
   },
 
   // ── Tabs ──────────────────────────────────────────────────────────────
-  tabsContainer: { flexDirection: 'row', paddingHorizontal: Spacing.lg, backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  tabsContainer: { flexDirection: 'row', paddingHorizontal: Spacing.lg, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   tab: { flex: 1, paddingVertical: Spacing.md, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabActive: { borderBottomColor: Colors.primary },
-  tabText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
-  tabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  tabActive: { borderBottomColor: isDark ? '#FFD400' : colors.primaryDark },
+  tabText: { color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
+  tabTextActive: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
   badge: { backgroundColor: Colors.error, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 6 },
   badgeText: { color: '#FFF', fontSize: 10, fontFamily: Typography.fontFamily.bold },
 
   list: { padding: Spacing.md, paddingBottom: 100 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.xl, fontFamily: Typography.fontFamily.medium },
+  emptyText: { color: colors.textSecondary, textAlign: 'center', marginTop: Spacing.xl, fontFamily: Typography.fontFamily.medium },
 
   // ── Cards ──────────────────────────────────────────────────────────────
-  card: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md, overflow: 'hidden' },
+  card: { backgroundColor: colors.surface, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.md, overflow: 'hidden' },
   cardGradBg: { },
   turfStatusAccent: { height: 3, width: '100%' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, gap: 12 },
   avatarWrap: { borderRadius: 25, overflow: 'hidden' },
   avatar: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center' },
   avatarText: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: '#fff' },
-  cardTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  cardSubtitle: { fontSize: 12, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, marginTop: 2 },
+  cardTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  cardSubtitle: { fontSize: 12, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, marginTop: 2 },
 
-  joinedLabel: { fontSize: 10, color: Colors.textTertiary, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase' },
-  joinedDate: { fontSize: 12, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: 2 },
+  joinedLabel: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase' },
+  joinedDate: { fontSize: 12, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: 2 },
 
   roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
   roleText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
@@ -1983,12 +2205,12 @@ const styles = StyleSheet.create({
   },
   deleteUserText: { color: '#FF4757', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
-  // ── Turf Card (premium redesign) ──────────────────────────────────────
+  // ── Turf Card ──────────────────────────────────────
   turfCard: {
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     marginBottom: Spacing.md,
     overflow: 'hidden',
   },
@@ -1998,7 +2220,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0e1111',
+    backgroundColor: colors.surfaceVariant,
   },
   turfCoverImage: {
     width: '100%',
@@ -2010,9 +2232,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   turfImagePlaceholder: {
-    backgroundColor: 'rgba(255,204,0,0.04)',
+    backgroundColor: colors.surfaceVariant,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   turfStatusPin: {
     position: 'absolute',
@@ -2044,7 +2266,7 @@ const styles = StyleSheet.create({
   turfCoverPrice: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: isDark ? '#FFD400' : colors.primaryDark,
   },
   turfBody: { padding: Spacing.md },
   turfInfoRow: {
@@ -2056,37 +2278,37 @@ const styles = StyleSheet.create({
   turfOwnerText: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   turfTypeChip: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.surface, paddingHorizontal: 6, paddingVertical: 3,
-    borderRadius: 6, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: colors.surfaceVariant, paddingHorizontal: 6, paddingVertical: 3,
+    borderRadius: 6, borderWidth: 1, borderColor: colors.border,
   },
-  turfTypeText: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  turfTypeText: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary },
   turfStatsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surfaceVariant,
     borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: colors.border,
     paddingVertical: 8,
     marginBottom: Spacing.sm,
   },
   turfStatItem: { flex: 1, alignItems: 'center', gap: 2 },
-  turfStatVal: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
-  turfStatLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.3 },
-  turfStatDivider: { width: 1, height: 28, backgroundColor: Colors.border },
+  turfStatVal: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary },
+  turfStatLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.3 },
+  turfStatDivider: { width: 1, height: 28, backgroundColor: colors.border },
   turfAmenitiesRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 5,
     marginBottom: Spacing.sm,
   },
   turfAmenityChip: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.primaryAlpha20,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.15)' : 'rgba(212,160,0,0.15)',
     borderRadius: 20, paddingHorizontal: 7, paddingVertical: 3,
   },
-  turfAmenityText: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  turfAmenityText: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark },
   turfDeletionBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(244,67,54,0.08)',
@@ -2114,18 +2336,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   turfActionBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 12 },
-  turfActionBtnPrimary: { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
+  turfActionBtnPrimary: { backgroundColor: isDark ? 'rgba(255,212,0,0.15)' : 'rgba(212,160,0,0.15)', borderColor: isDark ? '#FFD400' : colors.primaryDark },
   turfActionBtnDanger: { backgroundColor: 'rgba(255,71,87,0.1)', borderColor: 'rgba(255,71,87,0.3)' },
-  turfActionBtnGhost: { backgroundColor: Colors.surfaceVariant, borderColor: Colors.border },
+  turfActionBtnGhost: { backgroundColor: colors.surfaceVariant, borderColor: colors.border },
 
-  noTurfs: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
-  noTurfsText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 12, fontStyle: 'italic' },
+  noTurfs: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surfaceVariant, padding: Spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
+  noTurfsText: { color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 12, fontStyle: 'italic' },
 
   // ── Registered Turfs in Owner Card ──────────────────────────────────────
   turfsList: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surfaceVariant,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: colors.border,
     padding: Spacing.md,
   },
   turfsListHeader: {
@@ -2137,12 +2359,12 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   turfCountBadge: {
-    backgroundColor: Colors.primaryAlpha20,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.15)' : 'rgba(212,160,0,0.15)',
     borderRadius: 10,
     paddingHorizontal: 7,
     paddingVertical: 1,
@@ -2150,7 +2372,7 @@ const styles = StyleSheet.create({
   turfCountBadgeText: {
     fontSize: 10,
     fontFamily: Typography.fontFamily.extraBold,
-    color: Colors.primary,
+    color: isDark ? '#FFD400' : colors.primaryDark,
   },
   turfItemsWrap: {
     gap: 8,
@@ -2158,30 +2380,30 @@ const styles = StyleSheet.create({
   turfItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     padding: 10,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     gap: 10,
   },
   turfItemIcon: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.1)' : 'rgba(212,160,0,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   turfName: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   turfCity: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginTop: 2,
   },
   turfStatusChip: {
@@ -2205,13 +2427,13 @@ const styles = StyleSheet.create({
 
   // ── Settlement Bank Details Card ──────────────────────────────────────
   settlementBankBox: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.lg,
     padding: 12,
     marginHorizontal: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,204,0,0.2)',
+    borderColor: colors.border,
   },
   settlementBankHeader: {
     flexDirection: 'row',
@@ -2220,12 +2442,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingBottom: 6,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   settlementBankTitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: isDark ? '#FFD400' : colors.primaryDark,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -2240,30 +2462,30 @@ const styles = StyleSheet.create({
   settlementBankLabel: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
   settlementBankValue: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
 
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: Colors.surfaceVariant, borderWidth: 1, borderColor: Colors.border },
-  actionBtnText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.border },
+  actionBtnText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
   // ── Modals ──────────────────────────────────────────────────────────────
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center' },
-  modalCard: { width: '90%', maxWidth: 400, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
-  modalContent: { width: '90%', backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, padding: Spacing.xl },
-  modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.lg },
-  inputLabel: { fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },
-  input: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.md, padding: 12, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
+  modalCard: { width: '90%', maxWidth: 400, backgroundColor: colors.surface, borderRadius: BorderRadius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: colors.border },
+  modalContent: { width: '90%', backgroundColor: colors.surface, borderRadius: BorderRadius.xl, padding: Spacing.xl },
+  modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: Spacing.lg },
+  inputLabel: { fontSize: 13, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },
+  input: { backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.md, padding: 12, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium },
   modalBtn: { flex: 1, padding: 14, borderRadius: BorderRadius.md, alignItems: 'center' },
   modalBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
-  bannerUploadBtn: { height: 120, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', overflow: 'hidden' },
+  bannerUploadBtn: { height: 120, backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', overflow: 'hidden' },
   bannerPreview: { width: '100%', height: '100%' },
-  bannerUploadText: { color: Colors.primary, fontFamily: Typography.fontFamily.medium, marginTop: 8 },
+  bannerUploadText: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.medium, marginTop: 8 },
 
   // ── User Management Extra Styles ──
   userAvatarImage: {
@@ -2275,14 +2497,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -1,
     right: -1,
-    backgroundColor: Colors.primary,
+    backgroundColor: isDark ? '#FFD400' : colors.primaryDark,
     borderRadius: 10,
     width: 18,
     height: 18,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.backgroundCard,
+    borderColor: colors.surface,
   },
   suspendedTag: {
     backgroundColor: 'rgba(255,71,87,0.15)',
@@ -2299,14 +2521,14 @@ const styles = StyleSheet.create({
   },
   cardSubtitlePhone: {
     fontSize: 11,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
     marginTop: 1,
   },
   userPlayerBox: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surfaceVariant,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: colors.border,
     paddingHorizontal: Spacing.md,
     paddingVertical: 10,
   },
@@ -2319,7 +2541,7 @@ const styles = StyleSheet.create({
   userPlayerTitle: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: isDark ? '#FFD400' : colors.primaryDark,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -2331,7 +2553,7 @@ const styles = StyleSheet.create({
   userPlayerViewBtnText: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: isDark ? '#FFD400' : colors.primaryDark,
   },
   userPlayerChipsRow: {
     flexDirection: 'row',
@@ -2342,17 +2564,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   userPlayerChipText: {
     fontSize: 10,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   suspendBtn: {
     flexDirection: 'row',
@@ -2388,11 +2610,11 @@ const styles = StyleSheet.create({
   imageViewerCard: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     zIndex: 10,
   },
   imageViewerHeader: {
@@ -2401,25 +2623,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surfaceVariant,
   },
   imageViewerTitle: {
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   imageViewerSubtitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginTop: 2,
   },
   imageViewerCloseBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: colors.surfaceVariant,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2448,6 +2670,147 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
+  },
+
+  // ── Role Modal & Action Styles ──
+  roleActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(186,104,200,0.12)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(186,104,200,0.3)',
+  },
+  roleActionText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 12,
+    color: '#BA68C8',
+  },
+  roleModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  roleModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  roleModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  roleModalTitle: {
+    fontSize: 18,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  roleModalSubtitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  roleModalCloseBtn: {
+    padding: 4,
+  },
+  roleModalLabel: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  roleOptionList: {
+    gap: 10,
+    marginBottom: Spacing.md,
+  },
+  roleOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  roleOptionIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  roleOptionTitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  roleOptionDesc: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  roleModalNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(255,152,0,0.1)',
+    borderRadius: BorderRadius.md,
+    padding: 10,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,152,0,0.25)',
+  },
+  roleModalNoticeText: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
+    color: '#FF9800',
+    lineHeight: 16,
+  },
+  roleModalActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  roleModalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: colors.surfaceVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleModalCancelText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textSecondary,
+  },
+  roleModalSaveBtn: {
+    flex: 1.6,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: isDark ? '#FFD400' : colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleModalSaveText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#000' : '#FFF',
   },
 });
 

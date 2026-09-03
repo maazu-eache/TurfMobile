@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
@@ -24,6 +24,8 @@ const IMG_BOWL  = require('../../../../bowling.jpeg');
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const TossScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { matchId } = route.params;
   
   const [match, setMatch] = useState(null);
@@ -108,7 +110,7 @@ const TossScreen = ({ route, navigation }) => {
   if (loading || !match) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -118,7 +120,7 @@ const TossScreen = ({ route, navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="chevron-left" size={28} color={Colors.textPrimary} />
+          <Icon name="chevron-left" size={28} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Match Toss</Text>
         <View style={{ width: 40 }} />
@@ -167,11 +169,11 @@ const TossScreen = ({ route, navigation }) => {
 
           <TouchableOpacity style={styles.flipBtn} onPress={handleFlipCoin} disabled={isFlipping}>
             <LinearGradient
-              colors={isFlipping ? ['#4A5568', '#2D3748'] : Colors.primaryGradient || [Colors.primary, Colors.primaryLight]}
+              colors={isFlipping ? ['#4A5568', '#2D3748'] : colors.primaryGradient || [colors.primary, colors.primaryLight]}
               style={styles.flipBtnGradient}
             >
-              <Icon name="autorenew" size={18} color={isFlipping ? '#A0AAB5' : Colors.background} style={{ marginRight: 6 }} />
-              <Text style={[styles.flipBtnText, { color: isFlipping ? '#A0AAB5' : Colors.background }]}>
+              <Icon name="autorenew" size={18} color={isFlipping ? '#A0AAB5' : colors.background} style={{ marginRight: 6 }} />
+              <Text style={[styles.flipBtnText, { color: isFlipping ? '#A0AAB5' : colors.background }]}>
                 {isFlipping ? 'Spinning...' : 'Tap to Spin Coin'}
               </Text>
             </LinearGradient>
@@ -211,7 +213,7 @@ const TossScreen = ({ route, navigation }) => {
               </View>
               {tossWinnerId === match.teamA?._id && (
                 <View style={styles.selectedCheck}>
-                  <Icon name="check-circle" size={18} color={Colors.primary} />
+                  <Icon name="check-circle" size={18} color={colors.primary} />
                 </View>
               )}
             </TouchableOpacity>
@@ -239,7 +241,7 @@ const TossScreen = ({ route, navigation }) => {
               </View>
               {tossWinnerId === match.teamB?._id && (
                 <View style={styles.selectedCheck}>
-                  <Icon name="check-circle" size={18} color={Colors.primary} />
+                  <Icon name="check-circle" size={18} color={colors.primary} />
                 </View>
               )}
             </TouchableOpacity>
@@ -262,7 +264,7 @@ const TossScreen = ({ route, navigation }) => {
                   </View>
                   {tossDecision === 'bat' && (
                     <View style={styles.decisionCheckBadge}>
-                      <Icon name="check-circle" size={20} color={Colors.primary} />
+                      <Icon name="check-circle" size={20} color={colors.primary} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -280,7 +282,7 @@ const TossScreen = ({ route, navigation }) => {
                   </View>
                   {tossDecision === 'bowl' && (
                     <View style={styles.decisionCheckBadge}>
-                      <Icon name="check-circle" size={20} color={Colors.primary} />
+                      <Icon name="check-circle" size={20} color={colors.primary} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -298,15 +300,15 @@ const TossScreen = ({ route, navigation }) => {
           disabled={saving || !tossWinnerId || !tossDecision}
         >
           <LinearGradient
-            colors={(!tossWinnerId || !tossDecision) ? ['#3E4D59', '#3E4D59'] : Colors.primaryGradient || [Colors.primary, Colors.primaryLight]}
+            colors={(!tossWinnerId || !tossDecision) ? ['#3E4D59', '#3E4D59'] : colors.primaryGradient || [colors.primary, colors.primaryLight]}
             style={styles.startBtnGradient}
           >
             {saving ? (
-              <ActivityIndicator color={Colors.background} size="small" />
+              <ActivityIndicator color={colors.background} size="small" />
             ) : (
               <>
                 <Text style={[styles.startBtnText, (!tossWinnerId || !tossDecision) && { color: '#A0AAB5' }]}>Let's Play</Text>
-                <Icon name="chevron-right" size={22} color={(!tossWinnerId || !tossDecision) ? '#A0AAB5' : Colors.background} style={{ marginLeft: 4 }} />
+                <Icon name="chevron-right" size={22} color={(!tossWinnerId || !tossDecision) ? '#A0AAB5' : colors.background} style={{ marginLeft: 4 }} />
               </>
             )}
           </LinearGradient>
@@ -316,9 +318,9 @@ const TossScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -326,13 +328,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
   },
   backBtn: { padding: 4 },
   headerTitle: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
 
   content: {
@@ -416,7 +418,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    ...Shadows.small,
+    ...shadows.small,
   },
   flipBtnGradient: {
     flexDirection: 'row',
@@ -435,31 +437,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
   },
   resultBannerText: {
     fontSize: 14,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   greenText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
   },
 
   // DECISION / SETUP CARDS
   card: {
-    backgroundColor: Colors.backgroundCard || '#000000',
+    backgroundColor: colors.surface || '#000000',
     borderRadius: BorderRadius.lg,
     padding: Spacing.base,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    ...Shadows.small,
+    borderColor: colors.borderLight,
+    ...shadows.small,
   },
   sectionTitle: {
     fontSize: 15,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: Spacing.base,
     textAlign: 'center',
   },
@@ -472,15 +474,15 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 120,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.backgroundElevated || '#111111',
+    backgroundColor: colors.surface || '#111111',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
     position: 'relative',
   },
   optionCardSelected: {
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   teamLogoFull: {
     width: '100%',
@@ -514,13 +516,13 @@ const styles = StyleSheet.create({
   logoPlaceholder: {
     width: '100%',
     height: '70%',
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0,
   },
   logoPlaceholderText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 28,
   },
@@ -533,7 +535,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   optionTextSelected: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
   },
 
@@ -545,13 +547,13 @@ const styles = StyleSheet.create({
     height: 130,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    backgroundColor: Colors.backgroundElevated || '#111111',
+    backgroundColor: colors.surface || '#111111',
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     position: 'relative',
   },
   decisionCardSelected: {
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   decisionImage: {
     width: '100%',
@@ -580,7 +582,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   decisionTextSelected: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
   },
 
@@ -593,7 +595,7 @@ const styles = StyleSheet.create({
   startBtn: {
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    ...Shadows.medium,
+    ...shadows.medium,
   },
   startBtnDisabled: {
     elevation: 0,
@@ -605,7 +607,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   startBtnText: {
-    color: Colors.background || '#000000',
+    color: colors.background || '#000000',
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
   },

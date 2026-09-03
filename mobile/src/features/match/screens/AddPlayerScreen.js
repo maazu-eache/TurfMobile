@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const AddPlayerScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { teamId, onPlayerAdded, onClose, roster = [], oppositionRoster = [], squad = [] } = route.params || {};
 
   const [mobile, setMobile] = useState('');
@@ -119,7 +121,7 @@ const AddPlayerScreen = ({ route, navigation }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="chevron-left" size={28} color={Colors.textPrimary} />
+          <Icon name="chevron-left" size={28} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Add Player</Text>
         <View style={{ width: 28 }} />
@@ -137,11 +139,11 @@ const AddPlayerScreen = ({ route, navigation }) => {
       >
         <Text style={styles.label}>Mobile Number</Text>
         <View style={styles.inputContainer}>
-          <Icon name="phone-outline" size={20} color={Colors.textTertiary} style={{ marginRight: Spacing.sm }} />
+          <Icon name="phone-outline" size={20} color={colors.textTertiary} style={{ marginRight: Spacing.sm }} />
           <TextInput
             style={styles.textInputStyle}
             placeholder="10-digit mobile number"
-            placeholderTextColor={Colors.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             keyboardType="phone-pad"
             value={mobile}
             onChangeText={(val) => {
@@ -156,7 +158,7 @@ const AddPlayerScreen = ({ route, navigation }) => {
           />
           {isSearching && (
             <View style={{ paddingHorizontal: Spacing.md }}>
-              <ActivityIndicator color={Colors.primary} size="small" />
+              <ActivityIndicator color={colors.primary} size="small" />
             </View>
           )}
         </View>
@@ -164,7 +166,7 @@ const AddPlayerScreen = ({ route, navigation }) => {
         {searchResult && searchResult.exists && (
           <View style={styles.foundPlayerCard}>
             <View style={styles.foundHeader}>
-              <Icon name="check-decagram" size={16} color={Colors.accent} style={{ marginRight: 6 }} />
+              <Icon name="check-decagram" size={16} color={colors.accent} style={{ marginRight: 6 }} />
               <Text style={styles.foundText}>Player Found!</Text>
             </View>
             <View style={styles.profileRow}>
@@ -183,12 +185,12 @@ const AddPlayerScreen = ({ route, navigation }) => {
           <View style={{ marginTop: Spacing.lg }}>
             <Text style={styles.label}>Player Name</Text>
             <View style={[styles.singleInputContainer, styles.singleInputContainerFocused]}>
-              <Icon name="account-outline" size={20} color={Colors.primary} style={{ marginRight: Spacing.sm }} />
+              <Icon name="account-outline" size={20} color={colors.primary} style={{ marginRight: Spacing.sm }} />
               <TextInput
                 ref={nameInputRef}
                 style={styles.textInputStyle}
                 placeholder="Full Name"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={name}
                 onChangeText={setName}
                 returnKeyType="done"
@@ -221,7 +223,7 @@ const AddPlayerScreen = ({ route, navigation }) => {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.modalListText}>{p.name}</Text>
                   </View>
-                  <Icon name="plus-circle-outline" size={20} color={Colors.primary} />
+                  <Icon name="plus-circle-outline" size={20} color={colors.primary} />
                 </TouchableOpacity>
               ))
             ) : (
@@ -249,8 +251,8 @@ const AddPlayerScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scrollView: { flex: 1 },
   header: { 
     flexDirection: 'row', 
@@ -259,15 +261,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1, 
-    borderBottomColor: Colors.borderLight 
+    borderBottomColor: colors.borderLight 
   },
   backBtn: { padding: 4 },
-  headerTitle: { fontFamily: Typography.fontFamily.semiBold, fontSize: 18, color: Colors.textPrimary },
+  headerTitle: { fontFamily: Typography.fontFamily.semiBold, fontSize: 18, color: colors.textPrimary },
   content: { padding: Spacing.base },
   label: { 
     fontFamily: Typography.fontFamily.bold, 
     fontSize: 12, 
-    color: Colors.textSecondary, 
+    color: colors.textSecondary, 
     marginBottom: Spacing.xs, 
     marginTop: Spacing.base,
     textTransform: 'uppercase',
@@ -276,9 +278,9 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: BorderRadius.md,
     paddingLeft: Spacing.sm,
     height: 52,
@@ -287,26 +289,26 @@ const styles = StyleSheet.create({
   singleInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.sm,
     height: 52,
   },
   singleInputContainerFocused: {
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     backgroundColor: 'rgba(255,204,0,0.05)',
   },
   textInputStyle: {
     flex: 1,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 15,
     fontFamily: Typography.fontFamily.regular,
     paddingVertical: 0,
   },
   fetchBtn: { 
-    backgroundColor: Colors.accent, 
+    backgroundColor: colors.accent, 
     flexDirection: 'row',
     height: '100%',
     paddingHorizontal: Spacing.lg, 
@@ -314,30 +316,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center' 
   },
   fetchBtnText: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  helperText: { fontFamily: Typography.fontFamily.regular, fontSize: 12, color: Colors.textTertiary, marginTop: Spacing.sm, fontStyle: 'italic' },
+  helperText: { fontFamily: Typography.fontFamily.regular, fontSize: 12, color: colors.textTertiary, marginTop: Spacing.sm, fontStyle: 'italic' },
   footer: {
     padding: Spacing.base,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderTopColor: colors.borderLight,
+    backgroundColor: colors.surface,
   },
-  addBtn: { backgroundColor: Colors.primary, padding: 16, borderRadius: BorderRadius.md, alignItems: 'center' },
+  addBtn: { backgroundColor: colors.primary, padding: 16, borderRadius: BorderRadius.md, alignItems: 'center' },
   addBtnDisabled: { opacity: 0.5 },
   addBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 16, color: '#000' },
   foundPlayerCard: { 
-    backgroundColor: Colors.primaryAlpha10, 
+    backgroundColor: colors.primaryAlpha10, 
     padding: Spacing.base, 
     borderRadius: BorderRadius.md, 
     marginTop: Spacing.lg, 
     borderWidth: 1, 
-    borderColor: Colors.primaryAlpha20 
+    borderColor: colors.primaryAlpha20 
   },
   foundHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
-  foundText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  foundText: { color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -346,21 +348,21 @@ const styles = StyleSheet.create({
     width: 44, 
     height: 44, 
     borderRadius: 22, 
-    backgroundColor: Colors.primaryAlpha20, 
+    backgroundColor: colors.primaryAlpha20, 
     alignItems: 'center', 
     justifyContent: 'center', 
     marginRight: Spacing.base 
   },
   avatarText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 18,
   },
-  selectedPlayerName: { fontFamily: Typography.fontFamily.semiBold, fontSize: 16, color: Colors.textPrimary },
+  selectedPlayerName: { fontFamily: Typography.fontFamily.semiBold, fontSize: 16, color: colors.textPrimary },
   playerSubtext: {
     fontFamily: Typography.fontFamily.regular,
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   rosterPlayerCard: {
@@ -368,26 +370,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
   },
   avatarPlaceholderSm: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.sm,
   },
   avatarTextSm: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 14,
   },
   modalListText: {
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 14,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   }
 });
 

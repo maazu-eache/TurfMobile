@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Animated, Dimensions, TextInput,
@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -29,6 +29,10 @@ const computeLiveNRR = (pt, battingFirst, score, maxOvers) => {
     return { chase: nrr };
   }
 };
+
+const QualificationCalculatorScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -69,14 +73,14 @@ const CircularProgress = ({ probability, size = 120 }) => {
         width: size - 4, height: size - 4, borderRadius: (size - 4) / 2,
         borderWidth: 6,
         borderColor: 'transparent',
-        borderTopColor: Colors.primary,
+        borderTopColor: colors.primary,
         transform: [{ rotate: `${(probability / 100) * 360}deg` }],
         position: 'absolute',
       }} />
-      <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.extraBold, fontSize: 22 }}>
+      <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.extraBold, fontSize: 22 }}>
         {probability}%
       </Text>
-      <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 10, textAlign: 'center' }}>
+      <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 10, textAlign: 'center' }}>
         Chance
       </Text>
     </View>
@@ -90,8 +94,8 @@ const StatusBadge = ({ statusCode, status }) => {
 
   return (
     <View style={styles.statusBadge}>
-      <Icon name={iconName} size={14} color={Colors.primary} style={{ marginRight: 6 }} />
-      <Text style={[styles.statusText, { color: Colors.textPrimary }]}>{status}</Text>
+      <Icon name={iconName} size={14} color={colors.primary} style={{ marginRight: 6 }} />
+      <Text style={[styles.statusText, { color: colors.textPrimary }]}>{status}</Text>
     </View>
   );
 };
@@ -106,10 +110,10 @@ const DropdownSelector = ({ label, placeholder, options, selectedValue, onSelect
         activeOpacity={0.8}
         onPress={() => setVisible(!visible)}
       >
-        <Text style={[styles.dropdownBtnText, !selectedOption && { color: Colors.textTertiary }]}>
+        <Text style={[styles.dropdownBtnText, !selectedOption && { color: colors.textTertiary }]}>
           {selectedOption ? selectedOption.label : placeholder}
         </Text>
-        <Icon name={visible ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.textSecondary} />
+        <Icon name={visible ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
       </TouchableOpacity>
 
       {visible && (
@@ -127,11 +131,11 @@ const DropdownSelector = ({ label, placeholder, options, selectedValue, onSelect
                 setVisible(false);
               }}
             >
-              <Text style={[styles.dropdownItemText, selectedValue === opt.value && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+              <Text style={[styles.dropdownItemText, selectedValue === opt.value && { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>
                 {opt.label}
               </Text>
               {selectedValue === opt.value && (
-                <Icon name="check" size={14} color={Colors.primary} />
+                <Icon name="check" size={14} color={colors.primary} />
               )}
             </TouchableOpacity>
           ))}
@@ -164,7 +168,7 @@ const TeamCard = ({ pt, selected, onPress }) => {
           {logoUri ? (
             <Text style={{ fontSize: 14 }}>🏏</Text>
           ) : (
-            <Text style={{ color: selected ? Colors.primary : Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 10 }}>
+            <Text style={{ color: selected ? colors.primary : colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 10 }}>
               {(team.shortName || team.name || '?').substring(0, 3).toUpperCase()}
             </Text>
           )}
@@ -178,7 +182,7 @@ const TeamCard = ({ pt, selected, onPress }) => {
           </Text>
         </View>
         {selected && (
-          <Icon name="check" size={14} color={Colors.primary} style={{ marginLeft: 4 }} />
+          <Icon name="check" size={14} color={colors.primary} style={{ marginLeft: 4 }} />
         )}
       </TouchableOpacity>
     </Animated.View>
@@ -195,7 +199,7 @@ const ScenarioCard = ({ scenario, index, battingFirst }) => {
   return (
     <GlassCard style={styles.scenarioCardWrap}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Text style={[styles.scenarioCardLabel, { color: Colors.textPrimary }]}>{scenario.label}</Text>
+        <Text style={[styles.scenarioCardLabel, { color: colors.textPrimary }]}>{scenario.label}</Text>
         <View style={styles.difficultyBadge}>
           <Text style={styles.difficultyText}>{difficultyLabel.toUpperCase()}</Text>
         </View>
@@ -203,40 +207,40 @@ const ScenarioCard = ({ scenario, index, battingFirst }) => {
       {battingFirst ? (
         <>
           <View style={styles.scenarioRow}>
-            <MCIcon name="cricket" size={16} color={Colors.textSecondary} />
+            <MCIcon name="cricket" size={16} color={colors.textSecondary} />
             <Text style={styles.scenarioKey}>Your Score</Text>
             <Text style={styles.scenarioVal}>{scenario.yourScore}</Text>
           </View>
           <View style={styles.scenarioRow}>
-            <MCIcon name="shield-check" size={16} color={Colors.textSecondary} />
+            <MCIcon name="shield-check" size={16} color={colors.textSecondary} />
             <Text style={styles.scenarioKey}>Restrict To</Text>
             <Text style={styles.scenarioVal}>≤ {scenario.restrictOpponentTo}</Text>
           </View>
           <View style={styles.scenarioRow}>
-            <MCIcon name="trending-up" size={16} color={Colors.primary} />
+            <MCIcon name="trending-up" size={16} color={colors.primary} />
             <Text style={styles.scenarioKey}>Win By</Text>
-            <Text style={[styles.scenarioVal, { color: Colors.primary }]}>{scenario.winMarginRuns} runs</Text>
+            <Text style={[styles.scenarioVal, { color: colors.primary }]}>{scenario.winMarginRuns} runs</Text>
           </View>
         </>
       ) : (
         <>
           <View style={styles.scenarioRow}>
-            <MCIcon name="cricket" size={16} color={Colors.textSecondary} />
+            <MCIcon name="cricket" size={16} color={colors.textSecondary} />
             <Text style={styles.scenarioKey}>Opponent Score</Text>
             <Text style={styles.scenarioVal}>{scenario.opponentScore}</Text>
           </View>
           <View style={styles.scenarioRow}>
-            <MCIcon name="target" size={16} color={Colors.textSecondary} />
+            <MCIcon name="target" size={16} color={colors.textSecondary} />
             <Text style={styles.scenarioKey}>Chase Target</Text>
             <Text style={styles.scenarioVal}>{scenario.chaseTarget}</Text>
           </View>
           <View style={styles.scenarioRow}>
-            <MCIcon name="clock-fast" size={16} color={Colors.primary} />
+            <MCIcon name="clock-fast" size={16} color={colors.primary} />
             <Text style={styles.scenarioKey}>Within Overs</Text>
-            <Text style={[styles.scenarioVal, { color: Colors.primary }]}>{scenario.mustChaseWithin}</Text>
+            <Text style={[styles.scenarioVal, { color: colors.primary }]}>{scenario.mustChaseWithin}</Text>
           </View>
           <View style={styles.scenarioRow}>
-            <MCIcon name="run-fast" size={16} color={Colors.textSecondary} />
+            <MCIcon name="run-fast" size={16} color={colors.textSecondary} />
             <Text style={styles.scenarioKey}>Req. Rate</Text>
             <Text style={styles.scenarioVal}>{scenario.requiredRunRate}</Text>
           </View>
@@ -257,12 +261,12 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
   return (
     <View style={[styles.projTableRow, highlight && styles.projTableRowHighlight]}>
       {highlight && <View style={styles.highlightBar} />}
-      <Text style={[styles.projTableRank, highlight && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>{index + 1}</Text>
-      <Text style={[styles.projTableTeam, highlight && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>
+      <Text style={[styles.projTableRank, highlight && { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>{index + 1}</Text>
+      <Text style={[styles.projTableTeam, highlight && { color: colors.primary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>
         {row.shortName || row.teamName}
       </Text>
-      <Text style={[styles.projTablePts, highlight && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
-      <Text style={[styles.projTableNRR, { color: Colors.textPrimary }, highlight && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+      <Text style={[styles.projTablePts, highlight && { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
+      <Text style={[styles.projTableNRR, { color: colors.textPrimary }, highlight && { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>
         {row.nrr >= 0 ? '+' : ''}{row.nrr.toFixed(3)}
       </Text>
     </View>
@@ -271,7 +275,7 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
-const QualificationCalculatorScreen = ({ route, navigation }) => {
+
   const { tournamentId, pointsTable: initialTable, tournamentOvers } = route.params || {};
 
   const [pointsTable, setPointsTable] = useState(initialTable || []);
@@ -399,12 +403,12 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-          <Icon name="arrow-left" size={20} color={Colors.textPrimary} />
+          <Icon name="arrow-left" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>NRR Calculator</Text>
         <View style={{ width: 40, height: 40 }} />
@@ -422,7 +426,7 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
           transform: [{ translateY: heroAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }]
         }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-            <MCIcon name="calculator-variant-outline" size={20} color={Colors.primary} />
+            <MCIcon name="calculator-variant-outline" size={20} color={colors.primary} />
             <Text style={styles.heroTitle}>  Qualification Scenario</Text>
           </View>
           <Text style={styles.heroSubtitle}>
@@ -498,14 +502,14 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
             style={[styles.tossCard, battingFirst && styles.tossCardActive]}
             onPress={() => { setBattingFirst(true); setResult(null); setFirstInningsScore(''); setLiveNRR(null); }}
           >
-            <MCIcon name="cricket" size={22} color={battingFirst ? Colors.primary : Colors.textSecondary} />
+            <MCIcon name="cricket" size={22} color={battingFirst ? colors.primary : colors.textSecondary} />
             <Text style={[styles.tossLabel, battingFirst && styles.tossLabelActive]}>Bat First</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tossCard, !battingFirst && styles.tossCardActive]}
             onPress={() => { setBattingFirst(false); setResult(null); setFirstInningsScore(''); setLiveNRR(null); }}
           >
-            <MCIcon name="shield-outline" size={22} color={!battingFirst ? Colors.primary : Colors.textSecondary} />
+            <MCIcon name="shield-outline" size={22} color={!battingFirst ? colors.primary : colors.textSecondary} />
             <Text style={[styles.tossLabel, !battingFirst && styles.tossLabelActive]}>Bowl First</Text>
           </TouchableOpacity>
         </View>
@@ -522,7 +526,7 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
                 <TextInput
                   style={styles.scoreInput}
                   placeholder={battingFirst ? 'e.g. 180' : 'e.g. 145'}
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="number-pad"
                   value={firstInningsScore}
                   onChangeText={v => { setFirstInningsScore(v); setResult(null); }}
@@ -540,7 +544,7 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
                 <TextInput
                   style={styles.scoreInput}
                   placeholder="e.g. 20"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="decimal-pad"
                   value={oversInput}
                   onChangeText={v => { setOversInput(v); setResult(null); }}
@@ -555,33 +559,33 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
         {liveNRR && (
           <GlassCard style={styles.liveNRRCard}>
             <Text style={styles.liveNRRTitle}>
-              <MCIcon name="chart-line" size={14} color={Colors.primary} /> LIVE NRR PREVIEW
+              <MCIcon name="chart-line" size={14} color={colors.primary} /> LIVE NRR PREVIEW
             </Text>
             <View style={styles.liveNRRRow}>
               <View style={{ alignItems: 'center' }}>
                 <Text style={styles.liveNRRLabel}>Current NRR</Text>
-                <Text style={[styles.liveNRRValue, { color: Colors.textSecondary }]}>
+                <Text style={[styles.liveNRRValue, { color: colors.textSecondary }]}>
                   {(selectedTeamPt?.netRunRate || 0) >= 0 ? '+' : ''}{(selectedTeamPt?.netRunRate || 0).toFixed(3)}
                 </Text>
               </View>
               <View style={{ alignItems: 'center' }}>
-                <MCIcon name="arrow-right-bold" size={24} color={Colors.primary} />
+                <MCIcon name="arrow-right-bold" size={24} color={colors.primary} />
               </View>
               {battingFirst && liveNRR.best !== undefined ? (
                 <View style={{ alignItems: 'center' }}>
                   <Text style={styles.liveNRRLabel}>Projected NRR</Text>
-                  <Text style={[styles.liveNRRValue, { color: Colors.primary }]}>
+                  <Text style={[styles.liveNRRValue, { color: colors.primary }]}>
                     {liveNRR.best >= 0 ? '+' : ''}{liveNRR.best.toFixed(3)}
                   </Text>
-                  <Text style={{ color: Colors.textTertiary, fontSize: 10 }}>Best case</Text>
+                  <Text style={{ color: colors.textTertiary, fontSize: 10 }}>Best case</Text>
                 </View>
               ) : liveNRR.chase !== undefined ? (
                 <View style={{ alignItems: 'center' }}>
                   <Text style={styles.liveNRRLabel}>Projected NRR</Text>
-                  <Text style={[styles.liveNRRValue, { color: Colors.primary }]}>
+                  <Text style={[styles.liveNRRValue, { color: colors.primary }]}>
                     {liveNRR.chase >= 0 ? '+' : ''}{liveNRR.chase.toFixed(3)}
                   </Text>
-                  <Text style={{ color: Colors.textTertiary, fontSize: 10 }}>If chased now</Text>
+                  <Text style={{ color: colors.textTertiary, fontSize: 10 }}>If chased now</Text>
                 </View>
               ) : null}
             </View>
@@ -597,10 +601,10 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
             activeOpacity={0.85}
           >
             {loading ? (
-              <ActivityIndicator color={Colors.background} />
+              <ActivityIndicator color={colors.background} />
             ) : (
               <>
-                <MCIcon name="calculator-variant" size={18} color={Colors.background} />
+                <MCIcon name="calculator-variant" size={18} color={colors.background} />
                 <Text style={styles.calcBtnText}>  Calculate Scenario</Text>
               </>
             )}
@@ -619,7 +623,7 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
 
             {/* Message */}
             <GlassCard style={styles.messageCard}>
-              <MCIcon name="information-outline" size={16} color={Colors.primary} />
+              <MCIcon name="information-outline" size={16} color={colors.primary} />
               <Text style={styles.messageText}>{result.message}</Text>
             </GlassCard>
 
@@ -658,14 +662,14 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
                     <GlassCard key={i} style={styles.fixtureCard}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text style={styles.fixtureMatchup}>{fx.teamAName} vs {fx.teamBName}</Text>
-                        <View style={[styles.fixtureBadge, { backgroundColor: Colors.primaryAlpha10 }]}>
-                          <Text style={{ color: Colors.primary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
+                        <View style={[styles.fixtureBadge, { backgroundColor: colors.primaryAlpha10 }]}>
+                          <Text style={{ color: colors.primary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
                             {fx.impact}
                           </Text>
                         </View>
                       </View>
                       <View style={styles.fixturePreferRow}>
-                        <MCIcon name="thumb-up-outline" size={14} color={Colors.primary} />
+                        <MCIcon name="thumb-up-outline" size={14} color={colors.primary} />
                         <Text style={styles.fixturePrefer}>{fx.preferredResult}</Text>
                       </View>
                     </GlassCard>
@@ -700,12 +704,12 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
             {/* Bottom Actions */}
             <View style={styles.bottomActions}>
               <TouchableOpacity style={styles.bottomBtn} onPress={() => { setResult(null); }}>
-                <Icon name="refresh-cw" size={14} color={Colors.textSecondary} />
+                <Icon name="refresh-cw" size={14} color={colors.textSecondary} />
                 <Text style={styles.bottomBtnText}>Reset</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.bottomBtn, styles.bottomBtnPrimary]} onPress={handleCalculate}>
-                <MCIcon name="calculator-variant" size={14} color={Colors.background} />
-                <Text style={[styles.bottomBtnText, { color: Colors.background }]}>Recalculate</Text>
+                <MCIcon name="calculator-variant" size={14} color={colors.background} />
+                <Text style={[styles.bottomBtnText, { color: colors.background }]}>Recalculate</Text>
               </TouchableOpacity>
             </View>
 
@@ -720,13 +724,13 @@ const QualificationCalculatorScreen = ({ route, navigation }) => {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
 
   // Header
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.base, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', fontFamily: Typography.fontFamily.bold, fontSize: 17, color: Colors.textPrimary },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.base, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { flex: 1, textAlign: 'center', fontFamily: Typography.fontFamily.bold, fontSize: 17, color: colors.textPrimary },
 
   // Scroll
   scroll: { flex: 1 },
@@ -735,34 +739,34 @@ const styles = StyleSheet.create({
   // Hero Card
   heroCard: {
     marginHorizontal: Spacing.base, marginBottom: Spacing.lg,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: colors.border,
   },
-  heroTitle: { fontFamily: Typography.fontFamily.bold, fontSize: 16, color: Colors.textPrimary },
-  heroSubtitle: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginTop: 4 },
+  heroTitle: { fontFamily: Typography.fontFamily.bold, fontSize: 16, color: colors.textPrimary },
+  heroSubtitle: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: colors.textSecondary, lineHeight: 18, marginTop: 4 },
   heroTeamRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  heroTeamBadge: { backgroundColor: Colors.primaryAlpha10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: Colors.primary },
-  heroTeamName: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  heroTeamBadge: { backgroundColor: colors.primaryAlpha10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: colors.primary },
+  heroTeamName: { color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
   heroStatRow: { flexDirection: 'row', alignItems: 'center' },
-  heroStat: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  heroStat: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
 
   // Glass card
   glassCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
-  glassCardGlow: { borderColor: Colors.primary },
+  glassCardGlow: { borderColor: colors.primary },
 
   // Section
   sectionTitle: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     letterSpacing: 1,
     marginHorizontal: Spacing.base,
     marginBottom: 8,
@@ -771,7 +775,7 @@ const styles = StyleSheet.create({
   sectionTitleGrid: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     letterSpacing: 1,
     marginBottom: 8,
     marginTop: Spacing.md,
@@ -785,34 +789,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
-  teamCardSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryAlpha10 },
+  teamCardSelected: { borderColor: colors.primary, backgroundColor: colors.primaryAlpha10 },
   teamLogoCircle: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     justifyContent: 'center', alignItems: 'center',
     marginRight: 10,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: colors.border,
   },
-  teamCardName: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textPrimary },
-  teamCardNameSelected: { color: Colors.primary },
-  teamCardMeta: { fontFamily: Typography.fontFamily.medium, fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  teamCardName: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: colors.textPrimary },
+  teamCardNameSelected: { color: colors.primary },
+  teamCardMeta: { fontFamily: Typography.fontFamily.medium, fontSize: 11, color: colors.textSecondary, marginTop: 2 },
 
   // Segment Control
   segmentCard: { marginHorizontal: Spacing.base },
   segmentRow: { flexDirection: 'row', gap: 8 },
   segmentBtn: {
     flex: 1, paddingVertical: 10, borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surface,
-    alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center', borderWidth: 1, borderColor: colors.border,
   },
-  segmentBtnActive: { backgroundColor: Colors.background, borderColor: Colors.primary, borderWidth: 1.5 },
-  segmentBtnText: { fontFamily: Typography.fontFamily.semiBold, fontSize: 12, color: Colors.textSecondary },
-  segmentBtnTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  segmentBtnActive: { backgroundColor: colors.background, borderColor: colors.primary, borderWidth: 1.5 },
+  segmentBtnText: { fontFamily: Typography.fontFamily.semiBold, fontSize: 12, color: colors.textSecondary },
+  segmentBtnTextActive: { color: colors.primary, fontFamily: Typography.fontFamily.bold },
 
   // Toss cards
   tossRow: { flexDirection: 'row', gap: 12, marginHorizontal: Spacing.base },
@@ -823,14 +827,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 14,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
-  tossCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryAlpha10 },
-  tossLabel: { fontFamily: Typography.fontFamily.bold, fontSize: 14, color: Colors.textSecondary },
-  tossLabelActive: { color: Colors.primary },
+  tossCardActive: { borderColor: colors.primary, backgroundColor: colors.primaryAlpha10 },
+  tossLabel: { fontFamily: Typography.fontFamily.bold, fontSize: 14, color: colors.textSecondary },
+  tossLabelActive: { color: colors.primary },
 
   // Form Grid
   formGridRow: { flexDirection: 'row', gap: 12, marginHorizontal: Spacing.base },
@@ -840,29 +844,29 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   scoreInput: {
     flex: 1, fontFamily: Typography.fontFamily.bold, fontSize: 16,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     paddingVertical: 4,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  inputUnit: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: Colors.textTertiary },
+  inputUnit: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: colors.textTertiary },
 
   // Live NRR
   liveNRRCard: { marginHorizontal: Spacing.base, marginTop: Spacing.md },
-  liveNRRTitle: { fontFamily: Typography.fontFamily.bold, fontSize: 11, color: Colors.primary, letterSpacing: 1, marginBottom: 10 },
+  liveNRRTitle: { fontFamily: Typography.fontFamily.bold, fontSize: 11, color: colors.primary, letterSpacing: 1, marginBottom: 10 },
   liveNRRRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  liveNRRLabel: { fontFamily: Typography.fontFamily.medium, fontSize: 11, color: Colors.textTertiary, marginBottom: 4 },
+  liveNRRLabel: { fontFamily: Typography.fontFamily.medium, fontSize: 11, color: colors.textTertiary, marginBottom: 4 },
   liveNRRValue: { fontFamily: Typography.fontFamily.extraBold, fontSize: 20 },
 
   // Calculate Button
   calcBtn: {
     flexDirection: 'row',
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 16,
     borderRadius: BorderRadius.md,
     justifyContent: 'center', alignItems: 'center',
   },
-  calcBtnDisabled: { backgroundColor: Colors.surface, opacity: 0.5 },
-  calcBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 15, color: Colors.background },
+  calcBtnDisabled: { backgroundColor: colors.surface, opacity: 0.5 },
+  calcBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 15, color: colors.background },
 
   // Results
   resultHeaderRow: {
@@ -873,30 +877,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 10, paddingHorizontal: 16,
     borderRadius: BorderRadius.full, borderWidth: 1,
-    backgroundColor: Colors.primaryAlpha10, borderColor: Colors.primary,
+    backgroundColor: colors.primaryAlpha10, borderColor: colors.primary,
   },
   statusText: { fontFamily: Typography.fontFamily.bold, fontSize: 15 },
 
   messageCard: { marginHorizontal: Spacing.base, flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: Spacing.md },
-  messageText: { flex: 1, fontFamily: Typography.fontFamily.medium, fontSize: 13, color: Colors.textPrimary, lineHeight: 18 },
+  messageText: { flex: 1, fontFamily: Typography.fontFamily.medium, fontSize: 13, color: colors.textPrimary, lineHeight: 18 },
 
   statChip: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     paddingVertical: 12, paddingHorizontal: 16,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: colors.border,
     minWidth: 100, alignItems: 'center',
   },
-  statChipAccent: { borderColor: Colors.primary, backgroundColor: Colors.primaryAlpha10 },
-  statChipLabel: { fontFamily: Typography.fontFamily.medium, fontSize: 10, color: Colors.textSecondary, marginBottom: 4 },
-  statChipValue: { fontFamily: Typography.fontFamily.bold, fontSize: 14, color: Colors.textPrimary },
-  statChipValueAccent: { color: Colors.primary },
+  statChipAccent: { borderColor: colors.primary, backgroundColor: colors.primaryAlpha10 },
+  statChipLabel: { fontFamily: Typography.fontFamily.medium, fontSize: 10, color: colors.textSecondary, marginBottom: 4 },
+  statChipValue: { fontFamily: Typography.fontFamily.bold, fontSize: 14, color: colors.textPrimary },
+  statChipValueAccent: { color: colors.primary },
 
   scenarioCardWrap: { width: 220, padding: Spacing.md },
   scenarioCardLabel: { fontFamily: Typography.fontFamily.bold, fontSize: 14 },
   scenarioRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 6 },
-  scenarioKey: { flex: 1, fontFamily: Typography.fontFamily.medium, fontSize: 12, color: Colors.textSecondary },
-  scenarioVal: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textPrimary },
+  scenarioKey: { flex: 1, fontFamily: Typography.fontFamily.medium, fontSize: 12, color: colors.textSecondary },
+  scenarioVal: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: colors.textPrimary },
   scenarioNRRRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -904,67 +908,67 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: colors.borderLight,
   },
   scenarioNRRLabel: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
   },
   scenarioNRRVal: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 14,
   },
   difficultyBadge: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   difficultyText: {
     fontSize: 9,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
 
   fixtureCard: { marginBottom: 8, padding: Spacing.md },
-  fixtureMatchup: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textPrimary },
+  fixtureMatchup: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: colors.textPrimary },
   fixtureBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: BorderRadius.sm },
   fixturePreferRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  fixturePrefer: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: Colors.textSecondary },
+  fixturePrefer: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: colors.textSecondary },
 
   cleanTableWrapper: {
     marginHorizontal: Spacing.base,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     overflow: 'hidden',
   },
   cleanTableHeader: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     paddingVertical: 10,
     paddingHorizontal: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
-  projTableHeaderText: { fontFamily: Typography.fontFamily.bold, fontSize: 11, color: Colors.textSecondary },
+  projTableHeaderText: { fontFamily: Typography.fontFamily.bold, fontSize: 11, color: colors.textSecondary },
   projTableRow: {
     flexDirection: 'row',
     paddingVertical: 12,
     paddingHorizontal: 8,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-    backgroundColor: Colors.background,
+    borderBottomColor: colors.borderLight,
+    backgroundColor: colors.background,
     position: 'relative',
   },
   projTableRowHighlight: {
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
   },
   highlightBar: {
     position: 'absolute',
@@ -972,28 +976,28 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 3,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
   },
   projTableRank: {
     width: 30,
     textAlign: 'center',
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   projTableTeam: {
     flex: 2,
     paddingLeft: 8,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   projTablePts: {
     width: 40,
     textAlign: 'center',
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   projTableNRR: {
     width: 80,
@@ -1005,38 +1009,38 @@ const styles = StyleSheet.create({
   bottomActions: { flexDirection: 'row', gap: 12, marginHorizontal: Spacing.base, marginTop: Spacing.lg },
   bottomBtn: {
     flex: 1, flexDirection: 'row', gap: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     paddingVertical: 12, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: colors.border,
     justifyContent: 'center', alignItems: 'center',
   },
-  bottomBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  bottomBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: Colors.textPrimary },
+  bottomBtnPrimary: { backgroundColor: colors.primary, borderColor: colors.primary },
+  bottomBtnText: { fontFamily: Typography.fontFamily.bold, fontSize: 13, color: colors.textPrimary },
 
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  emptyText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, textAlign: 'center' },
+  emptyText: { color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, textAlign: 'center' },
 
   dropdownBtn: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
   dropdownBtnText: {
     fontSize: 14,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   dropdownList: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     marginTop: Spacing.xs,
     overflow: 'hidden',
   },
@@ -1048,12 +1052,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   dropdownItemActive: {
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
   },
   dropdownItemText: {
     fontSize: 14,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
 });
 

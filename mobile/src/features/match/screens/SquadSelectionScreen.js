@@ -20,12 +20,14 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/Feather';
 import LinearGradient from '../../../components/SolidGradient';
-import { Colors, Typography } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { addPlayerToTeam, getLastSquad, fetchMyTeams, fetchOpponentTeams, lookupPlayerByMobile, fetchTeamById } from '../../team/teamSlice';
 import { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const SquadSelectionScreen = () => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
@@ -283,10 +285,10 @@ const SquadSelectionScreen = () => {
         </View>
         <TouchableOpacity onPress={handleDone}>
           <LinearGradient
-            colors={Colors.primaryGradient || [Colors.primary, Colors.primaryLight]}
+            colors={colors.primaryGradient || [colors.primary, colors.primaryLight]}
             style={styles.doneIconCircle}
           >
-            <Icon name="check" size={20} color={Colors.background} />
+            <Icon name="check" size={20} color={colors.background} />
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -297,7 +299,7 @@ const SquadSelectionScreen = () => {
         </Text>
         {selectedXI.length > 0 && (
           <TouchableOpacity style={styles.sortButton} onPress={handleSortSelected}>
-            <Icon name="arrow-up-circle" size={16} color={Colors.primary} />
+            <Icon name="arrow-up-circle" size={16} color={colors.primary} />
             <Text style={styles.sortButtonText}>Sort to Top</Text>
           </TouchableOpacity>
         )}
@@ -305,16 +307,16 @@ const SquadSelectionScreen = () => {
 
       <View style={styles.actionButtonsRow}>
         <TouchableOpacity style={styles.actionButton} onPress={() => setAddPlayerModalVisible(true)}>
-          <Icon name="user-plus" size={16} color={Colors.primary} />
+          <Icon name="user-plus" size={16} color={colors.primary} />
           <Text style={styles.actionButtonText}>Add Player</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.actionButton} onPress={handleSameSquad} disabled={isFetchingLastSquad}>
           {isFetchingLastSquad ? (
-             <ActivityIndicator size="small" color={Colors.primary} />
+             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
              <>
-               <Icon name="users" size={16} color={Colors.primary} />
+               <Icon name="users" size={16} color={colors.primary} />
                <Text style={styles.actionButtonText}>Same Squad</Text>
              </>
           )}
@@ -330,8 +332,8 @@ const SquadSelectionScreen = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.primary]}
-            tintColor={Colors.primary}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
         renderItem={({ item }) => {
@@ -374,7 +376,7 @@ const SquadSelectionScreen = () => {
               )}
 
               <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                {isSelected && <Icon name="check" size={14} color={Colors.background} />}
+                {isSelected && <Icon name="check" size={14} color={colors.background} />}
               </View>
             </TouchableOpacity>
           );
@@ -396,7 +398,7 @@ const SquadSelectionScreen = () => {
             <TextInput
               style={styles.input}
               placeholder="Mobile Number (e.g., 9876543210)"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               keyboardType="phone-pad"
               value={mobileNumber}
               onChangeText={setMobileNumber}
@@ -404,7 +406,7 @@ const SquadSelectionScreen = () => {
             
             {isLookingUp ? (
               <View style={styles.lookupContainer}>
-                <ActivityIndicator size="small" color={Colors.primary} />
+                <ActivityIndicator size="small" color={colors.primary} />
                 <Text style={styles.lookupText}>Finding player...</Text>
               </View>
             ) : mobileNumber.trim().length === 10 ? (
@@ -412,41 +414,41 @@ const SquadSelectionScreen = () => {
                 <TextInput
                   style={[styles.input, { flex: 1, marginBottom: 0 }]}
                   placeholder="Player Name (if new)"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={playerName}
                   onChangeText={setPlayerName}
                   onSubmitEditing={handleQueuePlayer}
                 />
                 <TouchableOpacity 
-                  style={{ backgroundColor: Colors.primary, padding: 14, borderRadius: 8, marginLeft: 10, justifyContent: 'center', alignItems: 'center' }}
+                  style={{ backgroundColor: colors.primary, padding: 14, borderRadius: 8, marginLeft: 10, justifyContent: 'center', alignItems: 'center' }}
                   onPress={handleQueuePlayer}
                 >
-                  <Icon name="plus" size={20} color={Colors.background} />
+                  <Icon name="plus" size={20} color={colors.background} />
                 </TouchableOpacity>
               </View>
             ) : null}
 
             {pendingPlayers.length > 0 && (
                <View style={{ marginTop: 20, width: '100%' }}>
-                  <Text style={{ color: Colors.textSecondary, marginBottom: 8, fontFamily: Typography.fontFamily.semiBold }}>Pending List ({pendingPlayers.length})</Text>
+                  <Text style={{ color: colors.textSecondary, marginBottom: 8, fontFamily: Typography.fontFamily.semiBold }}>Pending List ({pendingPlayers.length})</Text>
                   <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ maxHeight: 160 }} showsVerticalScrollIndicator={false}>
                      {pendingPlayers.map((p, idx) => (
-                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surface, padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: Colors.borderLight }}>
+                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: colors.borderLight }}>
                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                              {p.photo ? (
                                <Image source={{ uri: getImageUrl(p.photo) }} style={{ width: 32, height: 32, borderRadius: 16, marginRight: 10 }} />
                              ) : (
-                               <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
-                                 <Text style={{ color: Colors.primary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>{p.name.charAt(0).toUpperCase()}</Text>
+                               <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                                 <Text style={{ color: colors.primary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>{p.name.charAt(0).toUpperCase()}</Text>
                                </View>
                              )}
                              <View>
-                               <Text style={{ color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium }}>{p.name}</Text>
-                               <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>{p.mobile}</Text>
+                               <Text style={{ color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium }}>{p.name}</Text>
+                               <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{p.mobile}</Text>
                              </View>
                            </View>
                            <TouchableOpacity onPress={() => setPendingPlayers(prev => prev.filter((_, i) => i !== idx))} style={{ padding: 4 }}>
-                             <Icon name="x" size={20} color={Colors.error} />
+                             <Icon name="x" size={20} color={colors.error} />
                            </TouchableOpacity>
                         </View>
                      ))}
@@ -473,7 +475,7 @@ const SquadSelectionScreen = () => {
                 disabled={isBulkAdding || pendingPlayers.length === 0}
               >
                 {isBulkAdding ? (
-                  <ActivityIndicator color={Colors.background} size="small" />
+                  <ActivityIndicator color={colors.background} size="small" />
                 ) : (
                   <Text style={styles.modalAddText}>
                     Submit to Team
@@ -491,10 +493,10 @@ const SquadSelectionScreen = () => {
 
 export default SquadSelectionScreen;
 
-const styles = StyleSheet.create({
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -502,9 +504,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 20,
     paddingBottom: 15,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
   },
   backButton: {
     padding: 5,
@@ -516,7 +518,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.lg,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   doneIconCircle: {
     width: 32,
@@ -526,28 +528,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   selectedCountBanner: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     paddingVertical: 12,
     paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
   },
   selectedCountText: {
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 14,
   },
   greenText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
   },
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primaryAlpha20 || 'rgba(154, 188, 47, 0.2)',
+    backgroundColor: colors.primaryAlpha20 || 'rgba(154, 188, 47, 0.2)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -555,7 +557,7 @@ const styles = StyleSheet.create({
   },
   sortButtonText: {
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 12,
   },
   actionButtonsRow: {
@@ -563,14 +565,14 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
     paddingVertical: 12,
     borderRadius: 8,
     justifyContent: 'center',
@@ -579,7 +581,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 14,
   },
   playerItemRow: {
@@ -587,13 +589,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
   },
   playerAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.surfaceDark,
+    backgroundColor: colors.surfaceDark,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -601,7 +603,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 18,
   },
   playerInfo: {
@@ -609,12 +611,12 @@ const styles = StyleSheet.create({
   },
   playerName: {
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 16,
   },
   playerRole: {
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 2,
   },
@@ -628,33 +630,33 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
     marginRight: 6,
   },
   roleBadgeActive: {
-    backgroundColor: Colors.primaryAlpha20 || 'rgba(154, 188, 47, 0.2)',
-    borderColor: Colors.primary,
+    backgroundColor: colors.primaryAlpha20 || 'rgba(154, 188, 47, 0.2)',
+    borderColor: colors.primary,
   },
   roleBadgeText: {
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 10,
   },
   roleBadgeTextActive: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   modalOverlay: {
     flex: 1,
@@ -664,7 +666,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   addPlayerModalContent: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 24,
     width: '100%',
@@ -677,22 +679,22 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 20,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   modalSubtitle: {
     fontFamily: Typography.fontFamily.regular,
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 20,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
     borderRadius: 8,
     padding: 12,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 15,
     marginBottom: 16,
@@ -705,23 +707,23 @@ const styles = StyleSheet.create({
   },
   lookupText: {
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginLeft: 8,
     fontSize: 13,
   },
   foundPlayerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.successLight || 'rgba(46, 213, 115, 0.15)',
+    backgroundColor: colors.successLight || 'rgba(46, 213, 115, 0.15)',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.success || '#2ED573',
+    borderColor: colors.success || '#2ED573',
   },
   foundPlayerText: {
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.success || '#2ED573',
+    color: colors.success || '#2ED573',
     marginLeft: 8,
     fontSize: 14,
   },
@@ -738,11 +740,11 @@ const styles = StyleSheet.create({
   },
   modalCancelText: {
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 15,
   },
   modalAddButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 10,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -751,7 +753,7 @@ const styles = StyleSheet.create({
   },
   modalAddText: {
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.background,
+    color: colors.background,
     fontSize: 15,
   }
 });

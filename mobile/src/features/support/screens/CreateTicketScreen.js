@@ -1,15 +1,154 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../api/axios';
-import { Colors, Typography, Spacing } from '../../../theme/theme';
-
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { useSelector } from 'react-redux';
 
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.surface },
+  container: { flex: 1, backgroundColor: colors.background },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    ...(isDark ? {} : shadows.xs),
+  },
+  backBtn: {
+    padding: 8,
+    marginRight: 12,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  label: {
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 14,
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  input: {
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 15,
+  },
+  textArea: {
+    minHeight: 120,
+  },
+  categoryContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  categoryPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  categoryPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  categoryText: {
+    color: colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 13,
+  },
+  categoryTextActive: {
+    color: colors.textOnPrimary,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  imageUploadBtn: {
+    height: 150,
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  uploadPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadText: {
+    color: colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: 8,
+  },
+  removeImageBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  removeImageText: {
+    color: colors.error,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 12,
+  },
+  submitBtn: {
+    backgroundColor: colors.primary,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 32,
+    ...shadows.md,
+  },
+  submitBtnDisabled: {
+    opacity: 0.7,
+  },
+  submitBtnText: {
+    color: colors.textOnPrimary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 16,
+  },
+  errorText: {
+    color: colors.error,
+    fontFamily: Typography.fontFamily.medium,
+    marginBottom: 16,
+    backgroundColor: colors.errorLight,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+});
+
 export default function CreateTicketScreen({ navigation, route }) {
-  const { user } = useSelector((state) => state.auth);
+  const { user, currentRole } = useSelector((state) => state.auth);
+  const isOwner = currentRole === 'owner' || (!currentRole && (user?.role === 'owner' || user?.roles?.includes('owner')));
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+
   const initialBookingId = route.params?.bookingId || '';
   const initialMatchId = route.params?.matchId || '';
   const initialTournamentId = route.params?.tournamentId || '';
@@ -27,7 +166,9 @@ export default function CreateTicketScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const categories = ['Booking Dispute', 'Payment Issue', 'Account Issue', 'Match Dispute', 'Tournament Dispute', 'General'];
+  const categories = isOwner
+    ? ['Booking Dispute', 'Payment Issue', 'Account Issue', 'General']
+    : ['Booking Dispute', 'Payment Issue', 'Account Issue', 'Match Dispute', 'Tournament Dispute', 'General'];
 
   const handleSelectImage = async () => {
     try {
@@ -106,25 +247,26 @@ export default function CreateTicketScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Icon name="arrow-left" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Create Support Ticket</Text>
         </View>
 
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <Text style={styles.label}>Your Contact Email</Text>
           <TextInput
             style={styles.input}
             placeholder="Enter your email address"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textTertiary}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -138,6 +280,7 @@ export default function CreateTicketScreen({ navigation, route }) {
                 key={cat}
                 style={[styles.categoryPill, category === cat && styles.categoryPillActive]}
                 onPress={() => setCategory(cat)}
+                activeOpacity={0.8}
               >
                 <Text style={[styles.categoryText, category === cat && styles.categoryTextActive]}>{cat}</Text>
               </TouchableOpacity>
@@ -148,7 +291,7 @@ export default function CreateTicketScreen({ navigation, route }) {
           <TextInput
             style={styles.input}
             placeholder="Brief subject of the issue"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textTertiary}
             value={subject}
             onChangeText={setSubject}
           />
@@ -159,7 +302,7 @@ export default function CreateTicketScreen({ navigation, route }) {
               <TextInput
                 style={styles.input}
                 placeholder="Enter booking reference if applicable"
-                placeholderTextColor={Colors.textSecondary}
+                placeholderTextColor={colors.textTertiary}
                 value={bookingId}
                 onChangeText={setBookingId}
                 editable={!initialBookingId}
@@ -173,7 +316,7 @@ export default function CreateTicketScreen({ navigation, route }) {
               <TextInput
                 style={styles.input}
                 placeholder="Enter match reference ID"
-                placeholderTextColor={Colors.textSecondary}
+                placeholderTextColor={colors.textTertiary}
                 value={matchId}
                 onChangeText={setMatchId}
                 editable={!initialMatchId}
@@ -187,7 +330,7 @@ export default function CreateTicketScreen({ navigation, route }) {
               <TextInput
                 style={styles.input}
                 placeholder="Enter tournament reference ID"
-                placeholderTextColor={Colors.textSecondary}
+                placeholderTextColor={colors.textTertiary}
                 value={tournamentId}
                 onChangeText={setTournamentId}
                 editable={!initialTournamentId}
@@ -199,7 +342,7 @@ export default function CreateTicketScreen({ navigation, route }) {
           <TextInput
             style={[styles.input, styles.textArea]}
             placeholder="Provide details about the issue..."
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textTertiary}
             value={description}
             onChangeText={setDescription}
             multiline
@@ -208,12 +351,12 @@ export default function CreateTicketScreen({ navigation, route }) {
           />
 
           <Text style={styles.label}>Attachment (Optional, Max 1MB)</Text>
-          <TouchableOpacity style={styles.imageUploadBtn} onPress={handleSelectImage}>
+          <TouchableOpacity style={styles.imageUploadBtn} onPress={handleSelectImage} activeOpacity={0.8}>
             {imageUri ? (
               <Image source={{ uri: imageUri }} style={styles.previewImage} />
             ) : (
               <View style={styles.uploadPlaceholder}>
-                <Icon name="camera-plus" size={32} color={Colors.textSecondary} />
+                <Icon name="camera-plus" size={32} color={colors.textTertiary} />
                 <Text style={styles.uploadText}>Tap to upload image</Text>
               </View>
             )}
@@ -228,9 +371,10 @@ export default function CreateTicketScreen({ navigation, route }) {
             style={[styles.submitBtn, loading && styles.submitBtnDisabled]} 
             onPress={handleSubmit}
             disabled={loading}
+            activeOpacity={0.85}
           >
             {loading ? (
-              <ActivityIndicator color="#000" />
+              <ActivityIndicator color={colors.textOnPrimary} />
             ) : (
               <Text style={styles.submitBtnText}>Submit Ticket</Text>
             )}
@@ -240,133 +384,3 @@ export default function CreateTicketScreen({ navigation, route }) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.background },
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.backgroundElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: {
-    padding: 8,
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: Typography.fontSize.xl,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  label: {
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.medium,
-    fontSize: 14,
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  input: {
-    backgroundColor: Colors.backgroundCard,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    padding: 12,
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.regular,
-  },
-  textArea: {
-    minHeight: 120,
-  },
-  categoryContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.backgroundCard,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  categoryPillActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  categoryText: {
-    color: Colors.textSecondary,
-    fontFamily: Typography.fontFamily.medium,
-    fontSize: 12,
-  },
-  categoryTextActive: {
-    color: '#000',
-  },
-  imageUploadBtn: {
-    height: 150,
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    overflow: 'hidden',
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  uploadPlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  uploadText: {
-    color: Colors.textSecondary,
-    fontFamily: Typography.fontFamily.medium,
-    marginTop: 8,
-  },
-  removeImageBtn: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-  },
-  removeImageText: {
-    color: Colors.error,
-    fontFamily: Typography.fontFamily.medium,
-    fontSize: 12,
-  },
-  submitBtn: {
-    backgroundColor: Colors.primary,
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 32,
-  },
-  submitBtnDisabled: {
-    opacity: 0.7,
-  },
-  submitBtnText: {
-    color: '#000',
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: 16,
-  },
-  errorText: {
-    color: Colors.error,
-    fontFamily: Typography.fontFamily.medium,
-    marginBottom: 16,
-    backgroundColor: 'rgba(255, 87, 34, 0.1)',
-    padding: 12,
-    borderRadius: 8,
-  },
-});

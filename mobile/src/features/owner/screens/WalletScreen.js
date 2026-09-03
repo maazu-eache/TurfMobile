@@ -1,17 +1,18 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Svg, { Circle } from 'react-native-svg';
 import axios from 'axios';
 import api from '../../../api/axios';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme } from '../../../theme/ThemeContext';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import moment from 'moment';
 
-const DonutTimer = ({ createdAt }) => {
+const DonutTimer = ({ createdAt, colors }) => {
   const [timeLeft, setTimeLeft] = useState(0);
   const totalDuration = 48 * 60 * 60 * 1000; // 48 hours
 
@@ -40,18 +41,18 @@ const DonutTimer = ({ createdAt }) => {
   const minsLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
   const secsLeft = Math.floor((timeLeft % (1000 * 60)) / 1000);
 
-  let color = Colors.primary;
-  if (hoursLeft < 8) color = Colors.error;
+  let color = colors.primary;
+  if (hoursLeft < 8) color = colors.error;
   else if (hoursLeft < 24) color = '#FF9800';
 
-  if (timeLeft <= 0) return <Text style={{ color: Colors.error, fontSize: 10, fontWeight: 'bold' }}>EXPIRED</Text>;
+  if (timeLeft <= 0) return <Text style={{ color: colors.error, fontSize: 10, fontWeight: 'bold' }}>EXPIRED</Text>;
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
       <View style={{ transform: [{ rotate: '-90deg' }] }}>
         <Svg width={20} height={20}>
           <Circle
-            stroke="rgba(255,255,255,0.1)"
+            stroke={colors.border}
             fill="none"
             cx={10} cy={10} r={radius}
             strokeWidth={strokeWidth}
@@ -76,6 +77,9 @@ const DonutTimer = ({ createdAt }) => {
 
 const WalletScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { colors, isDark, shadows } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
+
   const [wallet, setWallet] = useState({ balance: 0, pendingWithdrawal: 0, totalEarned: 0 });
   const [transactions, setTransactions] = useState([]);
   const [activeTab, setActiveTab] = useState('All');
@@ -109,325 +113,302 @@ const WalletScreen = ({ navigation }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [dashRes, txRes] = await Promise.all([
-        api.get('/owners/dashboard'),
-        api.get('/owners/wallet/transactions')
+      const [walletRes, txRes, bankRes] = await Promise.all([
+        api.get('/wallet/me').catch(() => ({ data: { data: null } })),
+        api.get('/wallet/transactions').catch(() => ({ data: { data: [] } })),
+        api.get('/wallet/bank-details').catch(() => ({ data: { data: null } }))
       ]);
-      if (dashRes.data?.data?.wallet) {
-        setWallet(dashRes.data.data.wallet);
-      }
-      if (dashRes.data?.data?.owner?.bankDetails) {
-        setBankDetails(dashRes.data.data.owner.bankDetails);
-      }
-      if (txRes.data?.data) {
-        setTransactions(txRes.data.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch wallet data', err);
+
+      const rawWallet = walletRes.data?.data || { balance: 0, pendingWithdrawal: 0, totalEarned: 0 };
+      const rawTx = Array.isArray(txRes.data?.data)
+        ? txRes.data.data
+        : (Array.isArray(txRes.data?.data?.transactions) ? txRes.data.data.transactions : []);
+      const rawBank = bankRes.data?.data || null;
+
+      setWallet(rawWallet);
+      setTransactions(rawTx);
+      setBankDetails(rawBank);
+    } catch (e) {
+      console.log('Failed to fetch wallet data', e);
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleWithdrawRequest = async () => {
-    const amount = Number(withdrawAmount);
-    if (!amount || amount <= 0 || amount > wallet.balance) {
-      showCustomAlert('Invalid Amount', 'Please enter a valid amount within your balance.');
-      return;
-    }
+  const handleIfscChange = async (text) => {
+    const uppercaseText = text.toUpperCase();
+    setBankForm(prev => ({ ...prev, ifsc: uppercaseText }));
 
-    setSubmittingWithdraw(true);
-    try {
-      await api.post('/owners/wallet/withdraw', { amount });
-      showCustomAlert('Success', 'Withdrawal request submitted successfully.');
-      setShowWithdrawModal(false);
-      setWithdrawAmount('');
-      fetchData();
-    } catch (err) {
-      showCustomAlert('Error', err.response?.data?.message || 'Failed to submit request.');
-    } finally {
-      setSubmittingWithdraw(false);
-    }
-  };
-
-  const fetchBankName = async (ifscCode) => {
-    if (ifscCode.length >= 11) {
+    if (uppercaseText.length === 11) {
       try {
-        const res = await axios.get(`https://ifsc.razorpay.com/${ifscCode}`);
-        if (res.data && res.data.BANK) {
-          setBankForm(prev => ({ ...prev, bankName: res.data.BANK }));
+        const response = await axios.get(`https://ifsc.razorpay.com/${uppercaseText}`);
+        if (response.data && response.data.BANK) {
+          setBankForm(prev => ({ ...prev, bankName: response.data.BANK }));
         }
       } catch (err) {
-        setBankForm(prev => ({ ...prev, bankName: 'Unknown Bank (Please verify IFSC)' }));
+        setBankForm(prev => ({ ...prev, bankName: '' }));
       }
     } else {
       setBankForm(prev => ({ ...prev, bankName: '' }));
     }
   };
 
-  const handleIfscChange = (text) => {
-    const upperText = text.toUpperCase();
-    setBankForm(prev => ({ ...prev, ifsc: upperText }));
-    fetchBankName(upperText);
-  };
-
   const handleSaveBankDetails = async () => {
-    const { accountHolder, accountNumber, reAccountNumber, ifsc, bankName } = bankForm;
-    if (!accountHolder || !accountNumber || !reAccountNumber || !ifsc || !bankName) {
-      showCustomAlert('Error', 'Please fill all required fields correctly.');
+    if (!bankForm.accountHolder.trim() || !bankForm.accountNumber.trim() || !bankForm.ifsc.trim()) {
+      showCustomAlert('Error', 'Please fill in all required bank details.');
       return;
     }
-    if (accountNumber !== reAccountNumber) {
+
+    if (bankForm.accountNumber !== bankForm.reAccountNumber) {
       showCustomAlert('Error', 'Account numbers do not match.');
       return;
     }
 
     setSubmittingBank(true);
     try {
-      await api.put('/owners/wallet/bank-details', {
-        accountHolder,
-        accountNumber,
-        ifsc,
-        bankName
+      await api.post('/wallet/bank-details', {
+        accountHolder: bankForm.accountHolder,
+        accountNumber: bankForm.accountNumber,
+        ifsc: bankForm.ifsc,
+        bankName: bankForm.bankName
       });
-      showCustomAlert('Success', 'Bank details updated successfully.');
+      showCustomAlert('Success', 'Bank details saved successfully!');
       setShowBankModal(false);
       fetchData();
-    } catch (err) {
-      showCustomAlert('Error', err.response?.data?.message || 'Failed to update bank details.');
+    } catch (e) {
+      showCustomAlert('Error', e.response?.data?.message || 'Failed to save bank details.');
     } finally {
       setSubmittingBank(false);
     }
   };
 
-  const openWithdrawModal = () => {
-    if (!bankDetails || !bankDetails.accountNumber) {
-      showCustomAlert('Bank Details Required', 'Please add your bank details before requesting a withdrawal.');
+  const handleWithdrawalRequest = async () => {
+    const amt = parseFloat(withdrawAmount);
+    if (isNaN(amt) || amt <= 0) {
+      showCustomAlert('Error', 'Please enter a valid withdrawal amount.');
       return;
     }
-    setWithdrawAmount(wallet.balance.toString());
-    setShowWithdrawModal(true);
-  };
-
-  const openBankModal = () => {
-    if (bankDetails) {
-      setBankForm({
-        accountHolder: bankDetails.accountHolder || '',
-        accountNumber: bankDetails.accountNumber || '',
-        reAccountNumber: bankDetails.accountNumber || '',
-        ifsc: bankDetails.ifsc || '',
-        bankName: bankDetails.bankName || ''
-      });
-    } else {
-      setBankForm({
-        accountHolder: '',
-        accountNumber: '',
-        reAccountNumber: '',
-        ifsc: '',
-        bankName: ''
-      });
+    if (amt > wallet.balance) {
+      showCustomAlert('Error', 'Amount exceeds available balance.');
+      return;
     }
-    setShowBankModal(true);
+    if (!bankDetails) {
+      showCustomAlert('Error', 'Please add bank details before requesting a withdrawal.');
+      return;
+    }
+
+    setSubmittingWithdraw(true);
+    try {
+      await api.post('/wallet/withdraw', { amount: amt });
+      showCustomAlert('Success', 'Withdrawal request submitted successfully!');
+      setShowWithdrawModal(false);
+      setWithdrawAmount('');
+      fetchData();
+    } catch (e) {
+      showCustomAlert('Error', e.response?.data?.message || 'Failed to submit withdrawal request.');
+    } finally {
+      setSubmittingWithdraw(false);
+    }
   };
 
-  const filteredTransactions = transactions.filter(t => {
-    if (activeTab === 'All') return true;
-    if (activeTab === 'Bookings') return t.category === 'booking_payment';
-    if (activeTab === 'Withdrawals') return t.category === 'withdrawal' || t.category === 'booking_refund';
+  const filteredTransactions = (Array.isArray(transactions) ? transactions : []).filter(t => {
+    if (activeTab === 'Bookings') return t.type === 'credit';
+    if (activeTab === 'Withdrawals') return t.type === 'debit' || t.type === 'withdrawal';
     return true;
   });
 
-  const handleTransactionClick = (item) => {
-    if (item.category === 'withdrawal' || item.category === 'booking_refund') {
-      showCustomAlert('Transaction Details', `Type: Debit\nDescription: ${item.description || 'N/A'}`);
-    } else {
-      showCustomAlert('Transaction Details', `Type: Credit\nDescription: ${item.description || 'N/A'}`);
-    }
-  };
-
   const renderTransaction = ({ item }) => {
     const isCredit = item.type === 'credit';
-    const amountColor = isCredit ? Colors.success : Colors.error;
-    const sign = isCredit ? '+' : '-';
-    let title = 'Transaction';
-    if (item.category === 'booking_payment') title = 'Booking Payment';
-    else if (item.category === 'auction_registration') title = 'Auction Registration';
-    else if (item.category === 'withdrawal') title = 'Wallet Withdrawal';
-    else if (item.category === 'booking_refund') title = 'Booking Refund';
 
     return (
-      <TouchableOpacity 
-        style={styles.paymentRow} 
-        activeOpacity={0.7}
-        onPress={() => handleTransactionClick(item)}
-      >
-        <View>
-          <Text style={styles.paymentTurf}>{title}</Text>
-          <Text style={styles.paymentDate}>{moment(item.createdAt).format('MMM Do YYYY, h:mm a')}</Text>
-          {item.user?.name && <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>User: {item.user.name}</Text>}
-        </View>
-        <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
-          <Text style={[styles.paymentAmount, { color: amountColor }]}>{sign}₹{item.amount}</Text>
-          {item.category === 'withdrawal' ? (
-            item.status === 'pending' ? (
-              <DonutTimer createdAt={item.createdAt} />
-            ) : isCredit ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                <Icon name="close-circle-outline" size={11} color={Colors.error} style={{ marginRight: 3 }} />
-                <Text style={[styles.paymentStatus, { color: Colors.error, marginTop: 0 }]}>REJECTED</Text>
-              </View>
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                <Icon name="check-circle-outline" size={11} color={Colors.primary} style={{ marginRight: 3 }} />
-                <Text style={[styles.paymentStatus, { color: Colors.primary, marginTop: 0 }]}>PROCESSED</Text>
-              </View>
-            )
-          ) : (
-            <Text style={[styles.paymentStatus, { color: isCredit ? Colors.primary : Colors.error }]}>
-              {isCredit ? 'CREDIT' : 'DEBIT'}
-            </Text>
+      <View style={styles.paymentRow}>
+        <View style={{ flex: 1, paddingRight: 12 }}>
+          <Text style={styles.paymentTurf}>{item.description || (isCredit ? 'Booking Credit' : 'Withdrawal')}</Text>
+          <Text style={styles.paymentDate}>{moment(item.createdAt).format('DD MMM YYYY, hh:mm A')}</Text>
+          {item.status === 'pending' && item.createdAt && (
+            <DonutTimer createdAt={item.createdAt} colors={colors} />
           )}
         </View>
-      </TouchableOpacity>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={[styles.paymentAmount, { color: isCredit ? '#4CAF50' : colors.error }]}>
+            {isCredit ? '+' : '-'}₹{item.amount.toLocaleString()}
+          </Text>
+          <Text style={[
+            styles.paymentStatus,
+            {
+              color: item.status === 'completed' ? '#4CAF50'
+                : item.status === 'pending' ? '#FF9800'
+                  : colors.error
+            }
+          ]}>
+            {item.status?.toUpperCase() || 'COMPLETED'}
+          </Text>
+        </View>
+      </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
+
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+          <Icon name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Wallet</Text>
       </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
-      ) : (
-        <View style={styles.content}>
-          <View style={styles.balanceCard}>
-            <Text style={styles.balanceLabel}>Available Balance</Text>
-            <Text style={styles.balanceValue}>₹{wallet.balance.toLocaleString()}</Text>
-            <View style={styles.balanceRow}>
-              <View>
-                <Text style={styles.subLabel}>Pending Withdrawal</Text>
-                <Text style={styles.subValue}>₹{wallet.pendingWithdrawal.toLocaleString()}</Text>
-              </View>
-              <View>
-                <Text style={styles.subLabel}>Total Earned</Text>
-                <Text style={[styles.subValue, { color: Colors.primary }]}>₹{wallet.totalEarned.toLocaleString()}</Text>
-              </View>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Balance Card */}
+        <View style={styles.balanceCard}>
+          <Text style={styles.balanceLabel}>Available Balance</Text>
+          <Text style={styles.balanceValue}>₹{(wallet.balance || 0).toLocaleString()}</Text>
+
+          <View style={styles.balanceRow}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={styles.subLabel}>Pending Withdrawal</Text>
+              <Text style={styles.subValue}>₹{(wallet.pendingWithdrawal || 0).toLocaleString()}</Text>
             </View>
+            <View style={{ width: 1, backgroundColor: colors.border }} />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={styles.subLabel}>Total Earned</Text>
+              <Text style={styles.subValue}>₹{(wallet.totalEarned || 0).toLocaleString()}</Text>
+            </View>
+          </View>
 
-            <TouchableOpacity 
-              style={[styles.withdrawBtn, (wallet.balance <= 0 || !bankDetails?.accountNumber) && styles.withdrawBtnDisabled]}
-              onPress={openWithdrawModal}
-              disabled={wallet.balance <= 0 || !bankDetails?.accountNumber}
-            >
-              <Text style={styles.withdrawBtnText}>Request Withdrawal</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.withdrawBtn,
+              (wallet.balance <= 0 || !bankDetails) && styles.withdrawBtnDisabled
+            ]}
+            onPress={() => {
+              if (!bankDetails) {
+                showCustomAlert('Bank Account Required', 'Please add your bank details below before requesting a withdrawal.');
+              } else if (wallet.balance <= 0) {
+                showCustomAlert('Insufficient Balance', 'You do not have available balance to withdraw.');
+              } else {
+                setShowWithdrawModal(true);
+              }
+            }}
+            disabled={wallet.balance <= 0 || !bankDetails}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.withdrawBtnText}>Withdraw Funds</Text>
+          </TouchableOpacity>
+        </View>
 
-            {!bankDetails?.accountNumber && (
-              <Text style={{ 
-                color: Colors.warning, 
-                fontSize: 12, 
-                fontFamily: Typography.fontFamily.medium, 
-                textAlign: 'center', 
-                marginTop: 8 
-              }}>
-                Add bank details to request withdrawal
-              </Text>
+        {/* Bank Details Section */}
+        <View style={styles.bankCard}>
+          <View style={styles.bankHeader}>
+            <Text style={styles.bankTitle}>Bank Details for Payout</Text>
+            {bankDetails && (
+              <TouchableOpacity onPress={() => {
+                setBankForm({
+                  accountHolder: bankDetails.accountHolder || '',
+                  accountNumber: bankDetails.accountNumber || '',
+                  reAccountNumber: bankDetails.accountNumber || '',
+                  ifsc: bankDetails.ifsc || '',
+                  bankName: bankDetails.bankName || ''
+                });
+                setShowBankModal(true);
+              }} activeOpacity={0.7}>
+                <Icon name="pencil" size={20} color={isDark ? colors.primary : colors.primaryDark} />
+              </TouchableOpacity>
             )}
           </View>
 
-          {/* Bank Details Section (Hidden behind button) */}
-          <View style={{ marginBottom: Spacing.xl }}>
-            <TouchableOpacity 
-              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundCard, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border }}
-              onPress={openBankModal}
-            >
-              <Icon name="bank" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
-              <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>
-                {bankDetails && bankDetails.accountNumber ? 'Manage Bank Details' : 'Add Bank Details'}
-              </Text>
-              <Icon name="chevron-right" size={20} color={Colors.textSecondary} style={{ marginLeft: 'auto' }} />
-            </TouchableOpacity>
-          </View>
+          {bankDetails ? (
+            <View style={styles.bankInfo}>
+              <Text style={styles.bankText}>Holder: {bankDetails.accountHolder}</Text>
+              <Text style={styles.bankText}>Bank: {bankDetails.bankName || 'N/A'}</Text>
+              <Text style={styles.bankText}>Account: •••• •••• {bankDetails.accountNumber?.slice(-4)}</Text>
+              <Text style={styles.bankText}>IFSC: {bankDetails.ifsc}</Text>
+            </View>
+          ) : (
+            <View style={styles.addBankContainer}>
+              <Text style={styles.noBankText}>No bank details added yet for receiving payouts.</Text>
+              <TouchableOpacity style={styles.addBankBtn} onPress={() => {
+                setBankForm({ accountHolder: '', accountNumber: '', reAccountNumber: '', ifsc: '', bankName: '' });
+                setShowBankModal(true);
+              }} activeOpacity={0.8}>
+                <Text style={styles.addBankBtnText}>+ Add Bank Details</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
-          <View style={styles.tabsWrapper}>
-            <View style={styles.tabsContainer}>
-              {tabs.map(tab => (
+        {/* Transactions Section */}
+        <Text style={styles.sectionTitle}>Transaction History</Text>
+        
+        {/* Tabs */}
+        <View style={styles.tabsWrapper}>
+          <View style={styles.tabsContainer}>
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab;
+              return (
                 <TouchableOpacity
                   key={tab}
-                  style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
+                  style={[styles.tabBtn, isActive && styles.tabBtnActive]}
                   onPress={() => setActiveTab(tab)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                 >
-                  <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                    {tab}
+                  </Text>
                 </TouchableOpacity>
-              ))}
-            </View>
+              );
+            })}
           </View>
-
-          <FlatList
-            data={filteredTransactions}
-            keyExtractor={item => item._id}
-            renderItem={renderTransaction}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 100 }}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No transactions found.</Text>
-            }
-          />
         </View>
-      )}
+
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
+        ) : filteredTransactions.length === 0 ? (
+          <Text style={styles.emptyText}>No {activeTab.toLowerCase()} transactions found.</Text>
+        ) : (
+          filteredTransactions.map((item) => (
+            <React.Fragment key={item._id}>
+              {renderTransaction({ item })}
+            </React.Fragment>
+          ))
+        )}
+      </ScrollView>
 
       {/* Withdraw Modal */}
-      <Modal visible={showWithdrawModal} animationType="slide" transparent={true}>
+      <Modal visible={showWithdrawModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Request Withdrawal</Text>
-            
+            <Text style={styles.modalTitle}>Withdraw Funds</Text>
+
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Amount to Withdraw (Max: ₹{wallet.balance})</Text>
+              <Text style={styles.inputLabel}>Available: ₹{wallet.balance.toLocaleString()}</Text>
               <TextInput
                 style={styles.input}
-                keyboardType="number-pad"
-                placeholder="Enter amount"
-                placeholderTextColor={Colors.textTertiary}
+                keyboardType="numeric"
+                placeholder="Enter amount to withdraw"
+                placeholderTextColor={colors.textTertiary}
                 value={withdrawAmount}
-                onChangeText={(text) => {
-                  const cleaned = text.replace(/[^0-9]/g, '');
-                  if (!cleaned) {
-                    setWithdrawAmount('');
-                    return;
-                  }
-                  const val = parseInt(cleaned, 10);
-                  if (val > wallet.balance) {
-                    setWithdrawAmount(wallet.balance.toString());
-                  } else {
-                    setWithdrawAmount(cleaned);
-                  }
-                }}
+                onChangeText={setWithdrawAmount}
               />
-              <Text style={{ fontSize: 11, color: Colors.textTertiary, marginTop: 6, lineHeight: 16 }}>
-                <Icon name="information-outline" size={12} /> Action will be taken within 48 hours. Exceeding this, the request will be automatically rejected and refunded.
-              </Text>
             </View>
 
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowWithdrawModal(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowWithdrawModal(false)} activeOpacity={0.7}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.submitBtn} 
-                onPress={handleWithdrawRequest}
+                onPress={handleWithdrawalRequest}
                 disabled={submittingWithdraw}
+                activeOpacity={0.85}
               >
                 {submittingWithdraw ? (
-                  <ActivityIndicator color={Colors.background} />
+                  <ActivityIndicator color="#000" />
                 ) : (
-                  <Text style={styles.submitBtnText}>Submit Request</Text>
+                  <Text style={styles.submitBtnText}>Confirm Withdrawal</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -435,19 +416,21 @@ const WalletScreen = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* Bank Details Modal */}
-      <Modal visible={showBankModal} animationType="slide" transparent={true}>
+      {/* Add/Edit Bank Details Modal */}
+      <Modal visible={showBankModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Update Bank Details</Text>
-            
-            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>
+                {bankDetails ? 'Edit Bank Details' : 'Add Bank Details'}
+              </Text>
+
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Account Holder Name</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter full name on account"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholder="Enter Account Holder Name"
+                  placeholderTextColor={colors.textTertiary}
                   value={bankForm.accountHolder}
                   onChangeText={(text) => setBankForm({ ...bankForm, accountHolder: text })}
                 />
@@ -458,7 +441,7 @@ const WalletScreen = ({ navigation }) => {
                 <TextInput
                   style={styles.input}
                   placeholder="Enter IFSC Code"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={bankForm.ifsc}
                   onChangeText={handleIfscChange}
                   autoCapitalize="characters"
@@ -475,7 +458,7 @@ const WalletScreen = ({ navigation }) => {
                     style={[styles.input, { paddingRight: 45 }]}
                     keyboardType="number-pad"
                     placeholder="Enter Account Number"
-                    placeholderTextColor={Colors.textTertiary}
+                    placeholderTextColor={colors.textTertiary}
                     value={bankForm.accountNumber}
                     onChangeText={(text) => setBankForm({ ...bankForm, accountNumber: text.replace(/[^0-9]/g, '') })}
                     secureTextEntry={!showAccountNumber}
@@ -483,8 +466,9 @@ const WalletScreen = ({ navigation }) => {
                   <TouchableOpacity 
                     style={{ position: 'absolute', right: 15 }} 
                     onPress={() => setShowAccountNumber(!showAccountNumber)}
+                    activeOpacity={0.7}
                   >
-                    <Icon name={showAccountNumber ? "eye-off" : "eye"} size={20} color={Colors.textSecondary} />
+                    <Icon name={showAccountNumber ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -495,7 +479,7 @@ const WalletScreen = ({ navigation }) => {
                   style={styles.input}
                   keyboardType="number-pad"
                   placeholder="Re-enter Account Number"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={bankForm.reAccountNumber}
                   onChangeText={(text) => setBankForm({ ...bankForm, reAccountNumber: text.replace(/[^0-9]/g, '') })}
                 />
@@ -505,16 +489,17 @@ const WalletScreen = ({ navigation }) => {
               </View>
 
               <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowBankModal(false)}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowBankModal(false)} activeOpacity={0.7}>
                   <Text style={styles.cancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={styles.submitBtn} 
                   onPress={handleSaveBankDetails}
                   disabled={submittingBank}
+                  activeOpacity={0.85}
                 >
                   {submittingBank ? (
-                    <ActivityIndicator color={Colors.background} />
+                    <ActivityIndicator color="#000" />
                   ) : (
                     <Text style={styles.submitBtnText}>Save Details</Text>
                   )}
@@ -529,45 +514,45 @@ const WalletScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: { 
     paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md,
-    backgroundColor: Colors.backgroundCard, flexDirection: 'row', alignItems: 'center',
-    borderBottomWidth: 1, borderBottomColor: Colors.border
+    backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center',
+    borderBottomWidth: 1, borderBottomColor: colors.border
   },
   backBtn: { padding: 8, marginRight: 8 },
-  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   content: { flex: 1, padding: Spacing.lg },
   
-  balanceCard: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.lg, padding: Spacing.xl, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
-  balanceLabel: { fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },
-  balanceValue: { fontSize: 36, color: Colors.textPrimary, fontFamily: Typography.fontFamily.extraBold, marginBottom: Spacing.lg },
+  balanceCard: { backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.xl, marginBottom: Spacing.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', ...shadows.small },
+  balanceLabel: { fontSize: 14, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },
+  balanceValue: { fontSize: 36, color: colors.textPrimary, fontFamily: Typography.fontFamily.extraBold, marginBottom: Spacing.lg },
   balanceRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: Spacing.lg },
-  subLabel: { fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  subValue: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: 4 },
+  subLabel: { fontSize: 12, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  subValue: { fontSize: 16, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: 4 },
   
-  withdrawBtn: { backgroundColor: Colors.primary, paddingVertical: 14, paddingHorizontal: 24, borderRadius: BorderRadius.md, width: '100%', alignItems: 'center' },
-  withdrawBtnDisabled: { backgroundColor: Colors.surfaceVariant },
-  withdrawBtnText: { color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  withdrawBtn: { backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 24, borderRadius: BorderRadius.md, width: '100%', alignItems: 'center' },
+  withdrawBtnDisabled: { backgroundColor: colors.surfaceVariant },
+  withdrawBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
 
-  bankCard: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.lg, padding: Spacing.lg, marginBottom: Spacing.xl, borderWidth: 1, borderColor: Colors.border },
+  bankCard: { backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, marginBottom: Spacing.xl, borderWidth: 1, borderColor: colors.border, ...shadows.small },
   bankHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
-  bankTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  bankTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   bankInfo: { marginTop: Spacing.xs },
-  bankText: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginBottom: 4 },
+  bankText: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginBottom: 4 },
   
   addBankContainer: { alignItems: 'center', marginTop: Spacing.sm },
-  noBankText: { fontSize: 14, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.sm },
-  addBankBtn: { backgroundColor: Colors.surface, paddingVertical: 10, paddingHorizontal: 20, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border },
-  addBankBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  noBankText: { fontSize: 14, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.sm },
+  addBankBtn: { backgroundColor: colors.surfaceVariant, paddingVertical: 10, paddingHorizontal: 20, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border },
+  addBankBtnText: { color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
-  sectionTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.md },
+  sectionTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: Spacing.md },
   
   tabsWrapper: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surfaceVariant,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
     marginBottom: Spacing.md,
     borderRadius: BorderRadius.md,
   },
@@ -583,42 +568,42 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabBtnActive: {
-    borderBottomColor: Colors.primary,
+    borderBottomColor: isDark ? colors.primary : colors.primaryDark,
   },
   tabText: {
     fontSize: 14,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   tabTextActive: {
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: isDark ? colors.primary : colors.primaryDark,
   },
 
-  emptyText: { textAlign: 'center', marginVertical: 20, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  emptyText: { textAlign: 'center', marginVertical: 20, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
   
-  paymentRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  paymentTurf: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  paymentDate: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 4 },
-  paymentAmount: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  paymentRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  paymentTurf: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  paymentDate: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginTop: 4 },
+  paymentAmount: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   paymentStatus: { fontSize: 8.5, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5, marginTop: 3 },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: Colors.backgroundCard, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, padding: Spacing.xl, maxHeight: '80%' },
-  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.lg },
+  modalOverlay: { flex: 1, backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: colors.surface, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, padding: Spacing.xl, maxHeight: '80%' },
+  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: Spacing.lg },
   
   inputContainer: { marginBottom: Spacing.md },
-  inputLabel: { fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },
-  input: { height: 50, backgroundColor: Colors.surface, borderRadius: BorderRadius.md, paddingHorizontal: 16, color: Colors.textPrimary, borderWidth: 1, borderColor: Colors.border, fontSize: 16 },
+  inputLabel: { fontSize: 14, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },
+  input: { height: 50, backgroundColor: colors.surfaceVariant, borderRadius: BorderRadius.md, paddingHorizontal: 16, color: colors.textPrimary, borderWidth: 1, borderColor: colors.border, fontSize: 16 },
   
-  bankNameHint: { fontSize: 12, color: Colors.primary, fontFamily: Typography.fontFamily.medium, marginTop: 4, marginLeft: 4 },
-  errorHint: { fontSize: 12, color: Colors.error, fontFamily: Typography.fontFamily.medium, marginTop: 4, marginLeft: 4 },
+  bankNameHint: { fontSize: 12, color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.medium, marginTop: 4, marginLeft: 4 },
+  errorHint: { fontSize: 12, color: colors.error, fontFamily: Typography.fontFamily.medium, marginTop: 4, marginLeft: 4 },
 
   modalActions: { flexDirection: 'row', gap: 12, marginTop: Spacing.lg },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: BorderRadius.md, backgroundColor: Colors.surfaceVariant, alignItems: 'center' },
-  cancelBtnText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  submitBtn: { flex: 2, padding: 14, borderRadius: BorderRadius.md, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' },
-  submitBtnText: { color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  cancelBtn: { flex: 1, padding: 14, borderRadius: BorderRadius.md, backgroundColor: colors.surfaceVariant, alignItems: 'center' },
+  cancelBtnText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  submitBtn: { flex: 2, padding: 14, borderRadius: BorderRadius.md, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
+  submitBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 });
 
 export default WalletScreen;

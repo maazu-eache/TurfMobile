@@ -1,12 +1,13 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, Image } from 'react-native';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSelector } from 'react-redux';
-import { Colors } from '../theme/theme';
+import { useTheme } from '../theme/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getImageUrl } from '../api/axios';
 
 // Customer Screens
 import HomeScreen from '../features/customer/screens/HomeScreen';
@@ -88,7 +89,8 @@ const tabIcons = {
 };
 
 /* ── Animated single tab item ──────────────────────────────────────────── */
-const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets }) => {
+const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets, colors }) => {
+  const { user } = useSelector((state) => state.auth);
   const scaleAnim = useRef(new Animated.Value(isFocused ? 1.15 : 1)).current;
   const dotAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
   const translateY = useRef(new Animated.Value(isFocused ? -3 : 0)).current;
@@ -117,6 +119,8 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets }) => {
   }, [isFocused]);
 
   const iconName = tabIcons[route.name] || 'circle';
+  const isProfileTab = route.name === 'Profile';
+  const avatarUrl = (isProfileTab && user?.photo) ? getImageUrl(user.photo) : null;
 
   return (
     <TouchableOpacity
@@ -133,11 +137,28 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets }) => {
           { transform: [{ scale: scaleAnim }, { translateY }] }
         ]}
       >
-        <Icon
-          name={iconName}
-          size={22}
-          color={isFocused ? Colors.primary : Colors.textTertiary}
-        />
+        {avatarUrl ? (
+          <View
+            style={[
+              tabStyles.avatarWrap,
+              {
+                borderColor: isFocused ? colors.primary : 'rgba(255, 255, 255, 0.3)',
+              },
+            ]}
+          >
+            <Image
+              source={{ uri: avatarUrl }}
+              style={tabStyles.avatarImg}
+              resizeMode="cover"
+            />
+          </View>
+        ) : (
+          <Icon
+            name={iconName}
+            size={22}
+            color={isFocused ? colors.primary : colors.textTertiary}
+          />
+        )}
       </Animated.View>
 
       {/* Yellow dot indicator below the icon */}
@@ -145,6 +166,7 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets }) => {
         style={[
           tabStyles.dot,
           {
+            backgroundColor: colors.primary,
             opacity: dotAnim,
             transform: [{ scaleX: dotAnim }],
           },
@@ -154,7 +176,7 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets }) => {
       <Text
         style={[
           tabStyles.label,
-          { color: isFocused ? Colors.primary : Colors.textTertiary },
+          { color: isFocused ? colors.primary : colors.textTertiary },
         ]}
       >
         {route.name}
@@ -165,13 +187,24 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets }) => {
 
 /* ── Custom full tab bar ─────────────────────────────────────────────────── */
 const CustomTabBar = ({ state, descriptors, navigation, insets }) => {
+  const { colors, isDark } = useTheme();
+
   // Check if tab bar should be hidden for the current focused route
   const focusedOptions = descriptors[state.routes[state.index].key].options;
   const tabBarStyle = focusedOptions.tabBarStyle;
   if (tabBarStyle?.display === 'none') return null;
 
   return (
-    <View style={[tabStyles.container, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
+    <View
+      style={[
+        tabStyles.container,
+        {
+          backgroundColor: isDark ? colors.backgroundCard : colors.surface,
+          borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : colors.border,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+        },
+      ]}
+    >
       {state.routes.map((route, index) => {
         const isFocused = state.index === index;
         const onPress = () => {
@@ -191,6 +224,7 @@ const CustomTabBar = ({ state, descriptors, navigation, insets }) => {
             onPress={onPress}
             onLongPress={onLongPress}
             insets={insets}
+            colors={colors}
           />
         );
       })}
@@ -201,9 +235,7 @@ const CustomTabBar = ({ state, descriptors, navigation, insets }) => {
 const tabStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundCard,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
     paddingTop: 10,
   },
   tabItem: {
@@ -217,11 +249,22 @@ const tabStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+  },
   dot: {
     width: 18,
     height: 3,
     borderRadius: 2,
-    backgroundColor: Colors.primary,
   },
   label: {
     fontSize: 9.5,
@@ -247,6 +290,7 @@ const HomeStack = () => (
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
     <Stack.Screen name="TeamDetail" component={TeamDetailScreen} />
     <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
+    <Stack.Screen name="QualificationCalculator" component={QualificationCalculatorScreen} />
     <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
     <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
@@ -265,6 +309,7 @@ const SearchStack = () => (
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
     <Stack.Screen name="TeamDetail" component={TeamDetailScreen} />
     <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
+    <Stack.Screen name="QualificationCalculator" component={QualificationCalculatorScreen} />
     <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
     <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
@@ -374,6 +419,7 @@ const CustomerNavigator = ({ navigation }) => {
 
   return (
     <Tab.Navigator
+      initialRouteName="Home"
       tabBar={(props) => <CustomTabBar {...props} insets={insets} />}
       screenOptions={({ route }) => {
         const routeName = getFocusedRouteNameFromRoute(route) ?? '';

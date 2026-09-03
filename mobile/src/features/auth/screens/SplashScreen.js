@@ -1,13 +1,15 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, ImageBackground, Image } from 'react-native';
 import { useSelector } from 'react-redux';
 import LinearGradient from '../../../components/SolidGradient';
-import { Colors, Typography, Spacing } from '../../../theme/theme';
+import { useTheme, Typography, Spacing } from '../../../theme/theme';
 import Video from 'react-native-video';
 
 const { width, height } = Dimensions.get('window');
 
 const SplashScreen = ({ navigation, onFinished }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -39,7 +41,7 @@ const SplashScreen = ({ navigation, onFinished }) => {
 };
 
 
-const styles = StyleSheet.create({
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   backgroundImage: {
     flex: 1,
     width: width,
@@ -62,7 +64,7 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     marginBottom: Spacing.sm,
-    shadowColor: Colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 15,
@@ -80,12 +82,12 @@ const styles = StyleSheet.create({
     textShadowRadius: 10,
   },
   logoTextTurf: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   tagline: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.primary,
+    color: colors.primary,
     letterSpacing: 4,
     textTransform: 'uppercase',
     marginTop: Spacing.xs,
@@ -125,7 +127,7 @@ const styles = StyleSheet.create({
   greetingSubtext: {
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.primary,
+    color: colors.primary,
     textAlign: 'center',
     opacity: 0.9,
   },
@@ -141,8 +143,8 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 5,

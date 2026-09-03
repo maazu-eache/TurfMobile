@@ -1,17 +1,102 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api from '../../../api/axios';
 import { formatISTDateTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
-
 import { useSelector } from 'react-redux';
+
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.surface },
+  container: { flex: 1, backgroundColor: colors.background },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    ...(isDark ? {} : shadows.xs),
+  },
+  backButton: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant,
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: Spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  list: { padding: Spacing.md },
+  notificationCard: {
+    flexDirection: 'row',
+    padding: Spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...(isDark ? {} : shadows.xs),
+  },
+  unreadCard: {
+    backgroundColor: colors.primaryAlpha10,
+    borderColor: colors.primaryAlpha30,
+  },
+  iconContainer: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant,
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  textContainer: { flex: 1 },
+  title: {
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  unreadTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
+  body: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textSecondary,
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  time: {
+    fontSize: Typography.fontSize.xs,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textTertiary,
+  },
+  unreadDot: {
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: colors.primary,
+    marginLeft: Spacing.sm,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: colors.textTertiary,
+    marginTop: Spacing['3xl'],
+    fontFamily: Typography.fontFamily.medium,
+  }
+});
 
 const NotificationsScreen = ({ navigation }) => {
   const { user } = useSelector((state) => state.auth);
   const isOwner = user?.role === 'owner';
   const isAdmin = user?.role === 'admin';
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,9 +112,7 @@ const NotificationsScreen = ({ navigation }) => {
       
       const hasUnread = fetchedNotifications.some(n => !n.isRead);
       if (hasUnread) {
-        // Set local state to read immediately for a seamless user experience
         setNotifications(fetchedNotifications.map(n => ({ ...n, isRead: true })));
-        // Update backend asynchronously
         api.put('/notifications/read-all').catch(err => {
           console.log('Error auto-marking notifications as read:', err);
         });
@@ -48,13 +131,11 @@ const NotificationsScreen = ({ navigation }) => {
       await api.put(`/notifications/${id}/read`);
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
       
-      if (!data) return; // if no data, don't navigate
-      
-      if (isAdmin) return; // Admin has a single dashboard, don't attempt nested navigation
+      if (!data) return;
+      if (isAdmin) return;
 
       try {
         if (isOwner) {
-          // Merchant/Owner Role Navigation
           if (['booking_confirmed', 'upcoming_booking', 'new_booking', 'screenshot_uploaded', 'booking_status'].includes(type) || data.bookingId) {
             navigation.navigate('Bookings');
           } else if (type === 'turf_favourited' || data.turfId) {
@@ -65,7 +146,6 @@ const NotificationsScreen = ({ navigation }) => {
             navigation.navigate('OwnerDashboard');
           }
         } else {
-          // Customer Role Navigation
           if (['booking_confirmed', 'upcoming_booking', 'new_booking', 'screenshot_uploaded', 'booking_status'].includes(type) || data.bookingId) {
             navigation.navigate('Bookings', { screen: 'BookingHistory', params: { turfId: data.turfId } });
           } else if (type === 'turf_favourited' || data.turfId) {
@@ -135,9 +215,10 @@ const NotificationsScreen = ({ navigation }) => {
     <TouchableOpacity 
       style={[styles.notificationCard, !item.isRead && styles.unreadCard]}
       onPress={() => markAsRead(item._id, item.data, item.type)}
+      activeOpacity={0.75}
     >
       <View style={styles.iconContainer}>
-        <Icon name={item.isRead ? "bell-outline" : "bell-ring"} size={24} color={item.isRead ? Colors.textTertiary : Colors.primary} />
+        <Icon name={item.isRead ? "bell-outline" : "bell-ring"} size={24} color={item.isRead ? colors.textTertiary : colors.primary} />
       </View>
       <View style={styles.textContainer}>
         <Text style={[styles.title, !item.isRead && styles.unreadTitle]}>{item.title}</Text>
@@ -149,117 +230,51 @@ const NotificationsScreen = ({ navigation }) => {
   );
 
   if (loading) {
-    return <View style={styles.loader}><ActivityIndicator size="large" color={Colors.primary} /></View>;
+    return (
+      <View style={styles.loader}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-left" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notifications ({notifications.length})</Text>
-        </View>
-        {notifications.length > 0 && (
-          <View style={{ flexDirection: 'row', gap: Spacing.md }}>
-            <TouchableOpacity onPress={markAllAsRead}>
-              <Icon name="check-all" size={24} color={Colors.primary} />
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <Icon name="arrow-left" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={clearAll}>
-              <Icon name="trash-can-outline" size={24} color={Colors.error} />
-            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Notifications ({notifications.length})</Text>
           </View>
-        )}
-      </View>
+          {notifications.length > 0 && (
+            <View style={{ flexDirection: 'row', gap: Spacing.md }}>
+              <TouchableOpacity onPress={markAllAsRead} activeOpacity={0.7}>
+                <Icon name="check-all" size={24} color={isDark ? colors.primary : colors.primaryDark} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={clearAll} activeOpacity={0.7}>
+                <Icon name="trash-can-outline" size={24} color={colors.error} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
-      <FlatList
-        data={notifications}
-        keyExtractor={(item) => item._id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No notifications yet.</Text>
-        }
-      />
-    </View>
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item._id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No notifications yet.</Text>
+          }
+        />
+      </View>
+    </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.xl,
-    paddingTop: Spacing['3xl'],
-    backgroundColor: Colors.backgroundElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  backButton: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center', alignItems: 'center',
-    marginRight: Spacing.md,
-  },
-  headerTitle: {
-    fontSize: Typography.fontSize.xl,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
-  },
-  list: { padding: Spacing.md },
-  notificationCard: {
-    flexDirection: 'row',
-    padding: Spacing.md,
-    backgroundColor: Colors.backgroundElevated,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.sm,
-    alignItems: 'center',
-  },
-  unreadCard: {
-    backgroundColor: 'rgba(57, 255, 20, 0.05)',
-    borderColor: Colors.primaryAlpha30,
-    borderWidth: 1,
-  },
-  iconContainer: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center', alignItems: 'center',
-    marginRight: Spacing.md,
-  },
-  textContainer: { flex: 1 },
-  title: {
-    fontSize: Typography.fontSize.md,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textSecondary,
-    marginBottom: 4,
-  },
-  unreadTitle: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
-  body: {
-    fontSize: Typography.fontSize.sm,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
-    marginBottom: 4,
-  },
-  time: {
-    fontSize: Typography.fontSize.xs,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
-  },
-  unreadDot: {
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: Colors.primary,
-    marginLeft: Spacing.sm,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: Colors.textTertiary,
-    marginTop: Spacing['3xl'],
-    fontFamily: Typography.fontFamily.medium,
-  }
-});
 
 export default NotificationsScreen;

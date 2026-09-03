@@ -1,16 +1,18 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, StatusBar, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Svg, { Circle } from 'react-native-svg';
 import axios from 'axios';
 import api from '../../../api/axios';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import moment from 'moment';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const DonutTimer = ({ createdAt }) => {
+  const { colors, isDark } = useTheme();
   const [timeLeft, setTimeLeft] = useState(0);
   const totalDuration = 48 * 60 * 60 * 1000; // 48 hours
 
@@ -24,7 +26,7 @@ const DonutTimer = ({ createdAt }) => {
     setTimeLeft(calculateTimeLeft());
     const interval = setInterval(() => {
       setTimeLeft(calculateTimeLeft());
-    }, 1000); // update every second
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [createdAt]);
@@ -39,18 +41,18 @@ const DonutTimer = ({ createdAt }) => {
   const minsLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
   const secsLeft = Math.floor((timeLeft % (1000 * 60)) / 1000);
 
-  let color = Colors.primary;
-  if (hoursLeft < 8) color = Colors.error;
-  else if (hoursLeft < 24) color = '#FF9800';
+  let color = colors.primary;
+  if (hoursLeft < 8) color = colors.error;
+  else if (hoursLeft < 24) color = colors.warning;
 
-  if (timeLeft <= 0) return <Text style={{ color: Colors.error, fontSize: 10, fontWeight: 'bold' }}>EXPIRED</Text>;
+  if (timeLeft <= 0) return <Text style={{ color: colors.error, fontSize: 10, fontWeight: 'bold' }}>EXPIRED</Text>;
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
       <View style={{ transform: [{ rotate: '-90deg' }] }}>
         <Svg width={20} height={20}>
           <Circle
-            stroke="rgba(255,255,255,0.1)"
+            stroke={isDark ? 'rgba(255,255,255,0.1)' : colors.border}
             fill="none"
             cx={10} cy={10} r={radius}
             strokeWidth={strokeWidth}
@@ -73,10 +75,169 @@ const DonutTimer = ({ createdAt }) => {
   );
 };
 
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  header: { 
+    paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md,
+    backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center',
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    ...(isDark ? {} : shadows.xs),
+  },
+  backBtn: { padding: 8, marginRight: 8 },
+  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  content: { flex: 1, padding: Spacing.lg },
+  
+  balanceCard: { 
+    borderRadius: 20, 
+    padding: Spacing.xl, 
+    marginBottom: Spacing.xl, 
+    borderWidth: 1, 
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    ...(isDark ? {} : shadows.sm),
+  },
+  balanceHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  balanceLabel: { fontSize: 13, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, letterSpacing: 0.5, textTransform: 'uppercase' },
+  balanceValue: { 
+    fontSize: 44, 
+    color: colors.textPrimary, 
+    fontFamily: Typography.fontFamily.extraBold, 
+    marginBottom: Spacing.lg,
+  },
+  balanceRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    width: '100%', 
+    marginBottom: Spacing.xl, 
+    backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : colors.surfaceVariant, 
+    borderRadius: 12, 
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  balanceStatBox: { flex: 1, alignItems: 'center' },
+  balanceStatDivider: { width: 1, backgroundColor: colors.border, height: '80%', alignSelf: 'center' },
+  subLabel: { fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: 4 },
+  subValue: { fontSize: 16, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
+  
+  withdrawBtn: { 
+    backgroundColor: colors.primary, 
+    paddingVertical: 16, 
+    paddingHorizontal: 24, 
+    borderRadius: 12, 
+    width: '100%', 
+    alignItems: 'center',
+    ...shadows.md,
+  },
+  withdrawBtnDisabled: { 
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceVariant, 
+    shadowOpacity: 0, 
+    elevation: 0, 
+    borderColor: colors.border, 
+    borderWidth: 1 
+  },
+  withdrawBtnText: { color: colors.textOnPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, letterSpacing: 0.5 },
+
+  bankCard: { backgroundColor: colors.surface, borderRadius: 16, padding: Spacing.lg, marginBottom: Spacing.xl, borderWidth: 1, borderColor: colors.border },
+  bankHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
+  bankTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  bankInfo: { marginTop: Spacing.xs, backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : colors.surfaceVariant, padding: 12, borderRadius: 8 },
+  bankText: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginBottom: 4 },
+  
+  addBankContainer: { alignItems: 'center', marginTop: Spacing.md, paddingVertical: Spacing.md, backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : colors.surfaceVariant, borderRadius: 12 },
+  noBankText: { fontSize: 13, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.md },
+  addBankBtn: { backgroundColor: colors.primaryAlpha10, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20, borderWidth: 1, borderColor: colors.primaryAlpha30 },
+  addBankBtnText: { color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+
+  sectionTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: Spacing.md },
+  
+  tabsWrapper: {
+    backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabBtnActive: {
+    borderBottomColor: colors.primary,
+  },
+  tabText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  tabTextActive: {
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? colors.primary : colors.primaryDark,
+  },
+
+  emptyText: { textAlign: 'center', marginVertical: 20, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  
+  paymentRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    paddingVertical: Spacing.md, 
+    borderBottomWidth: 1, 
+    borderBottomColor: colors.border 
+  },
+  paymentTurf: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  paymentDate: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginTop: 4 },
+  paymentAmount: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  paymentStatus: { fontSize: 8.5, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5, marginTop: 3 },
+
+  modalOverlay: { flex: 1, backgroundColor: colors.blackAlpha50, justifyContent: 'flex-end' },
+  modalContent: { 
+    backgroundColor: colors.surface, 
+    borderTopLeftRadius: BorderRadius.xl, 
+    borderTopRightRadius: BorderRadius.xl, 
+    padding: Spacing.xl, 
+    maxHeight: '80%',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    ...shadows.lg,
+  },
+  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: Spacing.lg },
+  
+  inputContainer: { marginBottom: Spacing.md },
+  inputLabel: { fontSize: 14, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },
+  input: { 
+    height: 50, 
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant, 
+    borderRadius: BorderRadius.md, 
+    paddingHorizontal: 16, 
+    color: colors.textPrimary, 
+    borderWidth: 1, 
+    borderColor: colors.border, 
+    fontSize: 16 
+  },
+  
+  bankNameHint: { fontSize: 12, color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.medium, marginTop: 4, marginLeft: 4 },
+  errorHint: { fontSize: 12, color: colors.error, fontFamily: Typography.fontFamily.medium, marginTop: 4, marginLeft: 4 },
+
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: Spacing.lg },
+  cancelBtn: { flex: 1, padding: 14, borderRadius: BorderRadius.md, backgroundColor: colors.surfaceVariant, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  cancelBtnText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  submitBtn: { flex: 2, padding: 14, borderRadius: BorderRadius.md, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
+  submitBtnText: { color: colors.textOnPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+});
 
 const WalletScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+
   const [wallet, setWallet] = useState({ balance: 0, pendingWithdrawal: 0, totalEarned: 0 });
   const [transactions, setTransactions] = useState([]);
   const [activeTab, setActiveTab] = useState('All');
@@ -252,7 +413,7 @@ const WalletScreen = ({ navigation }) => {
 
   const renderTransaction = ({ item }) => {
     const isCredit = item.type === 'credit';
-    const amountColor = isCredit ? Colors.success : Colors.error;
+    const amountColor = isCredit ? colors.success : colors.error;
     const sign = isCredit ? '+' : '-';
     let title = 'Transaction';
     let subCategoryText = '';
@@ -288,17 +449,17 @@ const WalletScreen = ({ navigation }) => {
               <DonutTimer createdAt={item.createdAt} />
             ) : isCredit ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                <Icon name="close-circle-outline" size={11} color={Colors.error} style={{ marginRight: 3 }} />
-                <Text style={[styles.paymentStatus, { color: Colors.error, marginTop: 0 }]}>REJECTED</Text>
+                <Icon name="close-circle-outline" size={11} color={colors.error} style={{ marginRight: 3 }} />
+                <Text style={[styles.paymentStatus, { color: colors.error, marginTop: 0 }]}>REJECTED</Text>
               </View>
             ) : (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                <Icon name="check-circle-outline" size={11} color={Colors.primary} style={{ marginRight: 3 }} />
-                <Text style={[styles.paymentStatus, { color: Colors.primary, marginTop: 0 }]}>PROCESSED</Text>
+                <Icon name="check-circle-outline" size={11} color={colors.primary} style={{ marginRight: 3 }} />
+                <Text style={[styles.paymentStatus, { color: isDark ? colors.primary : colors.primaryDark, marginTop: 0 }]}>PROCESSED</Text>
               </View>
             )
           ) : (
-            <Text style={[styles.paymentStatus, { color: isCredit ? Colors.primary : Colors.error }]}>
+            <Text style={[styles.paymentStatus, { color: isCredit ? (isDark ? colors.primary : colors.primaryDark) : colors.error }]}>
               {isCredit ? 'CREDIT' : 'DEBIT'}
             </Text>
           )}
@@ -309,20 +470,21 @@ const WalletScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
       <View style={[styles.header, { paddingTop: insets.top || 16 }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+          <Icon name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Wallet</Text>
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
       ) : (
         <View style={styles.content}>
           <View style={styles.balanceCard}>
             <View style={styles.balanceHeader}>
-              <Icon name="wallet-outline" size={20} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Icon name="wallet-outline" size={20} color={colors.primary} style={{ marginRight: 6 }} />
               <Text style={styles.balanceLabel}>Available Balance</Text>
             </View>
             <Text style={styles.balanceValue}>₹{wallet.balance.toLocaleString()}</Text>
@@ -335,7 +497,7 @@ const WalletScreen = ({ navigation }) => {
               <View style={styles.balanceStatDivider} />
               <View style={styles.balanceStatBox}>
                 <Text style={styles.subLabel}>Total Earned</Text>
-                <Text style={[styles.subValue, { color: Colors.primary }]}>₹{wallet.totalEarned.toLocaleString()}</Text>
+                <Text style={[styles.subValue, { color: isDark ? colors.primary : colors.primaryDark }]}>₹{wallet.totalEarned.toLocaleString()}</Text>
               </View>
             </View>
 
@@ -343,31 +505,42 @@ const WalletScreen = ({ navigation }) => {
               style={[styles.withdrawBtn, wallet.balance <= 0 && styles.withdrawBtnDisabled]}
               onPress={openWithdrawModal}
               disabled={wallet.balance <= 0}
+              activeOpacity={0.8}
             >
-              <Text style={[styles.withdrawBtnText, wallet.balance <= 0 && { color: Colors.textSecondary }]}>Request Withdrawal</Text>
+              <Text style={[styles.withdrawBtnText, wallet.balance <= 0 && { color: colors.textSecondary }]}>Request Withdrawal</Text>
             </TouchableOpacity>
 
             {(!bankDetails || !bankDetails.accountNumber) && (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10 }}>
-                <Icon name="information-outline" size={15} color={Colors.primary} />
-                <Text style={{ color: Colors.primary, fontSize: 12, fontFamily: Typography.fontFamily.medium }}>
+                <Icon name="information-outline" size={15} color={isDark ? colors.primary : colors.primaryDark} />
+                <Text style={{ color: isDark ? colors.primary : colors.primaryDark, fontSize: 12, fontFamily: Typography.fontFamily.medium }}>
                   Please add your bank account details below to request a withdrawal.
                 </Text>
               </View>
             )}
           </View>
 
-          {/* Bank Details Section (Hidden behind button) */}
+          {/* Bank Details Section */}
           <View style={{ marginBottom: Spacing.xl }}>
             <TouchableOpacity 
-              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundCard, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border }}
+              style={{ 
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                backgroundColor: colors.surface, 
+                padding: Spacing.md, 
+                borderRadius: BorderRadius.md, 
+                borderWidth: 1, 
+                borderColor: colors.border,
+                ...(isDark ? {} : shadows.xs),
+              }}
               onPress={openBankModal}
+              activeOpacity={0.8}
             >
-              <Icon name="bank" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
-              <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>
+              <Icon name="bank" size={20} color={colors.primary} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>
                 {bankDetails && bankDetails.accountNumber ? 'Manage Bank Details' : 'Add Bank Details'}
               </Text>
-              <Icon name="chevron-right" size={20} color={Colors.textSecondary} style={{ marginLeft: 'auto' }} />
+              <Icon name="chevron-right" size={20} color={colors.textSecondary} style={{ marginLeft: 'auto' }} />
             </TouchableOpacity>
           </View>
 
@@ -411,7 +584,7 @@ const WalletScreen = ({ navigation }) => {
                 style={styles.input}
                 keyboardType="number-pad"
                 placeholder="Enter amount"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={withdrawAmount}
                 onChangeText={(text) => {
                   const cleaned = text.replace(/[^0-9]/g, '');
@@ -427,22 +600,23 @@ const WalletScreen = ({ navigation }) => {
                   }
                 }}
               />
-              <Text style={{ fontSize: 11, color: Colors.textTertiary, marginTop: 6, lineHeight: 16 }}>
+              <Text style={{ fontSize: 11, color: colors.textTertiary, marginTop: 6, lineHeight: 16 }}>
                 <Icon name="information-outline" size={12} /> Action will be taken within 48 hours. Exceeding this, the request will be automatically rejected and refunded.
               </Text>
             </View>
 
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowWithdrawModal(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowWithdrawModal(false)} activeOpacity={0.8}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.submitBtn} 
                 onPress={handleWithdrawRequest}
                 disabled={submittingWithdraw}
+                activeOpacity={0.8}
               >
                 {submittingWithdraw ? (
-                  <ActivityIndicator color={Colors.background} />
+                  <ActivityIndicator color={colors.textOnPrimary} />
                 ) : (
                   <Text style={styles.submitBtnText}>Submit Request</Text>
                 )}
@@ -464,7 +638,7 @@ const WalletScreen = ({ navigation }) => {
                 <TextInput
                   style={styles.input}
                   placeholder="Enter full name on account"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={bankForm.accountHolder}
                   onChangeText={(text) => setBankForm({ ...bankForm, accountHolder: text })}
                 />
@@ -475,7 +649,7 @@ const WalletScreen = ({ navigation }) => {
                 <TextInput
                   style={styles.input}
                   placeholder="Enter IFSC Code"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={bankForm.ifsc}
                   onChangeText={handleIfscChange}
                   autoCapitalize="characters"
@@ -492,7 +666,7 @@ const WalletScreen = ({ navigation }) => {
                     style={[styles.input, { paddingRight: 45 }]}
                     keyboardType="number-pad"
                     placeholder="Enter Account Number"
-                    placeholderTextColor={Colors.textTertiary}
+                    placeholderTextColor={colors.textTertiary}
                     value={bankForm.accountNumber}
                     onChangeText={(text) => setBankForm({ ...bankForm, accountNumber: text.replace(/[^0-9]/g, '') })}
                     secureTextEntry={!showAccountNumber}
@@ -501,7 +675,7 @@ const WalletScreen = ({ navigation }) => {
                     style={{ position: 'absolute', right: 15 }} 
                     onPress={() => setShowAccountNumber(!showAccountNumber)}
                   >
-                    <Icon name={showAccountNumber ? "eye-off" : "eye"} size={20} color={Colors.textSecondary} />
+                    <Icon name={showAccountNumber ? "eye-off" : "eye"} size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -512,7 +686,7 @@ const WalletScreen = ({ navigation }) => {
                   style={styles.input}
                   keyboardType="number-pad"
                   placeholder="Re-enter Account Number"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={bankForm.reAccountNumber}
                   onChangeText={(text) => setBankForm({ ...bankForm, reAccountNumber: text.replace(/[^0-9]/g, '') })}
                 />
@@ -522,16 +696,17 @@ const WalletScreen = ({ navigation }) => {
               </View>
 
               <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowBankModal(false)}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowBankModal(false)} activeOpacity={0.8}>
                   <Text style={styles.cancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={styles.submitBtn} 
                   onPress={handleSaveBankDetails}
                   disabled={submittingBank}
+                  activeOpacity={0.8}
                 >
                   {submittingBank ? (
-                    <ActivityIndicator color={Colors.background} />
+                    <ActivityIndicator color={colors.textOnPrimary} />
                   ) : (
                     <Text style={styles.submitBtnText}>Save Details</Text>
                   )}
@@ -545,125 +720,5 @@ const WalletScreen = ({ navigation }) => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { 
-    paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md,
-    backgroundColor: Colors.backgroundCard, flexDirection: 'row', alignItems: 'center',
-    borderBottomWidth: 1, borderBottomColor: Colors.border
-  },
-  backBtn: { padding: 8, marginRight: 8 },
-  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  content: { flex: 1, padding: Spacing.lg },
-  
-  balanceCard: { 
-    borderRadius: 20, 
-    padding: Spacing.xl, 
-    marginBottom: Spacing.xl, 
-    borderWidth: 1, 
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    alignItems: 'center',
-  },
-  balanceHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  balanceLabel: { fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, letterSpacing: 0.5, textTransform: 'uppercase' },
-  balanceValue: { 
-    fontSize: 44, 
-    color: Colors.textPrimary, 
-    fontFamily: Typography.fontFamily.extraBold, 
-    marginBottom: Spacing.lg,
-  },
-  balanceRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: Spacing.xl, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 12 },
-  balanceStatBox: { flex: 1, alignItems: 'center' },
-  balanceStatDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.1)', height: '80%', alignSelf: 'center' },
-  subLabel: { fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: 4 },
-  subValue: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
-  
-  withdrawBtn: { 
-    backgroundColor: Colors.primary, 
-    paddingVertical: 16, 
-    paddingHorizontal: 24, 
-    borderRadius: 12, 
-    width: '100%', 
-    alignItems: 'center',
-    shadowColor: Colors.primary,
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
-  },
-  withdrawBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.05)', shadowOpacity: 0, elevation: 0, borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1 },
-  withdrawBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16, letterSpacing: 0.5 },
-
-  bankCard: { backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: Spacing.lg, marginBottom: Spacing.xl, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  bankHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
-  bankTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  bankInfo: { marginTop: Spacing.xs, backgroundColor: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8 },
-  bankText: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginBottom: 4 },
-  
-  addBankContainer: { alignItems: 'center', marginTop: Spacing.md, paddingVertical: Spacing.md, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 12 },
-  noBankText: { fontSize: 13, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.md },
-  addBankBtn: { backgroundColor: 'rgba(215,255,0,0.1)', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(215,255,0,0.3)' },
-  addBankBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
-
-  sectionTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.md },
-  
-  tabsWrapper: {
-    backgroundColor: Colors.backgroundElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    marginBottom: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    width: '100%',
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabBtnActive: {
-    borderBottomColor: Colors.primary,
-  },
-  tabText: {
-    fontSize: 14,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
-  },
-  tabTextActive: {
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
-  },
-
-  emptyText: { textAlign: 'center', marginVertical: 20, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  
-  paymentRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  paymentTurf: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  paymentDate: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 4 },
-  paymentAmount: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  paymentStatus: { fontSize: 8.5, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5, marginTop: 3 },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: Colors.backgroundCard, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, padding: Spacing.xl, maxHeight: '80%' },
-  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.lg },
-  
-  inputContainer: { marginBottom: Spacing.md },
-  inputLabel: { fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 },
-  input: { height: 50, backgroundColor: Colors.surface, borderRadius: BorderRadius.md, paddingHorizontal: 16, color: Colors.textPrimary, borderWidth: 1, borderColor: Colors.border, fontSize: 16 },
-  
-  bankNameHint: { fontSize: 12, color: Colors.primary, fontFamily: Typography.fontFamily.medium, marginTop: 4, marginLeft: 4 },
-  errorHint: { fontSize: 12, color: Colors.error, fontFamily: Typography.fontFamily.medium, marginTop: 4, marginLeft: 4 },
-
-  modalActions: { flexDirection: 'row', gap: 12, marginTop: Spacing.lg },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: BorderRadius.md, backgroundColor: Colors.surfaceVariant, alignItems: 'center' },
-  cancelBtnText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  submitBtn: { flex: 2, padding: 14, borderRadius: BorderRadius.md, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' },
-  submitBtnText: { color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-});
 
 export default WalletScreen;

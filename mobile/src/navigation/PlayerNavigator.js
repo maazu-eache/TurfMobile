@@ -12,6 +12,7 @@ import MatchSummaryScreen from '../features/match/screens/MatchSummaryScreen';
 import CreateTicketScreen from '../features/support/screens/CreateTicketScreen';
 import ScorecardScreen from '../features/match/screens/ScorecardScreen';
 import SpectatorScreen from '../features/match/screens/SpectatorScreen';
+import QualificationCalculatorScreen from '../features/tournament/screens/QualificationCalculatorScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -24,6 +25,7 @@ const PlayerNavigator = () => (
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
     <Stack.Screen name="TeamDetail" component={TeamDetailScreen} />
     <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
+    <Stack.Screen name="QualificationCalculator" component={QualificationCalculatorScreen} />
     <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
     <Stack.Screen name="Spectator" component={SpectatorScreen} />

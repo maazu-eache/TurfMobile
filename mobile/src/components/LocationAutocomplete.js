@@ -1,13 +1,147 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, Modal, FlatList,
   Keyboard, Animated,
 } from 'react-native';
-import { Colors, Typography, BorderRadius } from '../theme/theme';
+import { useTheme, Typography, BorderRadius } from '../theme/theme';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../api/axios';
+
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  /* ── Standard (underline) variant ─────────────────────────── */
+  containerStandard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: 8,
+  },
+  iconStandard: { marginRight: 8 },
+  inputStandard: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.regular,
+    padding: 0,
+  },
+
+  /* ── Outlined variant ──────────────────────────────────────── */
+  containerOutlined: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  containerError: { borderColor: colors.error },
+  containerWarning: { borderColor: colors.warning },
+  iconOutlined: { marginRight: 10 },
+  inputOutlined: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.medium,
+    padding: 0,
+  },
+
+  /* ── None variant ──────────────────────────────────────────── */
+  containerNone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconNone: { marginRight: 8 },
+  inputNone: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.medium,
+    padding: 0,
+  },
+
+  /* ── Floating dropdown ─────────────────────────────────────── */
+  dropdown: {
+    position: 'absolute',
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.lg,
+    overflow: 'hidden',
+  },
+  dropdownHeader: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant,
+  },
+  dropdownHeaderText: {
+    color: colors.textTertiary,
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.semiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  itemTitle: {
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 14,
+  },
+  itemSub: {
+    color: colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  /* ── No-results guidance banner ────────────────────────────── */
+  guidanceBanner: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    zIndex: 9999,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: isDark ? '#1C130C' : '#FFFBEB',
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: BorderRadius.md,
+    padding: 12,
+    marginTop: 4,
+    ...shadows.md,
+  },
+  guidanceTitle: {
+    color: colors.warning,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  guidanceBody: {
+    color: colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  guidanceHighlight: {
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+});
 
 /**
  * LocationAutocomplete
@@ -15,18 +149,6 @@ import api from '../api/axios';
  * Enforces that the user must select a city from the dropdown.
  * If the typed text has no results, a guidance banner tells the user
  * to try a broader/well-known city name (e.g. "Chennai" instead of "Saidapet").
- *
- * Props
- * ─────
- *  value            – controlled text value
- *  onChangeText     – called on every keystroke (raw text)
- *  onSelectLocation – called with { name, fullName, latitude, longitude, state }
- *                     OR null when cleared
- *  placeholder      – input placeholder text
- *  style            – outer View style override
- *  variant          – 'standard' | 'outlined' | 'none'
- *  error            – show error border (outlined only)
- *  icon             – Ionicons icon name for the left icon
  */
 const LocationAutocomplete = ({
   value,
@@ -38,9 +160,12 @@ const LocationAutocomplete = ({
   error,
   icon = 'location-outline',
 }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+
   const [query, setQuery] = useState(value ?? '');
   const [results, setResults] = useState([]);
-  const [searched, setSearched] = useState(false); // true after at least one fetch
+  const [searched, setSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [dropdownLayout, setDropdownLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
@@ -60,7 +185,7 @@ const LocationAutocomplete = ({
       setIsLocSelected(!!value);
       setShowGuidance(false);
     }
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [value]);
 
   const fetchLocations = useCallback(async (searchQuery) => {
     if (!searchQuery || searchQuery.length < 2) {
@@ -82,7 +207,7 @@ const LocationAutocomplete = ({
       } else {
         setDropdownVisible(false);
         setRejectedQuery(searchQuery);
-        setShowGuidance(true); // show "no results" guidance banner
+        setShowGuidance(true);
       }
     } catch (e) {
       console.log('LocationAutocomplete fetch error', e);
@@ -141,10 +266,10 @@ const LocationAutocomplete = ({
    * the dropdown, reset the field and show guidance.
    */
   const handleBlurOrSubmit = async () => {
-    if (isLocSelected) return; // already committed a valid selection — fine
+    if (isLocSelected) return;
 
     const searchQuery = query.trim();
-    if (!searchQuery) return; // empty — fine
+    if (!searchQuery) return;
 
     // Try to auto-select the first result if available
     if (results.length > 0) {
@@ -171,7 +296,6 @@ const LocationAutocomplete = ({
     setRejectedQuery(searchQuery);
     triggerShake();
     setShowGuidance(true);
-    // Clear the freeform value so the parent doesn't receive an unvalidated city
     setQuery('');
     setIsLocSelected(false);
     onChangeText?.('');
@@ -210,7 +334,7 @@ const LocationAutocomplete = ({
           <Icon
             name={icon}
             size={isOutlined ? 18 : isNone ? 18 : 20}
-            color={isLocSelected ? Colors.primary : Colors.textTertiary}
+            color={isLocSelected ? (isDark ? colors.primary : colors.primaryDark) : colors.textTertiary}
             style={isOutlined ? styles.iconOutlined : isNone ? styles.iconNone : styles.iconStandard}
           />
           <TextInput
@@ -219,7 +343,7 @@ const LocationAutocomplete = ({
             value={query}
             onChangeText={handleTextChange}
             placeholder={placeholder}
-            placeholderTextColor={Colors.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             onFocus={() => {
               measureInput();
               if (results.length > 0 && !isLocSelected) setDropdownVisible(true);
@@ -229,7 +353,7 @@ const LocationAutocomplete = ({
             returnKeyType="search"
           />
           {isLoading
-            ? <ActivityIndicator size="small" color={Colors.primary} style={{ marginLeft: 8 }} />
+            ? <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 8 }} />
             : isLocSelected
             ? (
               <TouchableOpacity
@@ -245,7 +369,7 @@ const LocationAutocomplete = ({
                 }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Icon name="close-circle" size={18} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
+                <Icon name="close-circle" size={18} color={colors.textTertiary} style={{ marginLeft: 8 }} />
               </TouchableOpacity>
             )
             : null
@@ -300,7 +424,7 @@ const LocationAutocomplete = ({
                     <Icon
                       name="location-outline"
                       size={15}
-                      color={Colors.primary}
+                      color={colors.primary}
                       style={{ marginTop: 2, marginRight: 10, flexShrink: 0 }}
                     />
                     <View style={{ flex: 1 }}>
@@ -311,7 +435,7 @@ const LocationAutocomplete = ({
                         {item.name}, {item.state}
                       </Text>
                     </View>
-                    <Icon name="chevron-forward-outline" size={14} color={Colors.textTertiary} />
+                    <Icon name="chevron-forward-outline" size={14} color={colors.textTertiary} />
                   </TouchableOpacity>
                 )}
                 ListHeaderComponent={
@@ -333,7 +457,7 @@ const LocationAutocomplete = ({
                 },
               ]}
             >
-              <MCIcon name="map-marker-question-outline" size={18} color={Colors.warning} style={{ marginRight: 8, flexShrink: 0 }} />
+              <MCIcon name="map-marker-question-outline" size={18} color={colors.warning} style={{ marginRight: 8, flexShrink: 0 }} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.guidanceTitle}>
                   Area not found in our city list
@@ -351,147 +475,5 @@ const LocationAutocomplete = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  /* ── Standard (underline) variant ─────────────────────────── */
-  containerStandard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    paddingBottom: 8,
-  },
-  iconStandard: { marginRight: 8 },
-  inputStandard: {
-    flex: 1,
-    color: Colors.textPrimary,
-    fontSize: 16,
-    fontFamily: Typography.fontFamily.regular,
-    padding: 0,
-  },
-
-  /* ── Outlined variant ──────────────────────────────────────── */
-  containerOutlined: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-  },
-  containerError: { borderColor: Colors.error },
-  containerWarning: { borderColor: Colors.warning },
-  iconOutlined: { marginRight: 10 },
-  inputOutlined: {
-    flex: 1,
-    color: Colors.textPrimary,
-    fontSize: 15,
-    fontFamily: Typography.fontFamily.medium,
-    padding: 0,
-  },
-
-  /* ── None variant ──────────────────────────────────────────── */
-  containerNone: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  iconNone: { marginRight: 8 },
-  inputNone: {
-    flex: 1,
-    color: Colors.textPrimary,
-    fontSize: 14,
-    fontFamily: Typography.fontFamily.medium,
-    padding: 0,
-  },
-
-  /* ── Floating dropdown ─────────────────────────────────────── */
-  dropdown: {
-    position: 'absolute',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 24,
-    overflow: 'hidden',
-  },
-  dropdownHeader: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.backgroundElevated,
-  },
-  dropdownHeaderText: {
-    color: Colors.textTertiary,
-    fontSize: 11,
-    fontFamily: Typography.fontFamily.semiBold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  itemTitle: {
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.semiBold,
-    fontSize: 14,
-  },
-  itemSub: {
-    color: Colors.textSecondary,
-    fontFamily: Typography.fontFamily.regular,
-    fontSize: 12,
-    marginTop: 2,
-  },
-
-  /* ── No-results guidance banner ────────────────────────────── */
-  guidanceBanner: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
-    zIndex: 9999,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#1C130C', // Dark premium amber surface to prevent overlapping text transparency
-    borderWidth: 1,
-    borderColor: Colors.warning,
-    borderRadius: BorderRadius.md,
-    padding: 12,
-    marginTop: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  guidanceTitle: {
-    color: Colors.warning,
-    fontFamily: Typography.fontFamily.semiBold,
-    fontSize: 13,
-    marginBottom: 4,
-  },
-  guidanceBody: {
-    color: Colors.textSecondary,
-    fontFamily: Typography.fontFamily.regular,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  guidanceHighlight: {
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.semiBold,
-  },
-});
 
 export default LocationAutocomplete;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
-import { Colors, Spacing, Typography, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import auctionService from '../../../services/auctionService';
 import api, { getImageUrl } from '../../../api/axios';
 
@@ -29,6 +29,8 @@ const BATTING_STYLES = ['Right Handed', 'Left Handed'];
 const BOWLING_STYLES = ['Right Arm Medium', 'Right Arm Fast', 'Left Arm Medium', 'Left Arm Fast', 'Spin'];
 
 const AuctionCreateSetsScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { auctionId: routeAuctionId, tournamentId, isReadOnly, showFinanceForOrganizer } = route.params || {};
   const [targetAuctionId, setTargetAuctionId] = useState(routeAuctionId);
 
@@ -187,19 +189,10 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
       return;
     }
 
-    let activeId = targetAuctionId;
-    if (!activeId && tournamentId) {
-      try {
-        const detailsRes = await auctionService.getAuctionDetails(tournamentId);
-        if (detailsRes.data && detailsRes.data._id) {
-          activeId = detailsRes.data._id;
-          setTargetAuctionId(activeId);
-        }
-      } catch (e) { }
-    }
+    let activeId = targetAuctionId || auctionProfile?._id || routeAuctionId || tournamentId;
 
     if (!activeId) {
-      showCustomAlert('Error', 'Auction profile not found for this tournament');
+      showCustomAlert('Error', 'Auction or Tournament ID is missing');
       return;
     }
 
@@ -216,11 +209,16 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
         data.append('amountPaid', playerForm.amountPaid);
       }
 
-      if (playerForm.photo?.uri) {
+      const photoVal = playerForm.photo;
+      const photoUri = typeof photoVal === 'string' ? photoVal : photoVal?.uri;
+
+      if (photoUri && (photoUri.startsWith('http://') || photoUri.startsWith('https://'))) {
+        data.append('photo', photoUri);
+      } else if (photoVal?.uri) {
         data.append('photo', {
-          uri: playerForm.photo.uri,
-          type: playerForm.photo.type || 'image/jpeg',
-          name: playerForm.photo.fileName || 'photo.jpg',
+          uri: photoVal.uri,
+          type: photoVal.type || 'image/jpeg',
+          name: photoVal.fileName || `player_${Date.now()}.jpg`,
         });
       }
 
@@ -242,7 +240,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
       setPhoneInput('');
       loadData();
     } catch (err) {
-      showCustomAlert('Error', err.response?.data?.message || 'Failed to add player');
+      showCustomAlert('Error', err.response?.data?.message || err.message || 'Failed to add player');
     } finally {
       setLoading(false);
     }
@@ -282,7 +280,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
       {/* Compact Top Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4 }}>
-          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+          <Icon name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 8 }}>
           <Text style={styles.headerTitle}>
@@ -290,7 +288,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
           </Text>
         </View>
         <TouchableOpacity onPress={onRefresh} style={{ padding: 4 }}>
-          <Icon name="refresh" size={22} color={Colors.primary} />
+          <Icon name="refresh" size={22} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -299,11 +297,11 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
         {!isReadOnly && mode === 'registrations' && (
           <>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'registered' && styles.tabBtnActive]} onPress={() => setActiveTab('registered')}>
-              <Icon name="account-group" size={14} color={activeTab === 'registered' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
+              <Icon name="account-group" size={14} color={activeTab === 'registered' ? colors.primary : colors.textTertiary} style={{ marginRight: 4 }} />
               <Text style={[styles.tabText, activeTab === 'registered' && styles.tabTextActive]}>Players ({registrations.length})</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'finance' && styles.tabBtnActive]} onPress={() => setActiveTab('finance')}>
-              <Icon name="cash-multiple" size={14} color={activeTab === 'finance' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
+              <Icon name="cash-multiple" size={14} color={activeTab === 'finance' ? colors.primary : colors.textTertiary} style={{ marginRight: 4 }} />
               <Text style={[styles.tabText, activeTab === 'finance' && styles.tabTextActive]}>Finance</Text>
             </TouchableOpacity>
           </>
@@ -312,11 +310,11 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
         {!isReadOnly && mode === 'sets' && (
           <>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'create_sets' && styles.tabBtnActive]} onPress={() => setActiveTab('create_sets')}>
-              <Icon name="cards-outline" size={14} color={activeTab === 'create_sets' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
+              <Icon name="cards-outline" size={14} color={activeTab === 'create_sets' ? colors.primary : colors.textTertiary} style={{ marginRight: 4 }} />
               <Text style={[styles.tabText, activeTab === 'create_sets' && styles.tabTextActive]}>Create Sets</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'sets' && styles.tabBtnActive]} onPress={() => setActiveTab('sets')}>
-              <Icon name="view-list" size={14} color={activeTab === 'sets' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
+              <Icon name="view-list" size={14} color={activeTab === 'sets' ? colors.primary : colors.textTertiary} style={{ marginRight: 4 }} />
               <Text style={[styles.tabText, activeTab === 'sets' && styles.tabTextActive]}>Sets ({sets.length})</Text>
             </TouchableOpacity>
           </>
@@ -325,18 +323,18 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
         {isReadOnly && (
           <>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'registered' && styles.tabBtnActive]} onPress={() => setActiveTab('registered')}>
-              <Icon name="account-group" size={14} color={activeTab === 'registered' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
+              <Icon name="account-group" size={14} color={activeTab === 'registered' ? colors.primary : colors.textTertiary} style={{ marginRight: 4 }} />
               <Text style={[styles.tabText, activeTab === 'registered' && styles.tabTextActive]}>Players ({registrations.length})</Text>
             </TouchableOpacity>
             
             {showFinanceForOrganizer ? (
               <TouchableOpacity style={[styles.tabBtn, activeTab === 'finance' && styles.tabBtnActive]} onPress={() => setActiveTab('finance')}>
-                <Icon name="cash-multiple" size={14} color={activeTab === 'finance' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
+                <Icon name="cash-multiple" size={14} color={activeTab === 'finance' ? colors.primary : colors.textTertiary} style={{ marginRight: 4 }} />
                 <Text style={[styles.tabText, activeTab === 'finance' && styles.tabTextActive]}>Finance</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={[styles.tabBtn, activeTab === 'sets' && styles.tabBtnActive]} onPress={() => setActiveTab('sets')}>
-                <Icon name="view-list" size={14} color={activeTab === 'sets' ? Colors.primary : Colors.textTertiary} style={{ marginRight: 4 }} />
+                <Icon name="view-list" size={14} color={activeTab === 'sets' ? colors.primary : colors.textTertiary} style={{ marginRight: 4 }} />
                 <Text style={[styles.tabText, activeTab === 'sets' && styles.tabTextActive]}>Sets ({sets.length})</Text>
               </TouchableOpacity>
             )}
@@ -352,7 +350,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
               style={styles.addBtn}
               onPress={() => setShowAddModal(true)}
             >
-              <Icon name="account-plus" size={18} color={Colors.white} />
+              <Icon name="account-plus" size={18} color={colors.white} />
               <Text style={styles.addBtnText}>ADD PLAYER MANUALLY</Text>
             </TouchableOpacity>
           )}
@@ -361,7 +359,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
             data={registrations}
             keyExtractor={(item) => item._id}
             contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: 100, paddingTop: Spacing.md }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
             renderItem={({ item, index }) => (
               <View style={styles.playerCard}>
                 <View style={styles.playerIndex}>
@@ -371,7 +369,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                   <Image source={{ uri: getImageUrl(item.photo) }} style={styles.avatarImg} />
                 ) : (
                   <View style={styles.avatarPlaceholder}>
-                    <Icon name="account" size={22} color={Colors.primary} />
+                    <Icon name="account" size={22} color={colors.primary} />
                   </View>
                 )}
                 <View style={{ flex: 1, marginLeft: 10 }}>
@@ -392,7 +390,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                 <View>
                   {[1, 2, 3, 4, 5].map(i => (
                     <View key={i} style={styles.playerCard}>
-                      <SkeletonPlaceholder backgroundColor={Colors.surface} highlightColor="#2A2A2A">
+                      <SkeletonPlaceholder backgroundColor={colors.surface} highlightColor="#2A2A2A">
                         <SkeletonPlaceholder.Item flexDirection="row" alignItems="center">
                           <SkeletonPlaceholder.Item width={26} height={26} borderRadius={13} marginRight={6} />
                           <SkeletonPlaceholder.Item width={44} height={44} borderRadius={22} />
@@ -409,7 +407,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                 </View>
               ) : (
                 <View style={styles.emptyBox}>
-                  <Icon name="account-group-outline" size={56} color={Colors.textTertiary} />
+                  <Icon name="account-group-outline" size={56} color={colors.textTertiary} />
                   <Text style={styles.emptyTitle}>No Players Yet</Text>
                   <Text style={styles.emptyText}>Add players manually or ask them to register.</Text>
                 </View>
@@ -424,12 +422,12 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 40 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
           {/* Stats Banner */}
           <View style={styles.statsBanner}>
             <View style={styles.statsBannerItem}>
-              <Icon name="account-group" size={20} color={Colors.primary} />
+              <Icon name="account-group" size={20} color={colors.primary} />
               <Text style={styles.statsBannerNum}>{registrations.length}</Text>
               <Text style={styles.statsBannerLbl}>Total Players</Text>
             </View>
@@ -461,14 +459,14 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                 style={[styles.strategyCard, strategy === 'mixture' && styles.strategyCardActive]}
                 onPress={() => setStrategy('mixture')}
               >
-                <View style={[styles.strategyIconBox, strategy === 'mixture' && { backgroundColor: Colors.primary + '22' }]}>
-                  <Icon name="shuffle-variant" size={22} color={strategy === 'mixture' ? Colors.primary : Colors.textTertiary} />
+                <View style={[styles.strategyIconBox, strategy === 'mixture' && { backgroundColor: colors.primary + '22' }]}>
+                  <Icon name="shuffle-variant" size={22} color={strategy === 'mixture' ? colors.primary : colors.textTertiary} />
                 </View>
-                <Text style={[styles.strategyTitle, strategy === 'mixture' && { color: Colors.primary }]}>Random Mixture</Text>
+                <Text style={[styles.strategyTitle, strategy === 'mixture' && { color: colors.primary }]}>Random Mixture</Text>
                 <Text style={styles.strategyDesc}>Players are shuffled{`\n`}and grouped randomly</Text>
                 {strategy === 'mixture' && (
                   <View style={styles.strategyCheck}>
-                    <Icon name="check-circle" size={16} color={Colors.primary} />
+                    <Icon name="check-circle" size={16} color={colors.primary} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -478,7 +476,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                 onPress={() => setStrategy('role_wise')}
               >
                 <View style={[styles.strategyIconBox, strategy === 'role_wise' && { backgroundColor: '#818CF822' }]}>
-                  <Icon name="account-group" size={22} color={strategy === 'role_wise' ? '#818CF8' : Colors.textTertiary} />
+                  <Icon name="account-group" size={22} color={strategy === 'role_wise' ? '#818CF8' : colors.textTertiary} />
                 </View>
                 <Text style={[styles.strategyTitle, strategy === 'role_wise' && { color: '#818CF8' }]}>Role Wise</Text>
                 <Text style={styles.strategyDesc}>Batsmen, Bowlers{`\n`}grouped by role</Text>
@@ -538,13 +536,13 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
             <View style={styles.financialRow}>
               <View style={styles.financialField}>
                 <View style={styles.financialIcon}>
-                  <Icon name="currency-inr" size={16} color={Colors.primary} />
+                  <Icon name="currency-inr" size={16} color={colors.primary} />
                 </View>
                 <Text style={styles.financialLabel}>Base Price (Pts)</Text>
                 <TextInput
                   style={styles.financialInput}
                   placeholder="e.g. 1000"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="number-pad"
                   value={basePrice}
                   onChangeText={setBasePrice}
@@ -558,7 +556,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                 <TextInput
                   style={styles.financialInput}
                   placeholder="e.g. 50000"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="number-pad"
                   value={teamPurse}
                   onChangeText={setTeamPurse}
@@ -569,7 +567,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
 
           {/* Summary + Generate */}
           <View style={styles.generateSummaryBox}>
-            <Icon name="information-outline" size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
+            <Icon name="information-outline" size={14} color={colors.textTertiary} style={{ marginRight: 6 }} />
             <Text style={styles.generateSummaryText}>
               {registrations.length} players → {Math.ceil(registrations.length / (parseInt(playersPerSet) || 1)) || 0} sets of ~{playersPerSet || 0} each
               {strategy === 'role_wise' ? ' (grouped by role)' : ' (random mix)'}
@@ -592,11 +590,11 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
           {sets.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Icon name="cards-outline" size={64} color={Colors.textTertiary} />
+              <Icon name="cards-outline" size={64} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>No Sets Generated</Text>
               <Text style={styles.emptyText}>Go to the "Create Sets" tab{`\n`}to generate auction sets.</Text>
             </View>
@@ -662,8 +660,8 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                       </View>
 
                       {isReadOnly && set.status !== 'in_progress'
-                        ? <Icon name="lock-outline" size={18} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
-                        : <Icon name="chevron-right" size={18} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
+                        ? <Icon name="lock-outline" size={18} color={colors.textTertiary} style={{ marginLeft: 8 }} />
+                        : <Icon name="chevron-right" size={18} color={colors.textTertiary} style={{ marginLeft: 8 }} />
                       }
                     </TouchableOpacity>
 
@@ -684,7 +682,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                                 color: p.role === 'Batsman' ? '#3B82F6'
                                   : p.role === 'Bowler' ? '#EF4444'
                                   : p.role === 'Wicket Keeper' ? '#F59E0B'
-                                  : Colors.primary
+                                  : colors.primary
                               }]}>{p.role}</Text>
                             </View>
                           </View>
@@ -714,7 +712,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Player Manually</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                <Icon name="close" size={24} color={Colors.textSecondary} />
+                <Icon name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -725,17 +723,17 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
                     placeholder="Enter 10-digit mobile"
-                    placeholderTextColor={Colors.textTertiary}
+                    placeholderTextColor={colors.textTertiary}
                     keyboardType="phone-pad"
                     value={phoneInput}
                     onChangeText={setPhoneInput}
                     maxLength={10}
                   />
                   <View style={styles.lookupBtn}>
-                    {lookingUp ? <ActivityIndicator color="#000" size="small" /> : <Icon name="check-circle" color={phoneInput.length === 10 ? '#000' : Colors.textTertiary} size={20} />}
+                    {lookingUp ? <ActivityIndicator color="#000" size="small" /> : <Icon name="check-circle" color={phoneInput.length === 10 ? '#000' : colors.textTertiary} size={20} />}
                   </View>
                 </View>
-                {lookupMessage ? <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 8, fontFamily: Typography.fontFamily.medium }}>{lookupMessage}</Text> : null}
+                {lookupMessage ? <Text style={{ color: colors.primary, fontSize: 12, marginTop: 8, fontFamily: Typography.fontFamily.medium }}>{lookupMessage}</Text> : null}
               </View>
 
               {/* Player Photo */}
@@ -745,19 +743,19 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                     <Image source={playerForm.photo} style={styles.photoImg} />
                   ) : (
                     <View style={{ alignItems: 'center' }}>
-                      <Icon name="camera-plus" size={28} color={Colors.primary} />
-                      <Text style={{ color: Colors.textSecondary, fontSize: 10, marginTop: 4 }}>Add Photo</Text>
+                      <Icon name="camera-plus" size={28} color={colors.primary} />
+                      <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 4 }}>Add Photo</Text>
                     </View>
                   )}
                 </TouchableOpacity>
-                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 8 }}>Max 3 MB</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8 }}>Max 3 MB</Text>
               </View>
 
               <Text style={styles.label}>Full Name *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Enter player name"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={playerForm.fullName}
                 onChangeText={(t) => setPlayerForm({ ...playerForm, fullName: t })}
               />
@@ -766,7 +764,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
               <TextInput
                 style={styles.input}
                 placeholder={`Default: ₹${auctionProfile?.registrationFee || 0}`}
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="numeric"
                 value={playerForm.amountPaid}
                 onChangeText={(t) => setPlayerForm({ ...playerForm, amountPaid: t })}
@@ -833,13 +831,13 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Set Players</Text>
               <TouchableOpacity onPress={() => setShowSetPlayersModal(false)}>
-                <Icon name="close" size={24} color={Colors.textSecondary} />
+                <Icon name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <ScrollView contentContainerStyle={{ paddingVertical: 10 }}>
               {selectedSetPlayers.length === 0 ? (
-                <Text style={{ textAlign: 'center', color: Colors.textTertiary, padding: 20 }}>No players in this set.</Text>
+                <Text style={{ textAlign: 'center', color: colors.textTertiary, padding: 20 }}>No players in this set.</Text>
               ) : (
                 selectedSetPlayers.map((p, idx) => (
                   <View key={p._id || idx} style={styles.playerCard}>
@@ -850,7 +848,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                       <Image source={{ uri: getImageUrl(p.photo || p.player?.photo) }} style={styles.avatarImg} />
                     ) : (
                       <View style={styles.avatarPlaceholder}>
-                        <Icon name="account" size={24} color={Colors.textTertiary} />
+                        <Icon name="account" size={24} color={colors.textTertiary} />
                       </View>
                     )}
                     <View style={{ flex: 1, marginLeft: 12 }}>
@@ -858,8 +856,8 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                       <Text style={styles.playerRole}>{p.role}</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ fontSize: 10, color: Colors.textTertiary }}>Base Price</Text>
-                      <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.primary }}>{p.basePrice || 0} Pts</Text>
+                      <Text style={{ fontSize: 10, color: colors.textTertiary }}>Base Price</Text>
+                      <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.primary }}>{p.basePrice || 0} Pts</Text>
                     </View>
                   </View>
                 ))
@@ -872,25 +870,25 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: 12,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
-  headerTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  headerTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
 
   // Tab bar — flat horizontal, not scrollable
   tabRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   tabBtn: {
     flex: 1,
@@ -902,12 +900,12 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
 
   },
-  tabBtnActive: { borderBottomColor: Colors.primary },
-  tabText: { color: Colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.medium },
-  tabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  tabBtnActive: { borderBottomColor: colors.primary },
+  tabText: { color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.medium },
+  tabTextActive: { color: colors.primary, fontFamily: Typography.fontFamily.bold },
 
   addBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     marginHorizontal: Spacing.md,
     marginVertical: 10,
     padding: 12,
@@ -917,34 +915,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  addBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  addBtnText: { color: colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
   playerCard: {
     marginTop: 2,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     padding: Spacing.md,
     borderRadius: 12,
     marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   playerIndex: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 6,
   },
-  playerIndexText: { color: Colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.bold },
+  playerIndexText: { color: colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.bold },
   avatarImg: { width: 44, height: 44, borderRadius: 22 },
-  avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' },
-  playerName: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  playerRole: { color: Colors.primary, fontSize: 12, marginTop: 2 },
-  playerSub: { color: Colors.textTertiary, fontSize: 11, marginTop: 2 },
+  avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+  playerName: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  playerRole: { color: colors.primary, fontSize: 12, marginTop: 2 },
+  playerSub: { color: colors.textTertiary, fontSize: 11, marginTop: 2 },
   paidChip: {
     backgroundColor: 'rgba(74, 222, 128, 0.12)',
     paddingHorizontal: 8,
@@ -958,137 +956,137 @@ const styles = StyleSheet.create({
   // ── Create Sets: Stats Banner ──
   statsBanner: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   statsBannerItem: { flex: 1, alignItems: 'center', paddingVertical: 16, gap: 4 },
-  statsBannerNum: { fontSize: 24, fontFamily: Typography.fontFamily.bold, color: Colors.primary, marginTop: 4 },
-  statsBannerLbl: { fontSize: 10, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  statsBannerDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 12 },
+  statsBannerNum: { fontSize: 24, fontFamily: Typography.fontFamily.bold, color: colors.primary, marginTop: 4 },
+  statsBannerLbl: { fontSize: 10, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  statsBannerDivider: { width: 1, backgroundColor: colors.border, marginVertical: 12 },
 
   // ── Create Sets: Section Card ──
   configSection: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     padding: 16,
     marginBottom: 12,
   },
   configSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 12 },
   configStepBadge: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: Colors.primary + '22',
+    backgroundColor: colors.primary + '22',
     borderWidth: 1.5,
-    borderColor: Colors.primary + '55',
+    borderColor: colors.primary + '55',
     justifyContent: 'center', alignItems: 'center',
   },
-  configStepNum: { color: Colors.primary, fontSize: 13, fontFamily: Typography.fontFamily.bold },
-  configSectionTitle: { color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold },
-  configSectionSub: { color: Colors.textTertiary, fontSize: 11, marginTop: 2 },
+  configStepNum: { color: colors.primary, fontSize: 13, fontFamily: Typography.fontFamily.bold },
+  configSectionTitle: { color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold },
+  configSectionSub: { color: colors.textTertiary, fontSize: 11, marginTop: 2 },
 
   // ── Strategy Cards ──
   strategyRow: { flexDirection: 'row', gap: 10 },
   strategyCard: {
     flex: 1, padding: 14, borderRadius: 12,
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5, borderColor: Colors.border,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5, borderColor: colors.border,
     alignItems: 'center', position: 'relative',
   },
-  strategyCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '0A' },
+  strategyCardActive: { borderColor: colors.primary, backgroundColor: colors.primary + '0A' },
   strategyIconBox: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 8,
   },
-  strategyTitle: { color: Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.bold, textAlign: 'center' },
-  strategyDesc: { color: Colors.textTertiary, fontSize: 10, textAlign: 'center', marginTop: 4, lineHeight: 15 },
+  strategyTitle: { color: colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.bold, textAlign: 'center' },
+  strategyDesc: { color: colors.textTertiary, fontSize: 10, textAlign: 'center', marginTop: 4, lineHeight: 15 },
   strategyCheck: {
     position: 'absolute', top: 8, right: 8,
-    backgroundColor: Colors.primary + '22',
+    backgroundColor: colors.primary + '22',
     borderRadius: 10, padding: 2,
-    borderWidth: 1, borderColor: Colors.primary + '44',
+    borderWidth: 1, borderColor: colors.primary + '44',
   },
 
   // ── Counter ──
   counterRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   counterBtn: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: colors.border,
   },
-  counterBtnText: { color: Colors.textPrimary, fontSize: 24, fontFamily: Typography.fontFamily.bold },
+  counterBtnText: { color: colors.textPrimary, fontSize: 24, fontFamily: Typography.fontFamily.bold },
   counterValBox: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    height: 54, backgroundColor: Colors.primary + '0D',
-    borderRadius: 12, borderWidth: 1.5, borderColor: Colors.primary + '44',
+    height: 54, backgroundColor: colors.primary + '0D',
+    borderRadius: 12, borderWidth: 1.5, borderColor: colors.primary + '44',
   },
-  counterVal: { color: Colors.primary, fontSize: 26, fontFamily: Typography.fontFamily.bold, textAlign: 'center', width: '100%', padding: 0, margin: 0 },
+  counterVal: { color: colors.primary, fontSize: 26, fontFamily: Typography.fontFamily.bold, textAlign: 'center', width: '100%', padding: 0, margin: 0 },
 
   // ── Financial Row ──
   financialRow: { flexDirection: 'row', gap: 10 },
   financialField: {
-    flex: 1, backgroundColor: Colors.surface,
-    borderRadius: 12, borderWidth: 1, borderColor: Colors.border, padding: 12,
+    flex: 1, backgroundColor: colors.surface,
+    borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12,
   },
   financialIcon: {
     width: 30, height: 30, borderRadius: 15,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: colors.primary + '15',
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 8,
   },
-  financialLabel: { color: Colors.textTertiary, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  financialLabel: { color: colors.textTertiary, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
   financialInput: {
-    color: Colors.textPrimary, fontSize: 18,
+    color: colors.textPrimary, fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
     paddingBottom: 4,
   },
 
   // ── Generate Button ──
   generateSummaryBox: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 10, padding: 10,
-    marginBottom: 12, borderWidth: 1, borderColor: Colors.border,
+    marginBottom: 12, borderWidth: 1, borderColor: colors.border,
   },
-  generateSummaryText: { color: Colors.textTertiary, fontSize: 12, flex: 1 },
+  generateSummaryText: { color: colors.textTertiary, fontSize: 12, flex: 1 },
   generateBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     height: 54, borderRadius: 14,
     justifyContent: 'center', alignItems: 'center', flexDirection: 'row',
   },
   generateBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
 
   // Legacy compat
-  card: { backgroundColor: Colors.backgroundElevated, padding: Spacing.lg, borderRadius: 16, borderWidth: 1, borderColor: Colors.border },
-  cardTitle: { color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.bold, marginBottom: Spacing.md },
-  controlLabel: { color: Colors.textSecondary, fontSize: 13, marginTop: Spacing.md, marginBottom: 10 },
-  hintText: { color: Colors.textTertiary, fontSize: 12, marginVertical: Spacing.lg, lineHeight: 18 },
-  primaryBtn: { backgroundColor: Colors.primary, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexDirection: 'row' },
-  primaryBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  card: { backgroundColor: colors.surface, padding: Spacing.lg, borderRadius: 16, borderWidth: 1, borderColor: colors.border },
+  cardTitle: { color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.bold, marginBottom: Spacing.md },
+  controlLabel: { color: colors.textSecondary, fontSize: 13, marginTop: Spacing.md, marginBottom: 10 },
+  hintText: { color: colors.textTertiary, fontSize: 12, marginVertical: Spacing.lg, lineHeight: 18 },
+  primaryBtn: { backgroundColor: colors.primary, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexDirection: 'row' },
+  primaryBtnText: { color: colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
   // ── Sets Tab ──
   setsHeader: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundElevated,
-    borderRadius: 14, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: 14, borderWidth: 1, borderColor: colors.border,
     marginBottom: 14, overflow: 'hidden',
   },
   setsHeaderStat: { flex: 1, alignItems: 'center', paddingVertical: 14 },
-  setsHeaderNum: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-  setsHeaderLbl: { fontSize: 10, color: Colors.textTertiary, marginTop: 2, textTransform: 'uppercase' },
+  setsHeaderNum: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.primary },
+  setsHeaderLbl: { fontSize: 10, color: colors.textTertiary, marginTop: 2, textTransform: 'uppercase' },
 
   setCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 14, marginBottom: 10,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: colors.border,
     overflow: 'hidden',
   },
   setCardInner: { flexDirection: 'row', alignItems: 'center', padding: 14 },
@@ -1098,9 +1096,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   setNumText: { fontSize: 15, fontFamily: Typography.fontFamily.bold },
-  setCardName: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  setCardSub: { color: Colors.textTertiary, fontSize: 11, marginTop: 2 },
-  setProgressBg: { height: 4, backgroundColor: Colors.surface, borderRadius: 2, marginTop: 8 },
+  setCardName: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  setCardSub: { color: colors.textTertiary, fontSize: 11, marginTop: 2 },
+  setProgressBg: { height: 4, backgroundColor: colors.surface, borderRadius: 2, marginTop: 8 },
   setProgressFill: { height: 4, borderRadius: 2 },
   setStatusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -1108,38 +1106,38 @@ const styles = StyleSheet.create({
     borderRadius: 10, borderWidth: 1,
   },
   setStatusText: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold },
-  setPlayersList: { borderTopWidth: 1, borderTopColor: Colors.border, padding: 10, backgroundColor: Colors.surface },
+  setPlayersList: { borderTopWidth: 1, borderTopColor: colors.border, padding: 10, backgroundColor: colors.surface },
   miniPlayerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, gap: 8 },
-  miniIdx: { width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.backgroundElevated, justifyContent: 'center', alignItems: 'center' },
-  miniIdxText: { color: Colors.textTertiary, fontSize: 10, fontFamily: Typography.fontFamily.bold },
-  miniPlayerName: { color: Colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.medium, flex: 1 },
+  miniIdx: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+  miniIdxText: { color: colors.textTertiary, fontSize: 10, fontFamily: Typography.fontFamily.bold },
+  miniPlayerName: { color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.medium, flex: 1 },
   miniRoleTag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   miniRoleText: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold },
-  morePlayersText: { color: Colors.primary, fontSize: 11, textAlign: 'center', marginTop: 6, opacity: 0.8 },
+  morePlayersText: { color: colors.primary, fontSize: 11, textAlign: 'center', marginTop: 6, opacity: 0.8 },
 
   // ── Legacy compat for sets ──
-  setContainer: { backgroundColor: Colors.backgroundElevated, borderRadius: 12, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+  setContainer: { backgroundColor: colors.surface, borderRadius: 12, marginBottom: Spacing.md, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   setCardHeader: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md },
   setIndexCircle: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(99,102,241,0.15)', justifyContent: 'center', alignItems: 'center' },
   setIndexText: { color: '#818CF8', fontSize: 13, fontFamily: Typography.fontFamily.bold },
-  setName: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  setSub: { color: Colors.textSecondary, fontSize: 12, marginTop: 2 },
+  setName: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  setSub: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginRight: 4 },
   statusText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
-  miniPlayerIdx: { color: Colors.textTertiary, fontSize: 11, width: 20, textAlign: 'right' },
-  miniPlayerRole: { color: Colors.textSecondary, fontSize: 11 },
+  miniPlayerIdx: { color: colors.textTertiary, fontSize: 11, width: 20, textAlign: 'right' },
+  miniPlayerRole: { color: colors.textSecondary, fontSize: 11 },
 
   emptyBox: { alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, marginTop: 30 },
-  emptyTitle: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginTop: Spacing.md },
-  emptyText: { color: Colors.textTertiary, marginTop: 6, fontSize: 13, textAlign: 'center' },
+  emptyTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginTop: Spacing.md },
+  emptyText: { color: colors.textTertiary, marginTop: 6, fontSize: 13, textAlign: 'center' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.backgroundElevated, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: Spacing.lg, maxHeight: '85%' },
+  modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: Spacing.lg, maxHeight: '85%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
 
   label: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
     letterSpacing: 0.6,
@@ -1154,16 +1152,16 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     height: 46,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.medium,
   },
   lookupBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 18,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 10,
-    shadowColor: Colors.primary,
+    shadowColor: colors.primary,
     shadowOpacity: 0.4,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
@@ -1181,25 +1179,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   chipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-    shadowColor: Colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
     shadowOpacity: 0.45,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 5,
   },
-  chipText: { color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium },
+  chipText: { color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium },
   chipTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
   submitBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     height: 52,
     borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,
-    shadowColor: Colors.primary,
+    shadowColor: colors.primary,
     shadowOpacity: 0.5,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },

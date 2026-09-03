@@ -1,29 +1,126 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator, RefreshControl, TextInput
+  ActivityIndicator, RefreshControl, TextInput, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../api/axios';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme } from '../../../theme/ThemeContext';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
-const roleColor = (role) => {
+const roleColor = (role, colors, isDark) => {
   switch (role) {
     case 'admin':    return '#FF4757';
     case 'owner':    return '#5B8DEF';
-    case 'player':   return Colors.primary;
-    default:         return Colors.textTertiary;
+    case 'player':   return isDark ? '#FFD400' : colors.primaryDark;
+    default:         return colors.textTertiary;
   }
 };
 
 const UserManagerScreen = ({ navigation }) => {
+  const { colors, isDark, shadows } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState(null);
+
+  // Role Change Modal state
+  const [roleModalUser, setRoleModalUser] = useState(null);
+  const [selectedRole, setSelectedRole] = useState('player');
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+
+  const openRoleChangeModal = (user) => {
+    if (user?.role === 'admin') {
+      showCustomAlert('Admin Account', 'Administrator accounts cannot have their role changed.');
+      return;
+    }
+    setRoleModalUser(user);
+    setSelectedRole(user?.role === 'owner' ? 'owner' : 'player');
+  };
+
+  const handleUpdateRole = async () => {
+    if (!roleModalUser || !selectedRole) return;
+    if (selectedRole === roleModalUser.role) {
+      setRoleModalUser(null);
+      return;
+    }
+    setIsUpdatingRole(true);
+    try {
+      await api.put(`/admin/users/${roleModalUser._id}/role`, { role: selectedRole });
+      showCustomAlert(
+        'Role Updated',
+        `Role for "${roleModalUser.name || roleModalUser.email}" updated to ${selectedRole.toUpperCase()}.\n\nThe user's active session has been logged out.`
+      );
+      setRoleModalUser(null);
+      fetchData();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to update user role');
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
+  const handleSoftDeleteUser = async (userId, userName) => {
+    try {
+      await api.delete(`/admin/users/${userId}`);
+      showCustomAlert('Soft Deleted', `User "${userName || 'User'}" has been soft-deleted and anonymized.`);
+      fetchData();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to soft delete user');
+    }
+  };
+
+  const handleHardDeleteUser = async (userId, userName) => {
+    try {
+      await api.delete(`/admin/users/${userId}/hard-delete`);
+      showCustomAlert('Permanently Deleted', `User "${userName || 'User'}" and all associated data have been completely removed from the database.`);
+      fetchData();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to hard delete user');
+    }
+  };
+
+  const promptDeleteUser = (user) => {
+    if (user?.role === 'admin') {
+      showCustomAlert('Admin Account', 'Administrator accounts cannot be deleted.');
+      return;
+    }
+
+    showCustomAlert(
+      'Delete User Account',
+      `Choose deletion type for "${user.name || user.email}":\n\n• Soft Delete: Deactivates account, anonymizes name to "Deleted User", and preserves match history.\n\n• Hard Delete: PERMANENTLY purges the user and all associated records completely from MongoDB.`,
+      [
+        {
+          text: 'Soft Delete (Anonymize)',
+          style: 'default',
+          onPress: () => handleSoftDeleteUser(user._id, user.name)
+        },
+        {
+          text: '🔥 Hard Delete (Remove from DB)',
+          style: 'destructive',
+          onPress: () => {
+            showCustomAlert(
+              '⚠️ CONFIRM HARD DELETE',
+              `Are you 100% sure you want to PERMANENTLY REMOVE "${user.name || user.email}" from the database?\n\nThis CANNOT be undone. Zero data will remain.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'PERMANENTLY DELETE FROM DB',
+                  style: 'destructive',
+                  onPress: () => handleHardDeleteUser(user._id, user.name)
+                }
+              ]
+            );
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -128,22 +225,40 @@ const UserManagerScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Action */}
-        <TouchableOpacity
-          style={[styles.actionBtn, isSuspended ? styles.actionBtnActivate : styles.actionBtnSuspend]}
-          onPress={() => handleToggleActive(item)}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator size="small" color={isSuspended ? Colors.success : Colors.error} />
-          ) : (
-            <Icon
-              name={isSuspended ? 'account-check-outline' : 'account-off-outline'}
-              size={18}
-              color={isSuspended ? Colors.success : Colors.error}
-            />
-          )}
-        </TouchableOpacity>
+        {/* Actions */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TouchableOpacity
+            style={styles.roleActionBtn}
+            onPress={() => openRoleChangeModal(item)}
+            activeOpacity={0.7}
+          >
+            <Icon name="account-convert-outline" size={16} color="#BA68C8" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, isSuspended ? styles.actionBtnActivate : styles.actionBtnSuspend]}
+            onPress={() => handleToggleActive(item)}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color={isSuspended ? Colors.success : Colors.error} />
+            ) : (
+              <Icon
+                name={isSuspended ? 'account-check-outline' : 'account-off-outline'}
+                size={18}
+                color={isSuspended ? Colors.success : Colors.error}
+              />
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: 'rgba(255,71,87,0.1)' }]}
+            onPress={() => promptDeleteUser(item)}
+            activeOpacity={0.7}
+          >
+            <Icon name="trash-can-outline" size={18} color={Colors.error} />
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -207,84 +322,282 @@ const UserManagerScreen = ({ navigation }) => {
           />
         )}
       </View>
+
+      {/* ── ROLE CHANGE MODAL ── */}
+      <Modal visible={!!roleModalUser} transparent animationType="fade" onRequestClose={() => !isUpdatingRole && setRoleModalUser(null)}>
+        <View style={styles.roleModalOverlay}>
+          <View style={styles.roleModalCard}>
+            <View style={styles.roleModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.roleModalTitle}>Change User Role</Text>
+                <Text style={styles.roleModalSubtitle} numberOfLines={1}>
+                  {roleModalUser?.name || 'User'} ({roleModalUser?.email || roleModalUser?.mobile || ''})
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setRoleModalUser(null)}
+                disabled={isUpdatingRole}
+                style={styles.roleModalCloseBtn}
+              >
+                <Icon name="close" size={20} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.roleModalLabel}>Select New Role:</Text>
+
+            <View style={styles.roleOptionList}>
+              {[
+                { id: 'player', title: 'Player', desc: 'Can join matches, tournaments, auctions and book turfs', icon: 'cricket', color: '#BA68C8' },
+                { id: 'owner', title: 'Turf Owner', desc: 'Can register and manage turfs, slots, and bookings', icon: 'briefcase', color: Colors.primary },
+              ].map((r) => {
+                const isSelected = selectedRole === r.id;
+                return (
+                  <TouchableOpacity
+                    key={r.id}
+                    style={[styles.roleOptionCard, isSelected && { borderColor: r.color, backgroundColor: r.color + '15' }]}
+                    onPress={() => setSelectedRole(r.id)}
+                    activeOpacity={0.8}
+                    disabled={isUpdatingRole}
+                  >
+                    <View style={[styles.roleOptionIconWrap, { backgroundColor: r.color + '25' }]}>
+                      <Icon name={r.icon} size={20} color={r.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.roleOptionTitle, isSelected && { color: r.color }]}>{r.title}</Text>
+                      <Text style={styles.roleOptionDesc}>{r.desc}</Text>
+                    </View>
+                    <Icon
+                      name={isSelected ? 'radiobox-marked' : 'radiobox-blank'}
+                      size={20}
+                      color={isSelected ? r.color : Colors.textTertiary}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.roleModalNotice}>
+              <Icon name="information-outline" size={15} color="#FF9800" style={{ marginTop: 1 }} />
+              <Text style={styles.roleModalNoticeText}>
+                Changing the role will automatically invalidate the user's active session, force them to log out, and prompt them to log in again with updated access.
+              </Text>
+            </View>
+
+            <View style={styles.roleModalActions}>
+              <TouchableOpacity
+                style={styles.roleModalCancelBtn}
+                onPress={() => setRoleModalUser(null)}
+                disabled={isUpdatingRole}
+              >
+                <Text style={styles.roleModalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.roleModalSaveBtn}
+                onPress={handleUpdateRole}
+                disabled={isUpdatingRole}
+              >
+                {isUpdatingRole ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={styles.roleModalSaveText}>Apply & Logout User</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.backgroundElevated },
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.background },
 
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
-    backgroundColor: Colors.backgroundElevated,
-    borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 12,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1, borderBottomColor: colors.border, gap: 12,
   },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
-  headerSubtitle: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginTop: 1 },
-  countBadge: {
-    backgroundColor: Colors.primaryAlpha20,
-    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: Colors.primaryAlpha30,
-  },
-  countBadgeText: { fontSize: 13, fontFamily: Typography.fontFamily.extraBold, color: Colors.primary },
+  headerTitle: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary },
+  headerSubtitle: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary },
 
-  searchBox: {
+  searchBarContainer: {
+    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.surface,
-    marginHorizontal: Spacing.lg, marginVertical: Spacing.md,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: colors.surfaceVariant, borderRadius: 12,
+    borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 12, paddingVertical: 8,
   },
-  searchInput: { flex: 1, fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, padding: 0 },
+  searchInput: { flex: 1, fontSize: 13, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, padding: 0 },
 
-  listContent: { paddingHorizontal: Spacing.lg, paddingBottom: 60 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { color: colors.textSecondary, textAlign: 'center', marginTop: Spacing.xl, fontFamily: Typography.fontFamily.medium },
+  list: { padding: Spacing.md, paddingBottom: 60 },
 
-  card: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg, padding: Spacing.md,
-    marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border,
+  userCard: {
+    backgroundColor: colors.surface, borderRadius: BorderRadius.lg,
+    borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.sm,
+    padding: Spacing.md, gap: 10,
   },
-  cardSuspended: {
-    borderColor: 'rgba(244,67,54,0.2)',
-    backgroundColor: 'rgba(244,67,54,0.03)',
-  },
-  cardLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  userHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  userMainInfo: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  avatar: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: '#FFF', fontSize: 16, fontFamily: Typography.fontFamily.extraBold },
+  userName: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  userEmail: { fontSize: 11, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginTop: 1 },
 
-  avatar: {
-    width: 42, height: 42, borderRadius: 13,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  avatarText: { fontSize: 17, fontFamily: Typography.fontFamily.extraBold },
+  roleBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
+  roleBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
 
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  userName: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, flexShrink: 1 },
-  userNameSuspended: { color: Colors.textTertiary, textDecorationLine: 'line-through' },
-  rolePill: {
-    paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: 6, borderWidth: 1,
-  },
-  roleText: { fontSize: 8, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  userMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingTop: 4, borderTopWidth: 1, borderTopColor: colors.border },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular },
 
-  userEmail: { fontSize: 11, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
-  metaDot: { width: 2, height: 2, borderRadius: 1, backgroundColor: Colors.textTertiary },
-  metaText: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
-
+  userActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   actionBtn: {
-    width: 38, height: 38, borderRadius: 10,
-    justifyContent: 'center', alignItems: 'center',
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 8, borderRadius: 8, borderWidth: 1,
   },
-  actionBtnSuspend: { backgroundColor: 'rgba(244,67,54,0.1)' },
-  actionBtnActivate: { backgroundColor: 'rgba(46,213,115,0.1)' },
+  suspendBtn: { backgroundColor: 'rgba(255,152,0,0.1)', borderColor: 'rgba(255,152,0,0.3)' },
+  suspendBtnText: { color: '#FF9800', fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  reactivateBtn: { backgroundColor: 'rgba(46,213,115,0.1)', borderColor: 'rgba(46,213,115,0.3)' },
+  reactivateBtnText: { color: '#2ED573', fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  deleteBtn: { backgroundColor: 'rgba(255,71,87,0.1)', borderColor: 'rgba(255,71,87,0.3)' },
+  deleteBtnText: { color: '#FF4757', fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  roleChangeBtn: { backgroundColor: isDark ? 'rgba(255,212,0,0.12)' : 'rgba(212,160,0,0.12)', borderColor: isDark ? 'rgba(255,212,0,0.3)' : 'rgba(212,160,0,0.3)' },
+  roleChangeBtnText: { color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 12, fontFamily: Typography.fontFamily.bold },
 
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 10 },
-  emptyTitle: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  emptySubtitle: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, textAlign: 'center' },
+  // Role Change Modal Styles
+  roleModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  roleModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  roleModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  roleModalTitle: {
+    fontSize: 18,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  roleModalSubtitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  roleModalCloseBtn: {
+    padding: 4,
+  },
+  roleModalLabel: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  roleOptionList: {
+    gap: 10,
+    marginBottom: Spacing.md,
+  },
+  roleOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  roleOptionIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  roleOptionTitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  roleOptionDesc: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  roleModalNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(255,152,0,0.1)',
+    borderRadius: BorderRadius.md,
+    padding: 10,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,152,0,0.25)',
+  },
+  roleModalNoticeText: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
+    color: '#FF9800',
+    lineHeight: 16,
+  },
+  roleModalActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  roleModalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: colors.surfaceVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleModalCancelText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textSecondary,
+  },
+  roleModalSaveBtn: {
+    flex: 1.6,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: isDark ? '#FFD400' : colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleModalSaveText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#000' : '#FFF',
+  },
 });
 
 export default UserManagerScreen;

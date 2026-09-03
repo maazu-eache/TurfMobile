@@ -4,10 +4,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api, { getImageUrl } from '../../../api/axios';
 import { Colors, Typography } from '../../../theme/theme';
+import { useTheme } from '../../../theme/ThemeContext';
 import { formatISTDateTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 export default function UgcReportsAdminView() {
+  const { colors, isDark, shadows } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -374,44 +377,44 @@ export default function UgcReportsAdminView() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  tabsContainer: { flexDirection: 'row', backgroundColor: Colors.backgroundElevated, padding: 8, gap: 8 },
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  tabsContainer: { flexDirection: 'row', backgroundColor: colors.surface, padding: 8, gap: 8 },
   tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 20 },
-  activeTab: { backgroundColor: Colors.primary },
-  tabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
-  activeTabText: { color: '#000', fontFamily: Typography.fontFamily.bold },
+  activeTab: { backgroundColor: isDark ? '#FFD400' : colors.primaryDark },
+  tabText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  activeTabText: { color: isDark ? '#000' : '#FFF', fontFamily: Typography.fontFamily.bold },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16 },
-  card: { backgroundColor: Colors.backgroundCard, padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
+  card: { backgroundColor: colors.surface, padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  contentTypeText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
-  dateText: { color: Colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.regular },
-  contentBox: { backgroundColor: Colors.background, padding: 10, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)' },
+  contentTypeText: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  dateText: { color: colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.regular },
+  contentBox: { backgroundColor: colors.surfaceVariant, padding: 10, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#222' },
   avatarFallback: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,204,0,0.1)', justifyContent: 'center', alignItems: 'center' },
-  avatarFallbackText: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-  contentName: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-  contentSub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginTop: 1 },
-  reasonText: { color: Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.medium, marginBottom: 6 },
-  detailsBox: { backgroundColor: 'rgba(255,255,255,0.02)', padding: 10, borderRadius: 6, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  detailsText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.regular, fontSize: 13, lineHeight: 18 },
-  reporterText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginBottom: 12 },
+  avatarFallbackText: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark },
+  contentName: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  contentSub: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginTop: 1 },
+  reasonText: { color: colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.medium, marginBottom: 6 },
+  detailsBox: { backgroundColor: colors.surfaceVariant, padding: 10, borderRadius: 6, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
+  detailsText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.regular, fontSize: 13, lineHeight: 18 },
+  reporterText: { color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginBottom: 12 },
   actionsRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   actionBtn: { flex: 1, paddingVertical: 8, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   actionBtnText: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 40 },
-  emptyText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginTop: 16 },
+  emptyText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginTop: 16 },
 
   // Modal styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 16 },
-  modalContent: { backgroundColor: Colors.backgroundModal || Colors.backgroundCard, borderRadius: 16, padding: 20, maxHeight: '80%', borderWidth: 1, borderColor: Colors.border },
+  modalContent: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, maxHeight: '80%', borderWidth: 1, borderColor: colors.border },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18 },
-  modalInput: { backgroundColor: Colors.background, color: '#fff', borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, fontSize: 14, textAlignVertical: 'top', height: 100 },
+  modalTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18 },
+  modalInput: { backgroundColor: colors.surfaceVariant, color: colors.textPrimary, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 12, fontSize: 14, textAlignVertical: 'top', height: 100 },
   modalActionBtn: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
 
-  recipientBadge: { backgroundColor: 'rgba(255,204,0,0.06)', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,204,0,0.15)', marginBottom: 12 },
-  recipientTitle: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13, marginBottom: 4 },
-  recipientDetail: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginBottom: 2 },
+  recipientBadge: { backgroundColor: colors.surfaceVariant, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  recipientTitle: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 13, marginBottom: 4 },
+  recipientDetail: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginBottom: 2 },
 });

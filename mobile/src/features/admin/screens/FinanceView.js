@@ -7,6 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../api/axios';
 import { Colors, Typography } from '../../../theme/theme';
+import { useTheme } from '../../../theme/ThemeContext';
 
 // Full currency — used in list cards, modals
 const formatCurrency = (val) => `\u20b9${(val || 0).toLocaleString('en-IN')}`;
@@ -37,25 +38,27 @@ const TABS = [
 
 // ── Small info row ──────────────────────────────────────────────────
 const InfoRow = ({ icon, label, value, valueColor }) => (
-  <View style={styles.infoRow}>
-    <Icon name={icon} size={13} color={Colors.textTertiary} />
-    <Text style={styles.infoLabel}>{label}</Text>
-    <Text style={[styles.infoValue, valueColor && { color: valueColor }]}>{value}</Text>
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 }}>
+    <Icon name={icon} size={13} color="rgba(255,255,255,0.4)" />
+    <Text style={{ fontSize: 11, fontFamily: 'Outfit-Medium', color: 'rgba(255,255,255,0.6)' }}>{label}</Text>
+    <Text style={[{ fontSize: 11, fontFamily: 'Outfit-Bold', color: '#FFF', marginLeft: 'auto' }, valueColor && { color: valueColor }]}>{value}</Text>
   </View>
 );
 
 // ── Empty state ────────────────────────────────────────────────────
 const EmptyState = ({ icon, message }) => (
-  <View style={styles.emptyContainer}>
-    <View style={styles.emptyIconRing}>
-      <Icon name={icon} size={32} color={Colors.textTertiary} />
+  <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 60, paddingBottom: 40, gap: 10 }}>
+    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.04)', justifyContent: 'center', alignItems: 'center' }}>
+      <Icon name={icon} size={32} color="rgba(255,255,255,0.3)" />
     </View>
-    <Text style={styles.emptyTitle}>Nothing here</Text>
-    <Text style={styles.emptyText}>{message}</Text>
+    <Text style={{ fontSize: 16, fontFamily: 'Outfit-Bold', color: '#FFF' }}>Nothing here</Text>
+    <Text style={{ fontSize: 12, fontFamily: 'Outfit-Regular', color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>{message}</Text>
   </View>
 );
 
 const FinanceView = () => {
+  const { colors, isDark, shadows } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
   const [activeTab, setActiveTab] = useState('summary');
   const [loading, setLoading] = useState(true);
   const [summaryData, setSummaryData] = useState(null);
@@ -614,13 +617,14 @@ const FinanceView = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
   // ── Tab bar ──────────────────────────────────────────────────────
   tabBar: {
     maxHeight: 56, minHeight: 56,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   tabBarContent: {
     paddingHorizontal: 12, gap: 8, alignItems: 'center',
@@ -631,28 +635,28 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3, borderBottomColor: 'transparent',
   },
   tabActive: {
-    borderBottomColor: Colors.primary,
+    borderBottomColor: isDark ? '#FFD400' : colors.primaryDark,
   },
   tabLabel: {
-    fontSize: 13, fontFamily: 'Outfit-Bold', color: Colors.textTertiary,
+    fontSize: 13, fontFamily: 'Outfit-Bold', color: colors.textTertiary,
   },
   tabLabelActive: {
-    color: Colors.primary,
+    color: isDark ? '#FFD400' : colors.primaryDark,
   },
 
   // ── Loading ──────────────────────────────────────────────────────
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { color: Colors.textSecondary, fontSize: 14, fontFamily: 'Outfit-Regular' },
+  loadingText: { color: colors.textSecondary, fontSize: 14, fontFamily: 'Outfit-Regular' },
 
   // ── Summary ──────────────────────────────────────────────────────
   summaryContent: { padding: 16, gap: 14, paddingBottom: 32 },
 
   // Section block (wraps header + tiles)
   sectionBlock: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   sectionHeader: {
@@ -661,18 +665,18 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   sectionIconWrap: {
     width: 34, height: 34, borderRadius: 10,
-    backgroundColor: 'rgba(255,204,0,0.12)',
+    backgroundColor: isDark ? 'rgba(255,204,0,0.12)' : 'rgba(212,160,0,0.12)',
     justifyContent: 'center', alignItems: 'center',
   },
-  sectionTitle: { fontSize: 14, fontFamily: 'Outfit-Bold', color: Colors.textPrimary },
-  sectionSub: { fontSize: 11, fontFamily: 'Outfit-Regular', color: Colors.textTertiary, marginTop: 1 },
+  sectionTitle: { fontSize: 14, fontFamily: 'Outfit-Bold', color: colors.textPrimary },
+  sectionSub: { fontSize: 11, fontFamily: 'Outfit-Regular', color: colors.textTertiary, marginTop: 1 },
   sectionTotal: { alignItems: 'flex-end' },
-  sectionTotalLabel: { fontSize: 9, fontFamily: 'Outfit-Bold', color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionTotalValue: { fontSize: 15, fontFamily: 'Outfit-ExtraBold', color: Colors.primary, marginTop: 2 },
+  sectionTotalLabel: { fontSize: 9, fontFamily: 'Outfit-Bold', color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTotalValue: { fontSize: 15, fontFamily: 'Outfit-ExtraBold', color: isDark ? '#FFD400' : colors.primaryDark, marginTop: 2 },
 
   // 4-tile row inside a section
   tilesRow: { flexDirection: 'row' },
@@ -682,10 +686,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 4,
     borderRightWidth: 1,
-    borderRightColor: Colors.border,
+    borderRightColor: colors.border,
   },
   tileHighlight: {
-    backgroundColor: 'rgba(255,204,0,0.06)',
+    backgroundColor: isDark ? 'rgba(255,204,0,0.06)' : 'rgba(212,160,0,0.06)',
   },
   tileHighlightGreen: {
     backgroundColor: 'rgba(46,213,115,0.06)',
@@ -693,13 +697,13 @@ const styles = StyleSheet.create({
   tileValue: {
     fontSize: 13,
     fontFamily: 'Outfit-ExtraBold',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
-  tileValueHighlight: { color: Colors.primary },
+  tileValueHighlight: { color: isDark ? '#FFD400' : colors.primaryDark },
   tileLabel: {
     fontSize: 9,
     fontFamily: 'Outfit-Bold',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
@@ -707,10 +711,10 @@ const styles = StyleSheet.create({
   // Cashflow strip
   cashflowStrip: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   cashflowItem: {
@@ -720,16 +724,16 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 14,
   },
-  cashflowDivider: { width: 1, backgroundColor: Colors.border },
+  cashflowDivider: { width: 1, backgroundColor: colors.border },
   cashflowValue: {
     fontSize: 14,
     fontFamily: 'Outfit-ExtraBold',
-    color: Colors.success,
+    color: '#2ED573',
   },
   cashflowLabel: {
     fontSize: 10,
     fontFamily: 'Outfit-Medium',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginTop: 2,
   },
 
@@ -737,16 +741,16 @@ const styles = StyleSheet.create({
   // ── List / Cards ─────────────────────────────────────────────────
   list: { padding: 16, gap: 12 },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
-  cardGreenAccent: { borderLeftWidth: 3, borderLeftColor: Colors.success },
-  cardRedAccent: { borderLeftWidth: 3, borderLeftColor: Colors.error },
-  cardOrangeAccent: { borderLeftWidth: 3, borderLeftColor: Colors.warning },
+  cardGreenAccent: { borderLeftWidth: 3, borderLeftColor: '#2ED573' },
+  cardRedAccent: { borderLeftWidth: 3, borderLeftColor: '#FF4757' },
+  cardOrangeAccent: { borderLeftWidth: 3, borderLeftColor: '#FF9800' },
 
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cardIconWrap: {
@@ -754,23 +758,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(46,213,115,0.12)',
     justifyContent: 'center', alignItems: 'center',
   },
-  cardTitle: { color: Colors.textPrimary, fontSize: 14, fontFamily: 'Outfit-Bold', flex: 1 },
-  cardSubtitle: { color: Colors.textTertiary, fontSize: 11, fontFamily: 'Outfit-Regular', marginTop: 2 },
+  cardTitle: { color: colors.textPrimary, fontSize: 14, fontFamily: 'Outfit-Bold', flex: 1 },
+  cardSubtitle: { color: colors.textTertiary, fontSize: 11, fontFamily: 'Outfit-Regular', marginTop: 2 },
   cardAmount: { fontSize: 16, fontFamily: 'Outfit-ExtraBold' },
 
-  divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 12 },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
 
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  infoLabel: { color: Colors.textTertiary, fontSize: 12, fontFamily: 'Outfit-Regular', width: 70 },
-  infoValue: { color: Colors.textSecondary, fontSize: 12, fontFamily: 'Outfit-Medium', flex: 1 },
+  infoLabel: { color: colors.textTertiary, fontSize: 12, fontFamily: 'Outfit-Regular', width: 70 },
+  infoValue: { color: colors.textSecondary, fontSize: 12, fontFamily: 'Outfit-Medium', flex: 1 },
 
   pendingBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: Colors.warningLight,
+    backgroundColor: 'rgba(255,152,0,0.12)',
     paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: 6, marginBottom: 12,
   },
-  pendingBadgeText: { color: Colors.warning, fontSize: 9, fontFamily: 'Outfit-Bold', letterSpacing: 0.8 },
+  pendingBadgeText: { color: '#FF9800', fontSize: 9, fontFamily: 'Outfit-Bold', letterSpacing: 0.8 },
 
   actionBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -778,29 +782,29 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   actionBtnDisabled: { opacity: 0.5 },
-  actionBtnText: { color: Colors.background, fontSize: 13, fontFamily: 'Outfit-Bold' },
+  actionBtnText: { color: colors.background, fontSize: 13, fontFamily: 'Outfit-Bold' },
   actionRow: { flexDirection: 'row', gap: 10 },
 
   // ── Ledger rows ──────────────────────────────────────────────────
   ledgerRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   ledgerDot: { width: 8, height: 8, borderRadius: 4 },
-  ledgerTitle: { color: Colors.textPrimary, fontSize: 13, fontFamily: 'Outfit-Bold', textTransform: 'capitalize' },
-  ledgerSub: { color: Colors.textSecondary, fontSize: 12, fontFamily: 'Outfit-Regular', marginTop: 1 },
+  ledgerTitle: { color: colors.textPrimary, fontSize: 13, fontFamily: 'Outfit-Bold', textTransform: 'capitalize' },
+  ledgerSub: { color: colors.textSecondary, fontSize: 12, fontFamily: 'Outfit-Regular', marginTop: 1 },
   ledgerAmount: { fontSize: 15, fontFamily: 'Outfit-ExtraBold' },
 
   statusPill: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surfaceVariant,
     paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 6, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 6, borderWidth: 1, borderColor: colors.border,
     marginTop: 4,
   },
   statusPillText: {
-    color: Colors.success, fontSize: 10,
+    color: '#2ED573', fontSize: 10,
     fontFamily: 'Outfit-Bold', textTransform: 'capitalize',
   },
 
@@ -808,12 +812,12 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyIconRing: {
     width: 72, height: 72, borderRadius: 36,
-    backgroundColor: Colors.surface,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.border,
     justifyContent: 'center', alignItems: 'center',
   },
-  emptyTitle: { color: Colors.textPrimary, fontSize: 16, fontFamily: 'Outfit-Bold' },
-  emptyText: { color: Colors.textTertiary, fontSize: 13, fontFamily: 'Outfit-Regular', textAlign: 'center', paddingHorizontal: 32 },
+  emptyTitle: { color: colors.textPrimary, fontSize: 16, fontFamily: 'Outfit-Bold' },
+  emptyText: { color: colors.textTertiary, fontSize: 13, fontFamily: 'Outfit-Regular', textAlign: 'center', paddingHorizontal: 32 },
 
   overlayLoader: {
     position: 'absolute',

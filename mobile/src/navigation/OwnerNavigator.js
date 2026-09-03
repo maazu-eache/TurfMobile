@@ -1,12 +1,13 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { View, Animated, TouchableOpacity, Text, StyleSheet, Image } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors } from '../theme/theme';
+import { useTheme } from '../theme/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchOwnerDashboard } from '../features/owner/ownerSlice';
+import { getImageUrl } from '../api/axios';
 
 import OwnerDashboardScreen from '../features/owner/screens/OwnerDashboardScreen';
 import TurfRegistrationScreen from '../features/owner/screens/TurfRegistrationScreen';
@@ -86,7 +87,8 @@ const ProfileStack = () => (
 const tabIcons = { Dashboard: 'view-dashboard', Bookings: 'calendar-clock', Analytics: 'chart-bar', Profile: 'account' };
 
 /* ── Animated single tab item ──────────────────────────────────────────── */
-const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets, badgeCount }) => {
+const TabItem = ({ route, isFocused, onPress, onLongPress, colors, isDark, insets, badgeCount }) => {
+  const { user } = useSelector((state) => state.auth);
   const scaleAnim = useRef(new Animated.Value(isFocused ? 1.15 : 1)).current;
   const dotAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
   const translateY = useRef(new Animated.Value(isFocused ? -3 : 0)).current;
@@ -115,6 +117,8 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets, badgeC
   }, [isFocused]);
 
   const iconName = tabIcons[route.name] || 'circle';
+  const isProfileTab = route.name === 'Profile';
+  const avatarUrl = (isProfileTab && user?.photo) ? getImageUrl(user.photo) : null;
 
   return (
     <TouchableOpacity
@@ -126,14 +130,35 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets, badgeC
       activeOpacity={0.7}
     >
       <Animated.View style={[tabStyles.iconWrap, { transform: [{ scale: scaleAnim }, { translateY }] }]}>
-        <View>
-          <Icon name={iconName} size={22} color={isFocused ? Colors.primary : Colors.textTertiary} />
-          {badgeCount > 0 && (
-            <View style={tabStyles.badge}>
-              <Text style={tabStyles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
-            </View>
-          )}
-        </View>
+        {avatarUrl ? (
+          <View
+            style={[
+              tabStyles.avatarWrap,
+              {
+                borderColor: isFocused ? (isDark ? '#FFD400' : colors.primaryDark) : colors.border,
+              },
+            ]}
+          >
+            <Image
+              source={{ uri: avatarUrl }}
+              style={tabStyles.avatarImg}
+              resizeMode="cover"
+            />
+          </View>
+        ) : (
+          <View>
+            <Icon 
+              name={iconName} 
+              size={22} 
+              color={isFocused ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textTertiary} 
+            />
+            {badgeCount > 0 && (
+              <View style={[tabStyles.badge, { backgroundColor: colors.error }]}>
+                <Text style={tabStyles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
+              </View>
+            )}
+          </View>
+        )}
       </Animated.View>
 
       {/* Yellow dot indicator below the icon */}
@@ -141,6 +166,7 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets, badgeC
         style={[
           tabStyles.dot,
           {
+            backgroundColor: isDark ? '#FFD400' : colors.primaryDark,
             opacity: dotAnim,
             transform: [{ scaleX: dotAnim }],
           },
@@ -150,7 +176,10 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets, badgeC
       <Text
         style={[
           tabStyles.label,
-          { color: isFocused ? Colors.primary : Colors.textTertiary },
+          { 
+            color: isFocused ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textTertiary,
+            fontWeight: isFocused ? '700' : '500'
+          },
         ]}
       >
         {route.name}
@@ -161,13 +190,21 @@ const TabItem = ({ route, isFocused, onPress, onLongPress, color, insets, badgeC
 
 /* ── Custom full tab bar ─────────────────────────────────────────────────── */
 const CustomTabBar = ({ state, descriptors, navigation, insets }) => {
+  const { colors, isDark } = useTheme();
   // Check if tab bar should be hidden for the current focused route
   const focusedOptions = descriptors[state.routes[state.index].key].options;
   const tabBarStyle = focusedOptions.tabBarStyle;
   if (tabBarStyle?.display === 'none') return null;
 
   return (
-    <View style={[tabStyles.container, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
+    <View style={[
+      tabStyles.container, 
+      { 
+        backgroundColor: colors.surface, 
+        borderTopColor: colors.border,
+        paddingBottom: insets.bottom > 0 ? insets.bottom : 10 
+      }
+    ]}>
       {state.routes.map((route, index) => {
         const isFocused = state.index === index;
         const onPress = () => {
@@ -186,6 +223,8 @@ const CustomTabBar = ({ state, descriptors, navigation, insets }) => {
             isFocused={isFocused}
             onPress={onPress}
             onLongPress={onLongPress}
+            colors={colors}
+            isDark={isDark}
             insets={insets}
             badgeCount={route.name === 'Bookings' ? descriptors[route.key].options.badgeCount : 0}
           />
@@ -198,9 +237,7 @@ const CustomTabBar = ({ state, descriptors, navigation, insets }) => {
 const tabStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundCard,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
     paddingTop: 10,
   },
   tabItem: {
@@ -214,11 +251,21 @@ const tabStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+  },
   dot: {
     width: 18,
     height: 3,
     borderRadius: 2,
-    backgroundColor: Colors.primary,
   },
   label: {
     fontSize: 9.5,
@@ -229,7 +276,6 @@ const tabStyles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -8,
-    backgroundColor: Colors.error,
     borderRadius: 10,
     minWidth: 16,
     height: 16,

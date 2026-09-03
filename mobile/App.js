@@ -10,7 +10,7 @@ import messaging from '@react-native-firebase/messaging';
 
 import { store, persistor } from './src/store';
 import RootNavigator from './src/navigation/RootNavigator';
-import { darkTheme } from './src/theme/theme';
+import { ThemeProvider, useTheme } from './src/theme/theme';
 import { navigationRef, navigate } from './src/navigation/navigationRef';
 import NotificationService from './src/services/NotificationService';
 import CustomAlert, { customAlertRef } from './src/components/CustomAlert';
@@ -128,6 +128,40 @@ const linking = {
   },
 };
 
+const ThemedAppContent = () => {
+  const { theme, isDark } = useTheme();
+
+  return (
+    <PaperProvider theme={theme}>
+      <NavigationContainer
+        linking={linking}
+        ref={navigationRef}
+        theme={theme}
+        onReady={() => {
+          const currentRoute = navigationRef.getCurrentRoute();
+          const rootState = navigationRef.getRootState();
+          console.log('🧭 [Navigation] NavigationContainer is READY.');
+          console.log('🧭 [Navigation] Current Active Route:', currentRoute?.name);
+          console.log('🧭 [Navigation] Current Active Params:', JSON.stringify(currentRoute?.params));
+          console.log('🧭 [Navigation] Full Resolved State Tree:', JSON.stringify(rootState));
+        }}
+        onStateChange={(state) => {
+          const currentRoute = navigationRef.getCurrentRoute();
+          console.log('🧭 [Navigation] Navigation state changed -> Active Route:', currentRoute?.name, 'Params:', JSON.stringify(currentRoute?.params));
+        }}
+      >
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor="transparent"
+          translucent
+        />
+        <RootNavigator />
+        <CustomAlert ref={customAlertRef} />
+      </NavigationContainer>
+    </PaperProvider>
+  );
+};
+
 const App = () => {
   useEffect(() => {
     try {
@@ -161,33 +195,9 @@ const App = () => {
           }}
         >
           <SafeAreaProvider>
-            <PaperProvider theme={darkTheme}>
-              <NavigationContainer
-                linking={linking}
-                ref={navigationRef}
-                theme={darkTheme}
-                onReady={() => {
-                  const currentRoute = navigationRef.getCurrentRoute();
-                  const rootState = navigationRef.getRootState();
-                  console.log('🧭 [Navigation] NavigationContainer is READY.');
-                  console.log('🧭 [Navigation] Current Active Route:', currentRoute?.name);
-                  console.log('🧭 [Navigation] Current Active Params:', JSON.stringify(currentRoute?.params));
-                  console.log('🧭 [Navigation] Full Resolved State Tree:', JSON.stringify(rootState));
-                }}
-                onStateChange={(state) => {
-                  const currentRoute = navigationRef.getCurrentRoute();
-                  console.log('🧭 [Navigation] Navigation state changed -> Active Route:', currentRoute?.name, 'Params:', JSON.stringify(currentRoute?.params));
-                }}
-              >
-                <StatusBar
-                  barStyle="light-content"
-                  backgroundColor="transparent"
-                  translucent
-                />
-                <RootNavigator />
-                <CustomAlert ref={customAlertRef} />
-              </NavigationContainer>
-            </PaperProvider>
+            <ThemeProvider>
+              <ThemedAppContent />
+            </ThemeProvider>
           </SafeAreaProvider>
         </PersistGate>
       </Provider>

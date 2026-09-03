@@ -108,8 +108,12 @@ const authSlice = createSlice({
     isLoading: false,
     error: null,
     isGuest: false,
+    currentRole: null,
   },
   reducers: {
+    setCurrentRole: (state, action) => {
+      state.currentRole = action.payload;
+    },
     setTokens: (state, action) => {
       state.accessToken = action.payload.accessToken;
       state.refreshToken = action.payload.refreshToken;
@@ -120,6 +124,7 @@ const authSlice = createSlice({
       state.refreshToken = null;
       state.isAuthenticated = false;
       state.isGuest = true; // Stay in guest mode to skip onboarding
+      state.currentRole = null;
     },
     clearError: (state) => { state.error = null; },
     setGuestMode: (state, action) => { state.isGuest = action.payload; },
@@ -185,6 +190,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.accessToken = action.payload.accessToken;
         state.refreshToken = action.payload.refreshToken;
+        state.currentRole = action.payload.user?.role || (action.payload.user?.roles?.includes('owner') ? 'owner' : 'customer');
       })
       .addCase(registerWithPassword.rejected, (state, action) => {
         state.isLoading = false;
@@ -207,6 +213,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.accessToken = action.payload.accessToken;
         state.refreshToken = action.payload.refreshToken;
+        state.currentRole = action.payload.user?.role || (action.payload.user?.roles?.includes('owner') ? 'owner' : 'customer');
       })
       .addCase(loginWithPassword.rejected, (state, action) => {
         state.isLoading = false;
@@ -232,6 +239,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.accessToken = action.payload.accessToken;
         state.refreshToken = action.payload.refreshToken;
+        state.currentRole = action.payload.user?.role || (action.payload.user?.roles?.includes('owner') ? 'owner' : 'customer');
       })
       .addCase(loginWithGoogle.rejected, (state, action) => {
         state.isLoading = false;
@@ -250,9 +258,21 @@ const authSlice = createSlice({
       .addCase(payOwnerFee.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
-      });
+      })
+      // forgotPassword
+      .addCase(forgotPassword.pending, (state) => { state.isLoading = true; state.error = null; })
+      .addCase(forgotPassword.fulfilled, (state) => { state.isLoading = false; })
+      .addCase(forgotPassword.rejected, (state, action) => { state.isLoading = false; state.error = action.payload; })
+      // verifyResetOtp
+      .addCase(verifyResetOtp.pending, (state) => { state.isLoading = true; state.error = null; })
+      .addCase(verifyResetOtp.fulfilled, (state) => { state.isLoading = false; })
+      .addCase(verifyResetOtp.rejected, (state, action) => { state.isLoading = false; state.error = action.payload; })
+      // resetPassword
+      .addCase(resetPassword.pending, (state) => { state.isLoading = true; state.error = null; })
+      .addCase(resetPassword.fulfilled, (state) => { state.isLoading = false; })
+      .addCase(resetPassword.rejected, (state, action) => { state.isLoading = false; state.error = action.payload; });
   },
 });
 
-export const { setTokens, logoutLocal, clearError, setGuestMode, updateUserRole, updateUser, toggleUserFavourite, setUserFavouriteStatus } = authSlice.actions;
+export const { setTokens, logoutLocal, clearError, setGuestMode, updateUserRole, updateUser, toggleUserFavourite, setUserFavouriteStatus, setCurrentRole } = authSlice.actions;
 export default authSlice.reducer;

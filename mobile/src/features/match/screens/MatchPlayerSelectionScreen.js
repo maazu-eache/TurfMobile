@@ -21,10 +21,12 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { fetchLiveState, setInitialPlayers, addMatchScorer, setLiveState } from '../matchSlice';
 import socketService from '../../../services/socketService';
 import api, { getImageUrl } from '../../../api/axios';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const MatchPlayerSelectionScreen = () => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const route = useRoute();
   const navigation = useNavigation();
   const dispatch = useDispatch();
@@ -456,7 +458,7 @@ const MatchPlayerSelectionScreen = () => {
   if (!liveState || !liveState.match) {
     return (
       <SafeAreaView style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
   }
@@ -467,8 +469,8 @@ const MatchPlayerSelectionScreen = () => {
 
   const renderPlayerSelectionCard = (title, selectedPlayer, mode, disabled = false) => {
     const isBowler = mode === 'bowler';
-    const accentColor = isBowler ? '#F59E0B' : Colors.primary;
-    const ringColor = selectedPlayer ? accentColor : Colors.border;
+    const accentColor = isBowler ? '#F59E0B' : colors.primary;
+    const ringColor = selectedPlayer ? accentColor : colors.border;
     // Resolve photo from multiple possible paths
     const photoUrl = selectedPlayer
       ? (selectedPlayer.photo || selectedPlayer.userId?.photo || selectedPlayer.avatar || null)
@@ -501,7 +503,7 @@ const MatchPlayerSelectionScreen = () => {
             )
           ) : (
             <View key="empty" style={styles.selectionAvatarPlaceholderEmpty}>
-              <Icon name="plus-circle-outline" size={32} color={Colors.textTertiary} />
+              <Icon name="plus-circle-outline" size={32} color={colors.textTertiary} />
             </View>
           )}
           {/* Role badge */}
@@ -529,14 +531,14 @@ const MatchPlayerSelectionScreen = () => {
     <SafeAreaView style={styles.safe}>
       {submitting && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }]}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       )}
 
       {/* Premium Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="chevron-left" size={28} color={Colors.textPrimary} />
+          <Icon name="chevron-left" size={28} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={styles.headerTitle}>
@@ -547,7 +549,7 @@ const MatchPlayerSelectionScreen = () => {
           </Text>
         </View>
         <TouchableOpacity onPress={() => setShowSettingsModal(true)} style={styles.headerActionBtn}>
-          <Icon name="cog" size={24} color={Colors.primary} />
+          <Icon name="cog" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -582,7 +584,7 @@ const MatchPlayerSelectionScreen = () => {
           </View>
         ) : (
           <View style={styles.contextBanner}>
-            <Icon name={liveState?.match?.status === 'in_progress' ? 'account-switch' : 'flag-checkered'} size={18} color={Colors.primary} />
+            <Icon name={liveState?.match?.status === 'in_progress' ? 'account-switch' : 'flag-checkered'} size={18} color={colors.primary} />
             <Text style={styles.contextBannerText}>
               {liveState?.match?.status === 'in_progress'
                 ? 'Select the new batter(s) to continue scoring.'
@@ -593,7 +595,7 @@ const MatchPlayerSelectionScreen = () => {
 
         {/* BATTERS SECTION */}
         <View style={styles.sectionLabelRow}>
-          <View style={[styles.sectionDot, { backgroundColor: Colors.primary }]} />
+          <View style={[styles.sectionDot, { backgroundColor: colors.primary }]} />
           <Text style={styles.sectionHeader}>BATTERS</Text>
           <Text style={styles.sectionTeamName}>{batTeam?.name}</Text>
         </View>
@@ -628,7 +630,7 @@ const MatchPlayerSelectionScreen = () => {
         {liveState?.score ? (
           <View style={styles.scoreFooterBanner}>
             <View style={styles.scoreFooterLeft}>
-              <Icon name="cricket" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Icon name="cricket" size={14} color={colors.primary} style={{ marginRight: 6 }} />
               <Text style={styles.scoreFooterTeam} numberOfLines={1}>{batTeam?.name || 'Batting Team'}</Text>
             </View>
             <Text style={styles.scoreFooterScore}>
@@ -654,23 +656,23 @@ const MatchPlayerSelectionScreen = () => {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select from Squad</Text>
                 <TouchableOpacity onPress={() => setShowSquadModal(false)}>
-                  <Icon name="close" size={24} color={Colors.textPrimary} />
+                  <Icon name="close" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
 
               {/* Search Input */}
               <View style={styles.searchBarContainer}>
-                <Icon name="magnify" size={20} color={Colors.textTertiary} style={{ marginRight: 8 }} />
+                <Icon name="magnify" size={20} color={colors.textTertiary} style={{ marginRight: 8 }} />
                 <TextInput
                   placeholder="Search player..."
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   style={styles.searchInput}
                 />
                 {searchQuery ? (
                   <TouchableOpacity onPress={() => setSearchQuery('')}>
-                    <Icon name="close-circle" size={18} color={Colors.textTertiary} />
+                    <Icon name="close-circle" size={18} color={colors.textTertiary} />
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -768,14 +770,14 @@ const MatchPlayerSelectionScreen = () => {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.modalListText}>{p.name}</Text>
                           {!!playerStatsStr && (
-                            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}>
+                            <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
                               {playerStatsStr}
                             </Text>
                           )}
-                          {isDisabled ? <Text style={{ fontSize: 12, color: Colors.error, marginTop: 2 }}>{disabledReason}</Text> : null}
+                          {isDisabled ? <Text style={{ fontSize: 12, color: colors.error, marginTop: 2 }}>{disabledReason}</Text> : null}
                         </View>
                         {!isDisabled ? (
-                          <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
+                          <Icon name="chevron-right" size={20} color={colors.textTertiary} />
                         ) : null}
                       </TouchableOpacity>
                     );
@@ -791,7 +793,7 @@ const MatchPlayerSelectionScreen = () => {
                   setShowEditSquadModal(true);
                 }}
               >
-                <Icon name="pencil" size={20} color={Colors.primary} />
+                <Icon name="pencil" size={20} color={colors.primary} />
                 <Text style={styles.editSquadBtnText}>Edit Squad / Add Player</Text>
               </TouchableOpacity>
             </SafeAreaView>
@@ -807,7 +809,7 @@ const MatchPlayerSelectionScreen = () => {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Edit Playing XI</Text>
                 <TouchableOpacity onPress={() => setShowEditSquadModal(false)}>
-                  <Icon name="close" size={24} color={Colors.textPrimary} />
+                  <Icon name="close" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.instructionText}>Check the players you want in the playing XI. Pull down to refresh.</Text>
@@ -817,7 +819,7 @@ const MatchPlayerSelectionScreen = () => {
                 extraScrollHeight={20}
                 keyboardShouldPersistTaps="handled"
                 style={styles.modalList}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshModal} colors={[Colors.primary]} tintColor={Colors.primary} />}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshModal} colors={[colors.primary]} tintColor={colors.primary} />}
               >
                 {(activeSelectionMode === 'bowler' ? bowlingTeamRoster : battingTeamRoster).map((p, idx) => {
                   const currentSquad = activeSelectionMode === 'bowler' ? bowlingSquad : battingSquad;
@@ -831,7 +833,7 @@ const MatchPlayerSelectionScreen = () => {
                       <Icon
                         name={isSelected ? "checkbox-marked" : "checkbox-blank-outline"}
                         size={24}
-                        color={isSelected ? Colors.primary : Colors.textTertiary}
+                        color={isSelected ? colors.primary : colors.textTertiary}
                       />
                       <View style={styles.avatarPlaceholderSm}>
                         <Text style={styles.avatarTextSm}>{p.name.charAt(0).toUpperCase()}</Text>
@@ -923,7 +925,7 @@ const MatchPlayerSelectionScreen = () => {
                     });
                   }}
                 >
-                  <Icon name="plus" size={20} color={Colors.textSecondary} />
+                  <Icon name="plus" size={20} color={colors.textSecondary} />
                   <Text style={styles.addNewBtnText}>Add New Player to Team</Text>
                 </TouchableOpacity>
 
@@ -948,53 +950,53 @@ const MatchPlayerSelectionScreen = () => {
           >
             <TouchableOpacity
               activeOpacity={1}
-              style={{ width: '75%', backgroundColor: Colors.background, height: '100%', padding: 20, paddingTop: 60, elevation: 5, shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 5 }}
+              style={{ width: '75%', backgroundColor: colors.background, height: '100%', padding: 20, paddingTop: 60, elevation: 5, shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 5 }}
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ fontSize: 20, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Match Settings</Text>
-                <TouchableOpacity onPress={() => setShowSettingsModal(false)}><Icon name="close" size={24} color={Colors.textSecondary} /></TouchableOpacity>
+                <Text style={{ fontSize: 20, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Match Settings</Text>
+                <TouchableOpacity onPress={() => setShowSettingsModal(false)}><Icon name="close" size={24} color={colors.textSecondary} /></TouchableOpacity>
               </View>
               <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 <View style={{ gap: 12 }}>
                   {isCreator && isMatchActive ? (
-                    <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('add_scorer')}>
-                      <Icon name="account-plus-outline" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
-                      <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Add / Change Scorer</Text>
+                    <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('add_scorer')}>
+                      <Icon name="account-plus-outline" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
+                      <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Add / Change Scorer</Text>
                     </TouchableOpacity>
                   ) : null}
 
                   {/* ── Between / 2nd Innings Settings ─────────────── */}
                   {liveState?.inningsNumber >= 2 && (
                     <>
-                      <View style={{ height: 1, backgroundColor: Colors.border, marginVertical: 8 }} />
-                      <Text style={{ fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 4, paddingHorizontal: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>2nd Innings Settings</Text>
+                      <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+                      <Text style={{ fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 4, paddingHorizontal: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>2nd Innings Settings</Text>
 
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('revise_overs')}>
+                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('revise_overs')}>
                         <Icon name="weather-lightning-rainy" size={20} color='#29B6F6' style={{ marginRight: 12 }} />
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Revised Target (Rain / DLS)</Text>
-                          <Text style={{ fontSize: 10, color: Colors.textTertiary, marginTop: 1 }}>Reduce overs & set new target</Text>
+                          <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Revised Target (Rain / DLS)</Text>
+                          <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }}>Reduce overs & set new target</Text>
                         </View>
                       </TouchableOpacity>
 
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_dls')}>
-                        <Icon name="scale-balance" size={20} color={Colors.info} style={{ marginRight: 12 }} />
+                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_dls')}>
+                        <Icon name="scale-balance" size={20} color={colors.info} style={{ marginRight: 12 }} />
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.bsBtnText, { color: Colors.info }]}>Declare Winner via DLS</Text>
-                          <Text style={{ fontSize: 10, color: Colors.textTertiary, marginTop: 1 }}>End match now using DLS method</Text>
+                          <Text style={[styles.bsBtnText, { color: colors.info }]}>Declare Winner via DLS</Text>
+                          <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }}>End match now using DLS method</Text>
                         </View>
                       </TouchableOpacity>
                     </>
                   )}
 
-                  <View style={{ height: 1, backgroundColor: Colors.border, marginVertical: 8 }} />
+                  <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
 
                   {isCreator && isMatchActive ? (
-                    <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16, borderWidth: 1, borderColor: `${Colors.error}40` }]} onPress={() => handleSettingsAction('abandon')}>
-                      <Icon name="cancel" size={20} color={Colors.error} style={{ marginRight: 12 }} />
+                    <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16, borderWidth: 1, borderColor: `${colors.error}40` }]} onPress={() => handleSettingsAction('abandon')}>
+                      <Icon name="cancel" size={20} color={colors.error} style={{ marginRight: 12 }} />
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.bsBtnText, { color: Colors.error }]}>Abandon Match</Text>
-                        <Text style={{ fontSize: 10, color: `${Colors.error}99`, marginTop: 1 }}>Irreversible — match will be void</Text>
+                        <Text style={[styles.bsBtnText, { color: colors.error }]}>Abandon Match</Text>
+                        <Text style={{ fontSize: 10, color: `${colors.error}99`, marginTop: 1 }}>Irreversible — match will be void</Text>
                       </View>
                     </TouchableOpacity>
                   ) : null}
@@ -1009,17 +1011,17 @@ const MatchPlayerSelectionScreen = () => {
       {showAddScorerModal ? (
         <Modal visible={true} transparent animationType="slide" onRequestClose={() => setShowAddScorerModal(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: Colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 30 }}>
+            <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 30 }}>
               {/* Header */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-                <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>Add / Change Scorer</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>Add / Change Scorer</Text>
                 <TouchableOpacity onPress={() => { setShowAddScorerModal(false); setNewScorerMobile(''); }}>
-                  <Icon name="close" size={24} color={Colors.textSecondary} />
+                  <Icon name="close" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
               {/* Tab Bar */}
-              <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 14, backgroundColor: Colors.surface, borderRadius: 10, padding: 3 }}>
+              <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 14, backgroundColor: colors.surface, borderRadius: 10, padding: 3 }}>
                 {[
                   { key: 'teamA', label: match?.teamA?.name || 'Team A' },
                   { key: 'teamB', label: match?.teamB?.name || 'Team B' },
@@ -1030,7 +1032,7 @@ const MatchPlayerSelectionScreen = () => {
                     onPress={() => setScorerTab(tab.key)}
                     style={[
                       { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-                      scorerTab === tab.key && { backgroundColor: Colors.primary },
+                      scorerTab === tab.key && { backgroundColor: colors.primary },
                     ]}
                   >
                     <Text
@@ -1038,7 +1040,7 @@ const MatchPlayerSelectionScreen = () => {
                       style={{
                         fontSize: 11,
                         fontFamily: Typography.fontFamily.semiBold,
-                        color: scorerTab === tab.key ? '#000' : Colors.textSecondary,
+                        color: scorerTab === tab.key ? '#000' : colors.textSecondary,
                       }}
                     >
                       {tab.label}
@@ -1050,13 +1052,13 @@ const MatchPlayerSelectionScreen = () => {
               {/* Tab Content */}
               {scorerTab === 'search' ? (
                 <View style={{ padding: 16 }}>
-                  <Text style={{ color: Colors.textSecondary, marginBottom: 10, fontSize: 13 }}>Enter mobile number to search and add scorer:</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border }}>
-                    <Icon name="phone-outline" size={20} color={Colors.textTertiary} />
+                  <Text style={{ color: colors.textSecondary, marginBottom: 10, fontSize: 13 }}>Enter mobile number to search and add scorer:</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border }}>
+                    <Icon name="phone-outline" size={20} color={colors.textTertiary} />
                     <TextInput
-                      style={{ flex: 1, color: Colors.textPrimary, fontSize: 15, paddingVertical: 12, marginLeft: 8 }}
+                      style={{ flex: 1, color: colors.textPrimary, fontSize: 15, paddingVertical: 12, marginLeft: 8 }}
                       placeholder="10-digit mobile number"
-                      placeholderTextColor={Colors.textTertiary}
+                      placeholderTextColor={colors.textTertiary}
                       keyboardType="phone-pad"
                       value={newScorerMobile}
                       onChangeText={(val) => {
@@ -1069,27 +1071,27 @@ const MatchPlayerSelectionScreen = () => {
                       }}
                       maxLength={10}
                     />
-                    {isScorerSearching && <ActivityIndicator color={Colors.primary} size="small" />}
+                    {isScorerSearching && <ActivityIndicator color={colors.primary} size="small" />}
                   </View>
 
                   {scorerSearchResult && scorerSearchResult.exists && (
-                    <View style={{ marginTop: 16, backgroundColor: Colors.surfaceVariant, padding: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                        <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                    <View style={{ marginTop: 16, backgroundColor: colors.surfaceVariant, padding: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                        <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
                           {(scorerSearchResult.user?.name || 'U').charAt(0).toUpperCase()}
                         </Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>
+                        <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>
                           {scorerSearchResult.user?.name || 'Registered User'}
                         </Text>
-                        <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Registered User</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Registered User</Text>
                       </View>
                     </View>
                   )}
 
                   {scorerSearchResult && !scorerSearchResult.exists && (
-                    <Text style={{ color: Colors.error, fontSize: 13, marginTop: 12, textAlign: 'center' }}>
+                    <Text style={{ color: colors.error, fontSize: 13, marginTop: 12, textAlign: 'center' }}>
                       User not found. Please enter a registered user's number.
                     </Text>
                   )}
@@ -1127,9 +1129,9 @@ const MatchPlayerSelectionScreen = () => {
                   showsVerticalScrollIndicator={false}
                   ListEmptyComponent={() => (
                     <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                      <Icon name="account-group-outline" size={48} color={Colors.textTertiary} />
-                      <Text style={{ color: Colors.textTertiary, marginTop: 10, fontSize: 14 }}>No players available</Text>
-                      <Text style={{ color: Colors.textTertiary, fontSize: 12, marginTop: 4 }}>All players may already be scorers</Text>
+                      <Icon name="account-group-outline" size={48} color={colors.textTertiary} />
+                      <Text style={{ color: colors.textTertiary, marginTop: 10, fontSize: 14 }}>No players available</Text>
+                      <Text style={{ color: colors.textTertiary, fontSize: 12, marginTop: 4 }}>All players may already be scorers</Text>
                     </View>
                   )}
                   renderItem={({ item }) => {
@@ -1139,33 +1141,33 @@ const MatchPlayerSelectionScreen = () => {
                     const pid = item._id || item.userId?._id;
                     const isAdding = scorerAddingId === pid;
                     return (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.border }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
                         {/* Avatar */}
                         {photo ? (
                           <Image source={{ uri: getImageUrl(photo) }} style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }} />
                         ) : (
-                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                            <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 18 }}>{name.charAt(0).toUpperCase()}</Text>
+                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                            <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 18 }}>{name.charAt(0).toUpperCase()}</Text>
                           </View>
                         )}
                         {/* Name & Role */}
                         <View style={{ flex: 1 }}>
-                          <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>{name}</Text>
-                          {role ? <Text style={{ color: Colors.textSecondary, fontSize: 11, marginTop: 2 }}>{role}</Text> : null}
+                          <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>{name}</Text>
+                          {role ? <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>{role}</Text> : null}
                         </View>
                         {/* Add Button */}
                         <TouchableOpacity
                           onPress={() => handleAddScorerFromPlayer(item)}
                           disabled={isAdding}
                           style={{
-                            backgroundColor: isAdding ? Colors.border : Colors.primary,
+                            backgroundColor: isAdding ? colors.border : colors.primary,
                             paddingHorizontal: 14,
                             paddingVertical: 8,
                             borderRadius: 8,
                           }}
                         >
                           {isAdding
-                            ? <Icon name="loading" size={16} color={Colors.textSecondary} />
+                            ? <Icon name="loading" size={16} color={colors.textSecondary} />
                             : <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Add</Text>
                           }
                         </TouchableOpacity>
@@ -1186,7 +1188,7 @@ const MatchPlayerSelectionScreen = () => {
               <Text style={styles.settingsModalTitle}>Revise Match</Text>
               <Text style={styles.settingsModalSub}>Reduce overs due to rain or other interruptions.</Text>
 
-              <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>Revised Total Overs:</Text>
+              <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>Revised Total Overs:</Text>
               <TextInput
                 style={styles.settingsModalInput}
                 keyboardType="numeric"
@@ -1196,7 +1198,7 @@ const MatchPlayerSelectionScreen = () => {
 
               {liveState?.inningsNumber === 2 && (
                 <>
-                  <Text style={{ color: Colors.textTertiary, fontSize: 12, marginTop: 10 }}>Note: The revised target will be automatically calculated using the DLS method.</Text>
+                  <Text style={{ color: colors.textTertiary, fontSize: 12, marginTop: 10 }}>Note: The revised target will be automatically calculated using the DLS method.</Text>
                 </>
               )}
 
@@ -1220,15 +1222,15 @@ const MatchPlayerSelectionScreen = () => {
               <Text style={styles.settingsModalTitle}>Abandon Match</Text>
               <Text style={styles.settingsModalSub}>Are you sure you want to abandon this match? This action cannot be undone.</Text>
 
-              <Text style={{ color: Colors.textSecondary, marginBottom: 8, marginTop: 10 }}>Reason for abandoning:</Text>
+              <Text style={{ color: colors.textSecondary, marginBottom: 8, marginTop: 10 }}>Reason for abandoning:</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {['Rain', 'Bad Light', 'Pitch Unplayable', 'Other'].map(r => (
                   <TouchableOpacity
                     key={r}
-                    style={{ backgroundColor: abandonReason === r ? Colors.primary : Colors.surface, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: abandonReason === r ? Colors.primary : Colors.border }}
+                    style={{ backgroundColor: abandonReason === r ? colors.primary : colors.surface, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: abandonReason === r ? colors.primary : colors.border }}
                     onPress={() => setAbandonReason(r)}
                   >
-                    <Text style={{ color: abandonReason === r ? '#000' : Colors.textPrimary, fontSize: 12 }}>{r}</Text>
+                    <Text style={{ color: abandonReason === r ? '#000' : colors.textPrimary, fontSize: 12 }}>{r}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1236,7 +1238,7 @@ const MatchPlayerSelectionScreen = () => {
               <TextInput
                 style={[styles.settingsModalInput, { height: 80 }]}
                 placeholder="Type custom reason here (Optional)"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={abandonReason}
                 onChangeText={setAbandonReason}
                 multiline
@@ -1246,7 +1248,7 @@ const MatchPlayerSelectionScreen = () => {
                 <TouchableOpacity style={styles.settingsModalBtnCancel} onPress={() => setShowAbandonModal(false)}>
                   <Text style={styles.settingsModalBtnTextCancel}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.settingsModalBtnAdd, { backgroundColor: Colors.error }]} onPress={submitAbandon}>
+                <TouchableOpacity style={[styles.settingsModalBtnAdd, { backgroundColor: colors.error }]} onPress={submitAbandon}>
                   <Text style={[styles.settingsModalBtnTextAdd, { color: '#FFF' }]}>Abandon Match</Text>
                 </TouchableOpacity>
               </View>
@@ -1258,9 +1260,9 @@ const MatchPlayerSelectionScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1269,32 +1271,32 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderBottomColor: colors.borderLight,
+    backgroundColor: colors.surface,
   },
   backBtn: { padding: 4 },
   headerTitle: {
     fontSize: 17,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   headerSubtitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: 1,
   },
   content: { padding: Spacing.base, paddingBottom: Spacing.xl },
   subtitle: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.xl,
     textAlign: 'center',
   },
   contextBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
     borderRadius: BorderRadius.sm,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -1305,7 +1307,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   sectionLabelRow: {
     flexDirection: 'row',
@@ -1321,7 +1323,7 @@ const styles = StyleSheet.create({
   sectionTeamName: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginLeft: 'auto',
   },
   cardsRow: {
@@ -1333,19 +1335,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scorerCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
     borderLeftWidth: 4,
-    borderLeftColor: Colors.accent,
+    borderLeftColor: colors.accent,
   },
   scorerTitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: Spacing.md,
@@ -1366,50 +1368,50 @@ const styles = StyleSheet.create({
   scorerName: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   scorerRole: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   verifiedBadgeLarge: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sectionHeader: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
   },
   sectionHeaderTeam: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 12,
   },
   card: {
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     borderRadius: BorderRadius.md,
     padding: Spacing.base,
     marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   cardTitle: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   teamSubtext: {
     fontSize: 14,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
   },
   selectBtn: {
@@ -1417,10 +1419,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
     borderRadius: BorderRadius.sm,
     padding: Spacing.sm,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   selectBtnContent: {
     flexDirection: 'row',
@@ -1428,38 +1430,38 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: 15,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
   avatarPlaceholder: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
   avatarText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 14,
     fontWeight: 'bold',
   },
   selectedPlayerName: {
     fontSize: 16,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.medium,
   },
   scoreFooterBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
     borderRadius: BorderRadius.sm,
     paddingVertical: 10,
     paddingHorizontal: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha20,
+    borderColor: colors.primaryAlpha20,
   },
   scoreFooterLeft: {
     flexDirection: 'row',
@@ -1469,28 +1471,28 @@ const styles = StyleSheet.create({
   scoreFooterTeam: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     flex: 1,
   },
   scoreFooterScore: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
   },
   scoreFooterOvers: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   footer: {
     padding: Spacing.base,
     paddingBottom: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderTopColor: colors.borderLight,
+    backgroundColor: colors.surface,
   },
   startBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 16,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
@@ -1509,12 +1511,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     padding: Spacing.base,
     height: '100%',
   },
   modalContentFull: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     padding: Spacing.base,
     height: '100%',
   },
@@ -1527,11 +1529,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   instructionText: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.md,
   },
   modalList: {
@@ -1542,11 +1544,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: Spacing.base,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
     shadowColor: '#000',
     shadowOpacity: 0.04,
     shadowRadius: 4,
@@ -1557,36 +1559,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: Spacing.base,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
   },
   avatarPlaceholderSm: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha20,
+    borderColor: colors.primaryAlpha20,
   },
   avatarTextSm: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 15,
     fontWeight: 'bold',
   },
   modalListText: {
     fontSize: 15,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   emptyText: {
     textAlign: 'center',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginTop: 20,
   },
   editSquadBtn: {
@@ -1594,22 +1596,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.base,
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha20,
+    borderColor: colors.primaryAlpha20,
     marginTop: Spacing.base,
   },
   editSquadBtnText: {
     marginLeft: 8,
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 16,
     fontFamily: Typography.fontFamily.medium,
   },
   editSquadFooter: {
     marginTop: Spacing.base,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: colors.borderLight,
     paddingTop: Spacing.base,
   },
   addNewBtn: {
@@ -1620,15 +1622,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
   },
   addNewBtnText: {
     marginLeft: 8,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 15,
   },
   saveBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     padding: 14,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
@@ -1643,29 +1645,29 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.xs,
   },
   input: {
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
     borderRadius: BorderRadius.sm,
     padding: Spacing.sm,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 16,
   },
   foundPlayerCard: {
     padding: Spacing.md,
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     borderRadius: BorderRadius.md,
     marginTop: Spacing.md,
     marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
   },
   foundText: {
     fontSize: 12,
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
     marginBottom: Spacing.sm,
   },
@@ -1678,14 +1680,14 @@ const styles = StyleSheet.create({
   },
   targetBanner: {
     flexDirection: 'row',
-    backgroundColor: Colors.primaryAlpha20,
+    backgroundColor: colors.primaryAlpha20,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.lg,
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha20,
+    borderColor: colors.primaryAlpha20,
   },
   targetCol: {
     flex: 1,
@@ -1694,28 +1696,28 @@ const styles = StyleSheet.create({
   targetDivider: {
     width: 1,
     height: '100%',
-    backgroundColor: Colors.primaryAlpha20,
+    backgroundColor: colors.primaryAlpha20,
   },
   targetLabel: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   targetValue: {
     fontSize: 20,
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
   },
   selectionContainerCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.xl,
     paddingHorizontal: Spacing.base,
     marginBottom: Spacing.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -1744,9 +1746,9 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     borderWidth: 2.5,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -1797,7 +1799,7 @@ const styles = StyleSheet.create({
   selectionPlayerName: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginTop: 4,
     textAlign: 'center',
     width: '100%',
@@ -1815,51 +1817,51 @@ const styles = StyleSheet.create({
   },
   selectionVerticalDivider: {
     width: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     alignSelf: 'stretch',
     marginHorizontal: 4,
     marginVertical: 16,
   },
   settingsModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  settingsModalContent: { backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, padding: 24, width: '100%' },
-  settingsModalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 8 },
-  settingsModalSub: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginBottom: 20 },
-  settingsModalInput: { height: 50, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.md, paddingHorizontal: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 16, marginBottom: 24 },
+  settingsModalContent: { backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: 24, width: '100%' },
+  settingsModalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 8 },
+  settingsModalSub: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginBottom: 20 },
+  settingsModalInput: { height: 50, borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.md, paddingHorizontal: 16, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 16, marginBottom: 24 },
   settingsModalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
-  settingsModalBtnCancel: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: Colors.surfaceVariant },
-  settingsModalBtnTextCancel: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
-  settingsModalBtnAdd: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  settingsModalBtnTextAdd: { color: Colors.background || '#000000', fontFamily: Typography.fontFamily.bold },
+  settingsModalBtnCancel: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: colors.surfaceVariant },
+  settingsModalBtnTextCancel: { color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
+  settingsModalBtnAdd: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  settingsModalBtnTextAdd: { color: colors.background || '#000000', fontFamily: Typography.fontFamily.bold },
 
   bottomSheetOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  bottomSheet: { backgroundColor: Colors.backgroundModal, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl },
+  bottomSheet: { backgroundColor: colors.backgroundModal, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl },
   bsHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.lg },
   bsTitle: { color: '#FFF', fontSize: 20, fontFamily: Typography.fontFamily.bold },
   bsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  bsBtn: { width: '48%', height: 50, backgroundColor: Colors.surfaceVariant, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  bsBtn: { width: '48%', height: 50, backgroundColor: colors.surfaceVariant, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   bsBtnDanger: { backgroundColor: 'rgba(244,67,54,0.1)' },
   bsBtnText: { color: '#FFF', fontFamily: Typography.fontFamily.medium },
   pullHandle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     alignSelf: 'center',
     marginBottom: Spacing.sm,
   },
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.sm,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   searchInput: {
     flex: 1,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 14,
     paddingVertical: Spacing.xs,
     height: 40,

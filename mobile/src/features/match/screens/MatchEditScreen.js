@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import { Colors, Typography, Spacing, Shadows, BorderRadius } from '../../../theme/theme';
+import { Colors, Typography, Spacing, Shadows, BorderRadius, useTheme } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import api from '../../../api/axios';
@@ -29,6 +29,8 @@ const PITCH_TYPES = ['ROUGH', 'CEMENT', 'TURF', 'ASTROTURF', 'MATTING'];
 const GROUND_TYPES = ['Open Ground', 'Indoor', 'Box Cricket', 'Other'];
 
 const MatchEditScreen = ({ navigation, route }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const dispatch = useDispatch();
   const { matchData, matchId } = route.params || {};
 
@@ -158,7 +160,7 @@ const MatchEditScreen = ({ navigation, route }) => {
           </View>
           {isSelected && (
             <View style={styles.ballCheckedBadge}>
-              <Icon name="check-circle" size={18} color={Colors.primary} />
+              <Icon name="check-circle" size={18} color={colors.primary} />
             </View>
           )}
         </View>
@@ -171,7 +173,7 @@ const MatchEditScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="chevron-left" size={28} color={Colors.textPrimary} />
+          <Icon name="chevron-left" size={28} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Match Details</Text>
         <View style={{ width: 28 }} />
@@ -203,7 +205,7 @@ const MatchEditScreen = ({ navigation, route }) => {
                 onChangeText={setOvers}
                 maxLength={2}
                 placeholder="5"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
               />
             </View>
             <View style={[styles.inputGroup, { flex: 1, marginHorizontal: 8 }]}>
@@ -215,7 +217,7 @@ const MatchEditScreen = ({ navigation, route }) => {
                 onChangeText={setWickets}
                 maxLength={2}
                 placeholder="10"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
               />
             </View>
             <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
@@ -227,7 +229,7 @@ const MatchEditScreen = ({ navigation, route }) => {
                 onChangeText={setBowlerQuota}
                 maxLength={2}
                 placeholder="1"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
               />
             </View>
           </View>
@@ -251,7 +253,7 @@ const MatchEditScreen = ({ navigation, route }) => {
               value={ground}
               onChangeText={setGround}
               placeholder="e.g. Shivaji Park Ground"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
             />
           </View>
 
@@ -270,7 +272,7 @@ const MatchEditScreen = ({ navigation, route }) => {
             <Switch
               value={wagonWheel}
               onValueChange={setWagonWheel}
-              trackColor={{ false: '#4A5568', true: Colors.primary }}
+              trackColor={{ false: '#4A5568', true: colors.primary }}
               thumbColor={wagonWheel ? '#FFF' : '#A0AAB5'}
             />
           </View>
@@ -294,7 +296,7 @@ const MatchEditScreen = ({ navigation, route }) => {
       <View style={styles.stickyBottomBar}>
         <TouchableOpacity style={styles.nextBtn} onPress={handleUpdate} disabled={isSaving}>
           {isSaving ? (
-            <ActivityIndicator color={Colors.background} size="small" />
+            <ActivityIndicator color={colors.background} size="small" />
           ) : (
             <Text style={styles.nextBtnText}>Update Match Details</Text>
           )}
@@ -304,33 +306,33 @@ const MatchEditScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: 4 },
-  headerTitle: { color: Colors.textPrimary, fontSize: 18, fontFamily: Typography.fontFamily.semiBold },
+  headerTitle: { color: colors.textPrimary, fontSize: 18, fontFamily: Typography.fontFamily.semiBold },
   content: { padding: Spacing.lg, paddingBottom: 100 },
-  formContainer: { backgroundColor: Colors.surface, borderRadius: BorderRadius.md, padding: Spacing.lg, marginBottom: Spacing.lg },
+  formContainer: { backgroundColor: colors.surface, borderRadius: BorderRadius.md, padding: Spacing.lg, marginBottom: Spacing.lg },
   inputGroup: { marginBottom: Spacing.xl },
-  fieldLabel: { color: Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, textTransform: 'uppercase', marginBottom: Spacing.sm },
+  fieldLabel: { color: colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, textTransform: 'uppercase', marginBottom: Spacing.sm },
   underlineInput: {
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-    color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold,
     paddingVertical: 8,
   },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   chipsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chip: {
     paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20,
-    backgroundColor: '#1E232B', borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: '#1E232B', borderWidth: 1, borderColor: colors.border,
   },
-  chipSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold },
-  chipTextSelected: { color: Colors.background, fontFamily: Typography.fontFamily.bold },
+  chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { color: colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold },
+  chipTextSelected: { color: colors.background, fontFamily: Typography.fontFamily.bold },
   ballOptionsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   ballOption: { alignItems: 'center', width: '30%' },
   ballRing: {
@@ -338,7 +340,7 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: 'transparent',
     alignItems: 'center', justifyContent: 'center',
   },
-  ballRingSelected: { borderColor: Colors.primary },
+  ballRingSelected: { borderColor: colors.primary },
   ballCircle: {
     width: 50, height: 50, borderRadius: 25,
     overflow: 'hidden', backgroundColor: '#333',
@@ -346,24 +348,24 @@ const styles = StyleSheet.create({
   ballImage: { width: '100%', height: '100%' },
   ballCheckedBadge: {
     position: 'absolute', top: -2, right: -4,
-    backgroundColor: Colors.background, borderRadius: 10,
+    backgroundColor: colors.background, borderRadius: 10,
     width: 20, height: 20, alignItems: 'center', justifyContent: 'center',
   },
-  ballLabel: { color: Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, marginTop: 6 },
-  ballLabelSelected: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xl, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
-  toggleTitle: { color: Colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.semiBold, marginBottom: 2 },
-  toggleSubtitle: { color: Colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular },
+  ballLabel: { color: colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, marginTop: 6 },
+  ballLabelSelected: { color: colors.primary, fontFamily: Typography.fontFamily.bold },
+  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xl, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
+  toggleTitle: { color: colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.semiBold, marginBottom: 2 },
+  toggleSubtitle: { color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular },
   stickyBottomBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: Spacing.lg, backgroundColor: Colors.background,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    padding: Spacing.lg, backgroundColor: colors.background,
+    borderTopWidth: 1, borderTopColor: colors.border,
   },
   nextBtn: {
-    backgroundColor: Colors.primary, borderRadius: BorderRadius.md,
+    backgroundColor: colors.primary, borderRadius: BorderRadius.md,
     paddingVertical: 14, alignItems: 'center', flex: 1,
   },
-  nextBtnText: { color: Colors.background, fontSize: 16, fontFamily: Typography.fontFamily.bold },
+  nextBtnText: { color: colors.background, fontSize: 16, fontFamily: Typography.fontFamily.bold },
 });
 
 export default MatchEditScreen;

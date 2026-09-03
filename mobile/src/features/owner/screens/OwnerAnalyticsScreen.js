@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Dimensions, Animated, ActivityIndicator, StatusBar,
@@ -7,7 +7,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme } from '../../../theme/ThemeContext';
 import { fetchOwnerAnalytics } from '../ownerSlice';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -23,21 +24,32 @@ const fmtK = (num) => {
   return `₹${num}`;
 };
 
+const fmtHours = (num) => {
+  if (num === undefined || num === null || isNaN(num)) return '0h';
+  const rounded = Math.round(num * 2) / 2;
+  if (rounded % 1 === 0) return `${Math.round(rounded)}h`;
+  return `${rounded}h`;
+};
+
 const formatDateIN = (d) => {
   if (!d) return '';
   return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
 };
 
-const Divider = () => <View style={ss.divider} />;
+const Divider = ({ colors }) => (
+  <View style={{ height: 1, backgroundColor: colors.borderLight, marginVertical: 12 }} />
+);
 
-const SectionLabel = ({ label, icon }) => (
-  <View style={ss.sectionLabel}>
-    <Icon name={icon} size={14} color={Colors.primary} />
-    <Text style={ss.sectionLabelTxt}>{label}</Text>
+const SectionLabel = ({ label, icon, colors, isDark }) => (
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+    <Icon name={icon} size={15} color={isDark ? '#FFD400' : colors.primaryDark} />
+    <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, letterSpacing: 0.2 }}>
+      {label}
+    </Text>
   </View>
 );
 
-const Bar = ({ pct, color = Colors.primary, height = 4 }) => {
+const Bar = ({ pct, color, height = 4, colors }) => {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(anim, {
@@ -46,33 +58,55 @@ const Bar = ({ pct, color = Colors.primary, height = 4 }) => {
       useNativeDriver: false,
     }).start();
   }, [pct]);
+
+  const barColor = color || colors.primary;
+
   return (
-    <View style={[ss.barTrack, { height }]}>
+    <View style={{ backgroundColor: colors.surfaceVariant, borderRadius: 4, overflow: 'hidden', height }}>
       <Animated.View
-        style={[ss.barFill, {
-          backgroundColor: color,
+        style={{
+          height: '100%',
+          borderRadius: 4,
+          backgroundColor: barColor,
           width: anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] })
-        }]}
+        }}
       />
     </View>
   );
 };
 
-const StatRow = ({ label, value, sub, accent }) => (
-  <View style={ss.statRow}>
-    <Text style={ss.statLabel}>{label}</Text>
+const StatRow = ({ label, value, sub, accent, colors, isDark }) => (
+  <View style={{
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+  }}>
+    <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary }}>{label}</Text>
     <View style={{ alignItems: 'flex-end' }}>
-      <Text style={[ss.statValue, accent && { color: Colors.primary }]}>{value}</Text>
-      {sub ? <Text style={ss.statSub}>{sub}</Text> : null}
+      <Text style={[{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }, accent && { color: isDark ? '#FFD400' : colors.primaryDark }]}>
+        {value}
+      </Text>
+      {sub ? <Text style={{ fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, marginTop: 2, textAlign: 'right' }}>{sub}</Text> : null}
     </View>
   </View>
 );
 
-const Card = ({ children, style }) => (
-  <View style={[ss.card, style]}>{children}</View>
+const Card = ({ children, style, colors, shadows, isDark }) => (
+  <View style={[
+    {
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.xl,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...(isDark ? {} : shadows.sm)
+    },
+    style
+  ]}>
+    {children}
+  </View>
 );
 
-const SkeletonRect = ({ width, height, style }) => {
+const SkeletonRect = ({ width, height, style, colors }) => {
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
@@ -98,7 +132,7 @@ const SkeletonRect = ({ width, height, style }) => {
         {
           width,
           height,
-          backgroundColor: '#333333',
+          backgroundColor: colors.surfaceVariant,
           borderRadius: 8,
           opacity: pulseAnim,
         },
@@ -108,66 +142,66 @@ const SkeletonRect = ({ width, height, style }) => {
   );
 };
 
-const AnalyticsSkeleton = () => {
+const AnalyticsSkeleton = ({ colors, ss }) => {
   return (
     <View style={{ flex: 1 }}>
       {/* KPI Grid Skeleton */}
       <View style={ss.kpiGrid}>
         {[1, 2, 3, 4, 5, 6].map((i) => (
-          <View key={i} style={[ss.kpiCard, { marginRight: i % 3 === 0 ? 0 : KPI_GAP, marginBottom: KPI_GAP, backgroundColor: Colors.backgroundCard }]}>
+          <View key={i} style={[ss.kpiCard, { marginRight: i % 3 === 0 ? 0 : KPI_GAP, marginBottom: KPI_GAP }]}>
             <View style={{ height: 60, padding: 10, justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <SkeletonRect width={14} height={14} />
-                <SkeletonRect width={60} height={10} />
+                <SkeletonRect width={14} height={14} colors={colors} />
+                <SkeletonRect width={60} height={10} colors={colors} />
               </View>
-              <SkeletonRect width={50} height={20} style={{ marginTop: 8 }} />
+              <SkeletonRect width={50} height={20} colors={colors} style={{ marginTop: 8 }} />
             </View>
           </View>
         ))}
       </View>
 
       {/* Chart Placeholder Skeleton */}
-      <Card style={{ marginBottom: 12, padding: 15 }}>
+      <View style={[ss.card, { marginBottom: 12, padding: 15 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 15 }}>
-          <SkeletonRect width={16} height={16} />
-          <SkeletonRect width={100} height={12} />
+          <SkeletonRect width={16} height={16} colors={colors} />
+          <SkeletonRect width={100} height={12} colors={colors} />
         </View>
-        <SkeletonRect width="100%" height={150} />
-      </Card>
+        <SkeletonRect width="100%" height={150} colors={colors} />
+      </View>
 
       {/* Booking Source Skeleton */}
-      <Card style={{ marginBottom: 12, padding: 15 }}>
+      <View style={[ss.card, { marginBottom: 12, padding: 15 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 15 }}>
-          <SkeletonRect width={16} height={16} />
-          <SkeletonRect width={120} height={12} />
+          <SkeletonRect width={16} height={16} colors={colors} />
+          <SkeletonRect width={120} height={12} colors={colors} />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
-          <SkeletonRect width={80} height={80} style={{ borderRadius: 40 }} />
+          <SkeletonRect width={80} height={80} colors={colors} style={{ borderRadius: 40 }} />
           <View style={{ flex: 1, gap: 10 }}>
-            <SkeletonRect width="80%" height={10} />
-            <SkeletonRect width="60%" height={10} />
+            <SkeletonRect width="80%" height={10} colors={colors} />
+            <SkeletonRect width="60%" height={10} colors={colors} />
           </View>
         </View>
-      </Card>
+      </View>
 
       {/* Top Customers Skeleton */}
-      <Card style={{ marginBottom: 12, padding: 15 }}>
+      <View style={[ss.card, { marginBottom: 12, padding: 15 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 15 }}>
-          <SkeletonRect width={16} height={16} />
-          <SkeletonRect width={110} height={12} />
+          <SkeletonRect width={16} height={16} colors={colors} />
+          <SkeletonRect width={110} height={12} colors={colors} />
         </View>
         <View style={{ gap: 12 }}>
           {[1, 2, 3].map((i) => (
             <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 }}>
               <View style={{ gap: 6 }}>
-                <SkeletonRect width={70} height={12} />
-                <SkeletonRect width={90} height={8} />
+                <SkeletonRect width={70} height={12} colors={colors} />
+                <SkeletonRect width={90} height={8} colors={colors} />
               </View>
-              <SkeletonRect width={40} height={14} />
+              <SkeletonRect width={40} height={14} colors={colors} />
             </View>
           ))}
         </View>
-      </Card>
+      </View>
     </View>
   );
 };
@@ -175,6 +209,9 @@ const AnalyticsSkeleton = () => {
 const OwnerAnalyticsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
+  const { colors, isDark, shadows } = useTheme();
+  const ss = useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
+
   const { analytics, isLoading, dashboard } = useSelector(state => state.owner);
   const turfs = dashboard?.owner?.turfs || [];
 
@@ -200,14 +237,11 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
 
   const hasData = analytics && Object.keys(analytics).length > 0;
   const kpis = analytics?.kpis || {};
-  const revenueTrend = analytics?.revenueTrend || [];
   const bookingSource = analytics?.bookingSource || {};
   const turfPerformance = analytics?.turfPerformance || [];
-  const peakHours = analytics?.peakHours || {};
   const bookingStatus = analytics?.bookingStatus || [];
   const paymentBreakdown = analytics?.paymentBreakdown || [];
   const customerAnalytics = analytics?.customerAnalytics || {};
-  const utilization = analytics?.utilization || {};
   const insights = analytics?.insights || [];
 
   const selectedTurfName = selectedTurfId === 'all'
@@ -218,7 +252,7 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
 
   return (
     <View style={ss.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={[ss.header, { paddingTop: insets.top + 12 }]}>
@@ -230,7 +264,7 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
           {turfs && turfs.length > 1 ? (
             <TouchableOpacity style={ss.turfBtn} onPress={() => setTurfModalVisible(true)}>
               <Text style={ss.turfBtnTxt} numberOfLines={1}>{selectedTurfName}</Text>
-              <Icon name="chevron-down" size={14} color={Colors.primary} />
+              <Icon name="chevron-down" size={14} color={isDark ? '#FFD400' : colors.primaryDark} />
             </TouchableOpacity>
           ) : (
             <Text style={ss.turfStaticName} numberOfLines={1}>
@@ -254,12 +288,12 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
         {dateRange === 'custom' && (
           <View style={ss.customDateRow}>
             <TouchableOpacity style={ss.customDateBtn} onPress={() => setShowPicker('start')}>
-              <Icon name="calendar" size={13} color={Colors.textTertiary} />
+              <Icon name="calendar" size={13} color={colors.textTertiary} />
               <Text style={ss.customDateTxt}>{formatDateIN(customStart)}</Text>
             </TouchableOpacity>
             <Text style={ss.customDateSep}>→</Text>
             <TouchableOpacity style={ss.customDateBtn} onPress={() => setShowPicker('end')}>
-              <Icon name="calendar" size={13} color={Colors.textTertiary} />
+              <Icon name="calendar" size={13} color={colors.textTertiary} />
               <Text style={ss.customDateTxt}>{formatDateIN(customEnd)}</Text>
             </TouchableOpacity>
           </View>
@@ -272,12 +306,12 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
           contentContainerStyle={ss.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <AnalyticsSkeleton />
+          <AnalyticsSkeleton colors={colors} ss={ss} />
         </ScrollView>
       ) : (
         <ScrollView
           contentContainerStyle={ss.scrollContent}
-          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={Colors.primary} />}
+          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={colors.primary} />}
           showsVerticalScrollIndicator={false}
         >
           {/* ── KPI Grid ─────────────────────────────────────────────────── */}
@@ -287,12 +321,12 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
               { label: 'Bookings', value: String(kpis.totalBookings || 0), icon: 'calendar-check' },
               { label: 'Online', value: String(kpis.onlineBookings || 0), icon: 'cellphone-link' },
               { label: 'Offline', value: String(kpis.offlineBookings || 0), icon: 'store-outline' },
-              { label: 'Hours', value: `${kpis.hoursBooked || 0}h`, icon: 'clock-outline' },
+              { label: 'Hours', value: fmtHours(kpis.hoursBooked), icon: 'clock-outline' },
               { label: 'Occupancy', value: `${kpis.occupancyRate || 0}%`, icon: 'percent' },
             ].map((kpi, i) => (
               <View key={i} style={[ss.kpiCard, { marginRight: i % 3 === 2 ? 0 : KPI_GAP, marginBottom: KPI_GAP }]}>
                 <View style={ss.kpiTop}>
-                  <Icon name={kpi.icon} size={13} color={Colors.primary} />
+                  <Icon name={kpi.icon} size={14} color={isDark ? '#FFD400' : colors.primaryDark} />
                   <Text style={ss.kpiLabel}>{kpi.label}</Text>
                 </View>
                 <Text style={ss.kpiVal}>{kpi.value}</Text>
@@ -302,14 +336,14 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
 
           {(!kpis.totalBookings && !kpis.totalRevenue) ? (
             <View style={ss.emptyState}>
-              <Icon name="chart-box-outline" size={40} color={Colors.textTertiary} />
+              <Icon name="chart-box-outline" size={40} color={colors.textTertiary} />
               <Text style={ss.emptyTxt}>No data for this period</Text>
             </View>
           ) : (
             <>
               {/* ── Booking Source ─────────────────────────────────────── */}
-              <Card style={{ marginBottom: 12 }}>
-                <SectionLabel label="Booking Source" icon="chart-pie" />
+              <Card colors={colors} shadows={shadows} isDark={isDark} style={{ marginBottom: 12 }}>
+                <SectionLabel label="Booking Source" icon="chart-pie" colors={colors} isDark={isDark} />
                 <View style={ss.splitRow}>
                   <View>
                     <Text style={ss.splitLabel}>Online</Text>
@@ -317,7 +351,7 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
                     <Text style={ss.splitPct}>{bookingSource.onlinePct || 0}%</Text>
                   </View>
                   <View style={ss.splitCenter}>
-                    <Bar pct={bookingSource.onlinePct || 0} height={6} />
+                    <Bar pct={bookingSource.onlinePct || 0} height={6} colors={colors} color={isDark ? '#FFD400' : colors.primaryDark} />
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={ss.splitLabel}>Offline</Text>
@@ -327,11 +361,9 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
                 </View>
               </Card>
 
-
-
               {/* ── Customer Analytics ─────────────────────────────────── */}
-              <Card style={{ marginBottom: 12 }}>
-                <SectionLabel label="Customers" icon="account-group" />
+              <Card colors={colors} shadows={shadows} isDark={isDark} style={{ marginBottom: 12 }}>
+                <SectionLabel label="Customers" icon="account-group" colors={colors} isDark={isDark} />
                 <View style={ss.custGrid}>
                   {[
                     { label: 'Total', val: customerAnalytics.total || 0 },
@@ -347,10 +379,10 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
                 </View>
                 {customerAnalytics.topCustomers && customerAnalytics.topCustomers.length > 0 && (
                   <>
-                    <Divider />
+                    <Divider colors={colors} />
                     <Text style={ss.subHeader}>Top Customers</Text>
                     {customerAnalytics.topCustomers.map((c, i) => (
-                      <StatRow key={i} label={c.name} value={fmtK(c.spent)} sub={`${c.bookings} booking${c.bookings > 1 ? 's' : ''}${c.slots ? ` (${c.slots} slot${c.slots > 1 ? 's' : ''})` : ''}`} accent />
+                      <StatRow key={i} label={c.name} value={fmtK(c.spent)} sub={`${c.bookings} booking${c.bookings > 1 ? 's' : ''}${c.slots ? ` (${c.slots} slot${c.slots > 1 ? 's' : ''})` : ''}`} accent colors={colors} isDark={isDark} />
                     ))}
                   </>
                 )}
@@ -358,24 +390,22 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
 
               {/* ── Turf Performance ───────────────────────────────────── */}
               {turfPerformance.length > 0 && (
-                <Card style={{ marginBottom: 12 }}>
-                  <SectionLabel label="Turf Performance" icon="stadium" />
+                <Card colors={colors} shadows={shadows} isDark={isDark} style={{ marginBottom: 12 }}>
+                  <SectionLabel label="Turf Performance" icon="stadium" colors={colors} isDark={isDark} />
                   {turfPerformance.map((t, i) => (
                     <View key={i}>
-                      {i > 0 && <Divider />}
+                      {i > 0 && <Divider colors={colors} />}
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 }}>
                         <Text style={ss.turfName}>{t.turfName}</Text>
                         <Text style={ss.turfRev}>{fmtK(t.revenue)}</Text>
                       </View>
                       <View style={ss.turfStats}>
                         {[
-                          // { icon: 'calendar-check', label: `${t.bookings} bookings` },
-                          // { icon: 'clock-outline', label: `${t.hours}h` },
                           { icon: 'cellphone-link', label: `${t.online}(slots) online` },
                           { icon: 'store-outline', label: `${t.offline}(slots) offline` },
                         ].map((s, j) => (
                           <View key={j} style={ss.turfStatItem}>
-                            <Icon name={s.icon} size={11} color={Colors.textTertiary} />
+                            <Icon name={s.icon} size={12} color={colors.textTertiary} />
                             <Text style={ss.turfStatTxt}>{s.label}</Text>
                           </View>
                         ))}
@@ -386,8 +416,8 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
               )}
 
               {/* ── Booking Status ─────────────────────────────────────── */}
-              <Card style={{ marginBottom: 12 }}>
-                <SectionLabel label="Booking Status" icon="list-status" />
+              <Card colors={colors} shadows={shadows} isDark={isDark} style={{ marginBottom: 12 }}>
+                <SectionLabel label="Booking Status" icon="list-status" colors={colors} isDark={isDark} />
                 {bookingStatus.map((s, i) => (
                   <View key={i} style={{ marginBottom: 14 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -396,34 +426,35 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
                     </View>
                     <Bar
                       pct={s.pct}
-                      color={s.status.includes('cancel') ? Colors.error : s.status.includes('complete') ? Colors.primary : Colors.textTertiary}
-                      height={3}
+                      colors={colors}
+                      color={s.status.includes('cancel') ? colors.error : s.status.includes('complete') ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textTertiary}
+                      height={4}
                     />
                   </View>
                 ))}
-                <Divider />
+                <Divider colors={colors} />
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 4 }}>
                   <Text style={ss.statusLabel}>Cancellation Rate</Text>
-                  <Text style={[ss.statusVal, { color: Colors.error }]}>{analytics?.cancellationRate || 0}%</Text>
+                  <Text style={[ss.statusVal, { color: colors.error }]}>{analytics?.cancellationRate || 0}%</Text>
                 </View>
               </Card>
 
               {/* ── Payment Breakdown ──────────────────────────────────── */}
               {paymentBreakdown.length > 0 && (
-                <Card style={{ marginBottom: 12 }}>
-                  <SectionLabel label="Payment Breakdown" icon="wallet-outline" />
+                <Card colors={colors} shadows={shadows} isDark={isDark} style={{ marginBottom: 12 }}>
+                  <SectionLabel label="Payment Breakdown" icon="wallet-outline" colors={colors} isDark={isDark} />
                   {paymentBreakdown.map((p, i) => (
-                    <StatRow key={i} label={p.method} value={fmtK(p.revenue)} />
+                    <StatRow key={i} label={p.method} value={fmtK(p.revenue)} colors={colors} isDark={isDark} />
                   ))}
                 </Card>
               )}
 
               {/* ── AI Business Insights ───────────────────────────────── */}
               {insights.length > 0 && (
-                <Card style={{ marginBottom: 12 }}>
+                <Card colors={colors} shadows={shadows} isDark={isDark} style={{ marginBottom: 12 }}>
                   <View style={ss.insightHeader}>
                     <View style={ss.insightIconWrap}>
-                      <Icon name="robot-outline" size={16} color={Colors.primary} />
+                      <Icon name="robot-outline" size={16} color={isDark ? '#FFD400' : colors.primaryDark} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={ss.sectionLabelTxt}>AI Business Insights</Text>
@@ -472,18 +503,18 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
             <View style={ss.sheetTitleRow}>
               <Text style={ss.sheetTitle}>Select Turf</Text>
               <TouchableOpacity onPress={() => setTurfModalVisible(false)}>
-                <Icon name="close" size={22} color={Colors.textSecondary} />
+                <Icon name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 300 }}>
               <TouchableOpacity style={ss.sheetItem} onPress={() => handleTurfSelect('all')}>
                 <Text style={[ss.sheetItemTxt, selectedTurfId === 'all' && ss.sheetItemTxtActive]}>All Turfs</Text>
-                {selectedTurfId === 'all' && <Icon name="check" size={18} color={Colors.primary} />}
+                {selectedTurfId === 'all' && <Icon name="check" size={18} color={isDark ? '#FFD400' : colors.primaryDark} />}
               </TouchableOpacity>
               {(turfs || []).map(t => (
                 <TouchableOpacity key={t._id} style={ss.sheetItem} onPress={() => handleTurfSelect(t._id)}>
                   <Text style={[ss.sheetItemTxt, selectedTurfId === t._id && ss.sheetItemTxtActive]}>{t.name}</Text>
-                  {selectedTurfId === t._id && <Icon name="check" size={18} color={Colors.primary} />}
+                  {selectedTurfId === t._id && <Icon name="check" size={18} color={isDark ? '#FFD400' : colors.primaryDark} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -494,13 +525,15 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
   );
 };
 
-const ss = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
   header: {
-    backgroundColor: Colors.background,
+    backgroundColor: colors.surface,
     paddingHorizontal: H_PAD,
     paddingBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   headerInner: {
     flexDirection: 'row', justifyContent: 'space-between',
@@ -508,30 +541,30 @@ const ss = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 26, fontFamily: Typography.fontFamily.extraBold,
-    color: Colors.textPrimary, letterSpacing: -0.5,
+    color: colors.textPrimary, letterSpacing: -0.5,
   },
   headerSub: {
     fontSize: 12, fontFamily: Typography.fontFamily.medium,
-    color: Colors.textTertiary, marginTop: 2,
+    color: colors.textTertiary, marginTop: 2,
   },
   turfBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderBottomWidth: 1.5, borderBottomColor: Colors.primary,
+    borderBottomWidth: 1.5, borderBottomColor: isDark ? '#FFD400' : colors.primaryDark,
     paddingBottom: 2,
   },
   turfBtnTxt: {
     fontSize: 13, fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: isDark ? '#FFD400' : colors.primaryDark,
   },
   turfStaticName: {
     fontSize: 13, fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary, marginTop: 6,
+    color: isDark ? '#FFD400' : colors.primaryDark, marginTop: 6,
   },
 
   filterRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
     marginTop: 4,
   },
   filterBtn: {
@@ -539,37 +572,33 @@ const ss = StyleSheet.create({
     borderBottomWidth: 2, borderBottomColor: 'transparent',
     marginBottom: -1,
   },
-  filterBtnActive: { borderBottomColor: Colors.primary },
-  filterTxt: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
-  filterTxtActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  filterBtnActive: { borderBottomColor: isDark ? '#FFD400' : colors.primaryDark },
+  filterTxt: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary },
+  filterTxtActive: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
 
   customDateRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, paddingBottom: 10 },
   customDateBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
     paddingVertical: 8,
   },
-  customDateTxt: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
-  customDateSep: { fontSize: 14, color: Colors.textTertiary },
+  customDateTxt: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary },
+  customDateSep: { fontSize: 14, color: colors.textTertiary },
 
   scrollContent: { padding: H_PAD, paddingBottom: 110 },
-  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyTxt: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+  emptyTxt: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary },
 
   card: {
-    backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl,
-    padding: 16, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: colors.surface, borderRadius: BorderRadius.xl,
+    padding: 16, borderWidth: 1, borderColor: colors.border,
+    ...(isDark ? {} : shadows.sm)
   },
 
-  divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 12 },
-
-  sectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
-  sectionLabelTxt: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, letterSpacing: 0.2 },
+  sectionLabelTxt: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, letterSpacing: 0.2 },
 
   subHeader: {
-    fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary,
+    fontSize: 10, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary,
     textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10,
   },
 
@@ -578,86 +607,68 @@ const ss = StyleSheet.create({
     marginBottom: 12,
   },
   kpiCard: {
-    width: KPI_W, backgroundColor: Colors.backgroundCard,
+    width: KPI_W, backgroundColor: colors.surface,
     borderRadius: BorderRadius.lg, padding: 12,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: colors.border,
+    ...(isDark ? {} : shadows.sm)
   },
   kpiTop: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
-  kpiVal: { fontSize: 16, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
-  kpiLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+  kpiVal: { fontSize: 16, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary },
+  kpiLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary },
 
   splitRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   splitCenter: { flex: 1 },
-  splitLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginBottom: 2 },
-  splitVal: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary },
-  splitPct: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.primary, marginTop: 2 },
-
-  barTrack: { backgroundColor: Colors.backgroundElevated, borderRadius: 4, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 4 },
-
-  statRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
-  },
-  statLabel: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
-  statValue: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  statSub: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 2, textAlign: 'right' },
+  splitLabel: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, marginBottom: 2 },
+  splitVal: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary },
+  splitPct: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark, marginTop: 2 },
 
   custGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   custCell: { alignItems: 'center', flex: 1 },
-  custVal: { fontSize: 20, fontFamily: Typography.fontFamily.extraBold, color: Colors.textPrimary, marginBottom: 3 },
-  custLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+  custVal: { fontSize: 20, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary, marginBottom: 3 },
+  custLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary },
 
-  turfName: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  turfRev: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: Colors.primary },
+  turfName: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  turfRev: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: isDark ? '#FFD400' : colors.primaryDark },
   turfStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingBottom: 4 },
   turfStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  turfStatTxt: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
+  turfStatTxt: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary },
 
-  peakRow: { flexDirection: 'row', gap: 10 },
-  peakItem: {
-    flex: 1, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, padding: 12,
-  },
-  peakLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
-  peakVal: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginTop: 2 },
-
-  statusLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, textTransform: 'capitalize' },
-  statusVal: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  statusLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, textTransform: 'capitalize' },
+  statusVal: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
 
   insightHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   insightIconWrap: {
     width: 32, height: 32, borderRadius: 10,
-    backgroundColor: Colors.primaryAlpha10, justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.primaryAlpha30,
+    backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : '#FFF9DB', justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: isDark ? 'rgba(255,204,0,0.3)' : '#FFE066',
   },
-  insightSub: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 1 },
+  insightSub: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, marginTop: 1 },
   insightItem: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   insightDot: {
     width: 5, height: 5, borderRadius: 3,
-    backgroundColor: Colors.primary, marginTop: 7, flexShrink: 0,
+    backgroundColor: isDark ? '#FFD400' : colors.primaryDark, marginTop: 7, flexShrink: 0,
   },
-  insightTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, lineHeight: 20 },
+  insightTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, lineHeight: 20 },
   insightAction: {
-    fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.primary,
+    fontSize: 12, fontFamily: Typography.fontFamily.medium, color: isDark ? '#FFD400' : colors.primaryDark,
     lineHeight: 18, marginTop: 4, fontStyle: 'italic',
   },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   bottomSheet: {
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl,
     padding: 20,
   },
-  sheetHandle: { width: 36, height: 3, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 18 },
+  sheetHandle: { width: 36, height: 3, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 18 },
   sheetTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sheetTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  sheetTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   sheetItem: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
   },
-  sheetItemTxt: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
-  sheetItemTxtActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  sheetItemTxt: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary },
+  sheetItemTxtActive: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
 });
 
 export default OwnerAnalyticsScreen;

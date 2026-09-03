@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ContributionBar from './ContributionBar';
-import { Colors, Typography } from '../../../theme/theme';
+import { useTheme, Colors, Typography } from '../../../theme/theme';
 
 const PartnershipCard = ({ partnership }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const {
     wicketNumber = 1,
     totalRuns = 0,
@@ -50,7 +53,7 @@ const PartnershipCard = ({ partnership }) => {
       {/* Extras Pill */}
       {extras > 0 && (
         <View style={styles.extrasRow}>
-          <Icon name="plus-circle-outline" size={12} color={Colors.textSecondary} />
+          <Icon name="plus-circle-outline" size={12} color={colors.textSecondary} />
           <Text style={styles.extrasText}>
             Extras: <Text style={styles.extrasBold}>{extras} Runs</Text>
           </Text>
@@ -60,19 +63,24 @@ const PartnershipCard = ({ partnership }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDark) => StyleSheet.create({
   cardContainer: {
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.25 : 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   headerRow: {
     flexDirection: 'row',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 6,
     width: '100%',
@@ -81,28 +89,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   wicketText: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 15,
   },
   runsRight: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    justify: 'flex-end',
+    justifyContent: 'flex-end',
     gap: 8,
   },
   runsVal: {
-    color: Colors.primary,
+    color: isDark ? Colors.primary : colors.primaryDark,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 15,
   },
   runsUnit: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
   },
   rrText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 11,
   },
@@ -113,20 +121,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    paddingHorizontal: 6,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     alignSelf: 'flex-start',
-    marginTop: 4,
+    marginTop: 6,
   },
   extrasText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 11,
   },
   extrasBold: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
   },
 });

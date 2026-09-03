@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,11 +15,13 @@ import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, searchGlobalTeams } from '../../team/teamSlice';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { getImageUrl } from '../../../api/axios';
 import AddTeamModal from '../../tournament/components/AddTeamModal';
 
 const MatchTeamSelectionScreen = ({ navigation, route }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const dispatch = useDispatch();
   const { selectingFor, teamA, teamB, tournamentDetails, activeTab: initialActiveTab, onSelectTeam, matchStage } = route.params;
   
@@ -152,7 +154,7 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+          <Icon name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
           {`Select Team ${selectingFor}`}
@@ -178,16 +180,16 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
               </View>
             ) : (
               <View style={[styles.tabsRow, { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm }]}>
-                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Tournament Teams</Text>
+                <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Tournament Teams</Text>
               </View>
             )}
 
             <View style={styles.searchBarWrapper}>
-              <Icon name="magnify" size={20} color={Colors.textTertiary} style={styles.searchIcon} />
+              <Icon name="magnify" size={20} color={colors.textTertiary} style={styles.searchIcon} />
               <TextInput
                 style={styles.searchBarInput}
                 placeholder={activeTeamTab === 'Search' ? "Search by name, city, captain mobile..." : "Search teams..."}
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={teamSearchQuery}
                 onChangeText={setTeamSearchQuery}
               />
@@ -195,17 +197,17 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
 
             {!tournamentDetails ? (
               <TouchableOpacity style={styles.addInlineBtn} onPress={() => navigation.navigate('TeamCreate')}>
-                <Icon name="plus-circle" size={20} color={Colors.primary} />
+                <Icon name="plus-circle" size={20} color={colors.primary} />
                 <Text style={styles.addInlineBtnText}>Create New Team</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.addInlineBtn} onPress={() => setShowAddTeamModal(true)}>
-                <Icon name="plus-circle" size={20} color={Colors.primary} />
+                <Icon name="plus-circle" size={20} color={colors.primary} />
                 <Text style={styles.addInlineBtnText}>Add Team to Tournament</Text>
               </TouchableOpacity>
             )}
             {activeTeamTab === 'Search' && searchLoading ? (
-              <ActivityIndicator color={Colors.primary} style={{ marginTop: 20 }} />
+              <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
             ) : (
               <FlatList
                 data={filteredTeams}
@@ -216,8 +218,8 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
                 return (
                   <View>
                     {isFirstInGroup && (
-                      <View style={{ backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, marginTop: index === 0 ? 0 : Spacing.md }}>
-                        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{item.tournamentGroupName}</Text>
+                      <View style={{ backgroundColor: colors.surface, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, marginTop: index === 0 ? 0 : Spacing.md }}>
+                        <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{item.tournamentGroupName}</Text>
                       </View>
                     )}
                     <TouchableOpacity style={styles.teamItemRow} onPress={() => handleSelectTeam(item)}>
@@ -240,14 +242,14 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
                           <Text style={styles.nrrText}>NRR: {item.netRunRate ? item.netRunRate.toFixed(2) : '0.00'}</Text>
                         </View>
                       )}
-                      <Icon name="chevron-right" size={20} color={Colors.textTertiary} />
+                      <Icon name="chevron-right" size={20} color={colors.textTertiary} />
                     </TouchableOpacity>
                   </View>
                 );
               }}
               ListEmptyComponent={
                 <View style={styles.emptyList}>
-                  <Icon name="alert-circle-outline" size={40} color={Colors.textTertiary} />
+                  <Icon name="alert-circle-outline" size={40} color={colors.textTertiary} />
                   <Text style={styles.emptyListText}>No teams found.</Text>
                 </View>
               }
@@ -271,15 +273,15 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
   },
   backButton: {
     padding: 8,
@@ -288,7 +290,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   container: {
     flex: 1,
@@ -311,15 +313,15 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   tabBtnActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
   },
   tabBtnText: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   tabBtnTextActive: {
-    color: Colors.background || '#000000',
+    color: colors.background || '#000000',
     fontFamily: Typography.fontFamily.bold,
   },
   searchBarWrapper: {
@@ -331,14 +333,14 @@ const styles = StyleSheet.create({
     height: 48,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   searchIcon: {
     marginRight: Spacing.sm,
   },
   searchBarInput: {
     flex: 1,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 14,
     fontFamily: Typography.fontFamily.regular,
   },
@@ -348,13 +350,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.md,
     backgroundColor: 'rgba(46, 213, 115, 0.05)',
   },
   addInlineBtnText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 14,
     marginLeft: 8,
@@ -364,7 +366,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
   },
   teamAvatar: {
     width: 48,
@@ -375,7 +377,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: Spacing.base,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: colors.borderLight,
   },
   teamAvatarImg: {
     width: 48,
@@ -383,7 +385,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   teamAvatarInitial: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 20,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -393,11 +395,11 @@ const styles = StyleSheet.create({
   teamItemName: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   teamItemCity: {
     fontSize: 13,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginTop: 2,
   },
   emptyList: {
@@ -406,7 +408,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   emptyListText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 14,
     textAlign: 'center',

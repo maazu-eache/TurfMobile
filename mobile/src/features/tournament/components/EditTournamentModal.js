@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/Feather';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import api from '../../../api/axios';
@@ -13,16 +13,20 @@ const PLAYERS_OPTIONS = ['5', '6', '7', '8', '9', '10', '11', '15'];
 const OVERS_OPTIONS = ['3', '5', '8', '10', '12', '15', '20','25','30','35','40','50'];
 const RULE_SUGGESTIONS = ['75 speed limit', 'No throwing / jerk bowling', 'Max 1 bouncer per over', 'Rubber ball rules apply', 'Tennis ball rules apply', 'No LBW', 'Super over for tie', 'Free hit for no-ball'];
 
+const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+
 const CustomDropdown = ({ label, value, options, onSelect }) => {
   const [visible, setVisible] = useState(false);
   return (
     <>
       <TouchableOpacity onPress={() => setVisible(true)} style={styles.input} activeOpacity={0.8}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ color: value ? Colors.textPrimary : Colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>
+          <Text style={{ color: value ? colors.textPrimary : colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>
             {value || `Select ${label}`}
           </Text>
-          <Icon name="chevron-down" size={16} color={Colors.textTertiary} />
+          <Icon name="chevron-down" size={16} color={colors.textTertiary} />
         </View>
       </TouchableOpacity>
       <Modal visible={visible} transparent animationType="fade">
@@ -31,7 +35,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
             <Text style={styles.modalTitle}>Select {label}</Text>
             {options.map(opt => (
               <TouchableOpacity key={opt} style={styles.modalOption} onPress={() => { onSelect(opt); setVisible(false); }}>
-                <Text style={[styles.modalOptionText, value === opt && { color: Colors.primary }]}>{opt}</Text>
+                <Text style={[styles.modalOptionText, value === opt && { color: colors.primary }]}>{opt}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -50,13 +54,13 @@ const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
       <View 
         style={[
           styles.numberInputWrapper,
-          isFocused && { borderColor: Colors.primary }
+          isFocused && { borderColor: colors.primary }
         ]}
       >
         <TextInput
           style={[styles.input, { flex: 1, borderWidth: 0, backgroundColor: 'transparent', height: '100%', paddingVertical: 0 }]}
           keyboardType="numeric"
-          placeholderTextColor={Colors.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={value}
           onChangeText={onChangeText}
           onFocus={() => setIsFocused(true)}
@@ -67,7 +71,7 @@ const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
           style={styles.dropdownTrigger}
           activeOpacity={0.8}
         >
-          <Icon name="chevron-down" size={16} color={Colors.textTertiary} />
+          <Icon name="chevron-down" size={16} color={colors.textTertiary} />
         </TouchableOpacity>
       </View>
       <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
@@ -77,7 +81,7 @@ const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
             <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
               {options.map(opt => (
                 <TouchableOpacity key={opt} style={styles.modalOption} onPress={() => { onChangeText(opt); setVisible(false); }}>
-                  <Text style={[styles.modalOptionText, value === opt && { color: Colors.primary }]}>{opt}</Text>
+                  <Text style={[styles.modalOptionText, value === opt && { color: colors.primary }]}>{opt}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -88,7 +92,7 @@ const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
   );
 };
 
-const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
+
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -198,19 +202,19 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Edit Details</Text>
             <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
-              <Icon name="x" size={24} color={Colors.textSecondary} />
+              <Icon name="x" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           
           <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Tournament Name *</Text>
-              <TextInput style={styles.input} value={form.name} onChangeText={t => handleChange('name', t)} placeholderTextColor={Colors.textTertiary} />
+              <TextInput style={styles.input} value={form.name} onChangeText={t => handleChange('name', t)} placeholderTextColor={colors.textTertiary} />
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Description</Text>
-              <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} value={form.description} onChangeText={t => handleChange('description', t)} multiline placeholderTextColor={Colors.textTertiary} />
+              <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} value={form.description} onChangeText={t => handleChange('description', t)} multiline placeholderTextColor={colors.textTertiary} />
             </View>
 
             <View style={{ flexDirection: 'row', gap: Spacing.md }}>
@@ -226,7 +230,7 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
               </View>
               <View style={[styles.inputGroup, { flex: 1 }]}>
                 <Text style={styles.label}>Ground Name</Text>
-                <TextInput style={styles.input} value={form.groundName} onChangeText={t => handleChange('groundName', t)} placeholderTextColor={Colors.textTertiary} />
+                <TextInput style={styles.input} value={form.groundName} onChangeText={t => handleChange('groundName', t)} placeholderTextColor={colors.textTertiary} />
               </View>
             </View>
 
@@ -237,8 +241,8 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Entry Fee (₹)</Text>
-              <TextInput style={styles.input} value={form.entryFee} onChangeText={t => handleChange('entryFee', t.replace(/[^0-9]/g, ''))} keyboardType="number-pad" placeholderTextColor={Colors.textTertiary} />
-              <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
+              <TextInput style={styles.input} value={form.entryFee} onChangeText={t => handleChange('entryFee', t.replace(/[^0-9]/g, ''))} keyboardType="number-pad" placeholderTextColor={colors.textTertiary} />
+              <Text style={{ color: colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
                 Note: A {platformFeePercent}% platform fee will be deducted for each registration made through the platform.
               </Text>
             </View>
@@ -252,18 +256,18 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
                   value={newRule} 
                   onChangeText={setNewRule} 
                   placeholder="Enter a rule..." 
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   onSubmitEditing={handleAddRule}
                   returnKeyType="done"
                 />
                 <TouchableOpacity onPress={handleAddRule} style={styles.addRuleBtn}>
-                  <Icon name="plus" size={20} color={Colors.white} />
+                  <Icon name="plus" size={20} color={colors.white} />
                 </TouchableOpacity>
               </View>
 
               {/* Rule Suggestions */}
               <View style={{ marginBottom: Spacing.md }}>
-                <Text style={{ color: Colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.medium, marginBottom: 6 }}>
+                <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.medium, marginBottom: 6 }}>
                   Quick Suggestions (Tap to add):
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
@@ -276,14 +280,14 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
                           paddingHorizontal: 10,
                           paddingVertical: 5,
                           borderRadius: 14,
-                          backgroundColor: isAdded ? 'rgba(46, 204, 113, 0.15)' : Colors.backgroundElevated,
+                          backgroundColor: isAdded ? 'rgba(46, 204, 113, 0.15)' : colors.backgroundElevated,
                           borderWidth: 1,
-                          borderColor: isAdded ? Colors.primary : Colors.border,
+                          borderColor: isAdded ? colors.primary : colors.border,
                         }}
                         onPress={() => handleAddSuggestedRule(suggestion)}
                         disabled={isAdded}
                       >
-                        <Text style={{ color: isAdded ? Colors.primary : Colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.medium }}>
+                        <Text style={{ color: isAdded ? colors.primary : colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.medium }}>
                           {isAdded ? '✓ ' : '+ '}{suggestion}
                         </Text>
                       </TouchableOpacity>
@@ -297,7 +301,7 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
                   <View style={styles.ruleDot} />
                   <Text style={styles.ruleText}>{rule}</Text>
                   <TouchableOpacity onPress={() => handleRemoveRule(idx)} style={{ padding: 4 }}>
-                    <Icon name="x" size={16} color={Colors.error} />
+                    <Icon name="x" size={16} color={colors.error} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -307,11 +311,11 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
           </KeyboardAwareScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={onClose}>
-              <Text style={[styles.saveBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginRight: Spacing.sm }]} onPress={onClose}>
+              <Text style={[styles.saveBtnText, { color: colors.textSecondary }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.saveBtn, loading && { opacity: 0.7 }]} onPress={handleSave} disabled={loading}>
-              {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.saveBtnText}>Save Details</Text>}
+              {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.saveBtnText}>Save Details</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -320,34 +324,34 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: Colors.background, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, height: '90%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  modalContainer: { backgroundColor: colors.background, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, height: '90%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   scrollContent: { padding: Spacing.lg },
   inputGroup: { marginBottom: Spacing.md },
-  label: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginBottom: Spacing.xs },
-  input: { backgroundColor: Colors.backgroundElevated, color: Colors.textPrimary, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border, fontFamily: Typography.fontFamily.medium },
-  footer: { flexDirection: 'row', padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.background },
-  saveBtn: { flex: 1, backgroundColor: Colors.primary, paddingVertical: Spacing.md, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center' },
-  saveBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  label: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginBottom: Spacing.xs },
+  input: { backgroundColor: colors.surface, color: colors.textPrimary, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border, fontFamily: Typography.fontFamily.medium },
+  footer: { flexDirection: 'row', padding: Spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background },
+  saveBtn: { flex: 1, backgroundColor: colors.primary, paddingVertical: Spacing.md, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText: { color: colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
   
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  dropdownModalContent: { backgroundColor: Colors.background, width: '80%', borderRadius: BorderRadius.md, padding: Spacing.lg, maxHeight: '80%' },
-  modalOption: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalOptionText: { color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.medium },
+  dropdownModalContent: { backgroundColor: colors.background, width: '80%', borderRadius: BorderRadius.md, padding: Spacing.lg, maxHeight: '80%' },
+  modalOption: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  modalOptionText: { color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.medium },
   
-  addRuleBtn: { backgroundColor: Colors.primary, width: 44, height: 44, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' },
-  ruleItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm },
-  ruleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary, marginRight: Spacing.sm },
-  ruleText: { flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14 },
+  addRuleBtn: { backgroundColor: colors.primary, width: 44, height: 44, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' },
+  ruleItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm },
+  ruleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary, marginRight: Spacing.sm },
+  ruleText: { flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14 },
   numberInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: BorderRadius.md,
     height: 50,
   },
@@ -357,7 +361,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderLeftWidth: 1,
-    borderLeftColor: Colors.border,
+    borderLeftColor: colors.border,
   },
 });
 

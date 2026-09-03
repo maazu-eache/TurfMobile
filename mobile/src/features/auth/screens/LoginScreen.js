@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  Platform, ActivityIndicator, Image, Animated, Easing, Keyboard, Modal, ScrollView
+  Platform, ActivityIndicator, Image, Animated, Easing, Keyboard, Modal, ScrollView,
+  StatusBar
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,10 +11,11 @@ import { useDispatch, useSelector } from 'react-redux';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { loginWithPassword, registerWithPassword, loginWithGoogle, clearError, setGuestMode, logoutLocal } from '../authSlice';
 import Svg, { Path } from 'react-native-svg';
-import { Colors, Typography } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import NotificationService from '../../../services/NotificationService';
+import { reset } from '../../../navigation/navigationRef';
 
 const GoogleIcon = ({ size = 20 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -37,8 +39,21 @@ const GoogleIcon = ({ size = 20 }) => (
 );
 
 const LoginScreen = ({ navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [isLogin, setIsLogin] = useState(true);
   const [registerRole, setRegisterRole] = useState('customer'); // 'customer' or 'owner'
+
+  const navigateByRole = (loggedInUser) => {
+    const roles = loggedInUser?.roles || (loggedInUser?.role ? [loggedInUser.role] : []);
+    if (roles.includes('admin') || loggedInUser?.role === 'admin') {
+      reset('Admin');
+    } else if (loggedInUser?.role === 'owner' || (!roles.includes('player') && roles.includes('owner'))) {
+      reset('Owner');
+    } else {
+      reset('Customer');
+    }
+  };
 
   const handleSuspendedUser = () => {
     dispatch(logoutLocal());
@@ -66,6 +81,8 @@ const LoginScreen = ({ navigation }) => {
 
   // Google OAuth States
   const [showGoogleSignupModal, setShowGoogleSignupModal] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [googleRole, setGoogleRole] = useState('customer'); // 'customer' or 'owner'
   const [googleIdToken, setGoogleIdToken] = useState('');
   const [googleEmail, setGoogleEmail] = useState('');
   const [googleName, setGoogleName] = useState('');
@@ -182,9 +199,12 @@ const LoginScreen = ({ navigation }) => {
         if (payload?.signUpRequired) {
           setGoogleEmail(payload.email);
           setGoogleName(payload.name);
+          setGoogleRole(registerRole || 'customer');
           setShowGoogleSignupModal(true);
         } else if (payload?.user && (payload.user.isSuspended || payload.user.isActive === false || payload.user.isDeactivated || payload.user.isDeleted)) {
           handleSuspendedUser();
+        } else if (payload?.user) {
+          navigateByRole(payload.user);
         }
       } else {
         const errPayload = String(result.payload || '');
@@ -230,7 +250,7 @@ const LoginScreen = ({ navigation }) => {
       locationObj: googleLocationObj,
       state: googleLocationObj?.state || '',
       fcmToken,
-      role: registerRole
+      role: googleRole
     }));
 
     setGoogleLoading(false);
@@ -240,6 +260,8 @@ const LoginScreen = ({ navigation }) => {
       const payload = result.payload;
       if (payload?.user && (payload.user.isSuspended || payload.user.isActive === false || payload.user.isDeactivated || payload.user.isDeleted)) {
         handleSuspendedUser();
+      } else if (payload?.user) {
+        navigateByRole(payload.user);
       }
     } else {
       const errPayload = String(result.payload || '');
@@ -272,6 +294,8 @@ const LoginScreen = ({ navigation }) => {
         const payload = result.payload;
         if (payload?.user && (payload.user.isSuspended || payload.user.isActive === false || payload.user.isDeactivated || payload.user.isDeleted)) {
           handleSuspendedUser();
+        } else if (payload?.user) {
+          navigateByRole(payload.user);
         }
       } else if (loginWithPassword.rejected.match(result)) {
         const errPayload = String(result.payload || '');
@@ -304,7 +328,12 @@ const LoginScreen = ({ navigation }) => {
         fcmToken
       }));
 
-      if (registerWithPassword.rejected.match(result)) {
+      if (registerWithPassword.fulfilled.match(result)) {
+        const payload = result.payload;
+        if (payload?.user) {
+          navigateByRole(payload.user);
+        }
+      } else if (registerWithPassword.rejected.match(result)) {
         showCustomAlert('Error', result.payload || 'Registration failed');
       }
     }
@@ -325,16 +354,21 @@ const LoginScreen = ({ navigation }) => {
 
     return (
       <View style={[styles.inputContainer, isFocused && styles.inputFocused]}>
-        <Icon name={icon} size={22} color={isFocused ? '#FFD400' : 'rgba(255,255,255,0.4)'} style={styles.inputIcon} />
+        <Icon 
+          name={icon} 
+          size={22} 
+          color={isFocused ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textTertiary} 
+          style={styles.inputIcon} 
+        />
         <TextInput
           style={styles.input}
           placeholder={placeholder}
-          placeholderTextColor="rgba(255,255,255,0.4)"
+          placeholderTextColor={colors.textTertiary}
           value={value}
           onChangeText={setValue}
           onFocus={() => setFocusedInput(id)}
           onBlur={() => setFocusedInput(null)}
-          selectionColor="#FFD400"
+          selectionColor={colors.primary}
           secureTextEntry={isPasswordType ? secureTextEntry : false}
           {...options}
         />
@@ -342,8 +376,9 @@ const LoginScreen = ({ navigation }) => {
           <TouchableOpacity 
             onPress={() => isPasswordField ? setShowPassword(!showPassword) : setShowConfirmPassword(!showConfirmPassword)} 
             style={styles.eyeIcon}
+            activeOpacity={0.7}
           >
-            <Icon name={secureTextEntry ? "eye-outline" : "eye-off-outline"} size={22} color="rgba(255,255,255,0.4)" />
+            <Icon name={secureTextEntry ? "eye-outline" : "eye-off-outline"} size={22} color={colors.textTertiary} />
           </TouchableOpacity>
         )}
       </View>
@@ -352,12 +387,13 @@ const LoginScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.radialGlow} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+      <View style={styles.radialGlow} pointerEvents="none" />
 
       {particles.map((p, i) => {
          const angle = (i * Math.PI * 2) / particles.length;
          return (
-           <Animated.View key={i} style={[
+           <Animated.View key={i} pointerEvents="none" style={[
              styles.particle,
              { 
                transform: [
@@ -372,16 +408,23 @@ const LoginScreen = ({ navigation }) => {
       })}
 
       <KeyboardAwareScrollView 
+        style={{ flex: 1 }}
         enableOnAndroid={true} 
-        extraScrollHeight={30} 
+        enableAutomaticScroll={true}
+        enableResetScrollToCoords={false}
+        extraScrollHeight={Platform.OS === 'android' ? 60 : 30} 
+        extraHeight={100}
         keyboardShouldPersistTaps="handled" 
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20, paddingBottom: 100 }]}
+        nestedScrollEnabled={true}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16, paddingBottom: 140 }]}
       >
-        <Animated.View style={{ opacity: pageFade, transform: [{ translateY: pageSlide }], flexGrow: 1 }}>
+        <Animated.View style={{ opacity: pageFade, transform: [{ translateY: pageSlide }], width: '100%' }}>
           
           <View style={styles.topBar}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-              <Icon name="chevron-left" size={28} color="#FFF" />
+              <Icon name="chevron-left" size={28} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
 
@@ -404,29 +447,58 @@ const LoginScreen = ({ navigation }) => {
             <View>
               {isLogin && <Text style={styles.title}>SCORE<Text style={styles.titleYellow}>VERSE</Text></Text>}
               {!isLogin && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                <TouchableOpacity 
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}
+                  onPress={() => setShowRoleModal(true)}
+                  activeOpacity={0.8}
+                >
                   <Text style={[styles.title, { fontSize: 22 }]}>Registering as </Text>
-                  <View style={{ backgroundColor: 'rgba(255,212,0,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 4, borderWidth: 1, borderColor: '#FFD400' }}>
-                    <Text style={{ color: '#FFD400', fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase' }}>
+                  <View style={{ backgroundColor: 'rgba(255,212,0,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 4, borderWidth: 1, borderColor: '#FFD400', flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: '#FFD400', fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase', marginRight: 2 }}>
                       {registerRole === 'owner' ? 'Turf Owner' : 'Player'}
                     </Text>
+                    <Icon name="chevron-down" size={12} color="#FFD400" />
                   </View>
-                </View>
+                </TouchableOpacity>
               )}
               <Text style={[styles.subtitle, !isLogin && { fontSize: 13, marginTop: 4, textAlign: 'left' }]}>
                 {isLogin ? 'Log in to your account' : 'Please fill in the details below'}
               </Text>
             </View>
             {!isLogin && (
-              <TouchableOpacity onPress={() => setRegisterRole(registerRole === 'owner' ? 'customer' : 'owner')}>
+              <TouchableOpacity onPress={() => setShowRoleModal(true)}>
                  <Text style={{ color: '#FFD400', fontFamily: Typography.fontFamily.semiBold, fontSize: 13, textDecorationLine: 'underline' }}>
-                   {registerRole === 'owner' ? 'I\'m a Player' : 'Own a turf?'}
+                   Change Role
                  </Text>
               </TouchableOpacity>
             )}
           </View>
 
           <View style={styles.authCard}>
+
+            {/* Top Auth Tab Switcher */}
+            <View style={styles.tabSwitcher}>
+              <TouchableOpacity
+                style={[styles.tabBtn, isLogin && styles.tabBtnActive]}
+                onPress={() => {
+                  setIsLogin(true);
+                  dispatch(clearError());
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.tabBtnText, isLogin && styles.tabBtnTextActive]}>Log In</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.tabBtn, !isLogin && styles.tabBtnActive]}
+                onPress={() => {
+                  setShowRoleModal(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.tabBtnText, !isLogin && styles.tabBtnTextActive]}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
 
             {/* If Sign Up: Show Google Sign-Up at the TOP */}
             {!isLogin && (
@@ -498,11 +570,17 @@ const LoginScreen = ({ navigation }) => {
                   onPress={() => setTermsAccepted(!termsAccepted)}
                   activeOpacity={0.8}
                 >
-                  <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: termsAccepted ? '#FFD400' : 'rgba(255,255,255,0.4)', backgroundColor: termsAccepted ? '#FFD400' : 'transparent', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
-                    {termsAccepted && <Icon name="check" size={14} color="#000" />}
+                  <View style={{
+                    width: 20, height: 20, borderRadius: 4, 
+                    borderWidth: 1, 
+                    borderColor: termsAccepted ? (isDark ? '#FFD400' : colors.primaryDark) : (isDark ? 'rgba(255,255,255,0.4)' : colors.border), 
+                    backgroundColor: termsAccepted ? colors.primary : 'transparent', 
+                    justifyContent: 'center', alignItems: 'center', marginRight: 10 
+                  }}>
+                    {termsAccepted && <Icon name="check" size={14} color="#000000" />}
                   </View>
-                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: Typography.fontFamily.regular, flex: 1 }}>
-                    I agree to the <Text style={{ color: '#FFD400', textDecorationLine: 'underline' }} onPress={() => setActiveModal('terms')}>Terms of Service</Text> and <Text style={{ color: '#FFD400', textDecorationLine: 'underline' }} onPress={() => setActiveModal('privacy')}>Privacy Policy</Text>
+                  <Text style={{ fontSize: 13, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, flex: 1, lineHeight: 18 }}>
+                    I agree to the <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.semiBold, textDecorationLine: 'underline' }} onPress={() => setActiveModal('terms')}>Terms of Service</Text> and <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.semiBold, textDecorationLine: 'underline' }} onPress={() => setActiveModal('privacy')}>Privacy Policy</Text>
                   </Text>
                 </TouchableOpacity>
               </>
@@ -573,8 +651,12 @@ const LoginScreen = ({ navigation }) => {
             <TouchableOpacity 
               style={styles.toggleButton} 
               onPress={() => {
-                setIsLogin(!isLogin);
-                dispatch(clearError());
+                if (isLogin) {
+                  setShowRoleModal(true);
+                } else {
+                  setIsLogin(true);
+                  dispatch(clearError());
+                }
               }}
               disabled={isLoading}
               activeOpacity={0.7}
@@ -610,9 +692,11 @@ const LoginScreen = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{activeModal === 'terms' ? 'Terms of Service' : 'Privacy Policy'}</Text>
+              <Text style={styles.modalTitle}>
+                {activeModal === 'terms' ? 'Terms of Service' : 'Privacy Policy'}
+              </Text>
               <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.modalCloseBtn}>
-                <Icon name="close" size={24} color="#FFF" />
+                <Icon name="close" size={22} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={styles.modalScroll}>
@@ -626,6 +710,103 @@ const LoginScreen = ({ navigation }) => {
         </View>
       </Modal>
 
+      {/* Role Selection Modal on Sign Up */}
+      <Modal 
+        visible={showRoleModal} 
+        animationType="fade" 
+        transparent={true} 
+        onRequestClose={() => setShowRoleModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { maxWidth: 420 }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Select Account Type</Text>
+                <Text style={[styles.subtitle, { fontSize: 13, marginTop: 4, textAlign: 'left' }]}>
+                  Choose how you want to use ScoreVerse
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowRoleModal(false)} style={styles.modalCloseBtn}>
+                <Icon name="close" size={22} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ padding: 20, gap: 14 }}>
+              {/* Player Option Card */}
+              <TouchableOpacity
+                style={[
+                  styles.roleOptionCard,
+                  registerRole === 'customer' && styles.roleOptionCardSelected,
+                ]}
+                onPress={() => {
+                  setRegisterRole('customer');
+                  setGoogleRole('customer');
+                  setIsLogin(false);
+                  setShowRoleModal(false);
+                  dispatch(clearError());
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.roleIconBox, registerRole === 'customer' && styles.roleIconBoxSelected]}>
+                  <Icon name="cricket" size={26} color={registerRole === 'customer' ? '#000' : '#FFD400'} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.roleCardTitle, registerRole === 'customer' && { color: isDark ? '#FFD400' : colors.primaryDark }]}>
+                      Player
+                    </Text>
+                    <View style={styles.roleBadgePopular}>
+                      <Text style={styles.roleBadgePopularText}>POPULAR</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.roleCardDesc}>
+                    Book turf slots, track live match stats, manage tournaments & join teams.
+                  </Text>
+                </View>
+                <Icon 
+                  name={registerRole === 'customer' ? "check-circle" : "chevron-right"} 
+                  size={24} 
+                  color={registerRole === 'customer' ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textTertiary} 
+                />
+              </TouchableOpacity>
+
+              {/* Turf Owner Option Card */}
+              <TouchableOpacity
+                style={[
+                  styles.roleOptionCard,
+                  registerRole === 'owner' && styles.roleOptionCardSelected,
+                ]}
+                onPress={() => {
+                  setRegisterRole('owner');
+                  setGoogleRole('owner');
+                  setIsLogin(false);
+                  setShowRoleModal(false);
+                  dispatch(clearError());
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.roleIconBox, registerRole === 'owner' && styles.roleIconBoxSelected]}>
+                  <Icon name="stadium" size={26} color={registerRole === 'owner' ? '#000' : '#FFD400'} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.roleCardTitle, registerRole === 'owner' && { color: isDark ? '#FFD400' : colors.primaryDark }]}>
+                    Turf Owner
+                  </Text>
+                  <Text style={styles.roleCardDesc}>
+                    List and manage turf grounds, slot pricing, analytics & booking manager.
+                  </Text>
+                </View>
+                <Icon 
+                  name={registerRole === 'owner' ? "check-circle" : "chevron-right"} 
+                  size={24} 
+                  color={registerRole === 'owner' ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textTertiary} 
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Google Complete Profile Modal */}
       <Modal visible={showGoogleSignupModal} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
@@ -633,12 +814,12 @@ const LoginScreen = ({ navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Complete Profile</Text>
               <TouchableOpacity onPress={() => setShowGoogleSignupModal(false)} style={styles.modalCloseBtn}>
-                <Icon name="close" size={24} color="#FFF" />
+                <Icon name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={styles.modalScroll}>
               <Text style={styles.modalContent}>
-                We authenticated your Google account. Please enter your mobile number and city to finalize registration and sync your player profile.
+                We authenticated your Google account. Please choose your account type and enter your mobile number and city to finalize registration.
               </Text>
               
               <View style={styles.googleProfileCard}>
@@ -646,13 +827,63 @@ const LoginScreen = ({ navigation }) => {
                 <Text style={styles.googleProfileEmail}>{googleEmail}</Text>
               </View>
 
+              {/* Google Account Type Selection */}
+              <Text style={styles.googleInputLabel}>Account Type</Text>
+              <View style={styles.googleRoleContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.googleRoleCard,
+                    googleRole === 'customer' && styles.googleRoleCardActive
+                  ]}
+                  onPress={() => setGoogleRole('customer')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.googleRoleIconCircle, googleRole === 'customer' && styles.googleRoleIconCircleActive]}>
+                    <Icon name="cricket" size={20} color={googleRole === 'customer' ? '#000' : '#FFD400'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.googleRoleTitle, googleRole === 'customer' && { color: '#FFD400' }]}>
+                      Player
+                    </Text>
+                    <Text style={styles.googleRoleDesc}>Book & play matches</Text>
+                  </View>
+                  {googleRole === 'customer' && (
+                    <Icon name="check-circle" size={20} color="#FFD400" />
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.googleRoleCard,
+                    googleRole === 'owner' && styles.googleRoleCardActive
+                  ]}
+                  onPress={() => setGoogleRole('owner')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.googleRoleIconCircle, googleRole === 'owner' && styles.googleRoleIconCircleActive]}>
+                    <Icon name="stadium" size={20} color={googleRole === 'owner' ? '#000' : '#FFD400'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.googleRoleTitle, googleRole === 'owner' && { color: '#FFD400' }]}>
+                      Turf Owner
+                    </Text>
+                    <Text style={styles.googleRoleDesc}>List & manage turf</Text>
+                  </View>
+                  {googleRole === 'owner' && (
+                    <Icon name="check-circle" size={20} color="#FFD400" />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ height: 16 }} />
+
               <Text style={styles.googleInputLabel}>Mobile Number</Text>
               <View style={styles.inputContainer}>
                 <Icon name="phone-outline" size={22} color="rgba(255,255,255,0.4)" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="10-digit mobile number..."
-                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  placeholderTextColor={colors.textTertiary}
                   value={googleMobile}
                   onChangeText={(val) => setGoogleMobile(val.replace(/\D/g, ''))}
                   keyboardType="phone-pad"
@@ -700,8 +931,8 @@ const LoginScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   radialGlow: {
     position: 'absolute', top: '15%', left: '10%', right: '10%', height: 350,
     backgroundColor: '#FFD400', borderRadius: 200, opacity: 0.06, filter: 'blur(80px)',
@@ -713,9 +944,11 @@ const styles = StyleSheet.create({
   
   topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   backBtn: { 
-    width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(23, 23, 23, 0.8)', 
-    justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4,
+    width: 44, height: 44, borderRadius: 22, 
+    backgroundColor: isDark ? colors.surface : colors.surfaceVariant, 
+    justifyContent: 'center', alignItems: 'center', 
+    borderWidth: 1, borderColor: colors.border,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDark ? 0.3 : 0.06, shadowRadius: 4, elevation: 2,
   },
   
   heroContainer: { alignItems: 'center', justifyContent: 'center', height: 120, marginBottom: 20, position: 'relative' },
@@ -723,63 +956,104 @@ const styles = StyleSheet.create({
     shadowColor: '#FFD400', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 25, elevation: 10,
   },
   logoGlass: {
-    width: 88, height: 88, borderRadius: 28, backgroundColor: 'rgba(23, 23, 23, 0.7)', 
-    borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)',
+    width: 90, height: 90, borderRadius: 28, 
+    backgroundColor: isDark ? 'rgba(23, 23, 23, 0.9)' : '#121212', 
+    borderWidth: 1.5, borderColor: isDark ? colors.border : '#2B2B2B',
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.6, shadowRadius: 15, elevation: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 15, elevation: 8,
   },
-  logoImage: { width: 64, height: 64, borderRadius: 20 },
+  logoImage: { width: 68, height: 68, borderRadius: 20 },
 
   headerTextContainer: { alignItems: 'center', marginBottom: 36 },
-  title: { fontSize: 38, fontFamily: Typography.fontFamily.extraBold, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.5 },
+  title: { fontSize: 38, fontFamily: Typography.fontFamily.extraBold, fontWeight: '900', color: colors.textPrimary, letterSpacing: 0.5 },
   titleYellow: { color: '#FFD400', fontFamily: Typography.fontFamily.extraBold, fontWeight: '900' },
-  subtitle: { fontSize: 16, fontFamily: Typography.fontFamily.medium, color: '#A0A0A0', textAlign: 'center', marginTop: 8 },
+  subtitle: { fontSize: 16, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, textAlign: 'center', marginTop: 8 },
 
-  authCard: {
-    backgroundColor: 'rgba(23, 23, 23, 0.4)',
+  authCard: { 
+    backgroundColor: colors.surface, 
+    ...(isDark ? {} : shadows.md),
     borderRadius: 32,
     padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.4,
+    shadowOpacity: isDark ? 0.4 : 0.08,
     shadowRadius: 20,
     elevation: 5,
   },
 
+  tabSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.4)' : colors.surfaceVariant,
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabBtnActive: {
+    backgroundColor: '#FFD400',
+    shadowColor: '#FFD400',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  tabBtnText: {
+    fontFamily: Typography.fontFamily.semiBold,
+    color: isDark ? 'rgba(255, 255, 255, 0.6)' : colors.textSecondary,
+    fontSize: 14,
+  },
+  tabBtnTextActive: {
+    color: '#000000',
+    fontFamily: Typography.fontFamily.bold,
+  },
+
   segmentContainer: {
-    flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 22, height: 44, padding: 4, marginBottom: 24,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', position: 'relative'
+    flexDirection: 'row', 
+    backgroundColor: isDark ? 'rgba(0,0,0,0.4)' : colors.surfaceVariant, 
+    borderRadius: 22, height: 44, padding: 4, marginBottom: 24,
+    borderWidth: 1, borderColor: colors.border, position: 'relative'
   },
   segmentHighlight: {
     position: 'absolute', top: 4, left: 4, bottom: 4, width: '48%', backgroundColor: '#FFD400', borderRadius: 18,
     shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   segmentTab: { flex: 1, justifyContent: 'center', alignItems: 'center', zIndex: 2 },
-  segmentText: { fontFamily: Typography.fontFamily.semiBold, color: '#FFFFFF', fontSize: 14, opacity: 0.7 },
+  segmentText: { fontFamily: Typography.fontFamily.semiBold, color: isDark ? '#FFFFFF' : colors.textSecondary, fontSize: 14, opacity: 0.8 },
   segmentTextActive: { color: '#000000', opacity: 1, fontFamily: Typography.fontFamily.bold },
 
   inputContainer: {
     flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 14,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.4)' : colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : colors.border,
     paddingHorizontal: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 1,
   },
   inputFocused: {
-    borderColor: '#FFD400', backgroundColor: 'rgba(26, 26, 26, 0.8)',
-    shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 6,
+    borderColor: colors.primary,
+    backgroundColor: isDark ? 'rgba(26, 26, 26, 0.8)' : colors.background,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 4,
   },
   inputIcon: { marginRight: 12 },
   eyeIcon: { padding: 4 },
   input: {
-    flex: 1, color: '#FFFFFF', fontFamily: Typography.fontFamily.medium, fontSize: 16, paddingVertical: Platform.OS === 'ios' ? 16 : 12,
+    flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 15, paddingVertical: Platform.OS === 'ios' ? 16 : 12,
   },
 
   forgotBtn: { alignSelf: 'flex-end', marginTop: 12 },
-  forgotBtnText: { color: '#FFD400', fontFamily: Typography.fontFamily.medium, fontSize: 14 },
+  forgotBtnText: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.medium, fontSize: 14 },
 
-  error: { color: Colors.error, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginTop: 12, textAlign: 'center' },
+  error: { color: colors.error, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginTop: 12, textAlign: 'center' },
 
   verifyBtn: {
     height: 52, borderRadius: 14, backgroundColor: '#FFD400', justifyContent: 'center', alignItems: 'center', flexDirection: 'row',
@@ -789,25 +1063,25 @@ const styles = StyleSheet.create({
   verifyBtnText: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: '#000000' },
 
   toggleButton: { marginTop: 24, alignItems: 'center' },
-  toggleText: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: '#A0A0A0' },
-  toggleTextYellow: { fontFamily: Typography.fontFamily.bold, color: '#FFD400' },
+  toggleText: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary },
+  toggleTextYellow: { fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark },
 
   termsFooter: { marginTop: 40, alignItems: 'center' },
-  termsText: { textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.4)', fontFamily: Typography.fontFamily.regular },
+  termsText: { textAlign: 'center', fontSize: 13, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular },
   termsLinkContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  termsLink: { color: '#FFD400', fontSize: 13, fontFamily: Typography.fontFamily.medium },
+  termsLink: { color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 13, fontFamily: Typography.fontFamily.medium },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContainer: { width: '100%', maxHeight: '80%', backgroundColor: '#1A1A1A', borderRadius: 24, overflow: 'hidden' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
-  modalCloseBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20 },
+  modalContainer: { width: '100%', maxHeight: '80%', backgroundColor: colors.surface, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: colors.border },
+  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  modalCloseBtn: { padding: 8, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : colors.surfaceVariant, borderRadius: 20 },
   modalScroll: { padding: 24, paddingBottom: 60 },
-  modalContent: { fontSize: 14, fontFamily: Typography.fontFamily.regular, color: '#A0A0A0', lineHeight: 24 },
+  modalContent: { fontSize: 14, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, lineHeight: 24 },
 
   dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 18 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
-  dividerText: { color: 'rgba(255,255,255,0.4)', paddingHorizontal: 12, fontSize: 13, fontFamily: Typography.fontFamily.semiBold },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { color: colors.textTertiary, paddingHorizontal: 12, fontSize: 13, fontFamily: Typography.fontFamily.semiBold },
 
   googleBtn: {
     height: 52,
@@ -840,12 +1114,112 @@ const styles = StyleSheet.create({
   },
 
   googleProfileCard: {
-    backgroundColor: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 16, borderHeight: 1, borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : colors.surfaceVariant, 
+    padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border,
     marginBottom: 20, marginTop: 10,
   },
-  googleProfileName: { color: '#FFFFFF', fontSize: 15, fontFamily: Typography.fontFamily.bold },
-  googleProfileEmail: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 },
-  googleInputLabel: { color: '#FFFFFF', fontSize: 13, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8, marginLeft: 4 },
+  googleProfileName: { color: colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.bold },
+  googleProfileEmail: { color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 },
+  googleInputLabel: { color: colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8, marginLeft: 4 },
+
+  /* Role Selection Modal & Cards */
+  roleOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : colors.surfaceVariant,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    gap: 14,
+  },
+  roleOptionCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.08)' : '#FFFBEA',
+  },
+  roleIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.12)' : '#FFF8E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,212,0,0.2)',
+  },
+  roleIconBoxSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  roleCardTitle: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  roleCardDesc: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textSecondary,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  roleBadgePopular: {
+    backgroundColor: isDark ? 'rgba(255,212,0,0.2)' : '#FFF8E1',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 8,
+    borderWidth: 0.5,
+    borderColor: isDark ? '#FFD400' : colors.primaryDark,
+  },
+  roleBadgePopularText: {
+    color: isDark ? '#FFD400' : colors.primaryDark,
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.5,
+  },
+
+  /* Google Role Selector */
+  googleRoleContainer: {
+    gap: 10,
+    marginBottom: 4,
+  },
+  googleRoleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : colors.surfaceVariant,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  googleRoleCardActive: {
+    borderColor: colors.primary,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.08)' : '#FFFBEA',
+  },
+  googleRoleIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.12)' : '#FFF8E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleRoleIconCircleActive: {
+    backgroundColor: colors.primary,
+  },
+  googleRoleTitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  googleRoleDesc: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
 });
 
 export default LoginScreen;

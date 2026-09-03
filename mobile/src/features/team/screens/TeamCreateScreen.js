@@ -1,34 +1,34 @@
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
-  ActivityIndicator, Switch, ScrollView, Image, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Switch, ScrollView, Image, KeyboardAvoidingView, Platform, StatusBar,
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useDispatch } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createTeam, addPlayerToTeam } from '../teamSlice';
-import { Colors, Typography, Shadows, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { getImageUrl } from '../../../api/axios';
 import api from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 // ─── InputField defined OUTSIDE component to prevent re-mount on keystroke ───
-const InputField = ({ label, value, onChangeText, placeholder, error, keyboardType = 'default', icon }) => (
+const InputField = ({ label, value, onChangeText, placeholder, error, keyboardType = 'default', icon, fieldStyles, colors }) => (
   <View style={fieldStyles.wrapper}>
     <Text style={fieldStyles.label}>{label} <Text style={fieldStyles.required}>*</Text></Text>
     <View style={fieldStyles.inputRow}>
       {icon && (
         <View style={fieldStyles.iconBox}>
-          <Icon name={icon} size={18} color={Colors.textTertiary} />
+          <Icon name={icon} size={18} color={colors.textTertiary} />
         </View>
       )}
       <TextInput
         style={[fieldStyles.input, icon && fieldStyles.inputWithIcon, error && fieldStyles.inputError]}
         placeholder={placeholder}
-        placeholderTextColor={Colors.textTertiary}
+        placeholderTextColor={colors.textTertiary}
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
@@ -39,17 +39,17 @@ const InputField = ({ label, value, onChangeText, placeholder, error, keyboardTy
   </View>
 );
 
-const fieldStyles = StyleSheet.create({
+const createFieldStyles = (colors) => StyleSheet.create({
   wrapper: { marginTop: 14 },
   label: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  required: { color: Colors.error },
+  required: { color: colors.error },
   inputRow: { flexDirection: 'row', alignItems: 'center' },
   iconBox: {
     position: 'absolute',
@@ -58,37 +58,487 @@ const fieldStyles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.surfaceVariant,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: BorderRadius.md,
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.medium,
   },
   inputWithIcon: { paddingLeft: 42 },
-  inputError: { borderColor: Colors.error },
-  errorText: { fontSize: 12, color: Colors.error, marginTop: 4, fontFamily: Typography.fontFamily.regular },
+  inputError: { borderColor: colors.error },
+  errorText: { fontSize: 12, color: colors.error, marginTop: 4, fontFamily: Typography.fontFamily.regular },
 });
-// ──────────────────────────────────────────────────────────────────────────────
 
-// Role colour maps
-const ROLE_COLORS = {
-  player:         { bg: 'rgba(120,120,120,0.15)', text: Colors.textSecondary },
-  vice_captain:   { bg: 'rgba(33,150,243,0.15)',  text: '#2196F3' },
-  wicket_keeper:  { bg: 'rgba(255,143,0,0.15)',   text: Colors.warning },
-  admin:          { bg: 'rgba(76,175,80,0.15)',    text: '#4CAF50' },
-  captain:        { bg: Colors.primaryAlpha20,     text: Colors.primary },
-};
+const getRoleColors = (colors, isDark) => ({
+  player:         { bg: isDark ? 'rgba(120,120,120,0.15)' : colors.surfaceVariant, text: colors.textSecondary },
+  vice_captain:   { bg: isDark ? 'rgba(33,150,243,0.15)' : '#EFF6FF',  text: '#2196F3' },
+  wicket_keeper:  { bg: isDark ? 'rgba(255,143,0,0.15)' : '#FFFBEB',   text: colors.warning },
+  admin:          { bg: isDark ? 'rgba(76,175,80,0.15)' : '#F0FDF4',    text: '#4CAF50' },
+  captain:        { bg: colors.primaryAlpha20,     text: isDark ? colors.primary : colors.primaryDark },
+});
 
 const ROLES = ['player', 'vice_captain', 'wicket_keeper', 'admin'];
 const ROLE_LABELS = { player: 'Player', vice_captain: 'Vice Captain', wicket_keeper: 'WK', admin: 'Admin' };
 
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 14,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    ...(isDark ? {} : shadows.xs),
+  },
+  headerBtn: { width: 44 },
+  backBtnCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  headerSub: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    marginTop: 1,
+  },
+
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 20 },
+
+  // Identity card (logo + fields)
+  identityCard: {
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: 20,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...(isDark ? {} : shadows.sm),
+  },
+  logoWrapper: {
+    alignSelf: 'center',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant,
+    borderWidth: 2,
+    borderColor: colors.primaryAlpha30,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'visible',
+  },
+  logoPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoPreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  cameraRing: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.surface,
+    ...(isDark ? {} : shadows.sm),
+  },
+  logoHint: {
+    textAlign: 'center',
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textTertiary,
+    marginTop: 8,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 18,
+  },
+  row: { flexDirection: 'row', alignItems: 'flex-start' },
+
+  // Generic section
+  section: {
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...(isDark ? {} : shadows.sm),
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  sectionSub: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textSecondary,
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  countBubble: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  countBubbleText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textOnPrimary,
+  },
+
+  // Toggle
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  toggleIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.primaryAlpha10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textPrimary,
+  },
+  toggleSub: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  captainBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  captainBadgeText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.success,
+  },
+
+  // Shared form
+  fieldWrapper: { marginTop: 14 },
+  label: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textTertiary,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  required: { color: colors.error },
+  errorText: { fontSize: 12, color: colors.error, marginTop: 4, fontFamily: Typography.fontFamily.regular },
+
+  // Lookup row
+  lookupRow: { flexDirection: 'row', gap: 10 },
+  lookupInput: {
+    flex: 1,
+    backgroundColor: colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  inputError: { borderColor: colors.error },
+  lookupBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  lookupBtnDisabled: { backgroundColor: colors.border },
+  lookupBtnText: { color: colors.textOnPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+
+  // Profile card (admin manager)
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant,
+    borderRadius: BorderRadius.lg,
+    padding: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: colors.success + '50',
+    gap: 12,
+  },
+  profileAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.primaryAlpha20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  profileAvatarImg: { width: 50, height: 50, borderRadius: 25 },
+  profileName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  profileMeta: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, marginTop: 2 },
+  captainTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primaryAlpha20,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  captainTagText: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : colors.primaryDark },
+
+  // Notice box
+  noticeBox: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: colors.warningLight || 'rgba(255,143,0,0.1)',
+    borderRadius: BorderRadius.md,
+    padding: 10,
+    marginTop: 10,
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: colors.warning + '30',
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.warning,
+    fontFamily: Typography.fontFamily.regular,
+    lineHeight: 18,
+  },
+
+  // Mobile search bar (squad builder)
+  mobileSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 6,
+    height: 50,
+  },
+  mobileSearchInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    fontSize: 15,
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.medium,
+  },
+
+  // Role chips
+  roleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12, marginTop: 10 },
+  roleChip: {
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceVariant,
+  },
+  roleChipActive: { 
+    borderColor: colors.primary, 
+    backgroundColor: colors.primary,
+  },
+  roleChipText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  roleChipTextActive: {
+    color: colors.textOnPrimary,
+    fontFamily: Typography.fontFamily.bold,
+  },
+
+  // Found card / name input card (squad)
+  foundCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant,
+    borderRadius: BorderRadius.lg,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.success + '60',
+    gap: 10,
+    marginBottom: 2,
+  },
+  noNameCard: { marginBottom: 2 },
+  nameInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
+  nameInput: {
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.medium,
+  },
+
+  foundAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryAlpha10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  foundAvatarImg: { width: 44, height: 44, borderRadius: 22 },
+  foundName: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  foundMeta: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, marginTop: 2 },
+
+  addPlayerBtn: {
+    flexDirection: 'row',
+    backgroundColor: colors.success,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    gap: 4,
+    ...(isDark ? {} : shadows.sm),
+  },
+  addPlayerBtnText: { color: colors.white, fontSize: 13, fontFamily: Typography.fontFamily.bold },
+
+  // Staged list
+  stagedSection: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 14,
+  },
+  stagedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  stagedTitle: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textTertiary,
+    letterSpacing: 0.8,
+  },
+  stagedCount: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.primary,
+  },
+  stagedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant,
+    borderRadius: BorderRadius.md,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 10,
+  },
+  stagedAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  stagedAvatarImg: { width: 34, height: 34, borderRadius: 17 },
+  stagedName: { fontSize: 14, fontFamily: Typography.fontFamily.semiBold, color: colors.textPrimary },
+  stagedMobile: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: colors.textTertiary },
+  removeBtn: { padding: 4 },
+
+  miniPill: { borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+  miniPillText: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold },
+
+  // Create button
+  createBtn: {
+    flexDirection: 'row',
+    backgroundColor: colors.primary,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    ...shadows.md,
+  },
+  createBtnDisabled: { opacity: 0.7 },
+  createBtnText: {
+    color: colors.textOnPrimary,
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.3,
+  },
+});
+
 const TeamCreateScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
+  const { colors, shadows, isDark } = useTheme();
+
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  const fieldStyles = useMemo(() => createFieldStyles(colors), [colors]);
+  const ROLE_COLORS = useMemo(() => getRoleColors(colors, isDark), [colors, isDark]);
 
   // Form fields
   const [name, setName] = useState('');
@@ -267,14 +717,16 @@ const TeamCreateScreen = ({ navigation, route }) => {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}
+      style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
+
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <View style={styles.backBtnCircle}>
-            <Icon name="arrow-back" size={20} color={Colors.textPrimary} />
+            <Icon name="arrow-back" size={20} color={colors.textPrimary} />
           </View>
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
@@ -294,15 +746,15 @@ const TeamCreateScreen = ({ navigation, route }) => {
               <Image source={{ uri: logo.uri }} style={styles.logoPreview} />
             ) : (
               <View style={styles.logoPlaceholder}>
-                <Icon name="shield" size={44} color={Colors.primary} />
+                <Icon name="shield" size={44} color={colors.primary} />
               </View>
             )}
             <View style={styles.cameraRing}>
-              <Icon name="camera" size={14} color="#fff" />
+              <Icon name="camera" size={14} color={colors.textOnPrimary} />
             </View>
           </TouchableOpacity>
           <Text style={styles.logoHint}>{logo ? 'Tap to change logo (Max 3 MB)' : 'Tap to add team logo (Max 3 MB)'}</Text>
-          <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium, textAlign: 'center' }}>
+          <Text style={{ color: isDark ? colors.primary : colors.primaryDark, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium, textAlign: 'center' }}>
             Note: Maximum image size allowed is under 3 MB.
           </Text>
 
@@ -315,6 +767,8 @@ const TeamCreateScreen = ({ navigation, route }) => {
             placeholder="e.g. Decolz Sports"
             error={errors.name}
             icon="shield-outline"
+            fieldStyles={fieldStyles}
+            colors={colors}
           />
           <View style={[styles.row, { alignItems: 'flex-start' }]}>
             <View style={[fieldStyles.wrapper, { flex: 1 }]}>
@@ -343,6 +797,8 @@ const TeamCreateScreen = ({ navigation, route }) => {
                 placeholder="Maharashtra"
                 error={errors.state}
                 icon="map-outline"
+                fieldStyles={fieldStyles}
+                colors={colors}
               />
             </View>
           </View>
@@ -352,7 +808,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
         <View style={styles.section}>
           <View style={styles.toggleRow}>
             <View style={styles.toggleIconWrap}>
-              <Icon name="person-circle-outline" size={22} color={Colors.primary} />
+              <Icon name="person-circle-outline" size={22} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.toggleLabel}>Join as Captain</Text>
@@ -368,13 +824,13 @@ const TeamCreateScreen = ({ navigation, route }) => {
                 setAdminMobile('');
                 setAdminName('');
               }}
-              trackColor={{ false: Colors.border, true: Colors.primary + 'AA' }}
-              thumbColor={addMyself ? Colors.primary : Colors.surface}
+              trackColor={{ false: colors.border, true: colors.primary + 'AA' }}
+              thumbColor={addMyself ? colors.primary : colors.surface}
             />
           </View>
           {addMyself && (
             <View style={styles.captainBadgeRow}>
-              <Icon name="checkmark-circle" size={14} color={Colors.success} />
+              <Icon name="checkmark-circle" size={14} color={colors.success} />
               <Text style={styles.captainBadgeText}>You'll be added as Team Captain</Text>
             </View>
           )}
@@ -384,7 +840,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
         {!addMyself && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Icon name="person-add-outline" size={18} color={Colors.primary} />
+              <Icon name="person-add-outline" size={18} color={colors.primary} />
               <Text style={styles.sectionTitle}>Team Manager</Text>
             </View>
             <Text style={styles.sectionSub}>
@@ -397,7 +853,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
                 <TextInput
                   style={[styles.lookupInput, errors.adminMobile && styles.inputError]}
                   placeholder="10-digit mobile number"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={adminMobile}
                   onChangeText={(t) => {
                     setAdminMobile(t);
@@ -414,7 +870,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
                   disabled={adminMobile.length < 10 || lookupLoading}
                 >
                   {lookupLoading
-                    ? <ActivityIndicator size="small" color="#fff" />
+                    ? <ActivityIndicator size="small" color={colors.textOnPrimary} />
                     : <Text style={styles.lookupBtnText}>Search</Text>}
                 </TouchableOpacity>
               </View>
@@ -427,7 +883,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
                   <View style={styles.profileAvatar}>
                     {lookedUpPlayer.photo
                       ? <Image source={{ uri: getImageUrl(lookedUpPlayer.photo) }} style={styles.profileAvatarImg} />
-                      : <Icon name="person" size={28} color={Colors.primary} />}
+                      : <Icon name="person" size={28} color={colors.primary} />}
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.profileName}>{adminName.trim() || lookedUpPlayer.name || '(No name set)'}</Text>
@@ -436,7 +892,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
                     </Text>
                   </View>
                   <View style={styles.captainTag}>
-                    <Icon name="star" size={11} color={Colors.primary} />
+                    <Icon name="star" size={11} color={isDark ? colors.primary : colors.primaryDark} />
                     <Text style={styles.captainTagText}>Captain</Text>
                   </View>
                 </View>
@@ -444,7 +900,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
                 {!lookedUpPlayer.name && (
                   <View>
                     <View style={styles.noticeBox}>
-                      <Icon name="alert-circle-outline" size={16} color={Colors.warning} />
+                      <Icon name="alert-circle-outline" size={16} color={colors.warning} />
                       <Text style={styles.noticeText}>Profile found but has no name. Please enter it.</Text>
                     </View>
                     <View style={styles.fieldWrapper}>
@@ -452,7 +908,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
                       <TextInput
                         style={[styles.lookupInput, { flex: undefined }, errors.adminName && styles.inputError]}
                         placeholder="Full name"
-                        placeholderTextColor={Colors.textTertiary}
+                        placeholderTextColor={colors.textTertiary}
                         value={adminName}
                         onChangeText={(t) => { setAdminName(t); setErrors(prev => ({ ...prev, adminName: null })); }}
                       />
@@ -465,9 +921,9 @@ const TeamCreateScreen = ({ navigation, route }) => {
 
             {lookupDone && !lookedUpPlayer && (
               <View>
-                <View style={[styles.noticeBox, { borderColor: Colors.primary + '40', backgroundColor: Colors.primaryAlpha10 }]}>
-                  <Icon name="information-circle-outline" size={16} color={Colors.primary} />
-                  <Text style={[styles.noticeText, { color: Colors.primary }]}>
+                <View style={[styles.noticeBox, { borderColor: colors.primary + '40', backgroundColor: colors.primaryAlpha10 }]}>
+                  <Icon name="information-circle-outline" size={16} color={colors.primary} />
+                  <Text style={[styles.noticeText, { color: isDark ? colors.primary : colors.primaryDark }]}>
                     No profile found. Enter their name to create a placeholder.
                   </Text>
                 </View>
@@ -476,7 +932,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
                   <TextInput
                     style={[styles.lookupInput, { flex: undefined }, errors.adminName && styles.inputError]}
                     placeholder="Full name"
-                    placeholderTextColor={Colors.textTertiary}
+                    placeholderTextColor={colors.textTertiary}
                     value={adminName}
                     onChangeText={(t) => { setAdminName(t); setErrors(prev => ({ ...prev, adminName: null })); }}
                   />
@@ -490,7 +946,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
         {/* ── Squad Builder ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Icon name="people-outline" size={18} color={Colors.primary} />
+            <Icon name="people-outline" size={18} color={colors.primary} />
             <Text style={styles.sectionTitle}>Add Players to Squad</Text>
             {stagedPlayers.length > 0 && (
               <View style={styles.countBubble}>
@@ -502,21 +958,21 @@ const TeamCreateScreen = ({ navigation, route }) => {
 
           {/* Mobile search bar */}
           <View style={styles.mobileSearchBar}>
-            <Icon name="call-outline" size={17} color={Colors.textTertiary} style={{ marginLeft: 12 }} />
+            <Icon name="call-outline" size={17} color={colors.textTertiary} style={{ marginLeft: 12 }} />
             <TextInput
               style={styles.mobileSearchInput}
               placeholder="Enter 10-digit mobile…"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={playerMobile}
               onChangeText={handlePlayerMobileChange}
               keyboardType="phone-pad"
               maxLength={10}
             />
             {playerLookupLoading && (
-              <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 12 }} />
+              <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 12 }} />
             )}
             {!playerLookupLoading && playerMobile.length === 10 && (
-              <Icon name="checkmark-circle" size={18} color={Colors.success} style={{ marginRight: 12 }} />
+              <Icon name="checkmark-circle" size={18} color={colors.success} style={{ marginRight: 12 }} />
             )}
           </View>
 
@@ -543,14 +999,14 @@ const TeamCreateScreen = ({ navigation, route }) => {
               <View style={styles.foundAvatar}>
                 {playerLookedUp.photo
                   ? <Image source={{ uri: getImageUrl(playerLookedUp.photo) }} style={styles.foundAvatarImg} />
-                  : <Icon name="person" size={22} color={Colors.primary} />}
+                  : <Icon name="person" size={22} color={colors.primary} />}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.foundName}>{playerLookedUp.name}</Text>
                 <Text style={styles.foundMeta}>{playerLookedUp.playingRole || 'Cricket Player'}</Text>
               </View>
               <TouchableOpacity style={styles.addPlayerBtn} onPress={handleStagePlayer} activeOpacity={0.8}>
-                <Icon name="add" size={16} color="#fff" />
+                <Icon name="add" size={16} color={colors.white} />
                 <Text style={styles.addPlayerBtnText}>Add</Text>
               </TouchableOpacity>
             </View>
@@ -560,19 +1016,19 @@ const TeamCreateScreen = ({ navigation, route }) => {
           {playerLookupDone && playerLookedUp && !playerLookedUp.name && (
             <View style={styles.noNameCard}>
               <View style={styles.noticeBox}>
-                <Icon name="information-circle-outline" size={15} color={Colors.warning} />
+                <Icon name="information-circle-outline" size={15} color={colors.warning} />
                 <Text style={styles.noticeText}>Profile found but has no name. Enter it below.</Text>
               </View>
               <View style={styles.nameInputRow}>
                 <TextInput
                   style={[styles.nameInput, { flex: 1 }]}
                   placeholder="Full name"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={playerName}
                   onChangeText={setPlayerName}
                 />
                 <TouchableOpacity style={styles.addPlayerBtn} onPress={handleStagePlayer} activeOpacity={0.8}>
-                  <Icon name="add" size={16} color="#fff" />
+                  <Icon name="add" size={16} color={colors.white} />
                   <Text style={styles.addPlayerBtnText}>Add</Text>
                 </TouchableOpacity>
               </View>
@@ -582,20 +1038,20 @@ const TeamCreateScreen = ({ navigation, route }) => {
           {/* No profile found */}
           {playerLookupDone && !playerLookedUp && (
             <View style={styles.noNameCard}>
-              <View style={[styles.noticeBox, { backgroundColor: Colors.primaryAlpha10 }]}>
-                <Icon name="person-add-outline" size={15} color={Colors.primary} />
-                <Text style={[styles.noticeText, { color: Colors.primary }]}>No profile found. Enter name to create one.</Text>
+              <View style={[styles.noticeBox, { backgroundColor: colors.primaryAlpha10 }]}>
+                <Icon name="person-add-outline" size={15} color={colors.primary} />
+                <Text style={[styles.noticeText, { color: isDark ? colors.primary : colors.primaryDark }]}>No profile found. Enter name to create one.</Text>
               </View>
               <View style={styles.nameInputRow}>
                 <TextInput
                   style={[styles.nameInput, { flex: 1 }]}
                   placeholder="Full name"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={playerName}
                   onChangeText={setPlayerName}
                 />
                 <TouchableOpacity style={styles.addPlayerBtn} onPress={handleStagePlayer} activeOpacity={0.8}>
-                  <Icon name="add" size={16} color="#fff" />
+                  <Icon name="add" size={16} color={colors.white} />
                   <Text style={styles.addPlayerBtnText}>Add</Text>
                 </TouchableOpacity>
               </View>
@@ -633,7 +1089,7 @@ const TeamCreateScreen = ({ navigation, route }) => {
                       style={styles.removeBtn}
                       onPress={() => setStagedPlayers(prev => prev.filter((_, i) => i !== idx))}
                     >
-                      <Icon name="close-circle" size={20} color={Colors.textTertiary} />
+                      <Icon name="close-circle" size={20} color={colors.textTertiary} />
                     </TouchableOpacity>
                   </View>
                 );
@@ -651,12 +1107,12 @@ const TeamCreateScreen = ({ navigation, route }) => {
         >
           {loading ? (
             <>
-              <ActivityIndicator color="#000" />
+              <ActivityIndicator color={colors.textOnPrimary} />
               <Text style={[styles.createBtnText, { marginLeft: 8 }]}>Creating...</Text>
             </>
           ) : (
             <>
-              <Icon name="shield-checkmark" size={20} color="#000" style={{ marginRight: 8 }} />
+              <Icon name="shield-checkmark" size={20} color={colors.textOnPrimary} style={{ marginRight: 8 }} />
               <Text style={styles.createBtnText}>Create Team</Text>
             </>
           )}
@@ -667,453 +1123,5 @@ const TeamCreateScreen = ({ navigation, route }) => {
     </KeyboardAvoidingView>
   );
 };
-
-const styles = StyleSheet.create({
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
-    backgroundColor: Colors.backgroundCard,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    ...Shadows.sm,
-  },
-  headerBtn: { width: 44 },
-  backBtnCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  headerSub: {
-    fontSize: 11,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-    marginTop: 1,
-  },
-
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 20 },
-
-  // Identity card (logo + fields)
-  identityCard: {
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: BorderRadius.xl,
-    padding: 20,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadows.sm,
-  },
-  logoWrapper: {
-    alignSelf: 'center',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.background,
-    borderWidth: 2,
-    borderColor: Colors.primary + '50',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'visible',
-  },
-  logoPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoPreview: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  cameraRing: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Colors.backgroundCard,
-    ...Shadows.sm,
-  },
-  logoHint: {
-    textAlign: 'center',
-    fontSize: 11,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
-    marginTop: 8,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: 18,
-  },
-  row: { flexDirection: 'row', alignItems: 'flex-start' },
-
-  // Generic section
-  section: {
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: BorderRadius.xl,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadows.sm,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
-    flex: 1,
-  },
-  sectionSub: {
-    fontSize: 12,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
-    marginBottom: 14,
-    lineHeight: 18,
-  },
-  countBubble: {
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  countBubbleText: {
-    fontSize: 11,
-    fontFamily: Typography.fontFamily.bold,
-    color: '#fff',
-  },
-
-  // Toggle
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  toggleIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.primaryAlpha10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  toggleLabel: {
-    fontSize: 15,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
-  },
-  toggleSub: {
-    fontSize: 12,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  captainBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  captainBadgeText: {
-    fontSize: 12,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.success,
-  },
-
-  // Shared form
-  fieldWrapper: { marginTop: 14 },
-  label: {
-    fontSize: 11,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textTertiary,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  required: { color: Colors.error },
-  errorText: { fontSize: 12, color: Colors.error, marginTop: 4, fontFamily: Typography.fontFamily.regular },
-
-  // Lookup row
-  lookupRow: { flexDirection: 'row', gap: 10 },
-  lookupInput: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 15,
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.medium,
-  },
-  inputError: { borderColor: Colors.error },
-  lookupBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  lookupBtnDisabled: { backgroundColor: Colors.textTertiary },
-  lookupBtnText: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
-
-  // Profile card (admin manager)
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.lg,
-    padding: 12,
-    marginTop: 14,
-    borderWidth: 1,
-    borderColor: Colors.success + '50',
-    gap: 12,
-  },
-  profileAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.primaryAlpha20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  profileAvatarImg: { width: 50, height: 50, borderRadius: 25 },
-  profileName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  profileMeta: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },
-  captainTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.primaryAlpha20,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  captainTagText: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-
-  // Notice box
-  noticeBox: {
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: Colors.warningLight || 'rgba(255,143,0,0.1)',
-    borderRadius: BorderRadius.md,
-    padding: 10,
-    marginTop: 10,
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: Colors.warning + '30',
-  },
-  noticeText: {
-    flex: 1,
-    fontSize: 12,
-    color: Colors.warning,
-    fontFamily: Typography.fontFamily.regular,
-    lineHeight: 18,
-  },
-
-  // Mobile search bar (squad builder)
-  mobileSearchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 6,
-    height: 50,
-  },
-  mobileSearchInput: {
-    flex: 1,
-    paddingHorizontal: 10,
-    fontSize: 15,
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.medium,
-  },
-
-  // Role chips
-  roleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12, marginTop: 10 },
-  roleChip: {
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  roleChipActive: { 
-    borderColor: Colors.primary, 
-    backgroundColor: Colors.primary,
-    ...Shadows.glow,
-  },
-  roleChipText: {
-    fontSize: 12,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
-  },
-  roleChipTextActive: {
-    color: '#000',
-    fontFamily: Typography.fontFamily.bold,
-  },
-
-  // Found card / name input card (squad)
-  foundCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.lg,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.success + '60',
-    gap: 10,
-    marginBottom: 2,
-  },
-  noNameCard: { marginBottom: 2 },
-  nameInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
-  nameInput: {
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.medium,
-  },
-
-  foundAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.primaryAlpha10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  foundAvatarImg: { width: 44, height: 44, borderRadius: 22 },
-  foundName: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  foundMeta: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },
-
-  addPlayerBtn: {
-    flexDirection: 'row',
-    backgroundColor: Colors.success,
-    borderRadius: BorderRadius.md,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-    gap: 4,
-    ...Shadows.sm,
-  },
-  addPlayerBtnText: { color: '#000', fontSize: 13, fontFamily: Typography.fontFamily.bold },
-
-  // Staged list
-  stagedSection: {
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingTop: 14,
-  },
-  stagedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  stagedTitle: {
-    fontSize: 11,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textTertiary,
-    letterSpacing: 0.8,
-  },
-  stagedCount: {
-    fontSize: 11,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.primary,
-  },
-  stagedItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.md,
-    padding: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 10,
-  },
-  stagedAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  stagedAvatarImg: { width: 34, height: 34, borderRadius: 17 },
-  stagedName: { fontSize: 14, fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary },
-  stagedMobile: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
-  removeBtn: { padding: 4 },
-
-  miniPill: { borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
-  miniPillText: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold },
-
-  // Create button
-  createBtn: {
-    flexDirection: 'row',
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.xl,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-    ...Shadows.glow,
-  },
-  createBtnDisabled: { opacity: 0.7 },
-  createBtnText: {
-    color: '#000',
-    fontSize: 16,
-    fontFamily: Typography.fontFamily.bold,
-    letterSpacing: 0.3,
-  },
-});
 
 export default TeamCreateScreen;

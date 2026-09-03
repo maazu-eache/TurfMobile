@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Image } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/Feather';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const GroupManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState([]);
   
@@ -170,7 +172,7 @@ const GroupManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Manage Groups</Text>
             <TouchableOpacity onPress={onClose}>
-              <Icon name="x" size={24} color={Colors.textSecondary} />
+              <Icon name="x" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           
@@ -197,19 +199,19 @@ const GroupManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
                 <View key={gIndex} style={styles.groupCard}>
                   <View style={styles.groupHeader}>
                     {group.isSaved ? (
-                      <Text style={[styles.groupTitleText, { color: Colors.textPrimary }]}>{group.name}</Text>
+                      <Text style={[styles.groupTitleText, { color: colors.textPrimary }]}>{group.name}</Text>
                     ) : (
                       <TextInput 
                         style={styles.groupTitleInput}
                         value={group.name}
                         onChangeText={(text) => updateGroupName(gIndex, text)}
                         placeholder={`Group Name`}
-                        placeholderTextColor={Colors.textTertiary}
+                        placeholderTextColor={colors.textTertiary}
                       />
                     )}
                     {gIndex > 0 && !group.isSaved && (
                       <TouchableOpacity onPress={() => handleRemoveGroup(gIndex)} style={{ padding: 4 }}>
-                        <Icon name="trash-2" size={18} color={Colors.error} />
+                        <Icon name="trash-2" size={18} color={colors.error} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -230,9 +232,9 @@ const GroupManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
                             <Icon 
                               name={isSelected ? "check-square" : "square"} 
                               size={20} 
-                              color={isSelected ? Colors.primary : Colors.textSecondary} 
+                              color={isSelected ? colors.primary : colors.textSecondary} 
                             />
-                            <Text style={[styles.teamName, isSelected && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+                            <Text style={[styles.teamName, isSelected && { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>
                               {rt.team.name}
                             </Text>
                           </TouchableOpacity>
@@ -254,7 +256,7 @@ const GroupManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
                         const teamObj = registeredTeams.find(rt => String(rt.team?._id || rt.team) === String(t?._id || t))?.team;
                         return (
                           <View key={idx} style={styles.assignedTeamRow}>
-                            <Icon name="users" size={14} color={Colors.textSecondary} style={{ marginRight: 8 }} />
+                            <Icon name="users" size={14} color={colors.textSecondary} style={{ marginRight: 8 }} />
                             <Text style={styles.assignedTeamName}>{teamObj?.name || 'Unknown Team'}</Text>
                           </View>
                         );
@@ -267,7 +269,7 @@ const GroupManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
                           style={styles.localEditBtn}
                           onPress={() => handleLocalEditGroup(gIndex)}
                         >
-                          <Icon name="edit-2" size={12} color={Colors.primary} style={{ marginRight: 4 }} />
+                          <Icon name="edit-2" size={12} color={colors.primary} style={{ marginRight: 4 }} />
                           <Text style={styles.localEditBtnText}>Edit</Text>
                         </TouchableOpacity>
                       </View>
@@ -279,15 +281,15 @@ const GroupManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
           </KeyboardAwareScrollView>
 
           <View style={[styles.footer, { paddingHorizontal: Spacing.lg }]}>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={onClose}>
-              <Text style={[styles.saveBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginRight: Spacing.sm }]} onPress={onClose}>
+              <Text style={[styles.saveBtnText, { color: colors.textSecondary }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              style={[styles.saveBtn, !canSubmit && { backgroundColor: Colors.border, opacity: 0.5 }]} 
+              style={[styles.saveBtn, !canSubmit && { backgroundColor: colors.border, opacity: 0.5 }]} 
               onPress={handleSave} 
               disabled={loading || !canSubmit}
             >
-              {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.saveBtnText}>Save Groups</Text>}
+              {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.saveBtnText}>Save Groups</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -296,33 +298,33 @@ const GroupManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: Colors.background, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, height: '80%', paddingVertical: Spacing.lg },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: Spacing.md, paddingHorizontal: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  emptyText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, textAlign: 'center', marginTop: Spacing.lg },
-  groupCard: { backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border },
+  modalContainer: { backgroundColor: colors.background, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, height: '80%', paddingVertical: Spacing.lg },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: Spacing.md, paddingHorizontal: Spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  emptyText: { color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, textAlign: 'center', marginTop: Spacing.lg },
+  groupCard: { backgroundColor: colors.surface, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md, borderWidth: 1, borderColor: colors.border },
   groupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', paddingBottom: Spacing.xs },
-  groupTitleText: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  groupTitleInput: { flex: 1, fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, padding: 0, margin: 0 },
-  subTitle: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginBottom: Spacing.sm, marginTop: Spacing.xs },
+  groupTitleText: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  groupTitleInput: { flex: 1, fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, padding: 0, margin: 0 },
+  subTitle: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginBottom: Spacing.sm, marginTop: Spacing.xs },
   teamOption: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
-  teamName: { flex: 1, fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary, marginLeft: Spacing.sm },
+  teamName: { flex: 1, fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textPrimary, marginLeft: Spacing.sm },
   assignedTeamRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.xs },
-  assignedTeamName: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary },
+  assignedTeamName: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textPrimary },
   footer: { flexDirection: 'row', marginTop: Spacing.md, paddingBottom: Spacing.lg },
-  saveBtn: { flex: 1, backgroundColor: Colors.primary, paddingVertical: Spacing.md, borderRadius: BorderRadius.lg, alignItems: 'center' },
-  saveBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  saveBtn: { flex: 1, backgroundColor: colors.primary, paddingVertical: Spacing.md, borderRadius: BorderRadius.lg, alignItems: 'center' },
+  saveBtnText: { color: colors.white, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
   localSaveBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 10,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     marginTop: Spacing.sm,
   },
   localSaveBtnText: {
-    color: Colors.white,
+    color: colors.white,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 14,
   },
@@ -333,15 +335,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   localEditBtnText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 12,
   },
   savedTeamsCountText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 13,
   },

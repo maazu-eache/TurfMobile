@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, FlatList, Share, Modal, TextInput, RefreshControl, StatusBar, ToastAndroid, Platform, Alert, Animated, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import moment from 'moment';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import LinearGradient from 'react-native-linear-gradient';
 import api, { getImageUrl, BASE_URL } from '../../../api/axios';
 import { useSelector } from 'react-redux';
@@ -31,6 +31,9 @@ const TABS = [
 ];
 
 const TournamentDetailScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  const auctionStyles = useMemo(() => createAuctionStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { tournamentId, initialTab, openRegisterModal } = route.params || {};
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -340,43 +343,43 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
       cards.push(
         <View key={matchCount} style={{
-          backgroundColor: Colors.background,
+          backgroundColor: colors.background,
           borderRadius: 12,
           padding: 14,
           marginBottom: 10,
           borderWidth: 1,
-          borderColor: Colors.borderLight,
+          borderColor: colors.borderLight,
         }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', paddingBottom: 6 }}>
-            <Text style={{ fontSize: 11, color: Colors.primary, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>
+            <Text style={{ fontSize: 11, color: colors.primary, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>
               MATCH {matchCount}
             </Text>
-            <Text style={{ fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>
+            <Text style={{ fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>
               Knockout Round 1
             </Text>
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}>
             <View style={{ flex: 1, alignItems: 'center' }}>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
-                <MCIcon name="cricket" size={16} color={Colors.textSecondary} />
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+                <MCIcon name="cricket" size={16} color={colors.textSecondary} />
               </View>
-              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' }} numberOfLines={1}>
                 {teamA?.name || 'TBD'}
               </Text>
             </View>
 
             <View style={{ paddingHorizontal: 12, alignItems: 'center' }}>
-              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primaryAlpha10, borderWidth: 1, borderColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center' }}>
-                <Text style={{ fontSize: 9, color: Colors.primary, fontFamily: Typography.fontFamily.bold }}>VS</Text>
+              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.primaryAlpha10, borderWidth: 1, borderColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 9, color: colors.primary, fontFamily: Typography.fontFamily.bold }}>VS</Text>
               </View>
             </View>
 
             <View style={{ flex: 1, alignItems: 'center' }}>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
-                <MCIcon name="cricket" size={16} color={Colors.textSecondary} />
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+                <MCIcon name="cricket" size={16} color={colors.textSecondary} />
               </View>
-              <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' }} numberOfLines={1}>
                 {teamB?.name || 'BYE'}
               </Text>
             </View>
@@ -582,9 +585,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   if (loading || !tournament) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <MCIcon name="cricket" size={48} color={Colors.primary} style={{ marginBottom: 16, opacity: 0.6 }} />
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={{ color: Colors.textSecondary, marginTop: 12, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Loading tournament...</Text>
+        <MCIcon name="cricket" size={48} color={colors.primary} style={{ marginBottom: 16, opacity: 0.6 }} />
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.textSecondary, marginTop: 12, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Loading tournament...</Text>
       </SafeAreaView>
     );
   }
@@ -595,8 +598,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     <View style={styles.infoRow}>
       <View style={styles.infoIconWrap}>
         {iconLib === 'mc'
-          ? <MCIcon name={iconName} size={16} color={Colors.primary} />
-          : <Icon name={iconName} size={15} color={Colors.primary} />}
+          ? <MCIcon name={iconName} size={16} color={colors.primary} />
+          : <Icon name={iconName} size={15} color={colors.primary} />}
       </View>
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
@@ -604,12 +607,12 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   );
 
   const renderOverview = () => (
-    <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}>
+    <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}>
 
       {tournament.tournamentType === 'Auction' && !isOrganizer && (
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
-            <MCIcon name="gavel" size={16} color={Colors.primary} />
+            <MCIcon name="gavel" size={16} color={colors.primary} />
             <Text style={styles.sectionTitle}>Auction Registration</Text>
           </View>
 
@@ -632,7 +635,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <Text style={auctionStyles.actionTitle}>You Are Registered</Text>
                     <Text style={auctionStyles.actionSub}>Tap to view your registration</Text>
                   </View>
-                  <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+                  <MCIcon name="chevron-right" size={22} color={colors.textTertiary} />
                 </TouchableOpacity>
               );
             }
@@ -642,7 +645,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 return (
                   <TouchableOpacity
                     style={{
-                      backgroundColor: Colors.warning,
+                      backgroundColor: colors.warning,
                       paddingVertical: 14,
                       borderRadius: 12,
                       flexDirection: 'row',
@@ -658,9 +661,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                       }
                     }}
                   >
-                    <MCIcon name="eye" size={20} color={Colors.black} />
+                    <MCIcon name="eye" size={20} color={colors.black} />
                     <Text style={{
-                      color: Colors.black,
+                      color: colors.black,
                       fontSize: 16,
                       fontFamily: Typography.fontFamily.semiBold,
                       marginLeft: 8
@@ -685,7 +688,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             return (
               <TouchableOpacity
                 style={{
-                  backgroundColor: Colors.primary,
+                  backgroundColor: colors.primary,
                   paddingVertical: 14,
                   borderRadius: 12,
                   flexDirection: 'row',
@@ -695,9 +698,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 }}
                 onPress={() => navigation.navigate('AuctionRegistration', { tournamentId: tournament._id })}
               >
-                <MCIcon name="account-plus" size={20} color={Colors.black} />
+                <MCIcon name="account-plus" size={20} color={colors.black} />
                 <Text style={{
-                  color: Colors.black,
+                  color: colors.black,
                   fontSize: 16,
                   fontFamily: Typography.fontFamily.semiBold,
                   marginLeft: 8
@@ -734,18 +737,18 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       {/* Premium Champion Banner when tournament is completed */}
       {tournament.status === 'completed' && (
         <View style={{ marginHorizontal: Spacing.md, marginBottom: 16, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 204, 0, 0.4)' }}>
-          <LinearGradient colors={['rgba(255, 204, 0, 0.15)', Colors.backgroundCard, Colors.backgroundElevated]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 24, alignItems: 'center' }}>
+          <LinearGradient colors={['rgba(255, 204, 0, 0.15)', colors.surface, isDark ? colors.backgroundElevated : colors.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 24, alignItems: 'center' }}>
             <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255, 204, 0, 0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255, 204, 0, 0.3)' }}>
-              <MCIcon name="trophy" size={32} color={Colors.primary} style={{ textShadowColor: 'rgba(255,204,0,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 }} />
+              <MCIcon name="trophy" size={32} color={colors.primary} style={{ textShadowColor: 'rgba(255,204,0,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 }} />
             </View>
-            <Text style={{ color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 20, marginBottom: 4, letterSpacing: 0.5 }}>Tournament Completed!</Text>
+            <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 20, marginBottom: 4, letterSpacing: 0.5 }}>Tournament Completed!</Text>
 
             {tournament.winner?.name && (
-              <View style={{ width: '100%', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }}>
-                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 3, marginBottom: 10 }}>C h a m p i o n</Text>
+              <View style={{ width: '100%', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 3, marginBottom: 10 }}>C h a m p i o n</Text>
                 <TouchableOpacity
                   onPress={() => navigation.navigate('TeamDetail', { id: tournament.winner._id || tournament.winner })}
-                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24, ...Shadows.sm, shadowColor: Colors.primary }}
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24, ...shadows.sm, shadowColor: colors.primary }}
                   activeOpacity={0.8}
                 >
                   <Text style={{ color: '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>🏆 {tournament.winner.name}</Text>
@@ -759,8 +762,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', marginTop: 12 }}
                 activeOpacity={0.8}
               >
-                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>🥈 Runner-up: {tournament.runnerUp.name}</Text>
-                <Icon name="chevron-right" size={14} color={Colors.textSecondary} style={{ marginLeft: 6 }} />
+                <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>🥈 Runner-up: {tournament.runnerUp.name}</Text>
+                <Icon name="chevron-right" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
               </TouchableOpacity>
             )}
           </LinearGradient>
@@ -769,7 +772,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
       <View style={styles.card}>
         <View style={styles.cardTitleRow}>
-          <MCIcon name="format-list-bulleted" size={18} color={Colors.primary} />
+          <MCIcon name="format-list-bulleted" size={18} color={colors.primary} />
           <Text style={styles.sectionTitle}>Format & Settings</Text>
         </View>
         <InfoRow iconLib="mc" iconName="trophy-variant" label="Type" value={tournament.tournamentType || 'Standard'} />
@@ -780,7 +783,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
       <View style={styles.card}>
         <View style={styles.cardTitleRow}>
-          <Icon name="map-pin" size={16} color={Colors.primary} />
+          <Icon name="map-pin" size={16} color={colors.primary} />
           <Text style={styles.sectionTitle}>Logistics</Text>
         </View>
         <InfoRow iconLib="feather" iconName="calendar" label="Start Date" value={moment.utc(tournament.startDate).format('DD MMM YYYY')} />
@@ -791,7 +794,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       {tournament.rules ? (
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
-            <Icon name="file-text" size={16} color={Colors.primary} />
+            <Icon name="file-text" size={16} color={colors.primary} />
             <Text style={styles.sectionTitle}>Rules</Text>
           </View>
           <Text style={[styles.bodyText, { marginTop: 8, lineHeight: 22 }]}>{tournament.rules}</Text>
@@ -801,7 +804,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       {tournament.organizer && (
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
-            <Icon name="user" size={16} color={Colors.primary} />
+            <Icon name="user" size={16} color={colors.primary} />
             <Text style={styles.sectionTitle}>Organizer</Text>
           </View>
           <View style={styles.organizerRow}>
@@ -809,7 +812,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <View style={{ flex: 1 }}>
               <Text style={styles.teamName}>{tournament.organizer.name}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                <Icon name="phone" size={12} color={Colors.textTertiary} />
+                <Icon name="phone" size={12} color={colors.textTertiary} />
                 <Text style={[styles.teamSub, { marginLeft: 4 }]}>{tournament.organizer.mobile}</Text>
               </View>
             </View>
@@ -858,7 +861,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 <Icon
                   name={(teamCount <= 1 || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? "lock" : "calendar"}
                   size={20}
-                  color={(teamCount <= 1 || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? Colors.textTertiary : Colors.primary}
+                  color={(teamCount <= 1 || tournament.matches?.some(m => m.status !== 'scheduled') || tournament.status === 'completed') ? colors.textTertiary : colors.primary}
                 />
               </View>
               <Text style={styles.actionGridText}>Fixtures</Text>
@@ -881,22 +884,22 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 teamCount <= 2 && { backgroundColor: 'rgba(255,255,255,0.05)' }
               ]}>
                 {teamCount <= 2 ? (
-                  <Icon name="lock" size={20} color={Colors.textTertiary} />
+                  <Icon name="lock" size={20} color={colors.textTertiary} />
                 ) : (
-                  <MCIcon name="layers-triple" size={20} color={Colors.primary} />
+                  <MCIcon name="layers-triple" size={20} color={colors.primary} />
                 )}
               </View>
               <Text style={styles.actionGridText}>Groups</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionGridBtn} onPress={() => setShowAddTeamModal(true)}>
               <View style={styles.actionGridIcon}>
-                <Icon name="user-plus" size={20} color={Colors.primary} />
+                <Icon name="user-plus" size={20} color={colors.primary} />
               </View>
               <Text style={styles.actionGridText}>Add Team</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionGridBtn} onPress={handleShareJoinLink}>
               <View style={styles.actionGridIcon}>
-                <Icon name="link" size={20} color={Colors.primary} />
+                <Icon name="link" size={20} color={colors.primary} />
               </View>
               <Text style={styles.actionGridText}>Invite</Text>
             </TouchableOpacity>
@@ -911,7 +914,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             teamCount > 0 ? (
               <Text style={{
                 fontSize: 14,
-                color: Colors.textSecondary,
+                color: colors.textSecondary,
                 fontFamily: Typography.fontFamily.semiBold,
                 marginHorizontal: Spacing.md,
                 marginTop: Spacing.xs,
@@ -923,11 +926,11 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           }
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-              <MCIcon name="account-group-outline" size={48} color={Colors.textTertiary} />
+              <MCIcon name="account-group-outline" size={48} color={colors.textTertiary} />
               <Text style={[styles.emptyText, { marginTop: 12 }]}>No teams registered yet.</Text>
             </View>
           }
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
           renderItem={({ item, index }) => {
             if (!item?.team) return null;
             return (
@@ -944,7 +947,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.teamName}>{item.team.name}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: 4 }}>
-                    <Icon name="map-pin" size={11} color={Colors.textTertiary} />
+                    <Icon name="map-pin" size={11} color={colors.textTertiary} />
                     <Text style={styles.teamSub}>{item.team.city || 'Unknown City'}</Text>
                   </View>
                 </View>
@@ -954,10 +957,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     onPress={() => handleRemoveTeam(item.team._id, item.team.name)}
                     disabled={actionLoading}
                   >
-                    <Icon name="trash-2" size={15} color={Colors.error} />
+                    <Icon name="trash-2" size={15} color={colors.error} />
                   </TouchableOpacity>
                 ) : (
-                  <Icon name="chevron-right" size={17} color={Colors.textTertiary} />
+                  <Icon name="chevron-right" size={17} color={colors.textTertiary} />
                 )}
               </TouchableOpacity>
             );
@@ -999,8 +1002,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               <TouchableOpacity
                 style={[
                   styles.startMatchBtn,
-                  { flex: 1, backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.primary },
-                  (isMatchStarted || isCompleted) && { opacity: 0.5, borderColor: Colors.border }
+                  { flex: 1, backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.primary },
+                  (isMatchStarted || isCompleted) && { opacity: 0.5, borderColor: colors.border }
                 ]}
                 onPress={() => {
                   if (isMatchStarted || isCompleted) {
@@ -1011,8 +1014,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 }}
                 disabled={isMatchStarted || isCompleted}
               >
-                <MCIcon name="calendar-refresh" size={18} color={(isMatchStarted || isCompleted) ? Colors.textSecondary : Colors.primary} style={{ marginRight: 8 }} />
-                <Text style={[styles.startMatchBtnText, { color: (isMatchStarted || isCompleted) ? Colors.textSecondary : Colors.primary }]}>
+                <MCIcon name="calendar-refresh" size={18} color={(isMatchStarted || isCompleted) ? colors.textSecondary : colors.primary} style={{ marginRight: 8 }} />
+                <Text style={[styles.startMatchBtnText, { color: (isMatchStarted || isCompleted) ? colors.textSecondary : colors.primary }]}>
                   Fixtures
                 </Text>
               </TouchableOpacity>
@@ -1031,19 +1034,19 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           );
         })()}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: Spacing.md, marginTop: 12, marginBottom: 8 }}>
-          <Text style={{ fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>Fixtures & Schedule</Text>
+          <Text style={{ fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>Fixtures & Schedule</Text>
           {tournament.matches && tournament.matches.some(m => m.status === 'scheduled') ? (
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingHorizontal: 12, borderRadius: 14, backgroundColor: 'rgba(154,188,47,0.15)' }}
               onPress={() => setShowTeamShareModal(true)}
             >
-              <Icon name="share-2" size={13} color={Colors.primary} style={{ marginRight: 4 }} />
-              <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share Schedule</Text>
+              <Icon name="share-2" size={13} color={colors.primary} style={{ marginRight: 4 }} />
+              <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share Schedule</Text>
             </TouchableOpacity>
           ) : null}
         </View>
 
-        <View style={{ flexDirection: 'row', marginHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', marginHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 12 }}>
           {['Live', 'Upcoming', 'Past'].map(tab => {
             const liveCount = tab === 'Live' ? (tournament.matches?.filter(m => ['toss_done', 'in_progress', 'innings_break', 'super_over'].includes(m.status)) || []).length : 0;
             return (
@@ -1068,18 +1071,18 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         {/* Tournament completed banner for non-Past tabs */}
         {isTournamentCompleted && matchSubTab !== 'Past' ? (
           <View style={{ marginHorizontal: Spacing.md, marginBottom: 16, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 204, 0, 0.4)' }}>
-            <LinearGradient colors={['rgba(255, 204, 0, 0.15)', Colors.backgroundCard, Colors.backgroundElevated]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, alignItems: 'center' }}>
+            <LinearGradient colors={['rgba(255, 204, 0, 0.15)', colors.backgroundCard, colors.backgroundElevated]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, alignItems: 'center' }}>
               <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255, 204, 0, 0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 10, borderWidth: 1, borderColor: 'rgba(255, 204, 0, 0.3)' }}>
-                <MCIcon name="trophy" size={28} color={Colors.primary} style={{ textShadowColor: 'rgba(255,204,0,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 }} />
+                <MCIcon name="trophy" size={28} color={colors.primary} style={{ textShadowColor: 'rgba(255,204,0,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 }} />
               </View>
               <Text style={{ color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 18, marginBottom: 4, letterSpacing: 0.5 }}>Tournament Completed!</Text>
 
               {tournament.winner?.name && (
-                <View style={{ width: '100%', alignItems: 'center', marginTop: 12, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }}>
-                  <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 3, marginBottom: 8 }}>C h a m p i o n</Text>
+                <View style={{ width: '100%', alignItems: 'center', marginTop: 12, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 3, marginBottom: 8 }}>C h a m p i o n</Text>
                   <TouchableOpacity
                     onPress={() => navigation.navigate('TeamDetail', { id: tournament.winner._id || tournament.winner })}
-                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, ...Shadows.sm, shadowColor: Colors.primary }}
+                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, ...shadows.sm, shadowColor: colors.primary }}
                     activeOpacity={0.8}
                   >
                     <Text style={{ color: '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 14 }}>🏆 {tournament.winner.name}</Text>
@@ -1093,8 +1096,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', marginTop: 10 }}
                   activeOpacity={0.8}
                 >
-                  <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 }}>🥈 Runner-up: {tournament.runnerUp.name}</Text>
-                  <Icon name="chevron-right" size={14} color={Colors.textSecondary} style={{ marginLeft: 6 }} />
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 }}>🥈 Runner-up: {tournament.runnerUp.name}</Text>
+                  <Icon name="chevron-right" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
               )}
 
@@ -1112,7 +1115,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             keyExtractor={item => item._id}
             contentContainerStyle={styles.tabContent}
             ListEmptyComponent={<Text style={styles.emptyText}>No {matchSubTab.toLowerCase()} matches found.</Text>}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
             renderItem={({ item }) => {
               const isLive = ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status);
               const isCompleted = item.status === 'completed';
@@ -1137,7 +1140,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               const secondScore = teamABattedFirst ? item.teamBScore : item.teamAScore;
               const isSecondWinner = isCompleted && (item.result?.winner === secondTeam?._id || item.result?.winner?._id === secondTeam?._id);
 
-              const accentColor = isLive ? Colors.error : isCompleted ? Colors.primary : Colors.border;
+              const accentColor = isLive ? colors.error : isCompleted ? colors.primary : colors.border;
               return (
                 <TouchableOpacity style={[styles.cardContainer, { borderLeftColor: accentColor }]} activeOpacity={0.85} onPress={() => navigation.navigate('MatchSummary', { matchId: item._id })}>
                   <View style={styles.cardHeader}>
@@ -1166,7 +1169,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                         style={{ marginLeft: 8, padding: 4 }}
                         onPress={() => setShareData({ type: 'fixture', data: item })}
                       >
-                        <Icon name="share-2" size={16} color={Colors.primary} />
+                        <Icon name="share-2" size={16} color={colors.primary} />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1182,14 +1185,14 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                           />
                         ) : (
                           <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                            <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
+                            <Text style={{ color: colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
                               {firstTeam?.name?.charAt(0).toUpperCase() || 'T'}
                             </Text>
                           </View>
                         )}
                         <Text style={[styles.teamNameText, isFirstWinner && styles.winnerTeamText, { flex: 1 }]} numberOfLines={1}>{firstTeam?.name || 'TBD'}</Text>
                       </View>
-                      <Text style={[styles.scoreText, isFirstWinner && { color: Colors.primary }]}>
+                      <Text style={[styles.scoreText, isFirstWinner && { color: colors.primary }]}>
                         {firstScore?.runs || 0}/{firstScore?.wickets || 0} <Text style={styles.overText}>({firstScore?.overs || '0.0'})</Text>
                       </Text>
                     </View>
@@ -1204,14 +1207,14 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                           />
                         ) : (
                           <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                            <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
+                            <Text style={{ color: colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
                               {secondTeam?.name?.charAt(0).toUpperCase() || 'T'}
                             </Text>
                           </View>
                         )}
                         <Text style={[styles.teamNameText, isSecondWinner && styles.winnerTeamText, { flex: 1 }]} numberOfLines={1}>{secondTeam?.name || 'TBD'}</Text>
                       </View>
-                      <Text style={[styles.scoreText, isSecondWinner && { color: Colors.primary }]}>
+                      <Text style={[styles.scoreText, isSecondWinner && { color: colors.primary }]}>
                         {secondScore?.runs || 0}/{secondScore?.wickets || 0} <Text style={styles.overText}>({secondScore?.overs || '0.0'})</Text>
                       </Text>
                     </View>
@@ -1219,15 +1222,15 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
                   {(item.result?.summary || (item.toss?.winner && item.status !== 'scheduled')) ? (
                     <View style={styles.matchResultFooter}>
-                      <Icon name={isCompleted ? 'award' : 'info'} size={12} color={Colors.primary} />
+                      <Icon name={isCompleted ? 'award' : 'info'} size={12} color={colors.primary} />
                       <Text style={styles.matchResultText} numberOfLines={1}>
                         {item.result?.summary || `${item.toss?.winner?.name || ''} won toss, elected to ${item.toss?.choice}`}
                       </Text>
                     </View>
                   ) : item.status === 'scheduled' ? (
                     <View style={styles.matchResultFooter}>
-                      <Icon name="clock" size={12} color={Colors.textTertiary} />
-                      <Text style={[styles.matchResultText, { color: Colors.textTertiary }]}>
+                      <Icon name="clock" size={12} color={colors.textTertiary} />
+                      <Text style={[styles.matchResultText, { color: colors.textTertiary }]}>
                         {moment(item.scheduledAt || item.createdAt).format('ddd, DD MMM YYYY [at] hh:mm A')}
                       </Text>
                     </View>
@@ -1251,7 +1254,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                         flexDirection: 'row',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: Colors.primary,
+                        backgroundColor: colors.primary,
                         borderRadius: BorderRadius.lg,
                         paddingVertical: 9,
                       }}
@@ -1263,8 +1266,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                         stage: item.stage,
                       })}
                     >
-                      <MCIcon name="play-circle" size={16} color={Colors.background} style={{ marginRight: 6 }} />
-                      <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>
+                      <MCIcon name="play-circle" size={16} color={colors.background} style={{ marginRight: 6 }} />
+                      <Text style={{ color: colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>
                         Start Match
                       </Text>
                     </TouchableOpacity>
@@ -1284,9 +1287,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
     if (pointsTable.length === 0) {
       return (
-        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}>
+        <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}>
           <View style={styles.emptyContainer}>
-            <Icon name="users" size={48} color={Colors.textTertiary} style={{ marginBottom: 12 }} />
+            <Icon name="users" size={48} color={colors.textTertiary} style={{ marginBottom: 12 }} />
             <Text style={styles.emptyText}>No teams registered yet</Text>
           </View>
         </KeyboardAwareScrollView>
@@ -1303,26 +1306,26 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     };
 
     return (
-      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}>
+      <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={styles.tabContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}>
         {pointsTable.length > 0 && (
           <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16, paddingHorizontal: Spacing.md }}>
             <TouchableOpacity
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primaryAlpha10, paddingVertical: 10, borderRadius: 8 }}
-              onPress={() => navigation.navigate('QualificationCalculator', {
+              style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: isDark ? colors.primaryAlpha10 : colors.surfaceVariant, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}
+              onPress={() => navigation.navigate("QualificationCalculator", {
                 tournamentId,
                 pointsTable: tournament.pointsTable,
                 tournamentOvers: tournament.overs,
               })}
             >
-              <Icon name="activity" size={14} color="#ffffff" style={{ marginRight: 6 }} />
-              <Text style={{ color: '#ffffff', fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>NRR Calculator</Text>
+              <Icon name="activity" size={14} color={isDark ? colors.primary : colors.primaryDark} style={{ marginRight: 6 }} />
+              <Text style={{ color: isDark ? colors.primary : colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>NRR Calculator</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(154,188,47,0.1)', paddingVertical: 10, borderRadius: 8 }}
-              onPress={() => setShareData({ type: 'pointsTable', data: { table: tournament.pointsTable } })}
+              style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: isDark ? colors.primaryAlpha10 : colors.surfaceVariant, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}
+              onPress={() => setShareData({ type: "pointsTable", data: { table: tournament.pointsTable } })}
             >
-              <Icon name="share-2" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
-              <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share Standings</Text>
+              <Icon name="share-2" size={14} color={isDark ? colors.primary : colors.primaryDark} style={{ marginRight: 6 }} />
+              <Text style={{ color: isDark ? colors.primary : colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share Standings</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1349,7 +1352,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <Icon
                       name={isCollapsed ? 'chevron-down' : 'chevron-up'}
                       size={18}
-                      color={Colors.textSecondary}
+                      color={colors.textSecondary}
                     />
                   </TouchableOpacity>
 
@@ -1394,8 +1397,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                             <Text style={styles.tableCell}>{row.won}</Text>
                             <Text style={styles.tableCell}>{row.lost}</Text>
                             <Text style={styles.tableCell}>{row.noResult}</Text>
-                            <Text style={[styles.tableCell, { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
-                            <Text style={[styles.tableCell, { color: row.netRunRate >= 0 ? Colors.success : Colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
+                            <Text style={[styles.tableCell, { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
+                            <Text style={[styles.tableCell, { color: row.netRunRate >= 0 ? colors.success : colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -1446,8 +1449,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   <Text style={styles.tableCell}>{row.won}</Text>
                   <Text style={styles.tableCell}>{row.lost}</Text>
                   <Text style={styles.tableCell}>{row.noResult}</Text>
-                  <Text style={[styles.tableCell, { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
-                  <Text style={[styles.tableCell, { color: row.netRunRate >= 0 ? Colors.success : Colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
+                  <Text style={[styles.tableCell, { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
+                  <Text style={[styles.tableCell, { color: row.netRunRate >= 0 ? colors.success : colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -1459,7 +1462,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
   const renderPlaceholder = (tabName) => (
     <View style={styles.placeholderContainer}>
-      <Icon name="clock" size={40} color={Colors.textTertiary} />
+      <Icon name="clock" size={40} color={colors.textTertiary} />
       <Text style={styles.emptyText}>{tabName} Module coming soon.</Text>
     </View>
   );
@@ -1508,7 +1511,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               }
               setRefreshing(false);
             }}
-            tintColor={Colors.primary}
+            tintColor={colors.primary}
           />
         }
       >
@@ -1516,7 +1519,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         <View style={auctionStyles.heroCard}>
           <View style={auctionStyles.heroIconRow}>
             <View style={auctionStyles.heroIconBg}>
-              <MCIcon name="gavel" size={28} color={Colors.primary} />
+              <MCIcon name="gavel" size={28} color={colors.primary} />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={auctionStyles.heroTitle}>{tournament.name}</Text>
@@ -1534,7 +1537,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             ]}>
               <Text style={[
                 auctionStyles.statusBadgeText,
-                { color: auctionDetails?.status === 'completed' ? '#4ADE80' : auctionDateReached ? Colors.warning : '#818CF8' }
+                { color: auctionDetails?.status === 'completed' ? '#4ADE80' : auctionDateReached ? colors.warning : '#818CF8' }
               ]}>
                 {auctionDetails?.status === 'completed' ? '✓ COMPLETED' : auctionDateReached ? '🔴 LIVE READY' : '⏳ UPCOMING'}
               </Text>
@@ -1547,19 +1550,19 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         {/* Date Info Cards */}
         <View style={auctionStyles.dateRow}>
           <View style={auctionStyles.dateCard}>
-            <MCIcon name="calendar-clock" size={18} color={regEndPassed ? '#4ADE80' : Colors.warning} />
+            <MCIcon name="calendar-clock" size={18} color={regEndPassed ? '#4ADE80' : colors.warning} />
             <Text style={auctionStyles.dateLabel}>Reg. Closes</Text>
             <Text style={auctionStyles.dateValue}>{formatDate(regEndDate)}</Text>
             {regCountdown && <Text style={auctionStyles.dateSub}>{regCountdown}</Text>}
             {regEndPassed && <Text style={[auctionStyles.dateSub, { color: '#4ADE80' }]}>✓ Closed</Text>}
           </View>
           <View style={auctionStyles.dateCard}>
-            <MCIcon name="gavel" size={18} color={auctionDateReached ? Colors.warning : Colors.primary} />
+            <MCIcon name="gavel" size={18} color={auctionDateReached ? colors.warning : colors.primary} />
             <Text style={auctionStyles.dateLabel}>Auction Day</Text>
             <Text style={auctionStyles.dateValue}>{formatDate(auctionDate)}</Text>
             {auctionCountdown && <Text style={auctionStyles.dateSub}>{auctionCountdown}</Text>}
             {!auctionCountdown && auctionDateReached && auctionDate && (
-              <Text style={[auctionStyles.dateSub, { color: auctionDetails?.status === 'completed' ? '#4ADE80' : Colors.warning }]}>
+              <Text style={[auctionStyles.dateSub, { color: auctionDetails?.status === 'completed' ? '#4ADE80' : colors.warning }]}>
                 {auctionDetails?.status === 'completed' ? '✓ Completed' : (moment.utc(auctionDate).isSame(moment.utc(), 'day') ? 'Today!' : 'Not Started Yet')}
               </Text>
             )}
@@ -1582,7 +1585,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 <Text style={auctionStyles.actionTitle}>Manage Registrations</Text>
                 <Text style={auctionStyles.actionSub}>View players & check finances</Text>
               </View>
-              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+              <MCIcon name="chevron-right" size={22} color={colors.textTertiary} />
             </TouchableOpacity>
 
             <View style={auctionStyles.divider} />
@@ -1601,7 +1604,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               }}
             >
               <View style={[auctionStyles.actionIcon, { backgroundColor: canCreateSets ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.05)' }]}>
-                <MCIcon name="cards-outline" size={20} color={canCreateSets ? '#4ADE80' : Colors.textTertiary} />
+                <MCIcon name="cards-outline" size={20} color={canCreateSets ? '#4ADE80' : colors.textTertiary} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={auctionStyles.actionTitle}>Create & Manage Sets</Text>
@@ -1610,8 +1613,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 </Text>
               </View>
               {canCreateSets
-                ? <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
-                : <MCIcon name="lock-outline" size={18} color={Colors.textTertiary} />}
+                ? <MCIcon name="chevron-right" size={22} color={colors.textTertiary} />
+                : <MCIcon name="lock-outline" size={18} color={colors.textTertiary} />}
             </TouchableOpacity>
 
             {auctionDateReached && (
@@ -1628,10 +1631,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   }}
                 >
                   <View style={[auctionStyles.actionIcon, { backgroundColor: auctionDetails?.hasSets ? 'rgba(234,179,8,0.15)' : 'rgba(255,255,255,0.05)' }]}>
-                    <MCIcon name="broadcast" size={20} color={auctionDetails?.hasSets ? Colors.warning : Colors.textTertiary} />
+                    <MCIcon name="broadcast" size={20} color={auctionDetails?.hasSets ? colors.warning : colors.textTertiary} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={[auctionStyles.actionTitle, { color: auctionDetails?.hasSets ? Colors.warning : Colors.textPrimary }]}>
+                    <Text style={[auctionStyles.actionTitle, { color: auctionDetails?.hasSets ? colors.warning : colors.textPrimary }]}>
                       {auctionDetails?.status === 'in_progress' ? 'Resume / Close Live Auction' : 'Launch Live Auction'}
                     </Text>
                     <Text style={auctionStyles.actionSub}>
@@ -1641,9 +1644,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     </Text>
                   </View>
                   {auctionDetails?.hasSets ? (
-                    <MCIcon name="chevron-right" size={22} color={Colors.warning} />
+                    <MCIcon name="chevron-right" size={22} color={colors.warning} />
                   ) : (
-                    <MCIcon name="lock-outline" size={18} color={Colors.textTertiary} />
+                    <MCIcon name="lock-outline" size={18} color={colors.textTertiary} />
                   )}
                 </TouchableOpacity>
               </>
@@ -1665,7 +1668,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 <Text style={auctionStyles.actionTitle}>View Auctioned Players</Text>
                 <Text style={auctionStyles.actionSub}>List of users and finance (Read-only)</Text>
               </View>
-              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+              <MCIcon name="chevron-right" size={22} color={colors.textTertiary} />
             </TouchableOpacity>
           </View>
         )}
@@ -1679,37 +1682,37 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               <View style={{ marginBottom: 16 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, backgroundColor: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 8 }}>
                   <View>
-                    <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>Purse Left</Text>
-                    <Text style={{ color: Colors.warning, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>{ownerData.purseAvailable || 0}</Text>
+                    <Text style={{ color: colors.textTertiary, fontSize: 12 }}>Purse Left</Text>
+                    <Text style={{ color: colors.warning, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>{ownerData.purseAvailable || 0}</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>Squad Size</Text>
-                    <Text style={{ color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>{ownerData.squad?.length || 0}</Text>
+                    <Text style={{ color: colors.textTertiary, fontSize: 12 }}>Squad Size</Text>
+                    <Text style={{ color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>{ownerData.squad?.length || 0}</Text>
                   </View>
                 </View>
-                <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8 }}>Squad Contact List</Text>
+                <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8 }}>Squad Contact List</Text>
                 {ownerData.squad?.length > 0 ? ownerData.squad.map((p, idx) => (
-                  <View key={p.playerId || idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                  <View key={p.playerId || idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.textPrimary, fontSize: 14 }}>{p.fullName}</Text>
-                      <Text style={{ color: Colors.textTertiary, fontSize: 12 }}>{p.role || 'Player'} • {p.soldPrice} pts</Text>
+                      <Text style={{ color: colors.textPrimary, fontSize: 14 }}>{p.fullName}</Text>
+                      <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{p.role || 'Player'} • {p.soldPrice} pts</Text>
                     </View>
-                    <Text style={{ color: Colors.primary, fontSize: 13 }} onPress={() => { if (p.mobile) Linking.openURL(`tel:${p.mobile}`) }}>{p.mobile || 'No contact'}</Text>
+                    <Text style={{ color: colors.primary, fontSize: 13 }} onPress={() => { if (p.mobile) Linking.openURL(`tel:${p.mobile}`) }}>{p.mobile || 'No contact'}</Text>
                   </View>
-                )) : <Text style={{ color: Colors.textTertiary, fontSize: 13 }}>No players bought yet.</Text>}
+                )) : <Text style={{ color: colors.textTertiary, fontSize: 13 }}>No players bought yet.</Text>}
 
                 <TouchableOpacity
                   style={[auctionStyles.actionRow, { marginTop: 16 }]}
                   onPress={() => navigation.navigate('AuctionLiveTeamOwner', { tournamentId: tournament._id, auctionId: auctionDetails._id })}
                 >
                   <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(234,179,8,0.12)' }]}>
-                    <MCIcon name="shield-crown" size={20} color={Colors.warning} />
+                    <MCIcon name="shield-crown" size={20} color={colors.warning} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={auctionStyles.actionTitle}>Full Team Dashboard</Text>
                     <Text style={auctionStyles.actionSub}>View bids & deep stats</Text>
                   </View>
-                  <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+                  <MCIcon name="chevron-right" size={22} color={colors.textTertiary} />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -1724,13 +1727,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 }}
               >
                 <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(234,179,8,0.12)' }]}>
-                  <MCIcon name="shield-crown" size={20} color={Colors.warning} />
+                  <MCIcon name="shield-crown" size={20} color={colors.warning} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={auctionStyles.actionTitle}>My Team Dashboard</Text>
                   <Text style={auctionStyles.actionSub}>View bids, purse & squad</Text>
                 </View>
-                <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+                <MCIcon name="chevron-right" size={22} color={colors.textTertiary} />
               </TouchableOpacity>
             )}
 
@@ -1747,7 +1750,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 <Text style={auctionStyles.actionTitle}>Browse Players & Sets</Text>
                 <Text style={auctionStyles.actionSub}>View all registered users and auction sets</Text>
               </View>
-              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+              <MCIcon name="chevron-right" size={22} color={colors.textTertiary} />
             </TouchableOpacity>
           </View>
         )}
@@ -1761,9 +1764,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               <View style={{ marginBottom: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: myRegistrationData.soldStatus === 'sold' ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)' }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: Colors.textTertiary, fontSize: 13 }}>Auction Result</Text>
+                    <Text style={{ color: colors.textTertiary, fontSize: 13 }}>Auction Result</Text>
                     <Text style={{
-                      color: myRegistrationData.soldStatus === 'sold' ? '#4ADE80' : (myRegistrationData.soldStatus === 'unsold' ? '#EF4444' : Colors.textPrimary),
+                      color: myRegistrationData.soldStatus === 'sold' ? '#4ADE80' : (myRegistrationData.soldStatus === 'unsold' ? '#EF4444' : colors.textPrimary),
                       fontSize: 20,
                       fontFamily: Typography.fontFamily.bold,
                       marginTop: 4
@@ -1773,9 +1776,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   </View>
                   {myRegistrationData.soldStatus === 'sold' && (
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ color: Colors.textTertiary, fontSize: 13 }}>Sold to</Text>
-                      <Text style={{ color: Colors.white, fontSize: 16, fontFamily: Typography.fontFamily.semiBold, marginTop: 4 }}>{myRegistrationData.soldToTeam?.name || 'A Team'}</Text>
-                      <Text style={{ color: Colors.warning, fontSize: 14, marginTop: 2 }}>{myRegistrationData.soldPrice} points</Text>
+                      <Text style={{ color: colors.textTertiary, fontSize: 13 }}>Sold to</Text>
+                      <Text style={{ color: colors.white, fontSize: 16, fontFamily: Typography.fontFamily.semiBold, marginTop: 4 }}>{myRegistrationData.soldToTeam?.name || 'A Team'}</Text>
+                      <Text style={{ color: colors.warning, fontSize: 14, marginTop: 2 }}>{myRegistrationData.soldPrice} points</Text>
                     </View>
                   )}
                 </View>
@@ -1815,7 +1818,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     {isAuctionRegistered ? 'Tap to view your registration' : (regEndPassed ? 'Registration ended. Tap for details.' : 'Join the player pool')}
                   </Text>
                 </View>
-                <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+                <MCIcon name="chevron-right" size={22} color={colors.textTertiary} />
               </TouchableOpacity>
             )}
 
@@ -1827,13 +1830,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   onPress={() => navigation.navigate('AuctionLivePublic', { auctionId: auctionDetails?._id })}
                 >
                   <View style={[auctionStyles.actionIcon, { backgroundColor: 'rgba(234,179,8,0.1)' }]}>
-                    <MCIcon name="eye" size={20} color={Colors.warning} />
+                    <MCIcon name="eye" size={20} color={colors.warning} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={auctionStyles.actionTitle}>Watch Live Auction</Text>
                     <Text style={auctionStyles.actionSub}>View bids in real-time</Text>
                   </View>
-                  <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+                  <MCIcon name="chevron-right" size={22} color={colors.textTertiary} />
                 </TouchableOpacity>
               </>
             )}
@@ -1852,7 +1855,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 <Text style={auctionStyles.actionTitle}>Share Registration Link</Text>
                 <Text style={auctionStyles.actionSub}>Invite players to register</Text>
               </View>
-              <MCIcon name="chevron-right" size={22} color={Colors.textTertiary} />
+              <MCIcon name="chevron-right" size={22} color={colors.textTertiary} />
             </TouchableOpacity>
           </View>
         )}
@@ -1866,18 +1869,18 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     <View style={[styles.placeholderContainer, { paddingHorizontal: 20 }]}>
       <Animated.View style={{
         width: 80, height: 80, borderRadius: 40,
-        backgroundColor: Colors.primaryAlpha10,
+        backgroundColor: colors.primaryAlpha10,
         justifyContent: 'center', alignItems: 'center',
         marginBottom: 24,
         transform: [{ scale: lockAnim }]
       }}>
-        <MCIcon name="lock" size={36} color={Colors.primary} />
+        <MCIcon name="lock" size={36} color={colors.primary} />
       </Animated.View>
-      <Text style={{ fontSize: 22, fontFamily: Typography.fontFamily.bold, color: Colors.primary, marginBottom: 12, textAlign: 'center' }}>
+      <Text style={{ fontSize: 22, fontFamily: Typography.fontFamily.bold, color: colors.primary, marginBottom: 12, textAlign: 'center' }}>
         {tabName} Locked
       </Text>
-      <Text style={[styles.emptyText, { color: Colors.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22 }]}>
-        This section will unlock once the tournament starts on <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.semiBold }}>{tournament?.startDate ? moment.utc(tournament.startDate).format('DD MMM YYYY') : 'the start date'}</Text>.
+      <Text style={[styles.emptyText, { color: colors.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22 }]}>
+        This section will unlock once the tournament starts on <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.semiBold }}>{tournament?.startDate ? moment.utc(tournament.startDate).format('DD MMM YYYY') : 'the start date'}</Text>.
       </Text>
     </View>
   );
@@ -1899,10 +1902,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.primaryDark} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
       {/* Modern Header: Yellow Gradient with Logo + Title */}
       <LinearGradient
-        colors={Colors.primaryGradient || ['#FFCC00', '#E6B800']}
+        colors={colors.primaryGradient || ['#FFCC00', '#E6B800']}
         style={styles.bannerWrapper}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -1939,10 +1942,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               <View style={styles.headerBadgeRow}>
                 <View style={styles.statusBadge}>
                   <View style={[styles.statusDot, {
-                    backgroundColor: tournament.status === 'ongoing' ? Colors.error
-                      : (tournament.status === 'upcoming' || tournament.status === 'draft') ? Colors.warning
-                        : tournament.status === 'completed' ? Colors.success
-                          : Colors.primary
+                    backgroundColor: tournament.status === 'ongoing' ? colors.error
+                      : (tournament.status === 'upcoming' || tournament.status === 'draft') ? colors.warning
+                        : tournament.status === 'completed' ? colors.success
+                          : colors.primary
                   }]} />
                   <Text style={styles.statusLabel}>
                     {tournament.status === 'ongoing' ? 'Live'
@@ -2026,7 +2029,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>NRR Scenario Calculator</Text>
               <TouchableOpacity onPress={() => setShowScenarioCalculator(false)}>
-                <Icon name="x" size={24} color={Colors.white} />
+                <Icon name="x" size={24} color={colors.white} />
               </TouchableOpacity>
             </View>
 
@@ -2070,7 +2073,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <TextInput
               style={styles.input}
               placeholder="e.g. 150"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               keyboardType="number-pad"
               value={scenarioData.firstInningsScore}
               onChangeText={val => setScenarioData({ ...scenarioData, firstInningsScore: val })}
@@ -2080,14 +2083,14 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <TextInput
               style={styles.input}
               placeholder="e.g. 1 or 4"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               keyboardType="number-pad"
               value={scenarioData.targetRank}
               onChangeText={val => setScenarioData({ ...scenarioData, targetRank: val })}
             />
 
             <TouchableOpacity style={styles.actionBtn} onPress={handleCalculateScenario} disabled={scenarioLoading}>
-              {scenarioLoading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.actionBtnText}>Calculate Margin</Text>}
+              {scenarioLoading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionBtnText}>Calculate Margin</Text>}
             </TouchableOpacity>
 
             {scenarioResult && (
@@ -2143,7 +2146,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Your Team</Text>
               <TouchableOpacity onPress={() => setShowRegisterModal(false)}>
-                <Icon name="x" size={24} color={Colors.textSecondary} />
+                <Icon name="x" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -2168,8 +2171,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     navigation.navigate('TeamCreate', { fromTournamentId: tournamentId });
                   }}
                 >
-                  <Icon name="plus" size={24} color={Colors.primary} />
-                  <Text style={[styles.teamName, { color: Colors.primary, marginLeft: 8 }]}>Create New Team</Text>
+                  <Icon name="plus" size={24} color={colors.primary} />
+                  <Text style={[styles.teamName, { color: colors.primary, marginLeft: 8 }]}>Create New Team</Text>
                 </TouchableOpacity>
               }
             />
@@ -2178,30 +2181,72 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       </Modal>
 
       {/* Settings Sidebar Modal */}
-      <Modal visible={showSettingsSidebar} animationType="fade" transparent>
+      <Modal visible={showSettingsSidebar} animationType="fade" transparent onRequestClose={() => setShowSettingsSidebar(false)}>
         <TouchableOpacity style={styles.sidebarOverlay} activeOpacity={1} onPress={() => setShowSettingsSidebar(false)}>
           <TouchableOpacity activeOpacity={1} style={styles.sidebarContent}>
-            <Text style={styles.sidebarTitle}>Settings</Text>
-
-            <TouchableOpacity style={styles.sidebarOption} onPress={() => { setShowSettingsSidebar(false); handleShareTournament(); }}>
-              <Icon name="share-2" size={20} color={Colors.textPrimary} style={styles.sidebarIcon} />
-              <Text style={styles.sidebarOptionText}>Share Tournament</Text>
-            </TouchableOpacity>
-
-            {isOrganizer && (
-              <TouchableOpacity style={styles.sidebarOption} onPress={() => { setShowSettingsSidebar(false); setShowEditDetailsModal(true); }}>
-                <Icon name="settings" size={20} color={Colors.textPrimary} style={styles.sidebarIcon} />
-                <Text style={styles.sidebarOptionText}>Edit Tournament Details</Text>
+            <View style={styles.sidebarHeader}>
+              <View>
+                <Text style={styles.sidebarTitle}>Tournament Menu</Text>
+                <Text style={styles.sidebarSubtitle} numberOfLines={1}>{tournament?.name || "Quick Actions"}</Text>
+              </View>
+              <TouchableOpacity style={styles.sidebarCloseBtn} onPress={() => setShowSettingsSidebar(false)}>
+                <Icon name="x" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
-            )}
+            </View>
 
-            {isMainOrganizer && (
-              <TouchableOpacity style={styles.sidebarOption} onPress={() => { setShowSettingsSidebar(false); setRoleType('coOrganizers'); setShowRoleModal(true); }}>
-                <Icon name="users" size={20} color={Colors.textPrimary} style={styles.sidebarIcon} />
-                <Text style={styles.sidebarOptionText}>Manage Organizers</Text>
+            <View style={styles.sidebarDivider} />
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              <TouchableOpacity style={styles.sidebarCard} onPress={() => { setShowSettingsSidebar(false); handleShareTournament(); }}>
+                <View style={[styles.sidebarIconBox, { backgroundColor: isDark ? "rgba(59, 130, 246, 0.15)" : "rgba(59, 130, 246, 0.1)" }]}>
+                  <Icon name="share-2" size={18} color="#3B82F6" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sidebarCardTitle}>Share Tournament</Text>
+                  <Text style={styles.sidebarCardDesc}>Share link or poster</Text>
+                </View>
+                <Icon name="chevron-right" size={16} color={colors.textTertiary} />
               </TouchableOpacity>
-            )}
 
+              {isOrganizer && (
+                <TouchableOpacity style={styles.sidebarCard} onPress={() => { setShowSettingsSidebar(false); setShowEditDetailsModal(true); }}>
+                  <View style={[styles.sidebarIconBox, { backgroundColor: isDark ? "rgba(245, 158, 11, 0.15)" : "rgba(245, 158, 11, 0.1)" }]}>
+                    <Icon name="edit-3" size={18} color="#F59E0B" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sidebarCardTitle}>Edit Details</Text>
+                    <Text style={styles.sidebarCardDesc}>Update format & rules</Text>
+                  </View>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+
+              {isMainOrganizer && (
+                <TouchableOpacity style={styles.sidebarCard} onPress={() => { setShowSettingsSidebar(false); setRoleType("coOrganizers"); setShowRoleModal(true); }}>
+                  <View style={[styles.sidebarIconBox, { backgroundColor: isDark ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.1)" }]}>
+                    <Icon name="users" size={18} color="#10B981" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sidebarCardTitle}>Manage Organizers</Text>
+                    <Text style={styles.sidebarCardDesc}>Add co-hosts & roles</Text>
+                  </View>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+
+              {isOrganizer && tournament?.status !== "completed" && (
+                <TouchableOpacity style={styles.sidebarCard} onPress={() => { setShowSettingsSidebar(false); setShowCompleteModal(true); }}>
+                  <View style={[styles.sidebarIconBox, { backgroundColor: isDark ? "rgba(239, 68, 68, 0.15)" : "rgba(239, 68, 68, 0.1)" }]}>
+                    <Icon name="flag" size={18} color="#EF4444" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.sidebarCardTitle, { color: "#EF4444" }]}>End Tournament</Text>
+                    <Text style={styles.sidebarCardDesc}>Mark completed & set winner</Text>
+                  </View>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -2216,7 +2261,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 <Text style={[styles.modalTitle, { color: '#ff6b35' }]}>Mark as Completed</Text>
               </View>
               <TouchableOpacity onPress={() => setShowCompleteModal(false)}>
-                <Icon name="x" size={24} color={Colors.textSecondary} />
+                <Icon name="x" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -2227,13 +2272,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             {/* Optional Winner Picker */}
             {(tournament?.registeredTeams?.length > 0) && (
               <View style={{ marginBottom: Spacing.md }}>
-                <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 }}>Select Winner (optional):</Text>
-                <ScrollView style={{ maxHeight: 180, borderWidth: 1, borderColor: Colors.border, borderRadius: 8 }}>
+                <Text style={{ fontSize: 13, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 8 }}>Select Winner (optional):</Text>
+                <ScrollView style={{ maxHeight: 180, borderWidth: 1, borderColor: colors.border, borderRadius: 8 }}>
                   <TouchableOpacity
-                    style={[{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: Colors.border }, completeWinnerId === '' && { backgroundColor: 'rgba(154,188,47,0.1)' }]}
+                    style={[{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.border }, completeWinnerId === '' && { backgroundColor: 'rgba(154,188,47,0.1)' }]}
                     onPress={() => setCompleteWinnerId('')}
                   >
-                    <Text style={{ color: completeWinnerId === '' ? Colors.primary : Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 }}>None / Skip</Text>
+                    <Text style={{ color: completeWinnerId === '' ? colors.primary : colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 }}>None / Skip</Text>
                   </TouchableOpacity>
                   {(tournament?.registeredTeams || []).map((rt, idx) => {
                     const team = rt?.team;
@@ -2243,18 +2288,18 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     return (
                       <TouchableOpacity
                         key={idx}
-                        style={[{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: Colors.border, flexDirection: 'row', alignItems: 'center' }, isSelected && { backgroundColor: 'rgba(154,188,47,0.1)' }]}
+                        style={[{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center' }, isSelected && { backgroundColor: 'rgba(154,188,47,0.1)' }]}
                         onPress={() => setCompleteWinnerId(isSelected ? '' : teamId)}
                       >
                         {team.logo ? (
                           <Image source={{ uri: getImageUrl(team.logo) }} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 10 }} />
                         ) : (
-                          <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.border, marginRight: 10, justifyContent: 'center', alignItems: 'center' }}>
-                            <MCIcon name="cricket" size={12} color={Colors.textSecondary} />
+                          <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.border, marginRight: 10, justifyContent: 'center', alignItems: 'center' }}>
+                            <MCIcon name="cricket" size={12} color={colors.textSecondary} />
                           </View>
                         )}
-                        <Text style={{ color: isSelected ? Colors.primary : Colors.textPrimary, fontFamily: isSelected ? Typography.fontFamily.bold : Typography.fontFamily.regular, fontSize: 13, flex: 1 }} numberOfLines={1}>{team.name}</Text>
-                        {isSelected && <Icon name="check" size={16} color={Colors.primary} />}
+                        <Text style={{ color: isSelected ? colors.primary : colors.textPrimary, fontFamily: isSelected ? Typography.fontFamily.bold : Typography.fontFamily.regular, fontSize: 13, flex: 1 }} numberOfLines={1}>{team.name}</Text>
+                        {isSelected && <Icon name="check" size={16} color={colors.primary} />}
                       </TouchableOpacity>
                     );
                   })}
@@ -2264,10 +2309,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
               <TouchableOpacity
-                style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border }]}
+                style={[styles.actionBtn, { flex: 1, backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border }]}
                 onPress={() => setShowCompleteModal(false)}
               >
-                <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
+                <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, { flex: 1.5, backgroundColor: '#ff6b35' }]}
@@ -2275,9 +2320,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 disabled={completeLoading}
               >
                 {completeLoading
-                  ? <ActivityIndicator color={Colors.white} size="small" />
+                  ? <ActivityIndicator color={colors.white} size="small" />
                   : <>
-                    <Icon name="check-circle" size={16} color={Colors.white} style={{ marginRight: 6 }} />
+                    <Icon name="check-circle" size={16} color={colors.white} style={{ marginRight: 6 }} />
                     <Text style={styles.actionBtnText}>Mark Completed</Text>
                   </>
                 }
@@ -2294,7 +2339,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Fixture Preview</Text>
               <TouchableOpacity onPress={() => setShowFixturePreview(false)}>
-                <Icon name="x" size={24} color={Colors.textSecondary} />
+                <Icon name="x" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <Text style={[styles.bodyText, { marginBottom: Spacing.md }]}>
@@ -2303,12 +2348,12 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 : 'Note: Teams will be randomized into groups upon generation.'}
             </Text>
 
-            <View style={{ flex: 1, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border }}>
+            <View style={{ flex: 1, backgroundColor: colors.backgroundElevated, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: colors.border }}>
               <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled">
                 {tournament?.format?.toLowerCase() === 'knockout' ? (
                   renderKnockoutPreviewCards()
                 ) : (
-                  <Text style={[styles.bodyText, { color: Colors.textPrimary, lineHeight: 22 }]}>
+                  <Text style={[styles.bodyText, { color: colors.textPrimary, lineHeight: 22 }]}>
                     {generatePreviewText()}
                   </Text>
                 )}
@@ -2317,24 +2362,24 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
             {tournament?.format?.toLowerCase() === 'knockout' ? (
               <View style={{ flexDirection: 'row', marginTop: Spacing.lg, gap: 8 }}>
-                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border }]} onPress={() => setShowFixturePreview(false)}>
-                  <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border }]} onPress={() => setShowFixturePreview(false)}>
+                  <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, { flex: 1.2, backgroundColor: 'rgba(154,188,47,0.1)' }]} onPress={handleRegenerateKnockoutPreview}>
-                  <MCIcon name="shuffle-variant" size={16} color={Colors.primary} style={{ marginRight: 6 }} />
-                  <Text style={[styles.actionBtnText, { color: Colors.primary }]}>Shuffle</Text>
+                  <MCIcon name="shuffle-variant" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                  <Text style={[styles.actionBtnText, { color: colors.primary }]}>Shuffle</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, { flex: 1.5 }]} onPress={confirmGenerateFixtures} disabled={loading}>
-                  {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.actionBtnText}>Confirm</Text>}
+                  {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionBtnText}>Confirm</Text>}
                 </TouchableOpacity>
               </View>
             ) : (
               <View style={{ flexDirection: 'row', marginTop: Spacing.lg }}>
-                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={() => setShowFixturePreview(false)}>
-                  <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border, marginRight: Spacing.sm }]} onPress={() => setShowFixturePreview(false)}>
+                  <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={confirmGenerateFixtures} disabled={loading}>
-                  {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.actionBtnText}>Confirm & Generate</Text>}
+                  {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionBtnText}>Confirm & Generate</Text>}
                 </TouchableOpacity>
               </View>
             )}
@@ -2349,7 +2394,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Share Fixtures</Text>
               <TouchableOpacity onPress={() => setShowTeamShareModal(false)}>
-                <Icon name="x" size={24} color={Colors.textSecondary} />
+                <Icon name="x" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <Text style={[styles.bodyText, { marginBottom: Spacing.md, paddingHorizontal: Spacing.lg, marginTop: Spacing.md }]}>Select fixtures to share:</Text>
@@ -2394,16 +2439,16 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 >
                   {item._id === 'overall' ? (
                     <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(154,188,47,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                      <Icon name="calendar" size={18} color={Colors.primary} />
+                      <Icon name="calendar" size={18} color={colors.primary} />
                     </View>
                   ) : (
                     <Image source={{ uri: item.logo ? getImageUrl(item.logo) : 'https://via.placeholder.com/40' }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }} />
                   )}
-                  <Text style={[styles.bodyText, { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 15 }]}>
+                  <Text style={[styles.bodyText, { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 15 }]}>
                     {item.name}
                   </Text>
                   <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <Icon name="chevron-right" size={20} color={Colors.textSecondary} />
+                    <Icon name="chevron-right" size={20} color={colors.textSecondary} />
                   </View>
                 </TouchableOpacity>
               )}
@@ -2533,53 +2578,53 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       {/* Qualification Scenario Modal */}
       <Modal visible={showScenarioModal} transparent animationType="slide" onRequestClose={() => setShowScenarioModal(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: Colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: '80%' }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: '80%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <View>
-                <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>
+                <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>
                   {selectedScenario?.teamName}
                 </Text>
-                <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 4 }}>Qualification Scenario</Text>
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 4 }}>Qualification Scenario</Text>
               </View>
               <TouchableOpacity onPress={() => setShowScenarioModal(false)}>
-                <Icon name="x" size={24} color={Colors.textSecondary} />
+                <Icon name="x" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            <View style={{ backgroundColor: Colors.backgroundElevated, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: selectedScenario?.color || Colors.border }}>
+            <View style={{ backgroundColor: colors.backgroundElevated, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: selectedScenario?.color || colors.border }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                 <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: selectedScenario?.color, marginRight: 8 }} />
-                <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>
+                <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>
                   {selectedScenario?.status}
                 </Text>
               </View>
 
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
                 <View>
-                  <Text style={{ fontSize: 11, color: Colors.textTertiary }}>Max Points Possible</Text>
-                  <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.primary }}>{selectedScenario?.maxPoints}</Text>
+                  <Text style={{ fontSize: 11, color: colors.textTertiary }}>Max Points Possible</Text>
+                  <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.primary }}>{selectedScenario?.maxPoints}</Text>
                 </View>
                 <View>
-                  <Text style={{ fontSize: 11, color: Colors.textTertiary }}>Matches Remaining</Text>
-                  <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>{selectedScenario?.matchesRemaining}</Text>
+                  <Text style={{ fontSize: 11, color: colors.textTertiary }}>Matches Remaining</Text>
+                  <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>{selectedScenario?.matchesRemaining}</Text>
                 </View>
                 <View>
-                  <Text style={{ fontSize: 11, color: Colors.textTertiary }}>Probability</Text>
-                  <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>{selectedScenario?.probability}</Text>
+                  <Text style={{ fontSize: 11, color: colors.textTertiary }}>Probability</Text>
+                  <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>{selectedScenario?.probability}</Text>
                 </View>
               </View>
 
               <View style={{ marginTop: 12 }}>
-                <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 8 }}>Details:</Text>
+                <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 8 }}>Details:</Text>
                 {selectedScenario?.details && selectedScenario.details.length > 0 ? (
                   selectedScenario.details.map((detail, idx) => (
                     <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 }}>
-                      <Text style={{ color: Colors.textTertiary, marginRight: 6 }}>•</Text>
-                      <Text style={{ fontSize: 13, color: Colors.textSecondary, flex: 1, lineHeight: 18 }}>{detail}</Text>
+                      <Text style={{ color: colors.textTertiary, marginRight: 6 }}>•</Text>
+                      <Text style={{ fontSize: 13, color: colors.textSecondary, flex: 1, lineHeight: 18 }}>{detail}</Text>
                     </View>
                   ))
                 ) : (
-                  <Text style={{ fontSize: 13, color: Colors.textSecondary }}>No additional details available.</Text>
+                  <Text style={{ fontSize: 13, color: colors.textSecondary }}>No additional details available.</Text>
                 )}
               </View>
             </View>
@@ -2591,14 +2636,14 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   );
 };
 
-const auctionStyles = StyleSheet.create({
+const createAuctionStyles = (colors, shadows, isDark) => StyleSheet.create({
   heroCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: Spacing.lg,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   heroIconRow: { flexDirection: 'row', alignItems: 'center' },
   heroIconBg: {
@@ -2609,8 +2654,8 @@ const auctionStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heroTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  heroSubtitle: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  heroTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  heroSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -2621,29 +2666,29 @@ const auctionStyles = StyleSheet.create({
   dateRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   dateCard: {
     flex: 1,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     gap: 4,
   },
-  dateLabel: { fontSize: 11, color: Colors.textTertiary, marginTop: 4 },
-  dateValue: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  dateSub: { fontSize: 11, color: Colors.warning, marginTop: 2 },
+  dateLabel: { fontSize: 11, color: colors.textTertiary, marginTop: 4 },
+  dateValue: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  dateSub: { fontSize: 11, color: colors.warning, marginTop: 2 },
 
   sectionCard: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   sectionTitle: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 1,
     paddingHorizontal: Spacing.md,
@@ -2663,13 +2708,13 @@ const auctionStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  actionTitle: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  actionSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
+  actionTitle: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  actionSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  divider: { height: 1, backgroundColor: colors.border, marginHorizontal: Spacing.md },
 });
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
   /* ---- BANNER + HEADER ---- */
   bannerWrapper: { position: 'relative', height: 135, justifyContent: 'flex-end', paddingBottom: 10 },
@@ -2752,67 +2797,67 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
 
-  followBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: Colors.primary, backgroundColor: 'rgba(154,188,47,0.15)' },
-  followBtnActive: { borderColor: Colors.error, backgroundColor: 'rgba(244,67,54,0.15)' },
-  followBtnText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.primary },
+  followBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colors.primary, backgroundColor: 'rgba(154,188,47,0.15)' },
+  followBtnActive: { borderColor: colors.error, backgroundColor: 'rgba(244,67,54,0.15)' },
+  followBtnText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: colors.primary },
 
   /* ---- TABS (underline style) ---- */
-  tabsWrapper: { backgroundColor: Colors.backgroundElevated, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  tabsWrapper: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   tabsScroll: { paddingHorizontal: 4 },
   tabBtn: { paddingVertical: 13, paddingHorizontal: 16, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
-  tabBtnActive: { borderBottomColor: Colors.primary },
-  tabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, letterSpacing: 0.2 },
-  tabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  tabBtnActive: { borderBottomColor: colors.primary },
+  tabText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, letterSpacing: 0.2 },
+  tabTextActive: { color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
 
   /* ---- MATCH SUB TABS ---- */
-  matchSubTabs: { flexDirection: 'row', marginHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 12, marginTop: 8 },
+  matchSubTabs: { flexDirection: 'row', marginHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 12, marginTop: 8 },
   matchSubTab: { flex: 1, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  matchSubTabActive: { borderBottomColor: Colors.primary },
-  matchSubTabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
-  matchSubTabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
-  liveCountBadge: { backgroundColor: Colors.error, borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
+  matchSubTabActive: { borderBottomColor: colors.primary },
+  matchSubTabText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
+  matchSubTabTextActive: { color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  liveCountBadge: { backgroundColor: colors.error, borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
   liveCountBadgeActive: { backgroundColor: '#000000' },
-  liveCountText: { fontSize: 9, color: Colors.white, fontFamily: Typography.fontFamily.bold },
+  liveCountText: { fontSize: 9, color: colors.white, fontFamily: Typography.fontFamily.bold },
 
   /* ---- GENERAL ---- */
   tabContent: { padding: Spacing.md },
-  card: { backgroundColor: Colors.backgroundElevated, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
+  card: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border, ...(isDark ? {} : shadows.xs) },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  bodyText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginBottom: 4 },
-  emptyText: { textAlign: 'center', color: Colors.textTertiary, marginTop: 40, fontFamily: Typography.fontFamily.medium },
+  sectionTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  bodyText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginBottom: 4 },
+  emptyText: { textAlign: 'center', color: colors.textTertiary, marginTop: 40, fontFamily: Typography.fontFamily.medium },
   placeholderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
 
   /* ---- OVERVIEW STATS STRIP ---- */
-  statsStrip: { flexDirection: 'row', backgroundColor: Colors.backgroundElevated, borderRadius: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+  statsStrip: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 14, marginBottom: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', ...(isDark ? {} : shadows.xs) },
   statBox: { flex: 1, alignItems: 'center', paddingVertical: 14 },
-  statNum: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-  statLabel: { fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginTop: 2 },
-  statDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 10 },
+  statNum: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.primary },
+  statLabel: { fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginTop: 2 },
+  statDivider: { width: 1, backgroundColor: colors.border, marginVertical: 10 },
 
   /* ---- INFO ROW ---- */
-  infoRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  infoRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   infoIconWrap: { width: 28, alignItems: 'center' },
-  infoLabel: { flex: 1, fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginLeft: 4 },
-  infoValue: { fontSize: 13, color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
+  infoLabel: { flex: 1, fontSize: 13, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginLeft: 4 },
+  infoValue: { fontSize: 13, color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
 
   /* ---- ORGANIZER ---- */
   organizerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 12 },
-  organizerAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: Colors.backgroundElevated, borderWidth: 2, borderColor: Colors.primary },
-  organizerBadge: { backgroundColor: Colors.primaryAlpha20, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: Colors.primaryAlpha30 },
-  organizerBadgeText: { fontSize: 11, color: Colors.primary, fontFamily: Typography.fontFamily.semiBold },
+  organizerAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.backgroundElevated, borderWidth: 2, borderColor: colors.primary },
+  organizerBadge: { backgroundColor: colors.primaryAlpha20, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.primaryAlpha30 },
+  organizerBadgeText: { fontSize: 11, color: colors.primary, fontFamily: Typography.fontFamily.semiBold },
 
   /* ---- TEAM CARD & HEADER ---- */
   teamHeaderStrip: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   teamCountBox: { flex: 1, alignItems: 'center', paddingVertical: 14 },
-  teamCountNum: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-  teamCountLabel: { fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginTop: 2 },
-  teamCountDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 10 },
+  teamCountNum: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.primary },
+  teamCountLabel: { fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginTop: 2 },
+  teamCountDivider: { width: 1, backgroundColor: colors.border, marginVertical: 10 },
 
   /* ---- ORGANIZER ACTION GRID ---- */
   actionGrid: {
@@ -2820,8 +2865,8 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.backgroundElevated,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   actionGridBtn: {
     flex: 1,
@@ -2832,35 +2877,38 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: colors.primaryAlpha10,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha20,
+    borderColor: colors.primaryAlpha20,
   },
-  actionGridText: { fontSize: 11, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  actionGridText: { fontSize: 11, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
 
-  teamCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 10 },
-  teamRankText: { width: 24, fontSize: 12, color: Colors.textTertiary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' },
-  teamLogo: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.backgroundElevated, borderWidth: 1.5, borderColor: Colors.border },
-  teamName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  teamSub: { fontSize: 12, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium },
-  removeTeamBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.errorLight, justifyContent: 'center', alignItems: 'center' },
+  teamCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface, paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: 10 },
+  teamRankText: { width: 24, fontSize: 12, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold, textAlign: 'center' },
+  teamLogo: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.backgroundElevated, borderWidth: 1.5, borderColor: colors.border },
+  teamName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  teamSub: { fontSize: 12, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium },
+  removeTeamBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.errorLight, justifyContent: 'center', alignItems: 'center' },
 
   /* ---- START MATCH BTN ---- */
-  startMatchBtn: { flexDirection: 'row', backgroundColor: Colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  startMatchBtn: { flexDirection: 'row', backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   startMatchBtnText: { color: '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
   /* ---- MATCH CARD ---- */
   cardContainer: {
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderLeftWidth: 3,
-    borderLeftColor: Colors.border,
+    borderLeftColor: colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -2870,7 +2918,7 @@ const styles = StyleSheet.create({
   },
   stagePill: {
     fontSize: 10,
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -2878,25 +2926,25 @@ const styles = StyleSheet.create({
   },
   cardSubText: {
     fontSize: 11,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.medium,
     letterSpacing: 0.2,
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.errorLight,
+    backgroundColor: colors.errorLight,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
     gap: 4,
   },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.error },
-  liveBadgeText: { fontSize: 10, color: Colors.error, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
-  upcomingBadge: { backgroundColor: Colors.warningLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  upcomingBadgeText: { fontSize: 10, color: Colors.warning, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
-  resultBadge: { backgroundColor: Colors.primaryAlpha20, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  resultBadgeText: { fontSize: 10, color: Colors.primary, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.error },
+  liveBadgeText: { fontSize: 10, color: colors.error, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  upcomingBadge: { backgroundColor: colors.warningLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  upcomingBadgeText: { fontSize: 10, color: colors.warning, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  resultBadge: { backgroundColor: colors.primaryAlpha20, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  resultBadgeText: { fontSize: 10, color: colors.primary, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
   vsContainer: { marginBottom: 8 },
   teamScoreRow: {
     flexDirection: 'row',
@@ -2904,22 +2952,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 5,
   },
-  vsDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 2 },
+  vsDivider: { height: 1, backgroundColor: colors.borderLight, marginVertical: 2 },
   teamNameText: {
     fontSize: 14,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.medium,
     flex: 1,
   },
-  winnerTeamText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  winnerTeamText: { color: colors.primary, fontFamily: Typography.fontFamily.bold },
   scoreText: {
     fontSize: 14,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
   },
   overText: {
     fontSize: 11,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
   },
   matchResultFooter: {
@@ -2929,74 +2977,136 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: colors.borderLight,
   },
   matchResultText: {
     flex: 1,
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
   },
 
   /* ---- POINTS TABLE ---- */
-  table: { backgroundColor: Colors.backgroundElevated, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
-  tableRowHeader: { flexDirection: 'row', backgroundColor: Colors.primaryDark, paddingVertical: 10, paddingHorizontal: 8 },
-  tableRow: { flexDirection: 'row', paddingVertical: 9, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, alignItems: 'center' },
+  table: {
+    backgroundColor: colors.surface, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  tableRowHeader: { flexDirection: 'row', backgroundColor: colors.primaryDark, paddingVertical: 10, paddingHorizontal: 8 },
+  tableRow: { flexDirection: 'row', paddingVertical: 9, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: colors.borderLight, alignItems: 'center' },
   tableRowAlt: { backgroundColor: 'rgba(255,255,255,0.02)' },
-  tableCell: { flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 12, textAlign: 'center' },
+  tableCell: { flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 12, textAlign: 'center' },
   tableCellFlex2: { flex: 2 },
   cleanTableContainer: { marginBottom: Spacing.md },
-  groupHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.backgroundElevated, paddingVertical: 12, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border },
-  groupHeaderTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  cleanTable: { marginTop: Spacing.xs, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.md, backgroundColor: Colors.background, overflow: 'hidden' },
-  cleanTableHeader: { flexDirection: 'row', backgroundColor: Colors.backgroundElevated, paddingVertical: 10, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  cleanTableRow: { flexDirection: 'row', paddingVertical: 11, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, alignItems: 'center', backgroundColor: Colors.background },
+  groupHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.surface, paddingVertical: 12, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border },
+  groupHeaderTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  cleanTable: {
+    marginTop: Spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: BorderRadius.md,
+    backgroundColor: colors.surface, overflow: 'hidden' },
+  cleanTableHeader: { flexDirection: 'row', backgroundColor: colors.backgroundElevated, paddingVertical: 10, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+  cleanTableRow: { flexDirection: 'row', paddingVertical: 11, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: colors.borderLight, alignItems: 'center', backgroundColor: colors.background },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
 
   /* ---- ACTIONS ---- */
-  actionBtn: { flexDirection: 'row', backgroundColor: Colors.primary, paddingVertical: 10, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center' },
+  actionBtn: { flexDirection: 'row', backgroundColor: colors.primary, paddingVertical: 10, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center' },
   actionBtnText: { color: '#000000', fontFamily: Typography.fontFamily.bold, marginLeft: 6, fontSize: 13 },
-  smallActionBtn: { backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: BorderRadius.sm },
+  smallActionBtn: { backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: BorderRadius.sm },
   smallActionBtnText: { color: '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
 
   /* ---- MODALS ---- */
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: Colors.backgroundElevated, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '80%', padding: Spacing.lg },
+  modalContainer: {
+    backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '80%', padding: Spacing.lg },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
-  modalTitle: { fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
+  modalTitle: { fontSize: 18, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
 
   searchRow: { flexDirection: 'row', alignItems: 'center' },
-  searchInput: { flex: 1, backgroundColor: Colors.background, height: 48, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, borderWidth: 1, borderColor: Colors.border },
-  searchBtn: { backgroundColor: Colors.primary, height: 48, width: 48, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center', marginLeft: Spacing.sm },
+  searchInput: { flex: 1, backgroundColor: colors.background, height: 48, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, borderWidth: 1, borderColor: colors.border },
+  searchBtn: { backgroundColor: colors.primary, height: 48, width: 48, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center', marginLeft: Spacing.sm },
 
   emptySearch: { alignItems: 'center', marginTop: Spacing.xl },
-  createGhostBtn: { marginTop: Spacing.lg, padding: Spacing.md, borderColor: Colors.primary, borderWidth: 1, borderRadius: BorderRadius.lg },
-  createGhostBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  createGhostBtn: { marginTop: Spacing.lg, padding: Spacing.md, borderColor: colors.primary, borderWidth: 1, borderRadius: BorderRadius.lg },
+  createGhostBtnText: { color: colors.primary, fontFamily: Typography.fontFamily.bold },
 
-  label: { fontSize: 14, color: Colors.textSecondary, marginBottom: 8, marginTop: Spacing.md, fontFamily: Typography.fontFamily.medium },
-  input: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, height: 50, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
+  label: { fontSize: 14, color: colors.textSecondary, marginBottom: 8, marginTop: Spacing.md, fontFamily: Typography.fontFamily.medium },
+  input: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, height: 50, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium },
 
   /* ---- SIDEBAR ---- */
-  sidebarOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-start', alignItems: 'flex-end' },
-  sidebarContent: { width: 260, backgroundColor: Colors.backgroundElevated, height: '100%', padding: Spacing.lg, paddingTop: 50, borderLeftWidth: 1, borderLeftColor: Colors.border },
-  sidebarTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.lg },
-  sidebarOption: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  sidebarIcon: { marginRight: Spacing.md },
-  sidebarOptionText: { fontSize: 15, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
+  sidebarOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-start", alignItems: "flex-end" },
+  sidebarContent: {
+    width: 290,
+    backgroundColor: colors.surface,
+    height: "100%",
+    paddingHorizontal: Spacing.md,
+    paddingTop: 54,
+    paddingBottom: 24,
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+    ...(isDark ? {} : shadows.lg),
+  },
+  sidebarHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: Spacing.md,
+  },
+  sidebarTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  sidebarSubtitle: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: colors.textTertiary, marginTop: 2, maxWidth: 190 },
+  sidebarCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: isDark ? colors.surfaceVariant : colors.backgroundElevated,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  sidebarDivider: {
+    height: 1,
+    backgroundColor: colors.borderLight,
+    marginBottom: Spacing.md,
+  },
+  sidebarCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.md,
+    backgroundColor: isDark ? "rgba(255,255,255,0.03)" : colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    gap: 12,
+  },
+  sidebarIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sidebarCardTitle: { fontSize: 14, fontFamily: Typography.fontFamily.semiBold, color: colors.textPrimary },
+  sidebarCardDesc: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: colors.textTertiary, marginTop: 1 },
 
-  footerContainer: { padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.background },
-  footerBtn: { backgroundColor: Colors.primary, flexDirection: 'row', height: 52, borderRadius: BorderRadius.lg, justifyContent: 'center', alignItems: 'center' },
+  footerContainer: { padding: Spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background },
+  footerBtn: { backgroundColor: colors.primary, flexDirection: 'row', height: 52, borderRadius: BorderRadius.lg, justifyContent: 'center', alignItems: 'center' },
   footerBtnText: { color: '#000000', fontSize: 16, fontFamily: Typography.fontFamily.bold, marginLeft: 8 },
 
   // NRR Calculator Modal Styles
-  scenarioTeamBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginRight: 8 },
+  scenarioTeamBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginRight: 8 },
   scenarioTeamBtnActive: { backgroundColor: 'rgba(59, 130, 246, 0.2)', borderColor: '#3b82f6' },
-  scenarioTeamBtnText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
+  scenarioTeamBtnText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
   scenarioTeamBtnTextActive: { color: '#3b82f6', fontFamily: Typography.fontFamily.bold },
-  choiceBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+  choiceBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
   choiceBtnActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  choiceBtnText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  choiceBtnTextActive: { color: Colors.white, fontFamily: Typography.fontFamily.bold },
+  choiceBtnText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  choiceBtnTextActive: { color: colors.white, fontFamily: Typography.fontFamily.bold },
   scenarioResultCard: { marginTop: 20, padding: 15, borderRadius: 12, alignItems: 'center' },
   scenarioResultText: { fontFamily: Typography.fontFamily.semiBold, fontSize: 15, textAlign: 'center' }
 });

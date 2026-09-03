@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
@@ -10,7 +10,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Svg, { Circle } from 'react-native-svg';
 import LinearGradient from '../../../components/SolidGradient';
 import { useSelector } from 'react-redux';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme } from '../../../theme/ThemeContext';
 import api from '../../../api/axios';
 import { formatISTTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -61,8 +62,10 @@ for (let h = 0; h < 24; h++) {
   TIME_OPTIONS.push(`${hr}:30`);
 }
 
-const SlotManagerScreen = ({ navigation }) => {
+const SlotManagerScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
+  const { colors, isDark, shadows } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
   const { dashboard } = useSelector((state) => state.owner);
   const turfs = dashboard?.owner?.turfs || [];
   
@@ -768,6 +771,18 @@ const SlotManagerScreen = ({ navigation }) => {
     return finalSlots;
   }, [slots, selectedIntervalMode, activeTurf, filterFromTime, filterToTime]);
 
+  const selectedDisplayCount = useMemo(() => {
+    if (selectedIntervalMode === '60') {
+      return processedSlots.filter(s => {
+        if (s.isMerged) {
+          return s.originalSlots.every(os => selectedSlots.includes(os._id));
+        }
+        return selectedSlots.includes(s._id);
+      }).length;
+    }
+    return selectedSlots.length;
+  }, [selectedIntervalMode, processedSlots, selectedSlots]);
+
   // Grouping slots logically
   const groupedSlots = {
     early_morning: processedSlots.filter(s => getTimeGroup(s.startTime) === 'early_morning'),
@@ -892,7 +907,7 @@ const SlotManagerScreen = ({ navigation }) => {
       {/* ── Floating 3D Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 18 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-          <Icon name="arrow-left" size={20} color="#FFF" />
+          <Icon name="arrow-left" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         
         {turfs.length > 1 ? (
@@ -904,7 +919,7 @@ const SlotManagerScreen = ({ navigation }) => {
           </TouchableOpacity>
         ) : (
           <View style={{ alignItems: 'center', justifyContent: 'center', maxWidth: 220 }}>
-            <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: '#FFF' }} numberOfLines={1}>
+            <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }} numberOfLines={1}>
               {turfs[0]?.name || 'Select Ground'}
             </Text>
           </View>
@@ -981,7 +996,7 @@ const SlotManagerScreen = ({ navigation }) => {
                 </Text>
               </TouchableOpacity>
               
-              <Text style={{ color: 'rgba(255,255,255,0.4)', marginHorizontal: 8 }}>to</Text>
+              <Text style={{ color: colors.textTertiary, marginHorizontal: 8 }}>to</Text>
               
               <TouchableOpacity style={styles.filterInput} onPress={() => setShowNativeToPicker(true)}>
                 <Icon name="clock-outline" size={14} color="#FFD400" style={{ marginRight: 6 }} />
@@ -1148,14 +1163,14 @@ const SlotManagerScreen = ({ navigation }) => {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <Text style={styles.selectedCountLabel}>Manage</Text>
             <Text style={styles.selectedCountText}>
-              {selectedSlots.length} Slots Selected
+              {selectedDisplayCount} Slot{selectedDisplayCount === 1 ? '' : 's'} Selected
             </Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'space-between', width: '100%' }}>
             {slots.filter(s => selectedSlots.includes(s._id) && s.status !== 'available').length > 0 && (
-              <TouchableOpacity style={[styles.fabBtn, { flex: 1, backgroundColor: 'rgba(255, 212, 0, 0.1)', borderColor: '#FFD400' }]} onPress={() => handleQuickAction('available')}>
+              <TouchableOpacity style={[styles.fabBtn, { flex: 1, backgroundColor: 'rgba(255, 212, 0, 0.1)', borderColor: isDark ? '#FFD400' : colors.primaryDark }]} onPress={() => handleQuickAction('available')}>
                 <Icon name="check" size={12} color="#FFD400" />
-                <Text style={[styles.fabBtnText, { color: '#FFD400' }]}>Avail</Text>
+                <Text style={[styles.fabBtnText, { color: isDark ? '#FFD400' : colors.primaryDark }]}>Avail</Text>
               </TouchableOpacity>
             )}
 
@@ -1183,9 +1198,9 @@ const SlotManagerScreen = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeaderTitle}>
-              <Text style={styles.modalTitle}>Walk-in Booking ({selectedSlots.length} Slots)</Text>
+              <Text style={styles.modalTitle}>Walk-in Booking ({selectedDisplayCount} Slot{selectedDisplayCount === 1 ? '' : 's'})</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalClose}>
-                <Icon name="close" size={18} color="#FFF" />
+                <Icon name="close" size={18} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -1194,7 +1209,7 @@ const SlotManagerScreen = ({ navigation }) => {
               <TextInput
                 style={styles.modalInput}
                 placeholder="Mobile Number"
-                placeholderTextColor="rgba(255,255,255,0.3)"
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="phone-pad"
                 value={offlineDetails.customerMobile}
                 onChangeText={handleMobileChange}
@@ -1202,14 +1217,14 @@ const SlotManagerScreen = ({ navigation }) => {
               <TextInput
                 style={styles.modalInput}
                 placeholder="Customer Name *"
-                placeholderTextColor="rgba(255,255,255,0.3)"
+                placeholderTextColor={colors.textTertiary}
                 value={offlineDetails.customerName}
                 onChangeText={(t) => setOfflineDetails({...offlineDetails, customerName: t})}
               />
               <TextInput
                 style={styles.modalInput}
                 placeholder="Total Amount Collected (₹)"
-                placeholderTextColor="rgba(255,255,255,0.3)"
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="numeric"
                 value={offlineDetails.amount}
                 onChangeText={(t) => setOfflineDetails({...offlineDetails, amount: t})}
@@ -1232,7 +1247,7 @@ const SlotManagerScreen = ({ navigation }) => {
             <View style={styles.modalHeaderTitle}>
               <Text style={styles.modalTitle}>Slot Promotion Discount</Text>
               <TouchableOpacity onPress={() => setDiscountModalVisible(false)} style={styles.modalClose}>
-                <Icon name="close" size={18} color="#FFF" />
+                <Icon name="close" size={18} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -1288,7 +1303,7 @@ const SlotManagerScreen = ({ navigation }) => {
               <TextInput
                 style={styles.modalInput}
                 placeholder="Discounted Price (e.g. 800) *"
-                placeholderTextColor="rgba(255,255,255,0.3)"
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="numeric"
                 value={discountPrice}
                 onChangeText={setDiscountPrice}
@@ -1322,7 +1337,7 @@ const SlotManagerScreen = ({ navigation }) => {
             <View style={styles.modalHeaderTitle}>
               <Text style={styles.modalTitle}>Select Ground</Text>
               <TouchableOpacity onPress={() => setTurfModalVisible(false)} style={styles.modalClose}>
-                <Icon name="close" size={18} color="#FFF" />
+                <Icon name="close" size={18} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
@@ -1353,7 +1368,7 @@ const SlotManagerScreen = ({ navigation }) => {
             <View style={styles.modalHeaderTitle}>
               <Text style={styles.modalTitle}>Bulk Operations</Text>
               <TouchableOpacity onPress={() => { setBulkModalVisible(false); setPreviewResult(null); }} style={styles.modalClose}>
-                <Icon name="close" size={18} color="#FFF" />
+                <Icon name="close" size={18} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -1413,7 +1428,7 @@ const SlotManagerScreen = ({ navigation }) => {
               {bulkData.action === 'status' && (
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
                   <TouchableOpacity style={[styles.actionSubBtn, bulkData.actionData.status === 'available' && styles.actionSubBtnActive]} onPress={() => setBulkData({ ...bulkData, actionData: { ...bulkData.actionData, status: 'available' } })}>
-                    <Text style={[styles.actionSubBtnText, bulkData.actionData.status === 'available' && { color: '#FFD400' }]}>Available</Text>
+                    <Text style={[styles.actionSubBtnText, bulkData.actionData.status === 'available' && { color: isDark ? '#FFD400' : colors.primaryDark }]}>Available</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.actionSubBtn, bulkData.actionData.status === 'maintenance' && { borderColor: '#FF4757', backgroundColor: 'rgba(255, 71, 87, 0.1)' }]} onPress={() => setBulkData({ ...bulkData, actionData: { ...bulkData.actionData, status: 'maintenance' } })}>
                     <Text style={[styles.actionSubBtnText, bulkData.actionData.status === 'maintenance' && { color: '#FF4757' }]}>Maintenance</Text>
@@ -1459,7 +1474,7 @@ const SlotManagerScreen = ({ navigation }) => {
                   <TextInput
                     style={styles.modalInput}
                     placeholder="Enter price per slot"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    placeholderTextColor={colors.textTertiary}
                     keyboardType="numeric"
                     value={previewResult.customPrice}
                     onChangeText={t => setPreviewResult({ ...previewResult, customPrice: t })}
@@ -1471,7 +1486,7 @@ const SlotManagerScreen = ({ navigation }) => {
                       <TextInput
                         style={styles.modalInput}
                         placeholder="Mobile Number"
-                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        placeholderTextColor={colors.textTertiary}
                         keyboardType="phone-pad"
                         value={bulkData.actionData.customerMobile}
                         onChangeText={handleBulkMobileChange}
@@ -1479,7 +1494,7 @@ const SlotManagerScreen = ({ navigation }) => {
                       <TextInput
                         style={styles.modalInput}
                         placeholder="Customer Name *"
-                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        placeholderTextColor={colors.textTertiary}
                         value={bulkData.actionData.customerName}
                         onChangeText={t => setBulkData({ ...bulkData, actionData: { ...bulkData.actionData, customerName: t } })}
                       />
@@ -1511,7 +1526,7 @@ const SlotManagerScreen = ({ navigation }) => {
             <View style={styles.modalHeaderTitle}>
               <Text style={styles.modalTitle}>Select Time</Text>
               <TouchableOpacity onPress={() => setActivePicker('none')} style={styles.modalClose}>
-                <Icon name="close" size={18} color="#FFF" />
+                <Icon name="close" size={18} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={styles.timeGrid}>
@@ -1544,11 +1559,11 @@ const SlotManagerScreen = ({ navigation }) => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeaderTitle}>
               <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).subtract(1, 'month'))}>
-                <Icon name="chevron-left" size={24} color="#FFF" />
+                <Icon name="chevron-left" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>{calendarMonth.format('MMMM YYYY')}</Text>
               <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).add(1, 'month'))}>
-                <Icon name="chevron-right" size={24} color="#FFF" />
+                <Icon name="chevron-right" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -1710,7 +1725,7 @@ const SlotManagerScreen = ({ navigation }) => {
                 )}
 
                 <TouchableOpacity onPress={() => setShowFilteredSlotsModal(false)} style={styles.fsModalCloseBtn}>
-                  <Icon name="close" size={18} color="#FFF" />
+                  <Icon name="close" size={18} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
 
@@ -1721,7 +1736,7 @@ const SlotManagerScreen = ({ navigation }) => {
                 contentContainerStyle={{ paddingVertical: 4 }}
               >
                 {processedSlots.length === 0 ? (
-                  <Text style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginVertical: 24, fontFamily: Typography.fontFamily.medium }}>
+                  <Text style={{ color: colors.textTertiary, textAlign: 'center', marginVertical: 24, fontFamily: Typography.fontFamily.medium }}>
                     No slots found in this time range.
                   </Text>
                 ) : processedSlots.map((slot) => {
@@ -1789,7 +1804,7 @@ const SlotManagerScreen = ({ navigation }) => {
                         )}
                       </View>
 
-                      <Text style={[styles.fsSlotTime, isSelected && { color: '#FFD400', fontFamily: Typography.fontFamily.bold }]}>
+                      <Text style={[styles.fsSlotTime, isSelected && { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold }]}>
                         {formatISTTime(slot.startTime)} – {formatISTTime(slot.endTime)}
                       </Text>
 
@@ -1797,7 +1812,7 @@ const SlotManagerScreen = ({ navigation }) => {
                         <Text style={[styles.fsSlotBadgeText, { color: badgeText }]}>{badgeLabel}</Text>
                       </View>
 
-                      <Text style={[styles.fsSlotPrice, isSelected && { color: '#FFD400' }]}>
+                      <Text style={[styles.fsSlotPrice, isSelected && { color: isDark ? '#FFD400' : colors.primaryDark }]}>
                         ₹{slot.price}
                       </Text>
                     </TouchableOpacity>
@@ -1812,7 +1827,7 @@ const SlotManagerScreen = ({ navigation }) => {
                 </Text>
                 <View style={styles.fsFooterBtns}>
                   <TouchableOpacity
-                    style={[styles.fsFooterBtn, { borderColor: '#FFD400', backgroundColor: 'rgba(255, 212, 0, 0.1)' }]}
+                    style={[styles.fsFooterBtn, { borderColor: isDark ? '#FFD400' : colors.primaryDark, backgroundColor: 'rgba(255, 212, 0, 0.1)' }]}
                     disabled={modalSelectedSlots.length === 0}
                     onPress={async () => {
                       try {
@@ -1824,7 +1839,7 @@ const SlotManagerScreen = ({ navigation }) => {
                     }}
                   >
                     <Icon name="check-circle-outline" size={14} color="#FFD400" />
-                    <Text style={[styles.fsFooterBtnText, { color: '#FFD400' }]}>Avail</Text>
+                    <Text style={[styles.fsFooterBtnText, { color: isDark ? '#FFD400' : colors.primaryDark }]}>Avail</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -2088,125 +2103,125 @@ const SlotManagerScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingBottom: 160 },
   
   /* ── Floating 3D Header ── */
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingBottom: 16,
-    backgroundColor: '#0F0F0F',
-    borderBottomWidth: 1, borderColor: '#2A2A2A',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8, zIndex: 10,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1, borderColor: colors.border,
+    ...shadows.medium, zIndex: 10,
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#171717',
+    backgroundColor: colors.surfaceVariant,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#2A2A2A',
+    borderWidth: 1, borderColor: colors.border,
   },
   headerDropdown: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#171717', paddingHorizontal: 16, paddingVertical: 8,
-    borderRadius: 20, borderWidth: 1, borderColor: '#2A2A2A',
+    backgroundColor: colors.surfaceVariant, paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 20, borderWidth: 1, borderColor: colors.border,
     maxWidth: 200
   },
-  headerDropdownText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
+  headerDropdownText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
 
   /* ── Horizontal Date Selector ── */
-  datePickerContainer: { marginTop: 14, paddingVertical: 8, backgroundColor: '#000', overflow: 'visible' },
+  datePickerContainer: { marginTop: 14, paddingVertical: 8, backgroundColor: colors.background, overflow: 'visible' },
   dateScroll: { paddingHorizontal: 16, paddingVertical: 10, gap: 10, overflow: 'visible' },
   calendarBtn: {
     width: 64, height: 86, borderRadius: 20,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: colors.surface,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: '#2A2A2A', borderStyle: 'dashed',
+    borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed',
   },
-  calendarBtnText: { fontSize: 10, color: '#FFD400', fontFamily: Typography.fontFamily.bold, marginTop: 4 },
+  calendarBtnText: { fontSize: 10, color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold, marginTop: 4 },
   dateBox: {
     width: 64, height: 86, borderRadius: 20,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4,
   },
   dateBoxInactive: {
-    backgroundColor: '#121212',
-    borderWidth: 1, borderColor: '#2A2A2A',
-    borderBottomWidth: 3, borderBottomColor: '#1A1A1A',
+    backgroundColor: colors.surfaceVariant,
+    borderWidth: 1, borderColor: colors.border,
+    borderBottomWidth: 3, borderBottomColor: colors.border,
   },
   dateBoxSelected: {
-    backgroundColor: '#1E1E1E',
-    borderWidth: 1, borderColor: '#FFD400',
-    borderBottomWidth: 4, borderBottomColor: '#BCA100',
+    backgroundColor: isDark ? colors.surfaceVariant : '#FFFFFF',
+    borderWidth: 1.5, borderColor: isDark ? '#FFD400' : colors.primaryDark,
+    borderBottomWidth: 4, borderBottomColor: isDark ? '#BCA100' : colors.primaryDark,
     transform: [{ scale: 1.05 }],
-    shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
+    shadowColor: isDark ? '#FFD400' : colors.primaryDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
   },
-  dateDay: { fontSize: 10, color: 'rgba(255,255,255,0.5)', fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
-  dateNum: { fontSize: 20, color: '#FFF', fontFamily: Typography.fontFamily.bold, marginVertical: 1 },
-  dateMonth: { fontSize: 10, color: 'rgba(255,255,255,0.5)', fontFamily: Typography.fontFamily.medium },
-  dateTextSelected: { color: '#FFD400' },
+  dateDay: { fontSize: 10, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
+  dateNum: { fontSize: 20, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginVertical: 1 },
+  dateMonth: { fontSize: 10, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  dateTextSelected: { color: isDark ? '#FFD400' : colors.primaryDark },
 
   /* ── Availability Summary Card ── */
   summaryCard: {
     marginHorizontal: 16,
     marginTop: 10, marginBottom: 16,
     borderRadius: 22,
-    backgroundColor: '#0F0F0F',
-    borderWidth: 1, borderColor: '#2A2A2A',
+    backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.border,
     padding: 16,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 6,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 6,
   },
   summaryLeft: { flex: 1 },
-  summaryTitle: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginBottom: 12 },
+  summaryTitle: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 12 },
   statsRow: { flexDirection: 'row', gap: 14 },
   statBlock: { flexDirection: 'column' },
-  statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' },
-  statValue: { fontSize: 16, fontFamily: Typography.fontFamily.extraBold, color: '#FFF', marginTop: 2 },
+  statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, textTransform: 'uppercase' },
+  statValue: { fontSize: 16, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary, marginTop: 2 },
   statsCircularProgress: {
     width: 60, height: 60, borderRadius: 30,
-    borderWidth: 4, borderColor: '#2A2A2A',
+    borderWidth: 4, borderColor: colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  progressText: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: '#FFF' },
-  progressSubText: { fontSize: 7, fontFamily: Typography.fontFamily.bold, color: '#FFD400', textTransform: 'uppercase', marginTop: -2 },
+  progressText: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary },
+  progressSubText: { fontSize: 7, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark, textTransform: 'uppercase', marginTop: -2 },
 
   /* ── Expandable Time Groups ── */
   groupsContainer: { marginHorizontal: 16, gap: 12 },
   groupTile: {
-    backgroundColor: '#0F0F0F', borderRadius: 20,
-    borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
+    backgroundColor: colors.surface, borderRadius: 20,
+    borderWidth: 1, borderColor: colors.border, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 5,
   },
-  groupHeader: { padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0F0F0F' },
-  groupHeaderExpanded: { borderBottomWidth: 1, borderBottomColor: '#2A2A2A', backgroundColor: '#171717' },
+  groupHeader: { padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface },
+  groupHeaderExpanded: { borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surfaceVariant },
   groupHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
-  groupLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
-  groupDesc: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.4)', marginTop: 1 },
+  groupLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  groupDesc: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, marginTop: 1 },
   groupHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  groupContent: { padding: 14, backgroundColor: '#0F0F0F' },
-  noSlotsText: { color: 'rgba(255,255,255,0.4)', fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 20 },
+  groupContent: { padding: 14, backgroundColor: colors.surface },
+  noSlotsText: { color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 20 },
 
   /* ── Slot Grid & 3D Mini Cards ── */
   slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: '2.5%', justifyContent: 'flex-start' },
   slotCard: {
     width: '31.6%', borderRadius: 18, paddingVertical: 12, alignItems: 'center', marginBottom: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4, position: 'relative',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4, position: 'relative',
     transform: [{ perspective: 1000 }, { rotateX: '6deg' }],
   },
   slotStateIcon: { position: 'absolute', top: 4, right: 6 },
   slotTime: { fontSize: 9, fontFamily: Typography.fontFamily.bold, marginBottom: 2 },
   slotPrice: { fontSize: 10, fontFamily: Typography.fontFamily.medium },
 
-  slotCardAvailable: { backgroundColor: '#0F0F0F', borderWidth: 1, borderColor: '#2A2A2A', borderBottomWidth: 3, borderBottomColor: '#171717' },
-  slotTextAvailable: { color: '#FFF' },
+  slotCardAvailable: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderBottomWidth: 3, borderBottomColor: colors.border },
+  slotTextAvailable: { color: colors.textPrimary },
   
   slotCardSelected: {
-    backgroundColor: '#171717', borderWidth: 1.5, borderColor: '#FFD400', borderBottomWidth: 4, borderBottomColor: '#BCA100',
+    backgroundColor: isDark ? colors.surfaceVariant : '#FFF9DB', borderWidth: 1.5, borderColor: isDark ? '#FFD400' : colors.primaryDark, borderBottomWidth: 4, borderBottomColor: isDark ? '#BCA100' : colors.primaryDark,
     transform: [{ scale: 1.05 }, { translateY: -4 }, { perspective: 1000 }, { rotateX: '6deg' }],
-    shadowColor: '#FFD400', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+    shadowColor: isDark ? '#FFD400' : colors.primaryDark, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
   },
-  slotTextSelected: { color: '#FFD400' },
+  slotTextSelected: { color: isDark ? '#FFD400' : colors.primaryDark },
   
   slotCardMaintenance: { backgroundColor: 'rgba(255, 71, 87, 0.05)', borderWidth: 1, borderColor: 'rgba(255, 71, 87, 0.4)', borderBottomWidth: 3, borderBottomColor: 'rgba(255, 71, 87, 0.2)' },
   slotTextMaintenance: { color: '#FF4757' },
@@ -2221,21 +2236,21 @@ const styles = StyleSheet.create({
   slotTextPartiallyBooked: { color: '#FF9800' },
   partiallyBookedLabel: { fontSize: 7, fontFamily: Typography.fontFamily.bold, color: '#FF9800', marginTop: 1, textTransform: 'uppercase' },
 
-  slotCardPast: { backgroundColor: '#0A0A0A', borderWidth: 1, borderColor: '#333', borderBottomWidth: 3, borderBottomColor: '#111' },
-  slotTextPast: { color: 'rgba(255,255,255,0.4)' },
+  slotCardPast: { backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.border, borderBottomWidth: 3, borderBottomColor: colors.border },
+  slotTextPast: { color: colors.textTertiary },
 
   /* ── Bottom Summary Booking Card (Floating Action Bar) ── */
   bottomBookingCard: {
     position: 'absolute', bottom: 16, left: 16, right: 16,
-    height: 72, borderRadius: 36, backgroundColor: 'rgba(22,22,22,0.95)',
-    borderWidth: 1, borderColor: '#2A2A2A',
+    height: 72, borderRadius: 36, backgroundColor: isDark ? 'rgba(22,22,22,0.95)' : colors.surface,
+    borderWidth: 1, borderColor: colors.border,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 24,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 15, elevation: 10, zIndex: 100,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 10, zIndex: 100,
   },
   bookingLeft: { flexDirection: 'column' },
-  selectedCountLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
-  selectedCountText: { color: '#FFF', fontSize: 13, fontFamily: Typography.fontFamily.bold, marginTop: 1 },
+  selectedCountLabel: { color: colors.textTertiary, fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
+  selectedCountText: { color: colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold, marginTop: 1 },
   fabBtnGroup: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   fabBtn: {
     flexDirection: 'row',
@@ -2251,50 +2266,50 @@ const styles = StyleSheet.create({
   fabBtnText: { fontSize: 11, fontFamily: Typography.fontFamily.bold, lineHeight: 13 },
 
   /* ── Modals General ── */
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', padding: 16 },
-  modalContent: { backgroundColor: '#171717', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#2A2A2A' },
+  modalOverlay: { flex: 1, backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 16 },
+  modalContent: { backgroundColor: colors.surface, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: colors.border, ...shadows.medium },
   modalHeaderTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
-  modalClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#2A2A2A', alignItems: 'center', justifyContent: 'center' },
-  modalSubtitle: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: 'rgba(255,255,255,0.5)', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' },
-  modalInput: { backgroundColor: '#0F0F0F', borderRadius: 12, borderWidth: 1, borderColor: '#2A2A2A', color: '#FFF', paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: Typography.fontFamily.medium, marginBottom: 12 },
+  modalTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  modalClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  modalSubtitle: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textSecondary, marginTop: 16, marginBottom: 8, textTransform: 'uppercase' },
+  modalInput: { backgroundColor: colors.surfaceVariant, borderRadius: 12, borderWidth: 1, borderColor: colors.border, color: colors.textPrimary, paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, fontFamily: Typography.fontFamily.medium, marginBottom: 12 },
   
   /* Turf Selection Options */
-  turfOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#2A2A2A' },
-  turfOptionActive: { backgroundColor: 'rgba(255, 212, 0, 0.05)', borderRadius: 12, paddingHorizontal: 10, borderBottomWidth: 0 },
-  turfOptionText: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: '#FFF' },
-  turfOptionTextActive: { color: '#FFD400', fontFamily: Typography.fontFamily.bold },
+  turfOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  turfOptionActive: { backgroundColor: isDark ? 'rgba(255, 212, 0, 0.08)' : '#FFF9DB', borderRadius: 12, paddingHorizontal: 10, borderBottomWidth: 0 },
+  turfOptionText: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textPrimary },
+  turfOptionTextActive: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
 
   /* Bulk Ops Modal Specific */
-  stepLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: '#FFD400', marginTop: 10, marginBottom: 4 },
-  pickerInput: { flex: 1, backgroundColor: '#0F0F0F', borderRadius: 12, borderWidth: 1, borderColor: '#2A2A2A', paddingVertical: 12, paddingHorizontal: 14, justifyContent: 'center' },
-  pickerText: { color: '#FFF', fontSize: 12, fontFamily: Typography.fontFamily.medium },
-  inputRequired: { borderColor: 'rgba(255, 71, 87, 0.5)' },
+  stepLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark, marginTop: 10, marginBottom: 4 },
+  pickerInput: { flex: 1, backgroundColor: colors.surfaceVariant, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, paddingHorizontal: 14, justifyContent: 'center' },
+  pickerText: { color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.medium },
+  inputRequired: { borderColor: colors.error },
   
   daysGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  dayChip: { backgroundColor: '#0F0F0F', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: '#2A2A2A' },
-  dayChipSel: { backgroundColor: '#FFD400', borderColor: '#FFD400' },
-  dayChipText: { color: '#FFF', fontSize: 12, fontFamily: Typography.fontFamily.medium },
+  dayChip: { backgroundColor: colors.surfaceVariant, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border },
+  dayChipSel: { backgroundColor: '#FFD400', borderColor: isDark ? '#FFD400' : colors.primaryDark },
+  dayChipText: { color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.medium },
 
-  actionButtons: { flexDirection: 'row', backgroundColor: '#0F0F0F', borderRadius: 12, borderWidth: 1, borderColor: '#2A2A2A' },
+  actionButtons: { flexDirection: 'row', backgroundColor: colors.surfaceVariant, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
   actionBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
   actionBtnActive: { backgroundColor: '#FFD400' },
-  actionBtnText: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  actionBtnText: { color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.bold },
   
-  actionSubBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#2A2A2A', backgroundColor: '#0F0F0F' },
-  actionSubBtnActive: { borderColor: '#FFD400', backgroundColor: 'rgba(255, 212, 0, 0.1)' },
-  actionSubBtnText: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  actionSubBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceVariant },
+  actionSubBtnActive: { borderColor: isDark ? '#FFD400' : colors.primaryDark, backgroundColor: 'rgba(255, 212, 0, 0.1)' },
+  actionSubBtnText: { color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.bold },
 
   searchSlotsBtn: { backgroundColor: '#FFD400', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
   searchSlotsBtnText: { color: '#000', fontSize: 14, fontFamily: Typography.fontFamily.bold },
 
   /* Preview Card */
-  previewCard: { backgroundColor: '#0F0F0F', borderRadius: 16, padding: 16, marginTop: 24, borderWidth: 1, borderColor: '#2A2A2A', shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 },
+  previewCard: { backgroundColor: colors.surfaceVariant, borderRadius: 16, padding: 16, marginTop: 24, borderWidth: 1, borderColor: colors.border, shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 },
   previewSummaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 16 },
   previewStat: { alignItems: 'center', flex: 1 },
-  previewStatValue: { color: '#FFF', fontSize: 18, fontFamily: Typography.fontFamily.bold, marginTop: 6 },
-  previewStatLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, fontFamily: Typography.fontFamily.medium, marginTop: 2 },
-  previewDivider: { width: 1, height: 30, backgroundColor: '#2A2A2A' },
+  previewStatValue: { color: colors.textPrimary, fontSize: 18, fontFamily: Typography.fontFamily.bold, marginTop: 6 },
+  previewStatLabel: { color: colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.medium, marginTop: 2 },
+  previewDivider: { width: 1, height: 30, backgroundColor: colors.border },
   
   saveBtn: { borderRadius: 16, overflow: 'hidden' },
   saveBtnGrad: { paddingVertical: 16, alignItems: 'center' },
@@ -2302,17 +2317,17 @@ const styles = StyleSheet.create({
 
   /* Time Grid / Pickers */
   timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
-  timeBox: { width: '30%', backgroundColor: '#0F0F0F', paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
-  timeBoxSel: { backgroundColor: '#FFD400', borderColor: '#FFD400' },
-  timeText: { color: '#FFF', fontSize: 12, fontFamily: Typography.fontFamily.medium },
+  timeBox: { width: '30%', backgroundColor: colors.surfaceVariant, paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  timeBoxSel: { backgroundColor: '#FFD400', borderColor: isDark ? '#FFD400' : colors.primaryDark },
+  timeText: { color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.medium },
 
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingVertical: 10 },
-  dayOfWeek: { width: '14.28%', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: Typography.fontFamily.bold, fontSize: 12, marginBottom: 16 },
+  dayOfWeek: { width: '14.28%', textAlign: 'center', color: colors.textTertiary, fontFamily: Typography.fontFamily.bold, fontSize: 12, marginBottom: 16 },
   calDay: { width: '14.28%', height: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   calDaySel: { backgroundColor: '#FFD400', borderRadius: 20 },
-  calDayText: { color: '#FFF', fontSize: 13, fontFamily: Typography.fontFamily.medium },
-  closeModalBtn: { backgroundColor: '#2A2A2A', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  closeModalText: { color: '#FFF', fontSize: 13, fontFamily: Typography.fontFamily.bold },
+  calDayText: { color: colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.medium },
+  closeModalBtn: { backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+  closeModalText: { color: colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold },
 
   /* ── Voice Assistant Styles ── */
   voiceAssistantFab: {
@@ -2334,7 +2349,7 @@ const styles = StyleSheet.create({
   },
   assistantOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end'
   },
   assistantContainer: {
@@ -2343,7 +2358,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     height: '80%',
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     padding: 20,
     flexDirection: 'column'
   },
@@ -2352,13 +2367,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     paddingBottom: 16
   },
   assistantTitle: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFF'
+    color: colors.textPrimary
   },
   messagesList: {
     flex: 1,
@@ -2377,11 +2392,11 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4
   },
   assistantBubble: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: colors.surfaceVariant,
     alignSelf: 'flex-start',
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: '#2A2A2A'
+    borderColor: colors.border
   },
   ownerText: {
     color: '#000',
@@ -2389,22 +2404,22 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.medium
   },
   assistantText: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium
   },
   statusCard: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     marginBottom: 12
   },
   statusCardTitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFD400',
+    color: isDark ? '#FFD400' : colors.primaryDark,
     marginBottom: 10,
     textTransform: 'uppercase'
   },
@@ -2415,13 +2430,13 @@ const styles = StyleSheet.create({
   },
   statusLabel: {
     width: '30%',
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.textTertiary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium
   },
   statusVal: {
     width: '70%',
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold
   },
@@ -2444,11 +2459,11 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   textInput: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
-    color: '#FFF',
+    borderColor: colors.border,
+    color: colors.textPrimary,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 13,
@@ -2466,18 +2481,18 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: colors.surfaceVariant,
     borderWidth: 1.5,
-    borderColor: '#FFD400',
+    borderColor: isDark ? '#FFD400' : colors.primaryDark,
     alignItems: 'center',
     justifyContent: 'center',
   },
   micBtnActive: {
     backgroundColor: '#FFD400',
-    borderColor: '#FFD400',
+    borderColor: isDark ? '#FFD400' : colors.primaryDark,
   },
   listeningLabel: {
-    color: '#FFD400',
+    color: isDark ? '#FFD400' : colors.primaryDark,
     fontSize: 10,
     fontFamily: Typography.fontFamily.medium,
     marginBottom: 2,
@@ -2488,14 +2503,14 @@ const styles = StyleSheet.create({
   /* ── Toggle Switch Styles ── */
   toggleContainer: {
     flexDirection: 'row',
-    backgroundColor: '#171717',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 24,
     padding: 4,
     marginHorizontal: 16,
     marginTop: 4,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
   },
   toggleBtn: {
     flex: 1,
@@ -2508,7 +2523,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFD400',
   },
   toggleBtnText: {
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 12,
     textAlign: 'center',
@@ -2523,13 +2538,13 @@ const styles = StyleSheet.create({
     marginTop: 0,
     marginBottom: 16,
     padding: 12,
-    backgroundColor: '#171717',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
   },
   filterHeaderLabel: {
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.textTertiary,
     fontSize: 10,
     fontFamily: Typography.fontFamily.bold,
     textTransform: 'uppercase',
@@ -2544,17 +2559,17 @@ const styles = StyleSheet.create({
   filterInput: {
     flex: 1,
     height: 38,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
   filterText: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
   },
@@ -2565,16 +2580,16 @@ const styles = StyleSheet.create({
   selectAllFilteredBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F0F0F',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 12,
     marginTop: 8,
   },
   selectAllFilteredText: {
-    color: '#FFD400',
+    color: isDark ? '#FFD400' : colors.primaryDark,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
   },
@@ -2594,7 +2609,7 @@ const styles = StyleSheet.create({
   /* ── Filtered Slots Center Modal ── */
   fsModalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
@@ -2602,10 +2617,10 @@ const styles = StyleSheet.create({
   fsModalCard: {
     width: '100%',
     maxHeight: '85%',
-    backgroundColor: '#161616',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     padding: 16,
   },
   fsModalHeader: {
@@ -2613,17 +2628,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#222',
+    borderBottomColor: colors.border,
   },
   fsModalTitle: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFF',
+    color: colors.textPrimary,
   },
   fsModalSubtitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
-    color: '#FFD400',
+    color: isDark ? '#FFD400' : colors.primaryDark,
     marginTop: 2,
   },
   fsSelectAllBtn: {
@@ -2638,7 +2653,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   fsSelectAllText: {
-    color: '#FFD400',
+    color: isDark ? '#FFD400' : colors.primaryDark,
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -2646,7 +2661,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#222',
+    backgroundColor: colors.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2667,7 +2682,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: '#FFF',
+    color: colors.textPrimary,
     marginLeft: 8,
   },
   fsSlotBadge: {
@@ -2684,19 +2699,19 @@ const styles = StyleSheet.create({
   fsSlotPrice: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFF',
+    color: colors.textPrimary,
     minWidth: 44,
     textAlign: 'right',
   },
   fsModalFooter: {
     borderTopWidth: 1,
-    borderTopColor: '#222',
+    borderTopColor: colors.border,
     paddingTop: 12,
   },
   fsFooterLabel: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
-    color: 'rgba(255,255,255,0.55)',
+    color: colors.textSecondary,
     marginBottom: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -2734,7 +2749,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#111',
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 10,
     marginHorizontal: 16,
@@ -2749,7 +2764,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   legendText: {
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.textSecondary,
     fontSize: 10,
     fontFamily: Typography.fontFamily.medium,
     flex: 1,

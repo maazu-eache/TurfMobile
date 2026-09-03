@@ -1,17 +1,112 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView, Dimensions } from 'react-native';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView, Dimensions, StatusBar } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyBookings } from '../bookingSlice';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { formatISTDateFull, formatISTTime } from '../../../utils/dateFormatter';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.surface },
+  container: { flex: 1, backgroundColor: colors.background },
+  header: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    ...(isDark ? {} : shadows.xs),
+  },
+  headerTitle: { fontSize: Typography.fontSize['2xl'], fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+
+  // Horizontal scrolling tab bar
+  tabsWrapper: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.sm,
+  },
+  tabBtn: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabBtnActive: {
+    borderBottomColor: colors.primary,
+  },
+  tabText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 15 },
+  tabTextActive: { color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
+
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl, marginTop: 60 },
+  listContainer: { padding: Spacing.lg, paddingBottom: 100 },
+  
+  card: { 
+    backgroundColor: colors.surface, 
+    borderRadius: BorderRadius.lg, 
+    marginBottom: Spacing.lg, 
+    borderWidth: 1, 
+    borderColor: colors.border,
+    ...(isDark ? {} : shadows.sm),
+  },
+  cardContent: { padding: Spacing.lg },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },
+  turfName: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, flex: 1, marginRight: 8 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  statusText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
+  address: { fontSize: 13, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.md },
+  
+  detailsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.md },
+  detailText: { fontSize: 14, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium },
+  
+  slotsRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.lg },
+  slotsList: { flexDirection: 'row', flexWrap: 'wrap', marginLeft: Spacing.sm, flex: 1, gap: 6 },
+  slotPill: { 
+    backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant, 
+    paddingHorizontal: 8, 
+    paddingVertical: 4, 
+    borderRadius: BorderRadius.sm, 
+    color: colors.textPrimary, 
+    fontFamily: Typography.fontFamily.medium, 
+    fontSize: 12, 
+    borderWidth: 1, 
+    borderColor: colors.border 
+  },
+
+  footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.md },
+  amountLabel: { fontSize: 12, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  amountValue: { fontSize: 18, color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
+  cardReportBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant, 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 16, 
+    borderWidth: 1, 
+    borderColor: colors.border, 
+    gap: 4 
+  },
+  cardReportText: { fontSize: 12, color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
+  
+  emptyTitle: { fontSize: 18, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: Spacing.md },
+  emptySub: { fontSize: 14, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginTop: Spacing.xs, textAlign: 'center' },
+});
+
 const BookingHistoryScreen = ({ navigation }) => {
   const dispatch = useDispatch();
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+
   const { bookings, isLoading } = useSelector((state) => state.booking);
   
   const [activeTab, setActiveTab] = useState('Upcoming');
@@ -42,11 +137,11 @@ const BookingHistoryScreen = ({ navigation }) => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'confirmed': return Colors.success;
-      case 'pending': return Colors.warning;
-      case 'cancelled': return Colors.error;
+      case 'confirmed': return colors.success;
+      case 'pending': return colors.warning;
+      case 'cancelled': return colors.error;
       case 'completed': return '#2196F3';
-      default: return Colors.textSecondary;
+      default: return colors.textSecondary;
     }
   };
 
@@ -74,7 +169,7 @@ const BookingHistoryScreen = ({ navigation }) => {
         <View style={styles.cardContent}>
           <View style={styles.cardHeader}>
             <Text style={styles.turfName} numberOfLines={1}>{turf.name || 'Turf Name'}</Text>
-            <View style={[styles.statusBadge, { borderColor: getStatusColor(item.status) }]}>
+            <View style={[styles.statusBadge, { borderColor: getStatusColor(item.status), backgroundColor: getStatusColor(item.status) + '15' }]}>
               <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
                 {item.status.toUpperCase()}
               </Text>
@@ -82,16 +177,16 @@ const BookingHistoryScreen = ({ navigation }) => {
           </View>
           
           <Text style={styles.address} numberOfLines={1}>
-            <Icon name="map-marker" size={14} color={Colors.textSecondary} /> {turf.address || 'Address not available'}
+            <Icon name="map-marker" size={14} color={colors.textSecondary} /> {turf.address || 'Address not available'}
           </Text>
 
           <View style={styles.detailsRow}>
-            <Icon name="calendar" size={16} color={Colors.primary} />
+            <Icon name="calendar" size={16} color={colors.primary} />
             <Text style={styles.detailText}>{dateStr}</Text>
           </View>
 
           <View style={styles.slotsRow}>
-            <Icon name="clock-outline" size={16} color={Colors.primary} style={{marginTop: 2}} />
+            <Icon name="clock-outline" size={16} color={colors.primary} style={{marginTop: 2}} />
             <View style={styles.slotsList}>
               {slots.map((slot, idx) => (
                 <Text key={idx} style={styles.slotPill}>
@@ -112,8 +207,9 @@ const BookingHistoryScreen = ({ navigation }) => {
                 e.stopPropagation();
                 navigation.navigate('CreateTicketScreen', { bookingId: item.bookingRef });
               }}
+              activeOpacity={0.7}
             >
-              <Icon name="alert-circle-outline" size={16} color={Colors.primary} />
+              <Icon name="alert-circle-outline" size={16} color={colors.primary} />
               <Text style={styles.cardReportText}>Report Issue</Text>
             </TouchableOpacity>
           </View>
@@ -124,6 +220,7 @@ const BookingHistoryScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -154,7 +251,6 @@ const BookingHistoryScreen = ({ navigation }) => {
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={onMomentumScrollEnd}
-          // Optimization for initial render speed when swiping
           initialNumToRender={1}
           maxToRenderPerBatch={1}
           windowSize={3}
@@ -177,11 +273,11 @@ const BookingHistoryScreen = ({ navigation }) => {
                 renderItem={renderItem}
                 contentContainerStyle={styles.listContainer}
                 showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={Colors.primary} />}
+                refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={colors.primary} />}
                 ListEmptyComponent={
                   !isLoading && (
                     <View style={styles.center}>
-                      <Icon name="ticket-confirmation-outline" size={64} color={Colors.textTertiary} />
+                      <Icon name="ticket-confirmation-outline" size={64} color={colors.textTertiary} />
                       <Text style={styles.emptyTitle}>No {tab} Bookings</Text>
                       <Text style={styles.emptySub}>You don't have any {tab.toLowerCase()} bookings at the moment.</Text>
                     </View>
@@ -195,69 +291,5 @@ const BookingHistoryScreen = ({ navigation }) => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.backgroundElevated },
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
-    backgroundColor: Colors.backgroundElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  headerTitle: { fontSize: Typography.fontSize['2xl'], fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-
-  // Horizontal scrolling tab bar
-  tabsWrapper: {
-    backgroundColor: Colors.backgroundElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.sm,
-  },
-  tabBtn: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabBtnActive: {
-    borderBottomColor: Colors.primary,
-  },
-  tabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 15 },
-  tabTextActive: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
-
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl, marginTop: 60 },
-  listContainer: { padding: Spacing.lg, paddingBottom: 100 },
-  
-  card: { backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
-  cardContent: { padding: Spacing.lg },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },
-  turfName: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, flex: 1, marginRight: 8 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
-  statusText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
-  address: { fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.md },
-  
-  detailsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.md },
-  detailText: { fontSize: 14, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
-  
-  slotsRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.lg },
-  slotsList: { flexDirection: 'row', flexWrap: 'wrap', marginLeft: Spacing.sm, flex: 1, gap: 6 },
-  slotPill: { backgroundColor: Colors.backgroundElevated, paddingHorizontal: 8, paddingVertical: 4, borderRadius: BorderRadius.sm, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 12, borderWidth: 1, borderColor: Colors.border },
-
-  footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md },
-  amountLabel: { fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  amountValue: { fontSize: 18, color: Colors.primary, fontFamily: Typography.fontFamily.bold },
-  cardReportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, gap: 4 },
-  cardReportText: { fontSize: 12, color: Colors.primary, fontFamily: Typography.fontFamily.bold },
-  
-  emptyTitle: { fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: Spacing.md },
-  emptySub: { fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginTop: Spacing.xs, textAlign: 'center' },
-});
 
 export default BookingHistoryScreen;

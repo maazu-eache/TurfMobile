@@ -3,10 +3,13 @@ import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/axios';
-import { Colors, Typography } from '../theme/theme';
+import { useTheme, Typography } from '../theme/theme';
 
-const NotificationBell = ({ onPress, color = Colors.textPrimary }) => {
+const NotificationBell = ({ onPress, color, size = 26 }) => {
+  const { colors } = useTheme();
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const iconColor = color || colors.textPrimary;
 
   useFocusEffect(
     useCallback(() => {
@@ -30,10 +33,10 @@ const NotificationBell = ({ onPress, color = Colors.textPrimary }) => {
   );
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.container}>
-      <Icon name="bell-outline" size={28} color={color} />
+    <TouchableOpacity onPress={onPress} style={styles.container} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+      <Icon name="bell-outline" size={size} color={iconColor} />
       {unreadCount > 0 && (
-        <View style={styles.badge}>
+        <View style={[styles.badge, { backgroundColor: colors.error, borderColor: colors.surface }]}>
           <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
         </View>
       )}
@@ -44,25 +47,27 @@ const NotificationBell = ({ onPress, color = Colors.textPrimary }) => {
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
-    padding: 2,
-    marginRight: 8
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   badge: {
     position: 'absolute',
     top: 0,
     right: 0,
-    backgroundColor: Colors.error,
     borderRadius: 10,
     minWidth: 18,
     height: 18,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
+    borderWidth: 1.5,
   },
   badgeText: {
-    color: '#FFF',
+    color: '#FFFFFF',
     fontSize: 10,
     fontFamily: Typography.fontFamily.bold,
+    lineHeight: 12,
   },
 });
 

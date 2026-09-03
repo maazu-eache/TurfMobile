@@ -1,14 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
   ScrollView, Image, ActivityIndicator, TextInput, Modal,
-  Animated, ToastAndroid, Platform, RefreshControl
+  Animated, ToastAndroid, Platform, RefreshControl, StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, toggleFollowTeam, joinTeam } from '../teamSlice';
-import { Colors, Typography, Spacing, Shadows, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -21,6 +21,9 @@ const SECTION_TABS = [
 
 const TeamListScreen = ({ navigation }) => {
   const dispatch = useDispatch();
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+
   const { myTeams, opponentTeams, followingTeams = [], isLoading, opponentsLoading, followingLoading } = useSelector((s) => s.team);
   const [activeSection, setActiveSection] = useState('my');
   const [refreshing, setRefreshing] = useState(false);
@@ -56,7 +59,6 @@ const TeamListScreen = ({ navigation }) => {
     }
   };
 
-
   // ── My Team Card ─────────────────────────────────────────────────────────
   const renderMyTeam = ({ item }) => {
     const winPct = item.stats?.matches > 0
@@ -74,7 +76,7 @@ const TeamListScreen = ({ navigation }) => {
           {item.logo
             ? <Image source={{ uri: getImageUrl(item.logo) }} style={styles.logo} />
             : (
-              <LinearGradient colors={[Colors.primaryAlpha20, Colors.primaryAlpha10]} style={styles.logoFallback}>
+              <LinearGradient colors={[colors.primaryAlpha20, colors.primaryAlpha10]} style={styles.logoFallback}>
                 <Text style={styles.logoLetter}>{(item.name || 'T').trim().charAt(0).toUpperCase()}</Text>
               </LinearGradient>
             )
@@ -86,7 +88,7 @@ const TeamListScreen = ({ navigation }) => {
           <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
           {item.city && (
             <View style={styles.cityRow}>
-              <Icon name="map-marker-outline" size={11} color={Colors.textTertiary} />
+              <Icon name="map-marker-outline" size={11} color={colors.textTertiary} />
               <Text style={styles.cityText}>{item.city}</Text>
             </View>
           )}
@@ -99,7 +101,7 @@ const TeamListScreen = ({ navigation }) => {
         </View>
 
         {/* Right Arrow */}
-        <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.25)" style={{ marginLeft: 8 }} />
+        <Icon name="chevron-right" size={20} color={colors.textTertiary} style={{ marginLeft: 8 }} />
       </TouchableOpacity>
     );
   };
@@ -119,7 +121,7 @@ const TeamListScreen = ({ navigation }) => {
           {item.logo
             ? <Image source={{ uri: getImageUrl(item.logo) }} style={styles.logo} />
             : (
-              <LinearGradient colors={[Colors.primaryAlpha20, Colors.primaryAlpha10]} style={styles.logoFallback}>
+              <LinearGradient colors={[colors.primaryAlpha20, colors.primaryAlpha10]} style={styles.logoFallback}>
                 <Text style={styles.logoLetter}>{(item.name || 'T').trim().charAt(0).toUpperCase()}</Text>
               </LinearGradient>
             )
@@ -131,7 +133,7 @@ const TeamListScreen = ({ navigation }) => {
           <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
           {item.city && (
             <View style={styles.cityRow}>
-              <Icon name="map-marker-outline" size={11} color={Colors.textTertiary} />
+              <Icon name="map-marker-outline" size={11} color={colors.textTertiary} />
               <Text style={styles.cityText}>{item.city}</Text>
             </View>
           )}
@@ -139,15 +141,15 @@ const TeamListScreen = ({ navigation }) => {
           <View style={styles.h2hRow}>
             <Text style={styles.h2hLabel}>H2H:</Text>
             <View style={styles.h2hBadge}>
-              <Text style={[styles.h2hNum, { color: Colors.success }]}>{h2h.wins}W</Text>
+              <Text style={[styles.h2hNum, { color: colors.success }]}>{h2h.wins}W</Text>
               <Text style={styles.h2hDash}> · </Text>
-              <Text style={[styles.h2hNum, { color: Colors.error }]}>{h2h.losses}L</Text>
+              <Text style={[styles.h2hNum, { color: colors.error }]}>{h2h.losses}L</Text>
             </View>
           </View>
         </View>
 
         {/* Right Arrow */}
-        <Icon name="chevron-right" size={20} color="rgba(255,255,255,0.25)" style={{ marginLeft: 8 }} />
+        <Icon name="chevron-right" size={20} color={colors.textTertiary} style={{ marginLeft: 8 }} />
       </TouchableOpacity>
     );
   };
@@ -157,11 +159,12 @@ const TeamListScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
       {/* ── Header ── */}
-      <LinearGradient colors={['#111111', Colors.background]} style={styles.header}>
+      <View style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-left" size={22} color="#fff" />
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Icon name="arrow-left" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.headerLabel}>CRICKET</Text>
@@ -170,42 +173,46 @@ const TeamListScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.headerAddBtn}
             onPress={() => navigation.navigate('TeamCreate')}
+            activeOpacity={0.8}
           >
-            <LinearGradient colors={Colors.primaryGradient} style={styles.addBtnGrad}>
-              <Icon name="plus" size={18} color="#000" />
+            <LinearGradient colors={colors.primaryGradient} style={styles.addBtnGrad}>
+              <Icon name="plus" size={18} color={colors.textOnPrimary} />
             </LinearGradient>
           </TouchableOpacity>
         </View>
 
         {/* Section Tabs */}
         <View style={styles.sectionTabBar}>
-          {SECTION_TABS.map(tab => (
-            <TouchableOpacity
-              key={tab.id}
-              style={[styles.sectionTab, activeSection === tab.id && styles.sectionTabActive]}
-              onPress={() => setActiveSection(tab.id)}
-              activeOpacity={0.8}
-            >
-              <Icon name={tab.icon} size={14} color={activeSection === tab.id ? '#000' : Colors.textSecondary} />
-              <Text style={[styles.sectionTabText, activeSection === tab.id && styles.sectionTabTextActive]}>
-                {tab.label}
-              </Text>
-              {activeSection === tab.id && (
-                <View style={styles.sectionTabCount}>
-                  <Text style={styles.sectionTabCountText}>
-                    {tab.id === 'my' ? myTeams.length : tab.id === 'opponents' ? opponentTeams.length : followingTeams.length}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
+          {SECTION_TABS.map(tab => {
+            const isActive = activeSection === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                style={[styles.sectionTab, isActive && styles.sectionTabActive]}
+                onPress={() => setActiveSection(tab.id)}
+                activeOpacity={0.8}
+              >
+                <Icon name={tab.icon} size={14} color={isActive ? colors.textOnPrimary : colors.textSecondary} />
+                <Text style={[styles.sectionTabText, isActive && styles.sectionTabTextActive]}>
+                  {tab.label}
+                </Text>
+                {isActive && (
+                  <View style={styles.sectionTabCount}>
+                    <Text style={styles.sectionTabCountText}>
+                      {tab.id === 'my' ? myTeams.length : tab.id === 'opponents' ? opponentTeams.length : followingTeams.length}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
-      </LinearGradient>
+      </View>
 
       {/* ── List ── */}
       {currentLoading && currentData.length === 0 ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -218,19 +225,19 @@ const TeamListScreen = ({ navigation }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[Colors.primary]}
-              tintColor={Colors.primary}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
             />
           }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <LinearGradient colors={[Colors.primaryAlpha10, 'transparent']} style={styles.emptyCircle}>
+              <View style={styles.emptyCircle}>
                 <Icon
                   name={activeSection === 'my' ? 'shield-account' : activeSection === 'opponents' ? 'sword-cross' : 'account-group'}
-                  size={50}
-                  color={Colors.primaryAlpha20}
+                  size={46}
+                  color={colors.primary}
                 />
-              </LinearGradient>
+              </View>
               <Text style={styles.emptyTitle}>
                 {activeSection === 'my' ? 'No Teams Yet' : activeSection === 'opponents' ? 'No Opponents Yet' : 'Not following any teams'}
               </Text>
@@ -245,9 +252,10 @@ const TeamListScreen = ({ navigation }) => {
                 <TouchableOpacity
                   style={styles.emptyCreateBtn}
                   onPress={() => navigation.navigate('TeamCreate')}
+                  activeOpacity={0.8}
                 >
-                  <LinearGradient colors={Colors.primaryGradient} style={styles.emptyCreateBtnInner}>
-                    <Icon name="plus" size={16} color="#000" />
+                  <LinearGradient colors={colors.primaryGradient} style={styles.emptyCreateBtnInner}>
+                    <Icon name="plus" size={16} color={colors.textOnPrimary} />
                     <Text style={styles.emptyCreateText}>Create Team</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -263,40 +271,76 @@ const TeamListScreen = ({ navigation }) => {
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
-const StatBadge = ({ icon, label, primary, danger }) => (
-  <View style={[
-    styles.statBadge,
-    primary && styles.statBadgePrimary,
-    danger && styles.statBadgeDanger,
-  ]}>
-    <Icon name={icon} size={10} color={primary ? Colors.primary : danger ? Colors.error : Colors.textTertiary} />
-    <Text style={[
-      styles.statBadgeText,
-      primary && { color: Colors.primary },
-      danger && { color: Colors.error },
-    ]}>{label}</Text>
-  </View>
-);
+const StatBadge = ({ icon, label, primary, danger }) => {
+  const { colors, isDark } = useTheme();
+  return (
+    <View style={[
+      badgeStyles.statBadge,
+      {
+        backgroundColor: primary 
+          ? colors.primaryAlpha10 
+          : danger 
+          ? colors.errorLight 
+          : (isDark ? colors.backgroundElevated : colors.surfaceVariant),
+        borderColor: primary 
+          ? colors.primaryAlpha30 
+          : danger 
+          ? colors.error 
+          : colors.border,
+      }
+    ]}>
+      <Icon 
+        name={icon} 
+        size={10} 
+        color={primary ? (isDark ? colors.primary : colors.primaryDark) : danger ? colors.error : colors.textTertiary} 
+      />
+      <Text style={[
+        badgeStyles.statBadgeText,
+        {
+          color: primary 
+            ? (isDark ? colors.primary : colors.primaryDark) 
+            : danger 
+            ? colors.error 
+            : colors.textSecondary,
+        }
+      ]}>
+        {label}
+      </Text>
+    </View>
+  );
+};
 
-const SummaryCard = ({ icon, value, label, primary }) => (
-  <View style={styles.summaryCard}>
-    <Icon name={icon} size={16} color={primary ? Colors.primary : Colors.textSecondary} />
-    <Text style={[styles.summaryValue, primary && { color: Colors.primary }]}>{value}</Text>
-    <Text style={styles.summaryLabel}>{label}</Text>
-  </View>
-);
+const badgeStyles = StyleSheet.create({
+  statBadge: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 3,
+    borderRadius: 6,
+    paddingHorizontal: 7, 
+    paddingVertical: 3,
+    borderWidth: 1,
+  },
+  statBadgeText: { 
+    fontFamily: Typography.fontFamily.medium, 
+    fontSize: 10 
+  },
+});
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  safe: { 
+    flex: 1, 
+    backgroundColor: colors.background 
+  },
 
   header: {
-    backgroundColor: Colors.background,
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 0,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.07)',
+    borderBottomColor: colors.border,
+    ...(isDark ? {} : shadows.xs),
   },
   headerRow: {
     flexDirection: 'row',
@@ -307,47 +351,70 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : colors.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerCenter: { flex: 1, alignItems: 'center' },
+  headerCenter: { 
+    flex: 1, 
+    alignItems: 'center' 
+  },
   headerLabel: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 10,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   headerTitle: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 20,
     marginTop: 1,
   },
-  headerAddBtn: { width: 38 },
+  headerAddBtn: { 
+    width: 38 
+  },
   addBtnGrad: {
     width: 38,
     height: 38,
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadows.sm,
   },
 
   summaryRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
+    borderColor: colors.border,
     marginBottom: 12,
     paddingVertical: 12,
     paddingHorizontal: 8,
+    ...(isDark ? {} : shadows.sm),
   },
-  summaryCard: { flex: 1, alignItems: 'center', gap: 3 },
-  summaryDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.08)', alignSelf: 'stretch' },
-  summaryValue: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 20 },
-  summaryLabel: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 10 },
+  summaryCard: { 
+    flex: 1, 
+    alignItems: 'center', 
+    gap: 3 
+  },
+  summaryDivider: { 
+    width: 1, 
+    backgroundColor: colors.border, 
+    alignSelf: 'stretch' 
+  },
+  summaryValue: { 
+    color: colors.textPrimary, 
+    fontFamily: Typography.fontFamily.bold, 
+    fontSize: 20 
+  },
+  summaryLabel: { 
+    color: colors.textTertiary, 
+    fontFamily: Typography.fontFamily.regular, 
+    fontSize: 10 
+  },
 
   sectionTabBar: {
     flexDirection: 'row',
@@ -361,31 +428,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 7,
     borderRadius: 10,
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: isDark ? colors.backgroundCard : colors.surfaceVariant,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.border,
   },
   sectionTabActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
-  sectionTabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 },
-  sectionTabTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  sectionTabText: { 
+    color: colors.textSecondary, 
+    fontFamily: Typography.fontFamily.semiBold, 
+    fontSize: 12 
+  },
+  sectionTabTextActive: { 
+    color: colors.textOnPrimary, 
+    fontFamily: Typography.fontFamily.bold, 
+    fontSize: 12 
+  },
   sectionTabCount: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: 'rgba(0,0,0,0.18)',
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 1,
     minWidth: 20,
     alignItems: 'center',
   },
-  sectionTabCountText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 10 },
+  sectionTabCountText: { 
+    color: colors.textOnPrimary, 
+    fontFamily: Typography.fontFamily.bold, 
+    fontSize: 10 
+  },
 
   listContent: {
     padding: 14,
     paddingBottom: 24,
     gap: 12,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     flexGrow: 1,
   },
 
@@ -399,54 +478,85 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha30,
-    backgroundColor: Colors.primaryAlpha10,
+    borderColor: colors.primaryAlpha30,
+    backgroundColor: colors.primaryAlpha10,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
   },
-  joinBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 },
+  joinBtnText: { 
+    color: colors.primary, 
+    fontFamily: Typography.fontFamily.semiBold, 
+    fontSize: 12 
+  },
 
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: colors.background 
+  },
 
   // Team card
   teamCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    ...Shadows.sm,
+    borderColor: colors.border,
+    ...(isDark ? {} : shadows.sm),
   },
-  logoWrap: { marginRight: 12 },
-  logo: { width: 54, height: 54, borderRadius: 27, borderWidth: 2, borderColor: Colors.primaryAlpha30 },
+  logoWrap: { 
+    marginRight: 12 
+  },
+  logo: { 
+    width: 54, 
+    height: 54, 
+    borderRadius: 27, 
+    borderWidth: 2, 
+    borderColor: colors.primaryAlpha30 
+  },
   logoFallback: {
-    width: 54, height: 54, borderRadius: 27,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: Colors.primaryAlpha30,
+    width: 54, 
+    height: 54, 
+    borderRadius: 27,
+    alignItems: 'center', 
+    justifyContent: 'center',
+    borderWidth: 1.5, 
+    borderColor: colors.primaryAlpha30,
   },
   logoLetter: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 22,
   },
-  teamInfo: { flex: 1 },
-  teamName: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 15, marginBottom: 3 },
-  cityRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 6 },
-  cityText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 11 },
-  statsRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
-
-  statBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.backgroundElevated, borderRadius: 6,
-    paddingHorizontal: 7, paddingVertical: 3,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+  teamInfo: { 
+    flex: 1 
   },
-  statBadgePrimary: { borderColor: Colors.primaryAlpha30, backgroundColor: Colors.primaryAlpha10 },
-  statBadgeDanger: { borderColor: 'rgba(244,67,54,0.3)', backgroundColor: 'rgba(244,67,54,0.08)' },
-  statBadgeText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 10 },
+  teamName: { 
+    color: colors.textPrimary, 
+    fontFamily: Typography.fontFamily.bold, 
+    fontSize: 15, 
+    marginBottom: 3 
+  },
+  cityRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 3, 
+    marginBottom: 6 
+  },
+  cityText: { 
+    color: colors.textTertiary, 
+    fontFamily: Typography.fontFamily.regular, 
+    fontSize: 11 
+  },
+  statsRow: { 
+    flexDirection: 'row', 
+    gap: 5, 
+    flexWrap: 'wrap' 
+  },
 
   cardActions: {
     alignItems: 'flex-end',
@@ -457,58 +567,170 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceVariant,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   miniActionBtnActive: {
-    backgroundColor: 'rgba(255, 204, 0, 0.12)',
-    borderColor: 'rgba(255, 204, 0, 0.35)',
+    backgroundColor: colors.primaryAlpha10,
+    borderColor: colors.primaryAlpha30,
   },
 
-  h2hRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  h2hLabel: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 11 },
-  h2hBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  h2hNum: { fontFamily: Typography.fontFamily.bold, fontSize: 11 },
-  h2hDash: { color: Colors.textTertiary, fontSize: 11 },
+  h2hRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6 
+  },
+  h2hLabel: { 
+    color: colors.textTertiary, 
+    fontFamily: Typography.fontFamily.medium, 
+    fontSize: 11 
+  },
+  h2hBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant, 
+    borderRadius: 6, 
+    paddingHorizontal: 8, 
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  h2hNum: { 
+    fontFamily: Typography.fontFamily.bold, 
+    fontSize: 11 
+  },
+  h2hDash: { 
+    color: colors.textTertiary, 
+    fontSize: 11 
+  },
 
   // Empty
-  emptyWrap: { alignItems: 'center', paddingTop: 70, paddingHorizontal: 32 },
-  emptyCircle: {
-    width: 84, height: 84, borderRadius: 42,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 18, borderWidth: 1, borderColor: Colors.primaryAlpha30,
+  emptyWrap: { 
+    alignItems: 'center', 
+    paddingTop: 70, 
+    paddingHorizontal: 32 
   },
-  emptyTitle: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 18, marginBottom: 6 },
-  emptySub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, textAlign: 'center', lineHeight: 20 },
-  emptyCreateBtn: { marginTop: 24, borderRadius: 12, overflow: 'hidden' },
-  emptyCreateBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24, paddingVertical: 13 },
-  emptyCreateText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  emptyCircle: {
+    width: 84, 
+    height: 84, 
+    borderRadius: 42,
+    alignItems: 'center', 
+    justifyContent: 'center',
+    marginBottom: 18, 
+    borderWidth: 1, 
+    borderColor: colors.primaryAlpha30,
+    backgroundColor: colors.primaryAlpha10,
+  },
+  emptyTitle: { 
+    color: colors.textPrimary, 
+    fontFamily: Typography.fontFamily.bold, 
+    fontSize: 18, 
+    marginBottom: 6 
+  },
+  emptySub: { 
+    color: colors.textSecondary, 
+    fontFamily: Typography.fontFamily.regular, 
+    fontSize: 13, 
+    textAlign: 'center', 
+    lineHeight: 20 
+  },
+  emptyCreateBtn: { 
+    marginTop: 24, 
+    borderRadius: 12, 
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  emptyCreateBtnInner: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    paddingHorizontal: 24, 
+    paddingVertical: 13 
+  },
+  emptyCreateText: { 
+    color: colors.textOnPrimary, 
+    fontFamily: Typography.fontFamily.bold, 
+    fontSize: 14 
+  },
 
   // Join Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: colors.blackAlpha50, 
+    justifyContent: 'flex-end' 
+  },
   modalSheet: {
-    backgroundColor: Colors.backgroundCard,
-    borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 20, paddingTop: 12,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 22, 
+    borderTopRightRadius: 22,
+    borderTopWidth: 1, 
+    borderTopColor: colors.border,
+    paddingHorizontal: 20, 
+    paddingTop: 12,
+    ...shadows.lg,
   },
-  modalHandle: { width: 38, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  modalHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
-  modalTitle: { color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 18 },
-  modalSub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13, marginBottom: 16 },
+  modalHandle: { 
+    width: 38, 
+    height: 4, 
+    backgroundColor: colors.border, 
+    borderRadius: 2, 
+    alignSelf: 'center', 
+    marginBottom: 16 
+  },
+  modalHeaderRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 10, 
+    marginBottom: 6 
+  },
+  modalTitle: { 
+    color: colors.textPrimary, 
+    fontFamily: Typography.fontFamily.bold, 
+    fontSize: 18 
+  },
+  modalSub: { 
+    color: colors.textSecondary, 
+    fontFamily: Typography.fontFamily.regular, 
+    fontSize: 13, 
+    marginBottom: 16 
+  },
   codeInputWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.background, borderRadius: 12,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: 14, height: 52, marginBottom: 14,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 10,
+    backgroundColor: isDark ? colors.background : colors.surfaceVariant, 
+    borderRadius: 12,
+    borderWidth: 1, 
+    borderColor: colors.border,
+    paddingHorizontal: 14, 
+    height: 52, 
+    marginBottom: 14,
   },
-  codeInput: { flex: 1, color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 16, letterSpacing: 2 },
-  joinSubmitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 12 },
-  joinSubmitText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
+  codeInput: { 
+    flex: 1, 
+    color: colors.textPrimary, 
+    fontFamily: Typography.fontFamily.bold, 
+    fontSize: 16, 
+    letterSpacing: 2 
+  },
+  joinSubmitBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 8, 
+    height: 52, 
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+  },
+  joinSubmitText: { 
+    color: colors.textOnPrimary, 
+    fontFamily: Typography.fontFamily.bold, 
+    fontSize: 15 
+  },
 });
 
 export default TeamListScreen;

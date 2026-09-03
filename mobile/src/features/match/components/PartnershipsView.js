@@ -2,9 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import PartnershipCard from './PartnershipCard';
-import { Colors, Typography } from '../../../theme/theme';
+import { useTheme, Colors, Typography } from '../../../theme/theme';
 
 const PartnershipsView = ({ match, scorecards = [], commentary = [], refreshControl }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const [partnershipFilter, setPartnershipFilter] = useState('ALL');
 
   const teamAName = match?.teamA?.name || 'Team A';
@@ -30,9 +32,22 @@ const PartnershipsView = ({ match, scorecards = [], commentary = [], refreshCont
       const inn = match.innings?.find(i => i.inningsNumber === sc.inningsNumber);
       if (!inn) return;
 
+      const teamIdStr = (sc.battingTeam?._id || sc.battingTeam)?.toString();
+      const teamAIdStr = (match.teamA?._id || match.teamA)?.toString();
+      const teamBIdStr = (match.teamB?._id || match.teamB)?.toString();
+
       const teamName = sc.battingTeam?.name ||
-        (sc.battingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name) ||
-        `Team ${sc.battingTeam}`;
+        (teamIdStr && teamIdStr === teamAIdStr ? match.teamA?.name : null) ||
+        (teamIdStr && teamIdStr === teamBIdStr ? match.teamB?.name : null) ||
+        'Team';
+
+      const rawOvers = sc.total?.overs ?? inn.overs;
+      const safeOvers = (rawOvers !== undefined && rawOvers !== null && String(rawOvers).length <= 6 && !isNaN(parseFloat(String(rawOvers)))) 
+        ? String(rawOvers) 
+        : '0.0';
+
+      const runsVal = sc.total?.runs ?? inn.totalRuns ?? 0;
+      const wktVal = sc.total?.wickets ?? inn.totalWickets ?? 0;
 
       const rawPartnerships = inn.partnerships || [];
       if (rawPartnerships.length === 0) return;
@@ -151,6 +166,7 @@ const PartnershipsView = ({ match, scorecards = [], commentary = [], refreshCont
           totalRuns,
           totalBalls,
           runRate,
+          isCurrent,
           player1: {
             name: p1Name,
             runs: p1Runs,
@@ -162,15 +178,14 @@ const PartnershipsView = ({ match, scorecards = [], commentary = [], refreshCont
             balls: p2Balls,
           },
           extras,
-          isCurrent,
         };
       });
 
       result.push({
         inningsNumber: sc.inningsNumber,
         teamName,
-        totalScore: `${sc.total?.runs || 0}/${sc.total?.wickets || 0}`,
-        totalOvers: sc.total?.overs || '0.0',
+        totalScore: `${runsVal}/${wktVal}`,
+        totalOvers: safeOvers,
         partnerships: processedList,
       });
     });
@@ -178,22 +193,28 @@ const PartnershipsView = ({ match, scorecards = [], commentary = [], refreshCont
     return result;
   }, [match, scorecards, commentary, partnershipFilter]);
 
+  const tabs = [
+    { key: 'ALL', label: 'All' },
+    { key: 'A', label: teamAName },
+    { key: 'B', label: teamBName },
+  ];
+
   return (
-    <ScrollView contentContainerStyle={styles.container} refreshControl={refreshControl}>
-      {/* Team Filter Pills Only */}
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      refreshControl={refreshControl}
+    >
+      {/* Team Filter Pills */}
       <View style={styles.filterRow}>
-        {[
-          { id: 'ALL', label: 'All' },
-          { id: 'A', label: teamAName },
-          { id: 'B', label: teamBName },
-        ].map((tab) => {
-          const isActive = partnershipFilter === tab.id;
+        {tabs.map((tab) => {
+          const isActive = partnershipFilter === tab.key;
           return (
             <TouchableOpacity
-              key={tab.id}
+              key={tab.key}
               style={[styles.filterBtn, isActive && styles.filterBtnActive]}
-              onPress={() => setPartnershipFilter(tab.id)}
-              activeOpacity={0.8}
+              onPress={() => setPartnershipFilter(tab.key)}
+              activeOpacity={0.75}
             >
               <Text
                 style={[styles.filterText, isActive && styles.filterTextActive]}
@@ -228,7 +249,7 @@ const PartnershipsView = ({ match, scorecards = [], commentary = [], refreshCont
       {/* Empty State */}
       {parsedInningsPartnerships.length === 0 && (
         <View style={styles.emptyContainer}>
-          <Icon name="handshake-outline" size={36} color={Colors.textTertiary} />
+          <Icon name="handshake-outline" size={36} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>No Partnerships Available</Text>
           <Text style={styles.emptySub}>
             Partnership statistics will appear here as the match progresses.
@@ -239,33 +260,39 @@ const PartnershipsView = ({ match, scorecards = [], commentary = [], refreshCont
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDark) => StyleSheet.create({
   container: {
     padding: 12,
     paddingBottom: 30,
+    backgroundColor: colors.background,
   },
   filterRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginBottom: 12,
+    gap: 8,
+    marginBottom: 14,
   },
   filterBtn: {
     flex: 1,
-    backgroundColor: Colors.backgroundElevated,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 18,
+    backgroundColor: colors.surface,
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    borderRadius: 20,
     alignItems: 'center',
-    justify: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: isDark ? 0.2 : 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   filterBtnActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
   filterText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
   },
@@ -274,16 +301,16 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
   },
   inningsSection: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
   inningsHeader: {
-    marginBottom: 8,
-    paddingHorizontal: 2,
+    marginBottom: 10,
+    paddingHorizontal: 4,
   },
   teamTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   teamIndicator: {
     width: 3,
@@ -292,30 +319,30 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   teamTitle: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 15,
   },
   teamScore: {
-    color: Colors.textSecondary,
-    fontFamily: Typography.fontFamily.regular,
+    color: colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
     fontSize: 13,
     marginLeft: 4,
   },
   emptyContainer: {
     alignItems: 'center',
-    justify: 'center',
+    justifyContent: 'center',
     paddingVertical: 40,
     paddingHorizontal: 20,
   },
   emptyTitle: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 15,
     marginTop: 10,
   },
   emptySub: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 12,
     textAlign: 'center',

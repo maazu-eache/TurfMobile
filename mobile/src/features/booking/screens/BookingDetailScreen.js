@@ -56,7 +56,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
       case 'pending': return Colors.warning;
       case 'cancellation_requested': return '#FF5722';
       case 'cancelled': return Colors.error;
-      default: return Colors.textSecondary;
+      default: return colors.textSecondary;
     }
   };
 
@@ -122,7 +122,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
             <Text style={styles.sectionTitle}>Booking Information</Text>
             
             <View style={styles.infoRow}>
-              <Icon name="calendar-month-outline" size={22} color={Colors.primary} />
+              <Icon name="calendar-month-outline" size={22} color={isDark ? colors.primary : colors.primaryDark} />
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoLabel}>Date</Text>
                 <Text style={styles.infoValue}>{dateStr}</Text>
@@ -132,7 +132,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
             <View style={styles.divider} />
 
             <View style={styles.infoRow}>
-              <Icon name="clock-outline" size={22} color={Colors.primary} />
+              <Icon name="clock-outline" size={22} color={isDark ? colors.primary : colors.primaryDark} />
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoLabel}>Time Slots ({slots.length})</Text>
                 {slots.map((s, idx) => (
@@ -146,7 +146,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
             <View style={styles.divider} />
 
             <View style={styles.infoRow}>
-              <Icon name="ticket-outline" size={22} color={Colors.primary} />
+              <Icon name="ticket-outline" size={22} color={isDark ? colors.primary : colors.primaryDark} />
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoLabel}>Booking ID</Text>
                 <Text style={styles.infoValue}>{booking.bookingRef || booking._id.substring(0, 8).toUpperCase()}</Text>
@@ -177,8 +177,8 @@ const BookingDetailScreen = ({ navigation, route }) => {
             </View>
             {['cancellation_requested', 'pending_refund', 'cancelled'].includes(booking.status) && (
               <View style={[styles.paymentRow, { marginTop: -12, marginBottom: 0 }]}>
-                <Text style={[styles.paymentText, { color: Colors.primary }]}>Refund Amount</Text>
-                <Text style={[styles.paymentHighlight, { color: Colors.primary }]}>
+                <Text style={[styles.paymentText, { color: isDark ? colors.primary : colors.primaryDark }]}>Refund Amount</Text>
+                <Text style={[styles.paymentHighlight, { color: isDark ? colors.primary : colors.primaryDark }]}>
                   ₹{Math.round((booking.totalAmount || booking.finalAmount) * (cancellationRefundPercent / 100))}
                 </Text>
               </View>
@@ -214,10 +214,10 @@ const BookingDetailScreen = ({ navigation, route }) => {
                 ) : null;
               })()}
               <TouchableOpacity 
-                style={[styles.cancelBtn, { flex: 1, backgroundColor: Colors.surfaceVariant, borderColor: Colors.border }]} 
+                style={[styles.cancelBtn, { flex: 1, backgroundColor: colors.surfaceVariant, borderColor: colors.border }]} 
                 onPress={() => navigation.navigate('CreateTicketScreen', { bookingId: booking.bookingRef })}
               >
-                <Text style={[styles.cancelBtnText, { color: Colors.textSecondary }]} numberOfLines={1} adjustsFontSizeToFit>Report Issue</Text>
+                <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]} numberOfLines={1} adjustsFontSizeToFit>Report Issue</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -233,7 +233,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
           )}
 
           {booking.status === 'pending_refund' && (
-            <View style={[styles.infoAlert, { backgroundColor: Colors.primary, borderColor: Colors.primary }]}>
+            <View style={[styles.infoAlert, { backgroundColor: isDark ? colors.primary : colors.primaryDark, borderColor: isDark ? colors.primary : colors.primaryDark }]}>
               <Icon name="cash-refund" size={28} color="#000" />
               <View style={styles.infoAlertContent}>
                 <Text style={[styles.infoAlertTitle, { color: '#000' }]}>Refund Processing</Text>
@@ -256,7 +256,7 @@ const BookingDetailScreen = ({ navigation, route }) => {
           <TouchableOpacity style={styles.policyModalBackdrop} activeOpacity={1} onPress={() => setShowPolicyModal(false)} />
           <View style={styles.policyModalContent}>
             <View style={styles.policyModalHeader}>
-              <Icon name="information-outline" size={24} color={Colors.primary} />
+              <Icon name="information-outline" size={24} color={isDark ? colors.primary : colors.primaryDark} />
               <Text style={styles.policyModalTitle}>Request Cancellation</Text>
             </View>
               <Text style={styles.policyModalText}>
@@ -290,12 +290,12 @@ const BookingDetailScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
-  errorTitle: { fontSize: 20, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: Spacing.md },
-  backBtn: { marginTop: Spacing.xl, padding: Spacing.md, backgroundColor: Colors.surface, borderRadius: BorderRadius.md },
-  backBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  errorTitle: { fontSize: 20, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginTop: Spacing.md },
+  backBtn: { marginTop: Spacing.xl, padding: Spacing.md, backgroundColor: colors.surface, borderRadius: BorderRadius.md },
+  backBtnText: { color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
   
   imageContainer: { width: '100%', height: 300, position: 'relative' },
   headerImage: { width: '100%', height: '100%' },
@@ -308,21 +308,21 @@ const styles = StyleSheet.create({
   turfName: { fontSize: 28, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginBottom: 4 },
   turfAddress: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: '#E0E0E0' },
   
-  detailsContainer: { padding: Spacing.lg, marginTop: -20, backgroundColor: Colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
-  card: { backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
-  sectionTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: Spacing.lg },
+  detailsContainer: { padding: Spacing.lg, marginTop: -20, backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  card: { backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: colors.border },
+  sectionTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: Spacing.lg },
   
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.sm },
   infoTextContainer: { marginLeft: Spacing.md, flex: 1 },
-  infoLabel: { fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 2 },
-  infoValue: { fontSize: 15, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginBottom: 4 },
-  divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.md },
+  infoLabel: { fontSize: 12, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 2 },
+  infoValue: { fontSize: 15, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginBottom: 4 },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: Spacing.md },
   
   paymentRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.md },
-  paymentText: { fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  paymentText: { fontSize: 14, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
   paymentHighlight: { fontSize: 14, color: Colors.success, fontFamily: Typography.fontFamily.bold },
-  paymentTotalText: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
-  paymentTotalAmount: { fontSize: 22, color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  paymentTotalText: { fontSize: 16, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
+  paymentTotalAmount: { fontSize: 22, color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
 
   cancelBtn: { paddingVertical: 12, paddingHorizontal: 10, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.error, alignItems: 'center', marginVertical: Spacing.sm },
   cancelBtnText: { color: Colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
@@ -335,14 +335,14 @@ const styles = StyleSheet.create({
   /* ── Policy Modal Styles ── */
   policyModalOverlay: { flex: 1, justifyContent: 'flex-end' },
   policyModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)' },
-  policyModalContent: { backgroundColor: '#1A1A1A', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  policyModalContent: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   policyModalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   policyModalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginLeft: 12 },
   policyModalText: { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: Typography.fontFamily.regular, marginBottom: 12, lineHeight: 22 },
   policyModalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
-  policyModalCancelBtn: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#2A2A2A', alignItems: 'center' },
-  policyModalCancelText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
-  policyModalConfirmBtn: { flex: 2, padding: 16, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center' },
+  policyModalCancelBtn: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: isDark ? '#2A2A2A' : colors.surfaceVariant, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  policyModalCancelText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  policyModalConfirmBtn: { flex: 2, padding: 16, borderRadius: 12, backgroundColor: isDark ? colors.primary : colors.primaryDark, alignItems: 'center' },
   policyModalConfirmText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
 });
 

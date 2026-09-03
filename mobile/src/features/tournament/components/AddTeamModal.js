@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -11,6 +11,8 @@ import LocationAutocomplete from '../../../components/LocationAutocomplete';
 const TABS = ['Search', 'My Teams', 'Opponents', 'Following'];
 
 const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTeams = [] }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [activeTab, setActiveTab] = useState('Search');
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -206,13 +208,13 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
           <Text style={styles.teamSub}>{item.city || 'No City'} | Capt: {item.captain?.name || 'N/A'}</Text>
         </View>
         {isAdded ? (
-          <View style={[styles.smallActionBtn, { backgroundColor: Colors.border }]}>
-            <Text style={[styles.smallActionBtnText, { color: Colors.textSecondary }]}>Added</Text>
+          <View style={[styles.smallActionBtn, { backgroundColor: colors.border }]}>
+            <Text style={[styles.smallActionBtnText, { color: colors.textSecondary }]}>Added</Text>
           </View>
         ) : (
           <TouchableOpacity style={styles.smallActionBtn} onPress={() => handleRegisterTeam(item._id)} disabled={actionLoading}>
             {addingTeamId === item._id ? (
-              <ActivityIndicator size="small" color={Colors.textPrimary} />
+              <ActivityIndicator size="small" color={colors.textPrimary} />
             ) : (
               <Text style={styles.smallActionBtnText}>Add</Text>
             )}
@@ -238,7 +240,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Team</Text>
             <TouchableOpacity onPress={onClose}>
-              <Icon name="x" size={24} color={Colors.textSecondary} />
+              <Icon name="x" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           
@@ -263,30 +265,30 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
               <TextInput 
                 style={styles.searchInput}
                 placeholder="Search by Mobile or Team Name"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
               <TouchableOpacity style={styles.searchBtn} onPress={searchTeams}>
-                <Icon name="search" size={20} color={Colors.white} />
+                <Icon name="search" size={20} color={colors.white} />
               </TouchableOpacity>
             </View>
           )}
 
           {loading ? (
-            <ActivityIndicator color={Colors.primary} style={{ marginTop: 20 }} />
+            <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
           ) : (
             <>
               {activeTab === 'Search' && showGhostForm ? (
                 <ScrollView keyboardShouldPersistTaps="handled" style={{ marginTop: Spacing.md, paddingHorizontal: Spacing.md }}>
                   <Text style={styles.label}>Team Name *</Text>
-                  <TextInput style={styles.input} placeholderTextColor={Colors.textTertiary} value={ghostForm.teamName} onChangeText={t => setGhostForm({...ghostForm, teamName: t})} placeholder="New Team Name" />
+                  <TextInput style={styles.input} placeholderTextColor={colors.textTertiary} value={ghostForm.teamName} onChangeText={t => setGhostForm({...ghostForm, teamName: t})} placeholder="New Team Name" />
                   
                   <Text style={styles.label}>Captain Mobile *</Text>
-                  <TextInput style={styles.input} keyboardType="phone-pad" placeholderTextColor={Colors.textTertiary} value={ghostForm.captainMobile} onChangeText={t => setGhostForm({...ghostForm, captainMobile: t})} placeholder="e.g. 9876543210" />
+                  <TextInput style={styles.input} keyboardType="phone-pad" placeholderTextColor={colors.textTertiary} value={ghostForm.captainMobile} onChangeText={t => setGhostForm({...ghostForm, captainMobile: t})} placeholder="e.g. 9876543210" />
                   
-                  {fetchingPlayer && <ActivityIndicator size="small" color={Colors.primary} style={{ alignSelf: 'flex-start', marginTop: Spacing.xs }} />}
-                  {playerFoundMsg ? <Text style={{ color: Colors.primary, fontSize: 12, marginTop: Spacing.xs }}>{playerFoundMsg}</Text> : null}
+                  {fetchingPlayer && <ActivityIndicator size="small" color={colors.primary} style={{ alignSelf: 'flex-start', marginTop: Spacing.xs }} />}
+                  {playerFoundMsg ? <Text style={{ color: colors.primary, fontSize: 12, marginTop: Spacing.xs }}>{playerFoundMsg}</Text> : null}
                   
                   <TouchableOpacity 
                     style={{ marginTop: Spacing.sm, marginBottom: Spacing.sm, alignSelf: 'flex-start' }} 
@@ -295,7 +297,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                       setPlayerProfile({ name: user?.name, photo: user?.photo });
                     }}
                   >
-                    <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.medium }}>+ Add Myself as Captain</Text>
+                    <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.medium }}>+ Add Myself as Captain</Text>
                   </TouchableOpacity>
 
                   {playerProfile && (
@@ -309,7 +311,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                   )}
 
                   <Text style={styles.label}>Captain Name</Text>
-                  <TextInput style={styles.input} placeholderTextColor={Colors.textTertiary} value={ghostForm.captainName} onChangeText={t => setGhostForm({...ghostForm, captainName: t})} placeholder="Captain's Name" />
+                  <TextInput style={styles.input} placeholderTextColor={colors.textTertiary} value={ghostForm.captainName} onChangeText={t => setGhostForm({...ghostForm, captainName: t})} placeholder="Captain's Name" />
                   
                   <Text style={styles.label}>City</Text>
                   <LocationAutocomplete
@@ -321,11 +323,11 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                   />
                   
                   <Text style={styles.label}>State</Text>
-                  <TextInput style={styles.input} placeholderTextColor={Colors.textTertiary} value={ghostForm.state} onChangeText={t => setGhostForm({...ghostForm, state: t})} placeholder="State" />
+                  <TextInput style={styles.input} placeholderTextColor={colors.textTertiary} value={ghostForm.state} onChangeText={t => setGhostForm({...ghostForm, state: t})} placeholder="State" />
                   
                   <Text style={styles.label}>Logo</Text>
                   <TouchableOpacity 
-                    style={[styles.input, { alignItems: 'center', justifyContent: 'center', padding: Spacing.lg, borderStyle: 'dashed', backgroundColor: Colors.background }]}
+                    style={[styles.input, { alignItems: 'center', justifyContent: 'center', padding: Spacing.lg, borderStyle: 'dashed', backgroundColor: colors.background }]}
                     onPress={async () => {
                       const res = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
                       if (res.assets?.length > 0) {
@@ -341,16 +343,16 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
                     {ghostForm.logo && ghostForm.logo.uri ? (
                       <Image source={{ uri: ghostForm.logo.uri }} style={{ width: 60, height: 60, borderRadius: 30 }} />
                     ) : (
-                      <Text style={{ color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>Tap to select team logo (Max 3 MB)</Text>
+                      <Text style={{ color: colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>Tap to select team logo (Max 3 MB)</Text>
                     )}
                   </TouchableOpacity>
-                  <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium }}>
+                  <Text style={{ color: colors.primary, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium }}>
                     Note: Maximum image size allowed is under 3 MB.
                   </Text>
 
                   <View style={{ flexDirection: 'row', marginTop: Spacing.lg, paddingBottom: 40 }}>
-                    <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginRight: Spacing.sm }]} onPress={() => setShowGhostForm(false)}>
-                      <Text style={[styles.actionBtnText, { color: Colors.textSecondary }]}>Cancel</Text>
+                    <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginRight: Spacing.sm }]} onPress={() => setShowGhostForm(false)}>
+                      <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={handleCreateGhostTeam} disabled={actionLoading}>
                       {actionLoading ? (
@@ -393,38 +395,38 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: Colors.background, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, height: '85%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, paddingBottom: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  modalContainer: { backgroundColor: colors.background, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, height: '85%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, paddingBottom: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   
-  tabsWrapper: { borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.backgroundElevated },
+  tabsWrapper: { borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
   tabsScroll: { padding: Spacing.md },
-  tabBtn: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: 20, marginRight: Spacing.sm, backgroundColor: Colors.background },
-  tabBtnActive: { backgroundColor: Colors.primary },
-  tabText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  tabBtn: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: 20, marginRight: Spacing.sm, backgroundColor: colors.background },
+  tabBtnActive: { backgroundColor: colors.primary },
+  tabText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
   tabTextActive: { color: '#000', fontFamily: Typography.fontFamily.bold },
 
   searchRow: { flexDirection: 'row', padding: Spacing.md, paddingBottom: 0 },
-  searchInput: { flex: 1, backgroundColor: Colors.backgroundElevated, color: Colors.textPrimary, paddingHorizontal: Spacing.md, height: 44, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border },
-  searchBtn: { width: 44, height: 44, backgroundColor: Colors.primary, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center', marginLeft: Spacing.sm },
+  searchInput: { flex: 1, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: Spacing.md, height: 44, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border },
+  searchBtn: { width: 44, height: 44, backgroundColor: colors.primary, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center', marginLeft: Spacing.sm },
   
   emptySearch: { alignItems: 'center', marginTop: Spacing.xl },
-  emptyText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.md },
-  createGhostBtn: { padding: Spacing.sm, backgroundColor: 'rgba(46, 204, 113, 0.1)', borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.primary },
-  createGhostBtnText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  emptyText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.md },
+  createGhostBtn: { padding: Spacing.sm, backgroundColor: 'rgba(46, 204, 113, 0.1)', borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.primary },
+  createGhostBtnText: { color: colors.primary, fontFamily: Typography.fontFamily.bold },
   
-  teamCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.lg, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
+  teamCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: Spacing.md, borderRadius: BorderRadius.lg, marginBottom: Spacing.sm, borderWidth: 1, borderColor: colors.border },
   teamLogo: { width: 50, height: 50, borderRadius: 25, marginRight: Spacing.md, backgroundColor: '#ddd' },
-  teamNameText: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  teamSub: { fontSize: 13, color: Colors.textSecondary },
-  smallActionBtn: { backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: BorderRadius.md },
+  teamNameText: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  teamSub: { fontSize: 13, color: colors.textSecondary },
+  smallActionBtn: { backgroundColor: colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: BorderRadius.md },
   smallActionBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
   
-  label: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.xs, marginTop: Spacing.sm },
-  input: { backgroundColor: Colors.backgroundElevated, color: Colors.textPrimary, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border },
-  actionBtn: { paddingVertical: Spacing.md, borderRadius: BorderRadius.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
+  label: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.xs, marginTop: Spacing.sm },
+  input: { backgroundColor: colors.surface, color: colors.textPrimary, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border },
+  actionBtn: { paddingVertical: Spacing.md, borderRadius: BorderRadius.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
   actionBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 }
 });
 

@@ -9,11 +9,14 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../api/axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme } from '../../../theme/ThemeContext';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import moment from 'moment';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 const AdminSettlementsScreen = ({ navigation }) => {
+  const { colors, isDark, shadows } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
   const [tab, setTab] = useState('requests');
   const [requests, setRequests] = useState([]);
   const [wallets, setWallets] = useState([]);
@@ -367,43 +370,39 @@ const AdminSettlementsScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const createStyles = (colors, isDark, shadows) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
   header: {
     paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md,
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: colors.surfaceVariant, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: colors.border,
   },
-  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  headerSub: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 1 },
+  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  headerSub: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: colors.textTertiary, marginTop: 1 },
   pendingBadge: {
     backgroundColor: 'rgba(255,152,0,0.15)', borderRadius: 12,
     paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(255,152,0,0.3)',
   },
   pendingBadgeText: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: '#FF9800' },
 
-  tabs: {
-    flexDirection: 'row', backgroundColor: Colors.backgroundCard,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+  tabContainer: {
+    flexDirection: 'row', paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.border, gap: 16,
+    backgroundColor: colors.surface,
   },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14 },
-  activeTab: { borderBottomWidth: 2, borderBottomColor: Colors.primary },
-  tabText: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary },
-  activeTabText: { color: Colors.primary, fontFamily: Typography.fontFamily.bold },
+  tabBtn: { paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtnActive: { borderBottomColor: isDark ? '#FFD400' : colors.primaryDark },
+  tabText: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary },
+  tabTextActive: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
 
-  list: { padding: Spacing.md, paddingBottom: 100 },
-  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 80, gap: 12 },
-  emptyTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  emptySubtitle: { fontSize: 14, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary },
-
+  listContent: { padding: Spacing.md, paddingBottom: 100 },
   card: {
     backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl,
     marginBottom: 12, borderWidth: 1, borderColor: Colors.border,

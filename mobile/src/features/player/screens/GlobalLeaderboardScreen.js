@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Image, Modal, Animated, Dimensions, ScrollView,
@@ -8,28 +8,28 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
-import { Typography } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { fetchGlobalLeaderboard } from '../playerSlice';
 import { getImageUrl } from '../../../api/axios';
 
 const { width, height } = Dimensions.get('window');
 
 // ─── ScoreVerse Design Tokens ─────────────────────────────────────────────────
-const S = {
-  black:      '#000000',
-  dark:       '#111111',
-  darkCard:   '#161616',
-  darkGlass:  'rgba(22,22,22,0.85)',
-  white:      '#FFFFFF',
-  yellow:     '#FFD400',
-  yellowDim:  'rgba(255,212,0,0.15)',
-  yellowGlow: 'rgba(255,212,0,0.08)',
-  border:     'rgba(255,255,255,0.08)',
-  borderYellow: 'rgba(255,212,0,0.25)',
-  textPrimary: '#FFFFFF',
-  textSecondary: 'rgba(255,255,255,0.5)',
-  textTertiary: 'rgba(255,255,255,0.25)',
-};
+const getTokens = (colors, isDark) => ({
+  black: "#000000",
+  dark: isDark ? "#111111" : colors.surface,
+  darkCard: colors.surface,
+  darkGlass: isDark ? "rgba(22,22,22,0.85)" : "rgba(255,255,255,0.95)",
+  white: colors.textPrimary,
+  yellow: colors.primary,
+  yellowDim: isDark ? "rgba(255,212,0,0.15)" : colors.primaryAlpha10,
+  yellowGlow: colors.primaryAlpha20,
+  border: colors.border,
+  borderYellow: isDark ? "rgba(255,212,0,0.25)" : colors.primaryAlpha30,
+  textPrimary: colors.textPrimary,
+  textSecondary: colors.textSecondary,
+  textTertiary: colors.textTertiary,
+});
 
 const TABS = ['Batters', 'Bowlers', 'Fielders'];
 const BALL_TYPES = ['Tennis', 'Leather', 'Other'];
@@ -125,8 +125,15 @@ const statLabel = (tab, statFilter) => {
   return tab === 'Batters' ? 'Runs' : tab === 'Bowlers' ? 'Wkts' : 'Catches';
 };
 
+const GlobalLeaderboardScreen = () => {
+  const { colors, shadows, isDark } = useTheme();
+  const S = useMemo(() => getTokens(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, S), [colors, shadows, isDark, S]);
+
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 const Avatar = ({ uri, name, size = 48, isChampion = false }) => {
+  const { colors, isDark } = useTheme();
+  const S = useMemo(() => getTokens(colors, isDark), [colors, isDark]);
   const [imgError, setImgError] = useState(false);
   const initial = (name || '?')[0].toUpperCase();
 
@@ -160,6 +167,8 @@ const Avatar = ({ uri, name, size = 48, isChampion = false }) => {
 
 // ─── Ambient Background Particle ─────────────────────────────────────────────
 const Particle = ({ delay, x, size, duration }) => {
+  const { colors, isDark } = useTheme();
+  const S = useMemo(() => getTokens(colors, isDark), [colors, isDark]);
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -191,6 +200,8 @@ const Particle = ({ delay, x, size, duration }) => {
 
 // ─── Podium Column ────────────────────────────────────────────────────────────
 const PodiumColumn = ({ player, rank, tab, ballType, statFilter, navigation, floatAnim }) => {
+  const { colors, isDark } = useTheme();
+  const S = useMemo(() => getTokens(colors, isDark), [colors, isDark]);
   if (!player) return <View style={{ width: (width - 32) / 3 }} />;
 
   const isFirst  = rank === 1;
@@ -265,21 +276,23 @@ const PodiumColumn = ({ player, rank, tab, ballType, statFilter, navigation, flo
         width: '100%',
         height: podiumH,
         marginTop: 10,
-        backgroundColor: isFirst ? 'rgba(255,212,0,0.12)' : 'rgba(255,255,255,0.04)',
+        backgroundColor: isFirst 
+          ? (isDark ? 'rgba(255,212,0,0.14)' : 'rgba(255,204,0,0.18)')
+          : (isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceVariant),
         borderRadius: 8,
         borderTopWidth: 2,
-        borderTopColor: isFirst ? S.yellow : 'rgba(255,255,255,0.1)',
+        borderTopColor: isFirst ? S.yellow : (isDark ? 'rgba(255,255,255,0.12)' : colors.border),
         borderLeftWidth: 1,
         borderRightWidth: 1,
-        borderLeftColor: S.border,
-        borderRightColor: S.border,
+        borderLeftColor: isDark ? S.border : colors.border,
+        borderRightColor: isDark ? S.border : colors.border,
         justifyContent: 'center',
         alignItems: 'center',
       }}>
         <Text style={{
           fontFamily: Typography.fontFamily.bold,
           fontSize: isFirst ? 20 : 16,
-          color: isFirst ? S.yellow : 'rgba(255,255,255,0.2)',
+          color: isFirst ? S.yellow : (isDark ? 'rgba(255,255,255,0.3)' : colors.textTertiary),
         }}>{rank}</Text>
       </View>
     </TouchableOpacity>
@@ -288,6 +301,9 @@ const PodiumColumn = ({ player, rank, tab, ballType, statFilter, navigation, flo
 
 // ─── List Row (rank 4+) ────────────────────────────────────────────────────────
 const ListRow = ({ item, rank, tab, ballType, statFilter, navigation, entryAnim }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const S = useMemo(() => getTokens(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, S), [colors, shadows, isDark, S]);
   const mainStat = getMainStat(item, tab, ballType);
   const subs     = getSubStats(item, tab, ballType);
   const uri      = getImageUrl(item.photo || item.userId?.profilePicture);
@@ -379,6 +395,9 @@ const PodiumSkeleton = () => {
 // ─── Skeleton Row ────────────────────────────────────────────────────────────
 
 const SkeletonRow = () => {
+  const { colors, shadows, isDark } = useTheme();
+  const S = useMemo(() => getTokens(colors, isDark), [colors, isDark]);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, S), [colors, shadows, isDark, S]);
   const shimmer = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -406,7 +425,7 @@ const SkeletonRow = () => {
 };
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-const GlobalLeaderboardScreen = () => {
+
   const [activeTab,         setActiveTab]         = useState('Batters');
   const [activeBallType,    setActiveBallType]    = useState('Tennis');
   const [selectedCity,      setSelectedCity]      = useState(null);
@@ -768,68 +787,68 @@ const GlobalLeaderboardScreen = () => {
         <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowFilterModal(false)} />
           <View style={{
-            backgroundColor: '#161616',
+            backgroundColor: isDark ? '#161616' : colors.surface,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
             paddingHorizontal: 24,
             paddingTop: 16,
             paddingBottom: 36,
             borderTopWidth: 1,
-            borderTopColor: 'rgba(255,255,255,0.08)',
+            borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
             maxHeight: '82%',
           }}>
             {/* Handle bar */}
-            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'center', marginBottom: 20 }} />
+            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : colors.border, alignSelf: 'center', marginBottom: 20 }} />
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* ─ Category ─ */}
-              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 15, color: S.white, marginBottom: 14 }}>Category</Text>
+              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 15, color: colors.textPrimary, marginBottom: 14 }}>Category</Text>
               {TABS.map(tab => (
                 <TouchableOpacity key={tab} onPress={() => setPendingTab(tab)}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}>
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
                   <View style={{
                     width: 20, height: 20, borderRadius: 10,
-                    borderWidth: 2, borderColor: pendingTab === tab ? S.yellow : 'rgba(255,255,255,0.25)',
+                    borderWidth: 2, borderColor: pendingTab === tab ? S.yellow : (isDark ? 'rgba(255,255,255,0.25)' : colors.border),
                     alignItems: 'center', justifyContent: 'center', marginRight: 14,
                   }}>
                     {pendingTab === tab && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: S.yellow }} />}
                   </View>
-                  <Text style={{ fontFamily: Typography.fontFamily.semiBold, fontSize: 14, color: pendingTab === tab ? S.white : S.textSecondary }}>{tab}</Text>
+                  <Text style={{ fontFamily: Typography.fontFamily.semiBold, fontSize: 14, color: pendingTab === tab ? colors.textPrimary : colors.textSecondary }}>{tab}</Text>
                 </TouchableOpacity>
               ))}
 
               {/* ─ Ball Type ─ */}
-              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 15, color: S.white, marginTop: 24, marginBottom: 14 }}>Ball Type</Text>
+              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 15, color: colors.textPrimary, marginTop: 24, marginBottom: 14 }}>Ball Type</Text>
               {BALL_TYPES.map(bt => (
                 <TouchableOpacity key={bt} onPress={() => setPendingBallType(bt)}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}>
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
                   <View style={{
                     width: 20, height: 20, borderRadius: 10,
-                    borderWidth: 2, borderColor: pendingBallType === bt ? S.yellow : 'rgba(255,255,255,0.25)',
+                    borderWidth: 2, borderColor: pendingBallType === bt ? S.yellow : (isDark ? 'rgba(255,255,255,0.25)' : colors.border),
                     alignItems: 'center', justifyContent: 'center', marginRight: 14,
                   }}>
                     {pendingBallType === bt && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: S.yellow }} />}
                   </View>
-                  <Text style={{ fontFamily: Typography.fontFamily.semiBold, fontSize: 14, color: pendingBallType === bt ? S.white : S.textSecondary }}>{bt}</Text>
+                  <Text style={{ fontFamily: Typography.fontFamily.semiBold, fontSize: 14, color: pendingBallType === bt ? colors.textPrimary : colors.textSecondary }}>{bt}</Text>
                 </TouchableOpacity>
               ))}
 
               {/* ─ Sort By ─ */}
-              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 15, color: S.white, marginTop: 24, marginBottom: 14 }}>Sort By</Text>
+              <Text style={{ fontFamily: Typography.fontFamily.bold, fontSize: 15, color: colors.textPrimary, marginTop: 24, marginBottom: 14 }}>Sort By</Text>
               {['all', ...(pendingTab === 'Batters' ? ['runs', 'average', 'high score', 'matches'] :
                 pendingTab === 'Bowlers' ? ['wickets', 'economy', 'maidens', 'best', 'matches'] :
                 ['catches', 'stumpings', 'run outs'])
               ].map(f => (
                 <TouchableOpacity key={f} onPress={() => setPendingStatFilter(f)}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' }}>
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
                   <View style={{
                     width: 20, height: 20, borderRadius: 10,
-                    borderWidth: 2, borderColor: pendingStatFilter === f ? S.yellow : 'rgba(255,255,255,0.25)',
+                    borderWidth: 2, borderColor: pendingStatFilter === f ? S.yellow : (isDark ? 'rgba(255,255,255,0.25)' : colors.border),
                     alignItems: 'center', justifyContent: 'center', marginRight: 14,
                   }}>
                     {pendingStatFilter === f && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: S.yellow }} />}
                   </View>
-                  <Text style={{ fontFamily: Typography.fontFamily.semiBold, fontSize: 14, color: pendingStatFilter === f ? S.white : S.textSecondary, textTransform: 'capitalize' }}>{f === 'all' ? 'All (Default)' : f}</Text>
+                  <Text style={{ fontFamily: Typography.fontFamily.semiBold, fontSize: 14, color: pendingStatFilter === f ? colors.textPrimary : colors.textSecondary, textTransform: 'capitalize' }}>{f === 'all' ? 'All (Default)' : f}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -849,11 +868,8 @@ const GlobalLeaderboardScreen = () => {
 };
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: S.black,
-  },
+const createStyles = (colors, shadows, isDark, S) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.background, },
 
   // ── My Rank Fixed Bottom Bar ─────────────────────────────────────────────
   myRankBar: {
@@ -861,30 +877,31 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(18,18,18,0.97)',
+    backgroundColor: isDark ? 'rgba(18,18,18,0.97)' : colors.surface,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,212,0,0.2)',
+    borderTopColor: isDark ? 'rgba(255,212,0,0.2)' : colors.border,
     paddingTop: 12,
     paddingHorizontal: 16,
+    ...(isDark ? {} : shadows.lg),
   },
   myRankInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: 'rgba(255,212,0,0.07)',
+    backgroundColor: isDark ? 'rgba(255,212,0,0.08)' : colors.primaryAlpha10,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,212,0,0.18)',
+    borderColor: isDark ? 'rgba(255,212,0,0.25)' : colors.primaryAlpha30,
   },
   myRankBadge: {
     minWidth: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : colors.surfaceVariant,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: isDark ? 'rgba(255,255,255,0.15)' : colors.border,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
@@ -892,17 +909,17 @@ const styles = StyleSheet.create({
   myRankBadgeText: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 14,
-    color: S.yellow,
+    color: isDark ? S.yellow : colors.primaryDark,
   },
   myRankName: {
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 14,
-    color: S.white,
+    color: colors.textPrimary,
   },
   myRankSub: {
     fontFamily: Typography.fontFamily.regular,
     fontSize: 11,
-    color: S.textSecondary,
+    color: colors.textSecondary,
     marginTop: 1,
   },
   myRankScrollHint: {
@@ -1098,10 +1115,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 32,
   },
-  listCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: S.darkCard,
+  listCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, ...(isDark ? {} : shadows.xs),
     borderRadius: 18,
     borderWidth: 1,
     borderColor: S.border,
@@ -1239,7 +1253,7 @@ const styles = StyleSheet.create({
   // ── Modal ─────────────────────────────────────────────────────────────────
   modalRoot: {
     flex: 1,
-    backgroundColor: S.black,
+    backgroundColor: colors.background,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1251,7 +1265,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 20,
-    color: S.white,
+    color: colors.textPrimary,
   },
   modalSub: {
     fontFamily: Typography.fontFamily.regular,

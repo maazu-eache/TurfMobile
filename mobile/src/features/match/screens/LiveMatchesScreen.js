@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, SafeAreaView } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { fetchMyMatches } from '../matchSlice';
-import { Colors, Typography } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import moment from 'moment';
 
@@ -14,6 +14,8 @@ const TABS = [
 ];
 
 const LiveMatchesScreen = () => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [activeTab, setActiveTab] = useState('live');
   const dispatch = useDispatch();
   const navigation = useNavigation();
@@ -34,10 +36,10 @@ const LiveMatchesScreen = () => {
     switch (status) {
       case 'live':
       case 'in_progress':
-      case 'innings_break': return Colors.success;
-      case 'scheduled': return Colors.warning;
-      case 'completed': return Colors.primary;
-      default: return Colors.textTertiary;
+      case 'innings_break': return colors.success;
+      case 'scheduled': return colors.warning;
+      case 'completed': return colors.primary;
+      default: return colors.textTertiary;
     }
   };
 
@@ -94,7 +96,7 @@ const LiveMatchesScreen = () => {
         )}
 
         <View style={styles.cardFooter}>
-          <Icon name="calendar-clock" size={16} color={Colors.textTertiary} />
+          <Icon name="calendar-clock" size={16} color={colors.textTertiary} />
           <Text style={styles.dateText}>
             {item.status === 'scheduled' 
               ? `SCHEDULED AT ${moment(item.scheduledAt || item.createdAt).format('DD MMM, hh:mm A').toUpperCase()}` 
@@ -133,11 +135,11 @@ const LiveMatchesScreen = () => {
         keyExtractor={item => item._id}
         renderItem={renderMatchCard}
         contentContainerStyle={styles.listContainer}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadMatches} tintColor={Colors.primary} />}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadMatches} tintColor={colors.primary} />}
         ListEmptyComponent={
           !isLoading && (
             <View style={styles.emptyContainer}>
-              <Icon name="cricket" size={64} color={Colors.border} />
+              <Icon name="cricket" size={64} color={colors.border} />
               <Text style={styles.emptyText}>No {activeTab} matches found</Text>
             </View>
           )
@@ -147,35 +149,35 @@ const LiveMatchesScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: 20, paddingVertical: 15, backgroundColor: Colors.surface },
-  headerTitle: { fontSize: 24, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  tabsContainer: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  tabButton: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 20, marginHorizontal: 4, backgroundColor: Colors.background },
-  activeTabButton: { backgroundColor: Colors.primary },
-  tabText: { fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, fontSize: 14 },
-  activeTabText: { color: Colors.surface, fontFamily: Typography.fontFamily.bold },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  header: { paddingHorizontal: 20, paddingVertical: 15, backgroundColor: colors.surface },
+  headerTitle: { fontSize: 24, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  tabsContainer: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  tabButton: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 20, marginHorizontal: 4, backgroundColor: colors.background },
+  activeTabButton: { backgroundColor: colors.primary },
+  tabText: { fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, fontSize: 14 },
+  activeTabText: { color: colors.surface, fontFamily: Typography.fontFamily.bold },
   listContainer: { padding: 16, flexGrow: 1 },
-  matchCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  matchCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  formatText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary },
+  formatText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: colors.textSecondary },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   statusText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: '#fff' },
   teamsContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   teamRow: { flex: 1 },
-  teamName: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  vsContainer: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center', marginHorizontal: 10 },
-  vsText: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary },
+  teamName: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  vsContainer: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', marginHorizontal: 10 },
+  vsText: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary },
   scoreRow: { alignItems: 'center', marginBottom: 12 },
-  scoreText: { fontSize: 24, fontFamily: Typography.fontFamily.extraBold, color: Colors.primary },
+  scoreText: { fontSize: 24, fontFamily: Typography.fontFamily.extraBold, color: colors.primary },
   tossRow: { alignItems: 'center', marginBottom: 12, paddingHorizontal: 10 },
-  tossText: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, fontStyle: 'italic', textAlign: 'center' },
-  cardFooter: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12 },
-  dateText: { fontSize: 12, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, marginLeft: 6 },
-  venueText: { fontSize: 12, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, flex: 1 },
+  tossText: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, fontStyle: 'italic', textAlign: 'center' },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
+  dateText: { fontSize: 12, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, marginLeft: 6 },
+  venueText: { fontSize: 12, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, flex: 1 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 },
-  emptyText: { fontSize: 16, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginTop: 16 },
+  emptyText: { fontSize: 16, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginTop: 16 },
 });
 
 export default LiveMatchesScreen;

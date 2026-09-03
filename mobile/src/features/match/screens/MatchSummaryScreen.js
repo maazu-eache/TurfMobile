@@ -9,7 +9,7 @@ import { fetchLiveState, setLiveState, addMatchScorer, updateLiveViewers } from 
 import api, { BASE_URL, getImageUrl } from '../../../api/axios';
 import socketService from '../../../services/socketService';
 import { WebView } from 'react-native-webview';
-import { Colors, Typography, BorderRadius, Spacing, Shadows } from '../../../theme/theme';
+import { useTheme, Typography, BorderRadius, Spacing } from '../../../theme/theme';
 import moment from 'moment';
 import { getPlayerTags } from '../../../utils/playerTags';
 import ConfettiCannon from 'react-native-confetti-cannon';
@@ -27,17 +27,91 @@ const FALLBACK_BOWLER = require('../../../../Bowl.png');
 const FALLBACK_FOTM = require('../../../../FOTM.png');
 const FALLBACK_POTM = require('../../../../POTM.png');
 
+const AutoScrollingText = ({ text, style }) => {
+  const scrollRef = useRef(null);
+  const [contentWidth, setContentWidth] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    if (contentWidth <= containerWidth || containerWidth === 0) return;
+
+    const maxScroll = contentWidth - containerWidth + 16;
+    let isMounted = true;
+    let currentX = 0;
+    let state = 0; // 0: pause at start, 1: scrolling right, 2: pause at end, 3: resetting
+    let pauseTimer = null;
+
+    // Start after 1.5s initial pause
+    pauseTimer = setTimeout(() => {
+      if (!isMounted) return;
+      state = 1;
+    }, 1500);
+
+    const interval = setInterval(() => {
+      if (!isMounted) return;
+
+      if (state === 1) {
+        currentX += 1.2;
+        if (currentX >= maxScroll) {
+          state = 2; // Pause at end
+          pauseTimer = setTimeout(() => {
+            if (!isMounted) return;
+            // Smoothly reset back
+            scrollRef.current?.scrollTo({ x: 0, animated: true });
+            state = 0; // Pause at start
+            currentX = 0;
+            pauseTimer = setTimeout(() => {
+              if (!isMounted) return;
+              state = 1; // Start scrolling again
+            }, 1500);
+          }, 1800);
+        } else {
+          scrollRef.current?.scrollTo({ x: currentX, animated: false });
+        }
+      }
+    }, 30);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      if (pauseTimer) clearTimeout(pauseTimer);
+    };
+  }, [contentWidth, containerWidth, text]);
+
+  return (
+    <View 
+      style={{ flex: 1, overflow: 'hidden', height: 26, justifyContent: 'center' }}
+      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+    >
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEnabled={false}
+        onContentSizeChange={(w) => setContentWidth(w)}
+        contentContainerStyle={{ alignItems: 'center' }}
+      >
+        <Text style={[style, { flexShrink: 0 }]} numberOfLines={1}>
+          {text}
+        </Text>
+      </ScrollView>
+    </View>
+  );
+};
+
 const MvpPlayerRow = ({ player, idx, isPom, isTop, item }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <View style={{ borderBottomWidth: 0.5, borderBottomColor: Colors.border, paddingVertical: 12 }}>
+    <View style={{ borderBottomWidth: 0.5, borderBottomColor: colors.border, paddingVertical: 12 }}>
       <TouchableOpacity
         onPress={() => setExpanded(!expanded)}
         style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 }}
         activeOpacity={0.7}
       >
-        <Text style={{ width: 28, fontSize: 13, fontWeight: 'bold', color: Colors.textSecondary, textAlign: 'center' }}>{idx + 1}</Text>
+        <Text style={{ width: 28, fontSize: 13, fontWeight: 'bold', color: colors.textSecondary, textAlign: 'center' }}>{idx + 1}</Text>
 
         <View style={styles.avatarPlaceholderSm}>
           {player.photo ? (
@@ -49,42 +123,42 @@ const MvpPlayerRow = ({ player, idx, isPom, isTop, item }) => {
 
         <View style={{ flex: 1, marginLeft: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-            <Text style={{ color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 }}>{player.name}</Text>
+            <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 14 }}>{player.name}</Text>
             {isPom && (
               <View style={{ backgroundColor: '#eab308', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
                 <Text style={{ color: '#000', fontSize: 9, fontWeight: 'bold' }}>POM</Text>
               </View>
             )}
             {isTop && !isPom && (
-              <View style={{ backgroundColor: Colors.primaryAlpha20, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
-                <Text style={{ color: Colors.primary, fontSize: 9, fontWeight: 'bold' }}>TOP MVP</Text>
+              <View style={{ backgroundColor: colors.primaryAlpha20, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                <Text style={{ color: colors.primary, fontSize: 9, fontWeight: 'bold' }}>TOP MVP</Text>
               </View>
             )}
           </View>
-          <Text style={{ color: Colors.textTertiary, fontSize: 11, marginTop: 2 }}>{player.playingRole || 'Player'}</Text>
+          <Text style={{ color: colors.textTertiary, fontSize: 11, marginTop: 2 }}>{player.playingRole || 'Player'}</Text>
         </View>
 
         <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
-          <Text style={{ color: Colors.primary, fontWeight: 'bold', fontSize: 16 }}>{item.totalMvp.toFixed(2)}</Text>
-          <Text style={{ color: Colors.textTertiary, fontSize: 9 }}>PTS</Text>
+          <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: 16 }}>{item.totalMvp.toFixed(2)}</Text>
+          <Text style={{ color: colors.textTertiary, fontSize: 9 }}>PTS</Text>
         </View>
 
-        <Icon name={expanded ? "chevron-up" : "chevron-down"} size={20} color={Colors.textTertiary} />
+        <Icon name={expanded ? "chevron-up" : "chevron-down"} size={20} color={colors.textTertiary} />
       </TouchableOpacity>
 
       {expanded && (
         <View style={{ marginTop: 12, marginLeft: 38, marginRight: 8, backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: 12, borderRadius: 8, gap: 8 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>🏏 Batting MVP</Text>
-            <Text style={{ color: Colors.textPrimary, fontWeight: 'bold', fontSize: 12 }}>{item.battingMvp.toFixed(2)}</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>🏏 Batting MVP</Text>
+            <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 12 }}>{item.battingMvp.toFixed(2)}</Text>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>🥎 Bowling MVP</Text>
-            <Text style={{ color: Colors.textPrimary, fontWeight: 'bold', fontSize: 12 }}>{item.bowlingMvp.toFixed(2)}</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>🥎 Bowling MVP</Text>
+            <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 12 }}>{item.bowlingMvp.toFixed(2)}</Text>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>🧤 Fielding MVP</Text>
-            <Text style={{ color: Colors.textPrimary, fontWeight: 'bold', fontSize: 12 }}>{item.fieldingMvp.toFixed(2)}</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>🧤 Fielding MVP</Text>
+            <Text style={{ color: colors.textPrimary, fontWeight: 'bold', fontSize: 12 }}>{item.fieldingMvp.toFixed(2)}</Text>
           </View>
         </View>
       )}
@@ -93,29 +167,30 @@ const MvpPlayerRow = ({ player, idx, isPom, isTop, item }) => {
 };
 
 const AnalysisDropdown = ({ value, options, onSelect, placeholder }) => {
+  const { colors, shadows, isDark } = useTheme();
   const [visible, setVisible] = useState(false);
   const selectedOpt = options.find(o => o.value === value) || options.find(o => o.value?._id && value?._id && o.value._id === value._id);
 
   return (
     <View style={{ flex: 1, marginHorizontal: 4 }}>
       <TouchableOpacity
-        style={{ backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.borderLight, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+        style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
         onPress={() => setVisible(true)}
       >
-        <Text style={{ color: selectedOpt ? Colors.textPrimary : Colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13 }} numberOfLines={1}>
+        <Text style={{ color: selectedOpt ? colors.textPrimary : colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 13 }} numberOfLines={1}>
           {selectedOpt ? selectedOpt.label : placeholder}
         </Text>
-        <Icon name="chevron-down" size={20} color={Colors.textSecondary} />
+        <Icon name="chevron-down" size={20} color={colors.textSecondary} />
       </TouchableOpacity>
       <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }} activeOpacity={1} onPress={() => setVisible(false)}>
-          <View style={{ backgroundColor: Colors.surface, width: '100%', borderRadius: 12, padding: 16, maxHeight: 300 }}>
+          <View style={{ backgroundColor: colors.surface, width: '100%', borderRadius: 12, padding: 16, maxHeight: 300 }}>
             <ScrollView>
               {options.map((opt, idx) => {
                 const isSelected = value === opt.value || (value?._id && opt.value?._id && value._id === opt.value._id);
                 return (
-                  <TouchableOpacity key={idx} style={{ paddingVertical: 12, borderBottomWidth: idx < options.length - 1 ? 1 : 0, borderBottomColor: Colors.borderLight }} onPress={() => { onSelect(opt.value); setVisible(false); }}>
-                    <Text style={{ color: isSelected ? Colors.primary : Colors.textPrimary, fontFamily: isSelected ? Typography.fontFamily.bold : Typography.fontFamily.regular, fontSize: 16 }}>
+                  <TouchableOpacity key={idx} style={{ paddingVertical: 12, borderBottomWidth: idx < options.length - 1 ? 1 : 0, borderBottomColor: colors.borderLight }} onPress={() => { onSelect(opt.value); setVisible(false); }}>
+                    <Text style={{ color: isSelected ? colors.primary : colors.textPrimary, fontFamily: isSelected ? Typography.fontFamily.bold : Typography.fontFamily.regular, fontSize: 16 }}>
                       {opt.label}
                     </Text>
                   </TouchableOpacity>
@@ -130,6 +205,8 @@ const AnalysisDropdown = ({ value, options, onSelect, placeholder }) => {
 };
 
 const MatchSummaryScreen = ({ navigation, route }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const matchIdRaw = route.params?.matchId || route.params?.id || route.params?.match?._id || route.params?.match;
   const cleanMatchId = socketService.cleanId(matchIdRaw);
   const matchId = cleanMatchId;
@@ -566,8 +643,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     <RefreshControl
       refreshing={refreshing}
       onRefresh={onRefresh}
-      colors={[Colors.primary]}
-      tintColor={Colors.primary}
+      colors={[colors.primary]}
+      tintColor={colors.primary}
     />
   );
 
@@ -761,11 +838,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           lastBallRef.current = ballId;
 
           if (latestBall.isWicket || latestBall.wicketType) {
-            triggerCelebration('wicket', 'W', Colors.error);
+            triggerCelebration('wicket', 'W', colors.error);
           } else if (latestBall.batsmanRuns === 6) {
-            triggerCelebration('six', '6', Colors.primary);
+            triggerCelebration('six', '6', colors.primary);
           } else if (latestBall.batsmanRuns === 4) {
-            triggerCelebration('four', '4', Colors.primary);
+            triggerCelebration('four', '4', colors.primary);
           }
         }
       } else if (data?.recentCommentary?.length > 0) {
@@ -774,11 +851,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           lastBallRef.current = latestBall._id;
 
           if (latestBall.isWicket) {
-            triggerCelebration('wicket', 'W', Colors.error);
+            triggerCelebration('wicket', 'W', colors.error);
           } else if (latestBall.batsmanRuns === 6) {
-            triggerCelebration('six', '6', Colors.primary);
+            triggerCelebration('six', '6', colors.primary);
           } else if (latestBall.batsmanRuns === 4) {
-            triggerCelebration('four', '4', Colors.primary);
+            triggerCelebration('four', '4', colors.primary);
           }
         }
       }
@@ -912,7 +989,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       <View style={styles.centerContainer}>
         <Text style={styles.errorText}>Match data not found</Text>
         <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('My Cricket', { screen: 'MyCricketMain' })} style={{ marginTop: 20 }}>
-          <Text style={{ color: Colors.primary }}>Go Back</Text>
+          <Text style={{ color: colors.primary }}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -921,12 +998,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   if (!isCurrentMatchLoaded || !liveState?.match) {
     socketService.remoteLog('MatchSummaryScreen', `Loading condition met: isCurrentMatchLoaded=${isCurrentMatchLoaded}, cleanMatchId=${cleanMatchId}, liveStateMatchId=${liveState?.match?._id || liveState?.matchId}`);
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }]}>
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginBottom: 16 }} />
-        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 18 }}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginBottom: 16 }} />
+        <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 18 }}>
           Loading Match Summary...
         </Text>
-        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginTop: 8 }}>
+        <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginTop: 8 }}>
           Fetching statistics and details
         </Text>
       </View>
@@ -1063,7 +1140,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     const renderSubTabs = () => {
       if (!userPlayed) return null;
       return (
-        <View style={{ flexDirection: 'row', width: '100%', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+        <View style={{ flexDirection: 'row', width: '100%', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <TouchableOpacity
             onPress={() => setAiReportSubTab('individual')}
             style={{
@@ -1071,11 +1148,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               paddingVertical: 12,
               alignItems: 'center',
               borderBottomWidth: 2,
-              borderBottomColor: aiReportSubTab === 'individual' ? Colors.primary : 'transparent'
+              borderBottomColor: aiReportSubTab === 'individual' ? colors.primary : 'transparent'
             }}
           >
             <Text style={{
-              color: aiReportSubTab === 'individual' ? Colors.primary : Colors.textSecondary,
+              color: aiReportSubTab === 'individual' ? colors.primary : colors.textSecondary,
               fontFamily: Typography.fontFamily.semiBold,
               fontSize: Typography.fontSize.sm
             }}>
@@ -1089,11 +1166,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               paddingVertical: 12,
               alignItems: 'center',
               borderBottomWidth: 2,
-              borderBottomColor: aiReportSubTab === 'team' ? Colors.primary : 'transparent'
+              borderBottomColor: aiReportSubTab === 'team' ? colors.primary : 'transparent'
             }}
           >
             <Text style={{
-              color: aiReportSubTab === 'team' ? Colors.primary : Colors.textSecondary,
+              color: aiReportSubTab === 'team' ? colors.primary : colors.textSecondary,
               fontFamily: Typography.fontFamily.semiBold,
               fontSize: Typography.fontSize.sm
             }}>
@@ -1109,14 +1186,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         return (
           <ScrollView
             contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
-            style={{ backgroundColor: Colors.background }}
+            style={{ backgroundColor: colors.background }}
             refreshControl={getRefreshControl()}
             showsVerticalScrollIndicator={false}
           >
             {renderSubTabs()}
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200, padding: 32 }}>
-              <ActivityIndicator size="small" color={Colors.primary} style={{ marginBottom: 12 }} />
-              <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
+              <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: 12 }} />
+              <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
                 Analyzing your match performance...
               </Text>
             </View>
@@ -1128,24 +1205,24 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         return (
           <ScrollView
             contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
-            style={{ backgroundColor: Colors.background }}
+            style={{ backgroundColor: colors.background }}
             refreshControl={getRefreshControl()}
             showsVerticalScrollIndicator={false}
           >
             {renderSubTabs()}
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 250, padding: 32 }}>
-              <Icon name="alert-circle-outline" size={32} color={Colors.textSecondary} style={{ marginBottom: 16 }} />
-              <Text style={{ color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginBottom: 8 }}>
+              <Icon name="alert-circle-outline" size={32} color={colors.textSecondary} style={{ marginBottom: 16 }} />
+              <Text style={{ color: colors.textPrimary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginBottom: 8 }}>
                 Individual Report Unavailable
               </Text>
-              <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.regular, textAlign: 'center', marginBottom: 24 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.regular, textAlign: 'center', marginBottom: 24 }}>
                 We couldn't generate your coaching analysis at this time.
               </Text>
               <TouchableOpacity
-                style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border }}
+                style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border }}
                 onPress={fetchAiPlayerReport}
               >
-                <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
+                <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
                   Retry
                 </Text>
               </TouchableOpacity>
@@ -1157,53 +1234,53 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       return (
         <ScrollView
           contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
-          style={{ backgroundColor: Colors.background }}
+          style={{ backgroundColor: colors.background }}
           refreshControl={getRefreshControl()}
           showsVerticalScrollIndicator={false}
         >
           {renderSubTabs()}
           <View style={{ marginBottom: 24 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-              <Icon name="brain" size={14} color={Colors.textSecondary} />
-              <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase', letterSpacing: 1 }}>
+              <Icon name="brain" size={14} color={colors.textSecondary} />
+              <Text style={{ color: colors.textSecondary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase', letterSpacing: 1 }}>
                 My Coaching Analysis
               </Text>
             </View>
-            <Text style={{ color: Colors.textPrimary, fontSize: Typography.fontSize['3xl'], fontFamily: Typography.fontFamily.bold, marginBottom: 4 }}>
+            <Text style={{ color: colors.textPrimary, fontSize: Typography.fontSize['3xl'], fontFamily: Typography.fontFamily.bold, marginBottom: 4 }}>
               {currentUser.name}
             </Text>
           </View>
 
-          <View style={{ padding: 18, backgroundColor: Colors.surface, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border, marginBottom: 24 }}>
+          <View style={{ padding: 18, backgroundColor: colors.surface, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border, marginBottom: 24 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <View>
-                <Text style={{ color: Colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <Text style={{ color: colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   COACH RATING
                 </Text>
-                <Text style={{ color: Colors.primary, fontSize: Typography.fontSize['3xl'], fontFamily: Typography.fontFamily.extraBold }}>
+                <Text style={{ color: colors.primary, fontSize: Typography.fontSize['3xl'], fontFamily: Typography.fontFamily.extraBold }}>
                   {aiPlayerReport.rating || 'N/A'}
                 </Text>
               </View>
               <View style={{ backgroundColor: 'rgba(255,204,0,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
-                <Text style={{ color: Colors.primary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.semiBold }}>
+                <Text style={{ color: colors.primary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.semiBold }}>
                   Personal Scorecard
                 </Text>
               </View>
             </View>
 
-            <Text style={{ color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.bold, marginBottom: 16, lineHeight: 22, fontStyle: 'italic' }}>
+            <Text style={{ color: colors.textPrimary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.bold, marginBottom: 16, lineHeight: 22, fontStyle: 'italic' }}>
               "{aiPlayerReport.verdict}"
             </Text>
 
-            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginVertical: 16 }} />
+            <View style={{ height: 1, backgroundColor: colors.borderLight, marginVertical: 16 }} />
 
             {/* Batting Analysis */}
             {aiPlayerReport.battingAnalysis && aiPlayerReport.battingAnalysis !== 'Did not bat' && (
               <View style={{ marginBottom: 20 }}>
-                <Text style={{ color: Colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 6 }}>
+                <Text style={{ color: colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 6 }}>
                   Batting Performance
                 </Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.regular, lineHeight: 24 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.regular, lineHeight: 24 }}>
                   {aiPlayerReport.battingAnalysis}
                 </Text>
               </View>
@@ -1212,10 +1289,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {/* Bowling Analysis */}
             {aiPlayerReport.bowlingAnalysis && aiPlayerReport.bowlingAnalysis !== 'Did not bowl' && (
               <View style={{ marginBottom: 20 }}>
-                <Text style={{ color: Colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 6 }}>
+                <Text style={{ color: colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 6 }}>
                   Bowling Performance
                 </Text>
-                <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.regular, lineHeight: 24 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.regular, lineHeight: 24 }}>
                   {aiPlayerReport.bowlingAnalysis}
                 </Text>
               </View>
@@ -1225,7 +1302,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {((aiPlayerReport.strengths && aiPlayerReport.strengths.length > 0) ||
               (aiPlayerReport.drawbacks && aiPlayerReport.drawbacks.length > 0) ||
               (aiPlayerReport.improvementSteps && aiPlayerReport.improvementSteps.length > 0)) && (
-                <View style={{ height: 1, backgroundColor: Colors.borderLight, marginVertical: 16 }} />
+                <View style={{ height: 1, backgroundColor: colors.borderLight, marginVertical: 16 }} />
               )}
 
             {/* Key Strengths */}
@@ -1238,7 +1315,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                   {aiPlayerReport.strengths.map((str, idx) => (
                     <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
                       <Icon name="check-circle" size={16} color="#4CAF50" style={{ marginTop: 2 }} />
-                      <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.medium, flex: 1, lineHeight: 20 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.medium, flex: 1, lineHeight: 20 }}>
                         {str}
                       </Text>
                     </View>
@@ -1257,7 +1334,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                   {aiPlayerReport.drawbacks.map((dr, idx) => (
                     <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
                       <Icon name="alert-circle" size={16} color="#FF9800" style={{ marginTop: 2 }} />
-                      <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.medium, flex: 1, lineHeight: 20 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.medium, flex: 1, lineHeight: 20 }}>
                         {dr}
                       </Text>
                     </View>
@@ -1269,14 +1346,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {/* How to Improve (Action Plan) */}
             {aiPlayerReport.improvementSteps && aiPlayerReport.improvementSteps.length > 0 && (
               <View style={{ marginBottom: 20 }}>
-                <Text style={{ color: Colors.primary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
+                <Text style={{ color: colors.primary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
                   Actionable Coach Advice
                 </Text>
                 <View style={{ gap: 8 }}>
                   {aiPlayerReport.improvementSteps.map((step, idx) => (
                     <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-                      <Icon name="play-circle" size={16} color={Colors.primary} style={{ marginTop: 2 }} />
-                      <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.medium, flex: 1, lineHeight: 20 }}>
+                      <Icon name="play-circle" size={16} color={colors.primary} style={{ marginTop: 2 }} />
+                      <Text style={{ color: colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.medium, flex: 1, lineHeight: 20 }}>
                         {step}
                       </Text>
                     </View>
@@ -1285,16 +1362,16 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               </View>
             )}
 
-            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginVertical: 16 }} />
+            <View style={{ height: 1, backgroundColor: colors.borderLight, marginVertical: 16 }} />
 
             {/* Key Takeaway */}
             {aiPlayerReport.keyTakeaway && (
               <View>
-                <Text style={{ color: Colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 8 }}>
+                <Text style={{ color: colors.textTertiary, fontSize: Typography.fontSize.xs, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 8 }}>
                   Coach Takeaway
                 </Text>
-                <View style={{ padding: 14, backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: Colors.borderLight }}>
-                  <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.regular, lineHeight: 24, fontStyle: 'italic' }}>
+                <View style={{ padding: 14, backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: colors.borderLight }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.regular, lineHeight: 24, fontStyle: 'italic' }}>
                     {aiPlayerReport.keyTakeaway}
                   </Text>
                 </View>
@@ -1309,17 +1386,17 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       return (
         <ScrollView
           contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
-          style={{ backgroundColor: Colors.background }}
+          style={{ backgroundColor: colors.background }}
           refreshControl={getRefreshControl()}
           showsVerticalScrollIndicator={false}
         >
           {renderSubTabs()}
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 200, padding: 32 }}>
-            <ActivityIndicator size="small" color={Colors.primary} style={{ marginBottom: 16 }} />
-            <Text style={{ color: Colors.textPrimary, fontSize: Typography.fontSize.lg, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8, textAlign: 'center' }}>
+            <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: 16 }} />
+            <Text style={{ color: colors.textPrimary, fontSize: Typography.fontSize.lg, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8, textAlign: 'center' }}>
               Analyzing Match Data
             </Text>
-            <Text style={{ color: Colors.textTertiary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.regular, textAlign: 'center' }}>
+            <Text style={{ color: colors.textTertiary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.regular, textAlign: 'center' }}>
               {progressMessages[progressMsgIdx]}
             </Text>
           </View>
@@ -1331,24 +1408,24 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       return (
         <ScrollView
           contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
-          style={{ backgroundColor: Colors.background }}
+          style={{ backgroundColor: colors.background }}
           refreshControl={getRefreshControl()}
           showsVerticalScrollIndicator={false}
         >
           {renderSubTabs()}
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 250, padding: 32 }}>
-            <Icon name="alert-circle-outline" size={32} color={Colors.textSecondary} style={{ marginBottom: 16 }} />
-            <Text style={{ color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginBottom: 8 }}>
+            <Icon name="alert-circle-outline" size={32} color={colors.textSecondary} style={{ marginBottom: 16 }} />
+            <Text style={{ color: colors.textPrimary, fontSize: Typography.fontSize.base, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginBottom: 8 }}>
               Report Unavailable
             </Text>
-            <Text style={{ color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.regular, textAlign: 'center', marginBottom: 24 }}>
+            <Text style={{ color: colors.textSecondary, fontSize: Typography.fontSize.sm, fontFamily: Typography.fontFamily.regular, textAlign: 'center', marginBottom: 24 }}>
               We couldn't generate the match report at this time.
             </Text>
             <TouchableOpacity
-              style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border }}
+              style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border }}
               onPress={fetchAiReport}
             >
-              <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
+              <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm }}>
                 Retry
               </Text>
             </TouchableOpacity>
@@ -1360,7 +1437,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     return (
       <ScrollView
         contentContainerStyle={{ paddingBottom: 120, paddingTop: 16, paddingHorizontal: 16 }}
-        style={{ backgroundColor: Colors.background }}
+        style={{ backgroundColor: colors.background }}
         refreshControl={getRefreshControl()}
         showsVerticalScrollIndicator={false}
       >
@@ -1368,9 +1445,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         {/* ── Header Area ── */}
         <View style={{ marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-            <Icon name="brain" size={14} color={Colors.textSecondary} />
+            <Icon name="brain" size={14} color={colors.textSecondary} />
             <Text style={{
-              color: Colors.textSecondary,
+              color: colors.textSecondary,
               fontSize: Typography.fontSize.xs,
               fontFamily: Typography.fontFamily.medium,
               textTransform: 'uppercase',
@@ -1380,7 +1457,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             </Text>
           </View>
           <Text style={{
-            color: Colors.textPrimary,
+            color: colors.textPrimary,
             fontSize: Typography.fontSize['3xl'],
             fontFamily: Typography.fontFamily.bold,
             marginBottom: 4,
@@ -1388,7 +1465,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {teamA} vs {teamB}
           </Text>
           <Text style={{
-            color: Colors.textTertiary,
+            color: colors.textTertiary,
             fontSize: Typography.fontSize.sm,
             fontFamily: Typography.fontFamily.regular,
           }}>
@@ -1402,20 +1479,20 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             style={{
               flex: 1,
               borderWidth: 1,
-              borderColor: Colors.border,
+              borderColor: colors.border,
               paddingVertical: 12,
               borderRadius: BorderRadius.md,
               flexDirection: 'row',
               justifyContent: 'center',
               alignItems: 'center',
               gap: 8,
-              backgroundColor: Colors.surface,
+              backgroundColor: colors.surface,
             }}
             onPress={handleCopyReport}
           >
-            <Icon name="content-copy" size={16} color={Colors.textPrimary} />
+            <Icon name="content-copy" size={16} color={colors.textPrimary} />
             <Text style={{
-              color: Colors.textPrimary,
+              color: colors.textPrimary,
               fontFamily: Typography.fontFamily.medium,
               fontSize: Typography.fontSize.sm,
             }}>
@@ -1425,7 +1502,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={{
               flex: 1,
-              backgroundColor: Colors.primary,
+              backgroundColor: colors.primary,
               paddingVertical: 12,
               borderRadius: BorderRadius.md,
               flexDirection: 'row',
@@ -1450,7 +1527,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         {aiReport.headline && aiReport.headline.length > 0 && (
           <View style={{ marginBottom: 32 }}>
             <Text style={{
-              color: Colors.textPrimary,
+              color: colors.textPrimary,
               fontSize: Typography.fontSize.md,
               fontFamily: Typography.fontFamily.semiBold,
               marginBottom: 16,
@@ -1462,9 +1539,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             <View style={{ gap: 12 }}>
               {aiReport.headline.map((hl, idx) => (
                 <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                  <View style={{ width: 4, height: '100%', backgroundColor: Colors.primary, borderRadius: 2 }} />
+                  <View style={{ width: 4, height: '100%', backgroundColor: colors.primary, borderRadius: 2 }} />
                   <Text style={{
-                    color: Colors.textSecondary,
+                    color: colors.textSecondary,
                     fontSize: Typography.fontSize.base,
                     fontFamily: Typography.fontFamily.regular,
                     flex: 1,
@@ -1478,12 +1555,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        <View style={{ height: 1, backgroundColor: Colors.borderLight, marginBottom: 32 }} />
+        <View style={{ height: 1, backgroundColor: colors.borderLight, marginBottom: 32 }} />
 
         {/* ── Match Report Summary ── */}
         <View style={{ marginBottom: 32 }}>
           <Text style={{
-            color: Colors.textPrimary,
+            color: colors.textPrimary,
             fontSize: Typography.fontSize.md,
             fontFamily: Typography.fontFamily.semiBold,
             marginBottom: 16,
@@ -1493,7 +1570,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             Match Summary
           </Text>
           <Text style={{
-            color: Colors.textSecondary,
+            color: colors.textSecondary,
             fontSize: Typography.fontSize.base,
             fontFamily: Typography.fontFamily.regular,
             lineHeight: 26,
@@ -1505,10 +1582,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         {/* ── Player Spotlight ── */}
         {aiReport.playerSpotlight && (
           <>
-            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginBottom: 32 }} />
+            <View style={{ height: 1, backgroundColor: colors.borderLight, marginBottom: 32 }} />
             <View style={{ marginBottom: 32 }}>
               <Text style={{
-                color: Colors.textPrimary,
+                color: colors.textPrimary,
                 fontSize: Typography.fontSize.md,
                 fontFamily: Typography.fontFamily.semiBold,
                 marginBottom: 16,
@@ -1518,7 +1595,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 Player Spotlight
               </Text>
               <Text style={{
-                color: Colors.textSecondary,
+                color: colors.textSecondary,
                 fontSize: Typography.fontSize.base,
                 fontFamily: Typography.fontFamily.regular,
                 lineHeight: 26,
@@ -1532,10 +1609,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         {/* ── Key Moments ── */}
         {aiReport.keyMoments && aiReport.keyMoments.length > 0 && (
           <>
-            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginBottom: 32 }} />
+            <View style={{ height: 1, backgroundColor: colors.borderLight, marginBottom: 32 }} />
             <View style={{ marginBottom: 32 }}>
               <Text style={{
-                color: Colors.textPrimary,
+                color: colors.textPrimary,
                 fontSize: Typography.fontSize.md,
                 fontFamily: Typography.fontFamily.semiBold,
                 marginBottom: 16,
@@ -1548,7 +1625,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 {aiReport.keyMoments.map((moment, idx) => (
                   <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 16 }}>
                     <Text style={{
-                      color: Colors.textTertiary,
+                      color: colors.textTertiary,
                       fontSize: Typography.fontSize.sm,
                       fontFamily: Typography.fontFamily.semiBold,
                       marginTop: 2,
@@ -1556,7 +1633,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       {String(idx + 1).padStart(2, '0')}
                     </Text>
                     <Text style={{
-                      color: Colors.textSecondary,
+                      color: colors.textSecondary,
                       fontSize: Typography.fontSize.base,
                       fontFamily: Typography.fontFamily.regular,
                       flex: 1,
@@ -1574,10 +1651,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         {/* ── Match Awards ── */}
         {aiReport.awards && aiReport.awards.length > 0 && (
           <>
-            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginBottom: 32 }} />
+            <View style={{ height: 1, backgroundColor: colors.borderLight, marginBottom: 32 }} />
             <View style={{ marginBottom: 32 }}>
               <Text style={{
-                color: Colors.textPrimary,
+                color: colors.textPrimary,
                 fontSize: Typography.fontSize.md,
                 fontFamily: Typography.fontFamily.semiBold,
                 marginBottom: 16,
@@ -1590,7 +1667,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 {aiReport.awards.map((award, idx) => (
                   <View key={idx}>
                     <Text style={{
-                      color: Colors.textPrimary,
+                      color: colors.textPrimary,
                       fontSize: Typography.fontSize.sm,
                       fontFamily: Typography.fontFamily.semiBold,
                       marginBottom: 4,
@@ -1598,7 +1675,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       {award.title} • {award.winner}
                     </Text>
                     <Text style={{
-                      color: Colors.textSecondary,
+                      color: colors.textSecondary,
                       fontSize: Typography.fontSize.sm,
                       fontFamily: Typography.fontFamily.regular,
                       lineHeight: 22,
@@ -1615,10 +1692,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         {/* ── Fun Facts & Insights ── */}
         {aiReport.funFacts && aiReport.funFacts.length > 0 && (
           <>
-            <View style={{ height: 1, backgroundColor: Colors.borderLight, marginBottom: 32 }} />
+            <View style={{ height: 1, backgroundColor: colors.borderLight, marginBottom: 32 }} />
             <View style={{ marginBottom: 32 }}>
               <Text style={{
-                color: Colors.textPrimary,
+                color: colors.textPrimary,
                 fontSize: Typography.fontSize.md,
                 fontFamily: Typography.fontFamily.semiBold,
                 marginBottom: 16,
@@ -1630,9 +1707,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               <View style={{ gap: 12 }}>
                 {aiReport.funFacts.map((fact, idx) => (
                   <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.textTertiary, marginTop: 10 }} />
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.textTertiary, marginTop: 10 }} />
                     <Text style={{
-                      color: Colors.textSecondary,
+                      color: colors.textSecondary,
                       fontSize: Typography.fontSize.base,
                       fontFamily: Typography.fontFamily.regular,
                       flex: 1,
@@ -1648,10 +1725,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         )}
 
         {/* Bottom disclaimer */}
-        <View style={{ marginTop: 16, flexDirection: 'row', gap: 8, padding: 16, backgroundColor: Colors.surface, borderRadius: BorderRadius.md }}>
-          <Icon name="information-outline" size={16} color={Colors.textTertiary} />
+        <View style={{ marginTop: 16, flexDirection: 'row', gap: 8, padding: 16, backgroundColor: colors.surface, borderRadius: BorderRadius.md }}>
+          <Icon name="information-outline" size={16} color={colors.textTertiary} />
           <Text style={{
-            color: Colors.textTertiary,
+            color: colors.textTertiary,
             fontSize: Typography.fontSize.sm,
             fontFamily: Typography.fontFamily.regular,
             flex: 1,
@@ -1684,9 +1761,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           <TouchableOpacity
             key={tab}
             onPress={() => handleTabPress(tab)}
-            style={styles.tabItem}
+            style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
+            activeOpacity={0.75}
           >
-            {activeTab === tab && <View style={styles.tabActivePill} />}
             <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
           </TouchableOpacity>
         ))}
@@ -1736,7 +1813,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Tournament</Text>
               <TouchableOpacity onPress={() => navigation.navigate('TournamentDetail', { tournamentId: m.tournament._id })}>
-                <Text style={[styles.infoValue, { color: Colors.primary }]}>
+                <Text style={[styles.infoValue, { color: colors.primary }]}>
                   {m.tournament.name}
                 </Text>
               </TouchableOpacity>
@@ -1778,19 +1855,19 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           <Text style={styles.sectionTitle}>Match Scorer</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Active Scorer</Text>
-            <Text style={[styles.infoValue, { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+            <Text style={[styles.infoValue, { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>
               {m.activeScorerId?.name || 'Creator'}
             </Text>
           </View>
           {history.length > 1 && (
-            <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.borderLight, paddingTop: 10 }}>
-              <Text style={[styles.infoLabel, { marginBottom: 6, fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.primary }]}>Scoring Transfer History</Text>
+            <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.borderLight, paddingTop: 10 }}>
+              <Text style={[styles.infoLabel, { marginBottom: 6, fontSize: 11, fontFamily: Typography.fontFamily.bold, color: colors.primary }]}>Scoring Transfer History</Text>
               {history.map((h, i) => (
                 <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium }}>
                     {i === 0 ? '🏆 Initial Scorer' : `➡️ Transferred to ${h.name}`}
                   </Text>
-                  <Text style={{ color: Colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.regular }}>
+                  <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.regular }}>
                     {formatTimeOnly(h.changedAt)}
                   </Text>
                 </View>
@@ -1822,12 +1899,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
             {/* Super Over Timings (Only if Super Over was played) */}
             {(superOverInn1 || superOverInn2) && (
-              <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: Colors.borderLight, paddingTop: 12 }}>
-                <Text style={[styles.sectionTitle, { color: Colors.primary, fontSize: 12 }]}>Super Over Timings</Text>
+              <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: colors.borderLight, paddingTop: 12 }}>
+                <Text style={[styles.sectionTitle, { color: colors.primary, fontSize: 12 }]}>Super Over Timings</Text>
                 {superOverInn1 && (
                   <View style={styles.timelineRow}>
                     <View style={styles.timelinePoint}>
-                      <Text style={[styles.timelineLabel, { color: Colors.primary }]}>Super Over - 1st Innings</Text>
+                      <Text style={[styles.timelineLabel, { color: colors.primary }]}>Super Over - 1st Innings</Text>
                       <Text style={styles.timelineTime}>Start: {superInn1Start}  |  End: {superInn1End}</Text>
                     </View>
                   </View>
@@ -1835,7 +1912,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 {superOverInn2 && (
                   <View style={styles.timelineRow}>
                     <View style={styles.timelinePoint}>
-                      <Text style={[styles.timelineLabel, { color: Colors.primary }]}>Super Over - 2nd Innings</Text>
+                      <Text style={[styles.timelineLabel, { color: colors.primary }]}>Super Over - 2nd Innings</Text>
                       <Text style={styles.timelineTime}>Start: {superInn2Start}  |  End: {superInn2End}</Text>
                     </View>
                   </View>
@@ -1859,11 +1936,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       return (
         <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
           <View style={[styles.section, { alignItems: 'center', paddingVertical: 48 }]}>
-            <Icon name="alert-circle" size={56} color={Colors.error || '#D32F2F'} style={{ marginBottom: 16 }} />
-            <Text style={{ color: Colors.error || '#D32F2F', fontFamily: Typography.fontFamily.bold, fontSize: 20, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1 }}>
+            <Icon name="alert-circle" size={56} color={colors.error || '#D32F2F'} style={{ marginBottom: 16 }} />
+            <Text style={{ color: colors.error || '#D32F2F', fontFamily: Typography.fontFamily.bold, fontSize: 20, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1 }}>
               Match Abandoned
             </Text>
-            <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 16, textAlign: 'center', marginTop: 12 }}>
+            <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 16, textAlign: 'center', marginTop: 12 }}>
               {teamA} vs {teamB}
             </Text>
           </View>
@@ -1874,7 +1951,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (loadingScorecards) {
       return (
         <ScrollView contentContainerStyle={styles.content}>
-          <SkeletonPlaceholder backgroundColor={Colors.backgroundElevated} highlightColor={Colors.surfaceVariant}>
+          <SkeletonPlaceholder backgroundColor={colors.backgroundElevated} highlightColor={colors.surfaceVariant}>
             {/* Header Section (Scores & Result) */}
             <View style={[styles.section, { paddingBottom: 16, paddingTop: 16 }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1898,7 +1975,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               <View style={{ width: '80%', height: 16, borderRadius: 4, marginTop: 8 }} />
 
               {/* Views Row */}
-              <View style={{ flexDirection: 'row', marginTop: 12, borderTopWidth: 0.5, borderTopColor: Colors.border, paddingTop: 12, gap: 12 }}>
+              <View style={{ flexDirection: 'row', marginTop: 12, borderTopWidth: 0.5, borderTopColor: colors.border, paddingTop: 12, gap: 12 }}>
                 <View style={{ width: 60, height: 14, borderRadius: 4 }} />
                 <View style={{ width: 80, height: 14, borderRadius: 4 }} />
               </View>
@@ -2048,9 +2125,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             marginBottom: 10,
             borderRadius: 16,
             overflow: 'hidden',
-            backgroundColor: Colors.backgroundCard,
+            backgroundColor: colors.surface,
             borderWidth: 1,
-            borderColor: `${accentColor}28`,
+            borderColor: colors.border,
             elevation: 6,
             shadowColor: accentColor,
             shadowOffset: { width: 0, height: 4 },
@@ -2058,7 +2135,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             shadowRadius: 8,
           }}
         >
-          <View style={{ height: 160, backgroundColor: Colors.backgroundElevated, overflow: 'hidden' }}>
+          <View style={{ height: 160, backgroundColor: colors.backgroundElevated, overflow: 'hidden' }}>
             {getPlayerPhotoUrl(player) ? (
               <Image source={{ uri: getPlayerPhotoUrl(player) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
@@ -2070,10 +2147,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               <Icon name={titleIcon} size={10} color={accentColor} />
               <Text style={{ color: accentColor, fontFamily: Typography.fontFamily.bold, fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</Text>
             </View>
-            <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 13 }} numberOfLines={1}>
+            <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }} numberOfLines={1}>
               {player?.name}{isNotOut ? ' *' : ''}
             </Text>
-            <Text style={{ color: Colors.textSecondary, fontSize: 10, marginTop: 1 }} numberOfLines={1}>{subText}</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 1 }} numberOfLines={1}>{subText}</Text>
             <View style={{ height: 1, backgroundColor: `${accentColor}28`, marginVertical: 6 }} />
             <Text style={{ color: accentColor, fontFamily: Typography.fontFamily.bold, fontSize: 14 }}>{statsText}</Text>
           </View>
@@ -2094,19 +2171,19 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                   {(!scorecards || scorecards.length === 0) ? (
                     <>
                       <View style={{ marginBottom: 12 }}>
-                        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14, marginBottom: 4 }}>
+                        <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14, marginBottom: 4 }}>
                           {match.teamA?.name || 'Team A'}
                         </Text>
-                        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 22 }}>
-                          0/0 <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: 'normal' }}>(0.0 Ov)</Text>
+                        <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 22 }}>
+                          0/0 <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: 'normal' }}>(0.0 Ov)</Text>
                         </Text>
                       </View>
                       <View style={{ marginBottom: 12 }}>
-                        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14, marginBottom: 4 }}>
+                        <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14, marginBottom: 4 }}>
                           {match.teamB?.name || 'Team B'}
                         </Text>
-                        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 22 }}>
-                          0/0 <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: 'normal' }}>(0.0 Ov)</Text>
+                        <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 22 }}>
+                          0/0 <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: 'normal' }}>(0.0 Ov)</Text>
                         </Text>
                       </View>
                     </>
@@ -2114,11 +2191,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     const teamName = sc.battingTeam?.name || (sc.battingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name);
                     return (
                       <View key={idx} style={{ marginBottom: 12 }}>
-                        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14, marginBottom: 4 }}>
+                        <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14, marginBottom: 4 }}>
                           {teamName}{sc.inningsNumber >= 3 ? ' (Super Over)' : ''}
                         </Text>
-                        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 22 }}>
-                          {sc.total?.runs || 0}/{sc.total?.wickets || 0} <Text style={{ color: Colors.textSecondary, fontSize: 14, fontWeight: 'normal' }}>({sc.total?.overs || '0.0'} Ov)</Text>
+                        <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 22 }}>
+                          {sc.total?.runs || 0}/{sc.total?.wickets || 0} <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: 'normal' }}>({sc.total?.overs || '0.0'} Ov)</Text>
                         </Text>
                       </View>
                     );
@@ -2126,7 +2203,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 </View>
 
                 <View style={{ alignItems: 'flex-end', marginLeft: 16 }}>
-                  <View style={{ backgroundColor: Colors.surfaceDark, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ backgroundColor: colors.surfaceDark, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     {(match?.isSuperOver || match?.status === 'super_over' || liveState?.isSuperOver) && (
                       <View style={{ backgroundColor: '#7B1FA2', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3 }}>
                         <Text style={{ color: '#FFD54F', fontSize: 8, fontWeight: 'bold' }}>SUPER OVER</Text>
@@ -2138,25 +2215,25 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               </View>
 
               {match.result?.summary && (
-                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginTop: 8 }}>
+                <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginTop: 8 }}>
                   {match.result.summary}
                 </Text>
               )}
 
               {/* Views Row */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, borderTopWidth: 0.5, borderTopColor: Colors.border, paddingTop: 8, gap: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, borderTopWidth: 0.5, borderTopColor: colors.border, paddingTop: 8, gap: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Icon name="eye-outline" size={14} color={Colors.textTertiary} />
-                  <Text style={{ color: Colors.textSecondary, fontSize: 11 }}>{liveState?.views || match?.views || 0} Views</Text>
+                  <Icon name="eye-outline" size={14} color={colors.textTertiary} />
+                  <Text style={{ color: colors.textSecondary, fontSize: 11 }}>{liveState?.views || match?.views || 0} Views</Text>
                 </View>
               </View>
 
               <View style={{ flexDirection: 'row', marginTop: 16 }}>
                 <TouchableOpacity
-                  style={{ flex: 1, backgroundColor: Colors.primaryAlpha20, paddingVertical: 12, borderRadius: 8, alignItems: 'center' }}
+                  style={{ flex: 1, backgroundColor: colors.primaryAlpha20, paddingVertical: 12, borderRadius: 8, alignItems: 'center' }}
                   onPress={() => setActiveTab('Leaderboard')}
                 >
-                  <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 }}>Leaderboard</Text>
+                  <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 }}>Leaderboard</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -2166,9 +2243,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               <View style={{ marginBottom: 8 }}>
                 {/* Section header */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, marginBottom: 14, gap: 8 }}>
-                  <LinearGradient colors={[Colors.warning, '#FF5722']} style={{ width: 3, height: 18, borderRadius: 2 }} />
-                  <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 15, letterSpacing: 0.2 }}>Heroes of the Match</Text>
-                  <Icon name="trophy" size={15} color={Colors.warning} style={{ marginLeft: 2 }} />
+                  <LinearGradient colors={[colors.warning, '#FF5722']} style={{ width: 3, height: 18, borderRadius: 2 }} />
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 15, letterSpacing: 0.2 }}>Heroes of the Match</Text>
+                  <Icon name="trophy" size={15} color={colors.warning} style={{ marginLeft: 2 }} />
                 </View>
 
                 {/* ── PLAYER OF THE MATCH ── Cinematic big card */}
@@ -2200,13 +2277,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         borderRadius: 22,
                         overflow: 'hidden',
                         elevation: 10,
-                        shadowColor: Colors.warning,
+                        shadowColor: colors.warning,
                         shadowOffset: { width: 0, height: 6 },
                         shadowOpacity: 0.35,
                         shadowRadius: 14,
                       }}
                     >
-                      <View style={{ height: 310, backgroundColor: Colors.backgroundElevated }}>
+                      <View style={{ height: 310, backgroundColor: colors.backgroundElevated }}>
                         {mvpPhoto ? (
                           <Image source={{ uri: mvpPhoto }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                         ) : (
@@ -2214,7 +2291,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         )}
                         {/* Gold badge strip at top */}
                         <LinearGradient colors={['rgba(0,0,0,0.75)', 'transparent']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
-                          <LinearGradient colors={[Colors.warning, '#FF9800']} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20 }}>
+                          <LinearGradient colors={[colors.warning, '#FF9800']} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20 }}>
                             <Icon name="star" size={11} color="#000" />
                             <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Player of the Match</Text>
                           </LinearGradient>
@@ -2249,8 +2326,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                           </Text>
                           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                             {mvpBattingStats && (mvpBattingStats.runs > 0 || mvpBattingStats.balls > 0) && (
-                              <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', borderWidth: 1, borderColor: `${Colors.primary}88`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
-                                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                              <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', borderWidth: 1, borderColor: `${colors.primary}88`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
+                                <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
                                   {mvpBattingStats.runs}<Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>({mvpBattingStats.balls})</Text>
                                 </Text>
                                 <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 1 }}>
@@ -2259,8 +2336,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                               </View>
                             )}
                             {mvpBowlingStats && (mvpBowlingStats.overs > 0 || mvpBowlingStats.wickets > 0) && (
-                              <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', borderWidth: 1, borderColor: `${Colors.info}88`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
-                                <Text style={{ color: Colors.info, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                              <View style={{ backgroundColor: 'rgba(0,0,0,0.85)', borderWidth: 1, borderColor: `${colors.info}88`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
+                                <Text style={{ color: colors.info, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
                                   {mvpBowlingStats.wickets}<Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>/{mvpBowlingStats.runs}</Text>
                                 </Text>
                                 <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 1 }}>
@@ -2291,19 +2368,19 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       shadowOpacity: 0.25,
                       shadowRadius: 10,
                       flexDirection: 'row',
-                      backgroundColor: Colors.backgroundCard,
+                      backgroundColor: colors.surface,
                       borderWidth: 1,
-                      borderColor: 'rgba(255,64,129,0.20)',
+                      borderColor: isDark ? 'rgba(255,64,129,0.30)' : colors.border,
                       height: 120,
                     }}
                   >
-                    <View style={{ width: 120, height: '100%', backgroundColor: Colors.backgroundElevated }}>
+                    <View style={{ width: 120, height: '100%', backgroundColor: colors.backgroundElevated }}>
                       {getPlayerPhotoUrl(fighterOfTheMatch) ? (
                         <Image source={{ uri: getPlayerPhotoUrl(fighterOfTheMatch) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       ) : (
                         <Image source={FALLBACK_FOTM} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       )}
-                      <LinearGradient colors={['transparent', Colors.backgroundCard]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 44 }} />
+                      <LinearGradient colors={['transparent', colors.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 44 }} />
                     </View>
                     <View style={{ flex: 1, paddingHorizontal: 14, paddingVertical: 12, justifyContent: 'space-between' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -2311,8 +2388,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         <Text style={{ color: '#FF4081', fontFamily: Typography.fontFamily.bold, fontSize: 9, textTransform: 'uppercase', letterSpacing: 1.2 }}>Fighter of the Match</Text>
                       </View>
                       <View>
-                        <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 18, letterSpacing: -0.2 }} numberOfLines={1}>{fighterOfTheMatch?.name}</Text>
-                        <Text style={{ color: Colors.textSecondary, fontSize: 11, marginTop: 1 }} numberOfLines={1}>{fighterStats?.teamName}</Text>
+                        <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18, letterSpacing: -0.2 }} numberOfLines={1}>{fighterOfTheMatch?.name}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 1 }} numberOfLines={1}>{fighterStats?.teamName}</Text>
                       </View>
                       <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(255,64,129,0.10)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(255,64,129,0.28)' }}>
                         <Text style={{ color: '#FF4081', fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>
@@ -2327,18 +2404,18 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 {(topBatters.length > 0 || topBowlers.length > 0) && (
                   <View style={{ paddingHorizontal: Spacing.md }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, marginTop: 4 }}>
-                      <Icon name="chart-bar" size={12} color={Colors.textSecondary} />
-                      <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Top Performers</Text>
+                      <Icon name="chart-bar" size={12} color={colors.textSecondary} />
+                      <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Top Performers</Text>
                     </View>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
                       {topBatters.map((batter, index) => (
                         <React.Fragment key={`batter-${index}`}>
-                          {renderPerformerCard('Top Batter', 'cricket', Colors.primary, batter.player, `${batter.runs}(${batter.balls})`, batter.teamName, batter.isNotOut, FALLBACK_BATTER)}
+                          {renderPerformerCard('Top Batter', 'cricket', colors.primary, batter.player, `${batter.runs}(${batter.balls})`, batter.teamName, batter.isNotOut, FALLBACK_BATTER)}
                         </React.Fragment>
                       ))}
                       {topBowlers.map((bowler, index) => (
                         <React.Fragment key={`bowler-${index}`}>
-                          {renderPerformerCard('Top Bowler', 'bowling', Colors.info, bowler.player, `${bowler.wickets}/${bowler.runs}`, bowler.teamName, false, FALLBACK_BOWLER)}
+                          {renderPerformerCard('Top Bowler', 'bowling', colors.info, bowler.player, `${bowler.wickets}/${bowler.runs}`, bowler.teamName, false, FALLBACK_BOWLER)}
                         </React.Fragment>
                       ))}
                     </View>
@@ -2353,12 +2430,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             <View style={styles.section}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                 <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>
-                  <Text style={{ color: isTeamABatting ? '#FFF' : Colors.textSecondary }}>{match?.teamA?.name}</Text>
-                  <Text style={{ color: Colors.textSecondary }}> vs </Text>
-                  <Text style={{ color: !isTeamABatting ? '#FFF' : Colors.textSecondary }}>{match?.teamB?.name}</Text>
+                  <Text style={{ color: (match.status === 'scheduled' || match.status === 'toss_done' || isTeamABatting) ? colors.textPrimary : colors.textSecondary }}>{match?.teamA?.name}</Text>
+                  <Text style={{ color: colors.textSecondary }}> vs </Text>
+                  <Text style={{ color: (match.status === 'scheduled' || match.status === 'toss_done' || !isTeamABatting) ? colors.textPrimary : colors.textSecondary }}>{match?.teamB?.name}</Text>
                 </Text>
                 {(match?.isSuperOver || match?.status === 'super_over' || liveState?.isSuperOver) && (
-                  <View style={{ marginLeft: 8, backgroundColor: Colors.error, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                  <View style={{ marginLeft: 8, backgroundColor: colors.error, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                     <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>SUPER OVER</Text>
                   </View>
                 )}
@@ -2382,11 +2459,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               )}
 
               {(liveState?.inningsNumber === 2 || liveState?.inningsNumber === 4) && liveState?.target && (
-                <View style={{ marginTop: 8, padding: 8, backgroundColor: Colors.primaryAlpha20, borderRadius: 6 }}>
-                  <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>
+                <View style={{ marginTop: 8, padding: 8, backgroundColor: colors.primaryAlpha20, borderRadius: 6 }}>
+                  <Text style={{ color: colors.primary, fontWeight: 'bold' }}>
                     Target: {liveState.target}
                   </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
                     {liveState.toWin <= 0 ? 'Target Reached' : `${currentBattingName} needs ${liveState.toWin} runs in ${liveState.ballsRemaining} balls`}
                   </Text>
                   {liveState.dlsParScore !== undefined && liveState.dlsParScore !== null && liveState.dlsParScore > 0 && (() => {
@@ -2397,9 +2474,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
                     return (
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: isAhead ? 'rgba(34,197,94,0.12)' : isBehind ? 'rgba(239,68,68,0.12)' : 'rgba(148,163,184,0.12)', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 4, alignSelf: 'flex-start' }}>
-                        <Text style={{ color: Colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.medium }}>DLS Par: </Text>
-                        <Text style={{ color: Colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>{liveState.dlsParScore}</Text>
-                        <Text style={{ fontSize: 11, fontFamily: Typography.fontFamily.semiBold, color: isAhead ? '#22c55e' : isBehind ? '#ef4444' : Colors.textSecondary }}>
+                        <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.medium }}>DLS Par: </Text>
+                        <Text style={{ color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>{liveState.dlsParScore}</Text>
+                        <Text style={{ fontSize: 11, fontFamily: Typography.fontFamily.semiBold, color: isAhead ? '#22c55e' : isBehind ? '#ef4444' : colors.textSecondary }}>
                           {isAhead ? `  ✓ Ahead (${safeTeam} is safe)` : isBehind ? `  ✗ Behind (${safeTeam} is safe)` : '  = On Par'}
                         </Text>
                       </View>
@@ -2409,10 +2486,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               )}
 
               {/* Views & Live Viewers Row */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, borderTopWidth: 0.5, borderTopColor: Colors.border, paddingTop: 8, gap: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, borderTopWidth: 0.5, borderTopColor: colors.border, paddingTop: 8, gap: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Icon name="eye-outline" size={14} color={Colors.textTertiary} />
-                  <Text style={{ color: Colors.textSecondary, fontSize: 11 }}>{liveState?.views || match?.views || 0} Views</Text>
+                  <Icon name="eye-outline" size={14} color={colors.textTertiary} />
+                  <Text style={{ color: colors.textSecondary, fontSize: 11 }}>{liveState?.views || match?.views || 0} Views</Text>
                 </View>
                 {match?.status === 'in_progress' && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -2449,19 +2526,18 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         <View key={i} style={[
                           styles.msBallCircle,
                           { marginRight: 7 },
-                          isWicket && { backgroundColor: Colors.error, borderColor: Colors.error },
-                          isFour && { backgroundColor: Colors.primaryAlpha20, borderColor: Colors.primary },
-                          isSix && { backgroundColor: Colors.primary, borderColor: Colors.primary },
-                          isZero && { backgroundColor: Colors.backgroundElevated, borderColor: Colors.border },
-                          isExtra && { backgroundColor: Colors.backgroundElevated, borderColor: Colors.primary },
+                          isWicket && { backgroundColor: colors.error, borderColor: colors.error },
+                          isFour && { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
+                          isSix && { backgroundColor: colors.primary, borderColor: colors.primary },
+                          isZero && { backgroundColor: colors.backgroundElevated, borderColor: colors.border },
+                          isExtra && { backgroundColor: colors.backgroundElevated, borderColor: colors.primary },
                         ]}>
                           <Text style={[
                             styles.msBallText,
-                            isWicket && { color: '#FFF' },
+                            (isWicket || isFour) && { color: '#FFF' },
                             isSix && { color: '#000' },
-                            isFour && { color: Colors.primary },
-                            isZero && { color: Colors.textSecondary },
-                            isExtra && { color: Colors.primary }
+                            isZero && { color: colors.textSecondary },
+                            isExtra && { color: colors.primary }
                           ]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{ball.display}</Text>
                         </View>
                       );
@@ -2470,8 +2546,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 </View>
               )}
               {/* {match.activeScorerId && (
-                <Text style={{ color: Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.bold, marginTop: 8 }}>
-                  🏏 Scoring handled by: <Text style={{ color: Colors.primary }}>{typeof match.activeScorerId === 'object' ? match.activeScorerId.name : 'Active Scorer'}</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.bold, marginTop: 8 }}>
+                  🏏 Scoring handled by: <Text style={{ color: colors.primary }}>{typeof match.activeScorerId === 'object' ? match.activeScorerId.name : 'Active Scorer'}</Text>
                 </Text>
               )} */}
               {match.status === 'scheduled' && (
@@ -2482,11 +2558,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {/* Conditional Rendering of Batters/Bowlers or Break Info */}
             {(match.status === 'scheduled' || match.status === 'toss_done') ? (
               <View style={[styles.section, { alignItems: 'center', paddingVertical: 40 }]}>
-                <Icon name="cricket" size={48} color={Colors.primary} style={{ marginBottom: 16 }} />
-                <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18, textAlign: 'center' }}>
+                <Icon name="cricket" size={48} color={colors.primary} style={{ marginBottom: 16 }} />
+                <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18, textAlign: 'center' }}>
                   Welcome to an exciting contest!
                 </Text>
-                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, textAlign: 'center', marginTop: 8 }}>
+                <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, textAlign: 'center', marginTop: 8 }}>
                   The pitch looks great for a game of cricket. Stay tuned as the action unfolds!
                 </Text>
               </View>
@@ -2498,7 +2574,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 >
                   <View style={styles.inningsBreakIconRow}>
                     <View style={styles.inningsBreakIconWrap}>
-                      <Icon name="timer-sand" size={28} color={Colors.warning} />
+                      <Icon name="timer-sand" size={28} color={colors.warning} />
                     </View>
                     <View style={styles.inningsBreakBadge}>
                       <Text style={styles.inningsBreakBadgeText}>INNINGS BREAK</Text>
@@ -2515,7 +2591,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         <Text style={styles.targetChaseTeam}>{currentBattingName}</Text>
                         <Text style={styles.targetChaseDesc}>{liveState.toWin <= 0 ? 'Target Reached' : `needs ${liveState.toWin} runs in ${liveState.ballsRemaining} balls`}</Text>
                         <Text style={styles.targetChaseRRR}>
-                          Required RR: <Text style={{ color: Colors.warning, fontFamily: Typography.fontFamily.bold }}>{liveState.toWin <= 0 ? '--' : (liveState.requiredRunRate || '--')}</Text>
+                          Required RR: <Text style={{ color: colors.warning, fontFamily: Typography.fontFamily.bold }}>{liveState.toWin <= 0 ? '--' : (liveState.requiredRunRate || '--')}</Text>
                         </Text>
                       </View>
                     </View>
@@ -2595,12 +2671,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Recent Commentary</Text>
                 {liveState.recentCommentary.slice(0, 3).map((ball, index) => {
                   let display = `${ball.batsmanRuns}`;
-                  let bgColor = Colors.borderLight;
-                  let textColor = Colors.textPrimary;
+                  let bgColor = colors.borderLight;
+                  let textColor = colors.textPrimary;
 
                   if (ball.isWicket) {
                     display = 'W';
-                    bgColor = Colors.error;
+                    bgColor = colors.error;
                     textColor = '#FFF';
                   } else if (ball.isWide) display = `${ball.totalRuns}Wd`;
                   else if (ball.isNoBall) display = `${ball.totalRuns}Nb`;
@@ -2610,8 +2686,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     bgColor = '#4CAF50';
                     textColor = '#FFF';
                   } else if (ball.batsmanRuns === 6) {
-                    bgColor = '#1976D2';
-                    textColor = '#FFF';
+                    bgColor = colors.primary;
+                    textColor = '#000000';
                   }
 
                   let text = ball.commentary ? ball.commentary.replace(/^(Shastri|Bhogle):\s*/i, '') : `${ball.batsmanRuns} run(s)`;
@@ -2630,19 +2706,19 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                   return (
                     <View key={`${ball._id || 'commentary'}-${index}`} style={{ flexDirection: 'row', marginBottom: 12, alignItems: 'flex-start' }}>
                       <View style={{ width: 40 }}>
-                        <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary, fontSize: 13, marginTop: 6 }}>{ball.overNumber - 1}.{ball.ballNumber}</Text>
+                        <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: colors.textSecondary, fontSize: 13, marginTop: 6 }}>{ball.overNumber - 1}.{ball.ballNumber}</Text>
                       </View>
                       <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: bgColor, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                         <Text style={{ fontFamily: Typography.fontFamily.bold, color: textColor, fontSize: 12 }}>{display}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
                         {!ball.isAICommentary && (
-                          <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary, fontSize: 14 }}>
+                          <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: colors.textPrimary, fontSize: 14 }}>
                             {bowlerName} to {batsmanName}
                           </Text>
                         )}
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                          <Text style={{ flex: 1, fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 13, marginTop: ball.isAICommentary ? 4 : 2, lineHeight: 18 }}>{text}</Text>
+                          <Text style={{ flex: 1, fontFamily: Typography.fontFamily.regular, color: colors.textPrimary, fontSize: 13, marginTop: ball.isAICommentary ? 4 : 2, lineHeight: 18 }}>{text}</Text>
                         </View>
                       </View>
                     </View>
@@ -2674,21 +2750,21 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       const avg = (batStats.runs || 0) / Math.max(1, ((batStats.innings || 0) - (batStats.notOuts || 0)));
       const sr = batStats.balls ? (((batStats.runs || 0) / batStats.balls) * 100) : 0;
       return (
-        <View style={{ flexDirection: 'row', backgroundColor: Colors.surface, padding: 8, marginVertical: 6, marginHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: Colors.borderLight }}>
-          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12, overflow: 'hidden' }}>
+        <View style={{ flexDirection: 'row', backgroundColor: colors.surface, padding: 8, marginVertical: 6, marginHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: colors.borderLight }}>
+          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12, overflow: 'hidden' }}>
             {(player.photo || player.userId?.photo) ? (
               <Image source={{ uri: getImageUrl(player.photo || player.userId?.photo) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
-              <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>{player.name?.charAt(0).toUpperCase()}</Text>
+              <Text style={{ color: colors.primary, fontWeight: 'bold' }}>{player.name?.charAt(0).toUpperCase()}</Text>
             )}
           </View>
           <View style={{ flex: 1, justifyContent: 'center' }}>
-            <Text style={{ fontSize: 12, fontWeight: 'bold', color: Colors.textPrimary }}>{player.name}</Text>
+            <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.textPrimary }}>{player.name}</Text>
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-              <Text style={{ fontSize: 10, color: Colors.textSecondary }}>M: <Text style={{ color: Colors.textPrimary, fontWeight: 'bold' }}>{Math.max(statsObj.career?.matches || 0, 1)}</Text></Text>
-              <Text style={{ fontSize: 10, color: Colors.textSecondary }}>R: <Text style={{ color: Colors.textPrimary, fontWeight: 'bold' }}>{batStats.runs || 0}</Text></Text>
-              <Text style={{ fontSize: 10, color: Colors.textSecondary }}>Avg: <Text style={{ color: Colors.textPrimary, fontWeight: 'bold' }}>{avg.toFixed(1)}</Text></Text>
-              <Text style={{ fontSize: 10, color: Colors.textSecondary }}>SR: <Text style={{ color: Colors.textPrimary, fontWeight: 'bold' }}>{sr.toFixed(1)}</Text></Text>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>M: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{Math.max(statsObj.career?.matches || 0, 1)}</Text></Text>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>R: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{batStats.runs || 0}</Text></Text>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>Avg: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{avg.toFixed(1)}</Text></Text>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>SR: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{sr.toFixed(1)}</Text></Text>
             </View>
           </View>
         </View>
@@ -2697,20 +2773,20 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       const bowlStats = statsObj.bowling || {};
       const econ = bowlStats.overs ? ((bowlStats.runs || 0) / bowlStats.overs) : 0;
       return (
-        <View style={{ flexDirection: 'row', backgroundColor: Colors.surface, padding: 8, marginVertical: 6, marginHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: Colors.borderLight }}>
-          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12, overflow: 'hidden' }}>
+        <View style={{ flexDirection: 'row', backgroundColor: colors.surface, padding: 8, marginVertical: 6, marginHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: colors.borderLight }}>
+          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12, overflow: 'hidden' }}>
             {(player.photo || player.userId?.photo) ? (
               <Image source={{ uri: getImageUrl(player.photo || player.userId?.photo) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
-              <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>{player.name?.charAt(0).toUpperCase()}</Text>
+              <Text style={{ color: colors.primary, fontWeight: 'bold' }}>{player.name?.charAt(0).toUpperCase()}</Text>
             )}
           </View>
           <View style={{ flex: 1, justifyContent: 'center' }}>
-            <Text style={{ fontSize: 12, fontWeight: 'bold', color: Colors.textPrimary }}>{player.name}</Text>
+            <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.textPrimary }}>{player.name}</Text>
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-              <Text style={{ fontSize: 10, color: Colors.textSecondary }}>M: <Text style={{ color: Colors.textPrimary, fontWeight: 'bold' }}>{Math.max(statsObj.career?.matches || 0, 1)}</Text></Text>
-              <Text style={{ fontSize: 10, color: Colors.textSecondary }}>W: <Text style={{ color: Colors.textPrimary, fontWeight: 'bold' }}>{bowlStats.wickets || 0}</Text></Text>
-              <Text style={{ fontSize: 10, color: Colors.textSecondary }}>Econ: <Text style={{ color: Colors.textPrimary, fontWeight: 'bold' }}>{econ.toFixed(1)}</Text></Text>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>M: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{Math.max(statsObj.career?.matches || 0, 1)}</Text></Text>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>W: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{bowlStats.wickets || 0}</Text></Text>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>Econ: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{econ.toFixed(1)}</Text></Text>
             </View>
           </View>
         </View>
@@ -2720,7 +2796,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const renderCommentary = () => {
     if (loadingCommentary) {
-      return <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />;
+      return <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />;
     }
 
     if (match.status === 'scheduled' || match.status === 'toss_done') {
@@ -3065,27 +3141,27 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       }
 
       return (
-        <View style={{ backgroundColor: Colors.surfaceDark, padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ backgroundColor: isDark ? colors.surfaceDark : colors.surfaceVariant, padding: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.error, elevation: 4, shadowColor: Colors.error, shadowOpacity: 0.8, shadowRadius: 6 }} />
-              <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 18 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.error, elevation: 4, shadowColor: colors.error, shadowOpacity: 0.8, shadowRadius: 6 }} />
+              <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18 }}>
                 {liveState?.score?.runs || 0}/{liveState?.score?.wickets || 0}
               </Text>
-              <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 }}>
+              <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 }}>
                 ({liveState?.score?.overs || '0.0'})
               </Text>
             </View>
           </View>
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>CRR</Text>
-              <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>{crr}</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 10 }}>CRR</Text>
+              <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>{crr}</Text>
             </View>
             {rrr !== '0.00' && (
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>RRR</Text>
-                <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>{rrr}</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 10 }}>RRR</Text>
+                <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>{rrr}</Text>
               </View>
             )}
           </View>
@@ -3096,7 +3172,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     const renderFilterChips = () => {
       const filters = ['ALL', 'INNINGS_1', 'INNINGS_2', 'Boundaries', 'Wickets', 'Extras'];
       return (
-        <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight }}>
+        <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
             {filters.map(filter => {
               let label = filter;
@@ -3115,13 +3191,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     paddingHorizontal: 16,
                     paddingVertical: 6,
                     borderRadius: 20,
-                    backgroundColor: isSelected ? Colors.primary : Colors.surface,
+                    backgroundColor: isSelected ? colors.primary : colors.surface,
                     borderWidth: 1,
-                    borderColor: isSelected ? Colors.primary : Colors.borderLight
+                    borderColor: isSelected ? colors.primary : colors.borderLight
                   }}
                   onPress={() => setCommentaryFilter(filter)}
                 >
-                  <Text style={{ color: isSelected ? '#000' : Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 }}>{label}</Text>
+                  <Text style={{ color: isSelected ? '#000' : colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 }}>{label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -3132,37 +3208,37 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
     const renderBallEvent = (ball) => {
       let outcome = `${ball.batsmanRuns}`;
-      let bgColor = Colors.surfaceVariant;
-      let borderColor = Colors.borderLight;
-      let textColor = Colors.textPrimary;
+      let bgColor = colors.surfaceVariant;
+      let borderColor = colors.borderLight;
+      let textColor = colors.textPrimary;
       let glow = null;
 
       if (ball.isWicket) {
         outcome = 'W';
-        bgColor = Colors.error;
-        borderColor = Colors.error;
+        bgColor = colors.error;
+        borderColor = colors.error;
         textColor = '#FFF';
-        glow = Colors.error;
+        glow = colors.error;
       } else if (ball.isWide) { outcome = `${ball.totalRuns}Wd`; }
       else if (ball.isNoBall) { outcome = `${ball.totalRuns}Nb`; }
       else if (ball.isLegBye) { outcome = `${ball.totalRuns}Lb`; }
       else if (ball.isBye) { outcome = `${ball.totalRuns}B`; }
       else if (ball.batsmanRuns === 4) {
         outcome = '4';
-        bgColor = Colors.primary;
-        borderColor = Colors.primary;
+        bgColor = colors.primary;
+        borderColor = colors.primary;
         textColor = '#000';
-        glow = Colors.primary;
+        glow = colors.primary;
       } else if (ball.batsmanRuns === 6) {
         outcome = '6';
-        bgColor = Colors.primary;
-        borderColor = Colors.primary;
+        bgColor = colors.primary;
+        borderColor = colors.primary;
         textColor = '#000';
-        glow = Colors.primary;
+        glow = colors.primary;
       } else if (ball.batsmanRuns > 0) {
-        // default Colors.surfaceVariant
+        // default colors.surfaceVariant
       } else {
-        bgColor = Colors.surface;
+        bgColor = colors.surface;
       }
 
       const isExpanded = expandedBalls[ball._id];
@@ -3202,7 +3278,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       return (
         <View style={{ flexDirection: 'row', paddingRight: 16 }}>
           <View style={{ width: 60, alignItems: 'center' }}>
-            <View style={{ width: 2, flex: 1, backgroundColor: Colors.borderLight }} />
+            <View style={{ width: 2, flex: 1, backgroundColor: colors.borderLight }} />
             <View style={{
               position: 'absolute', top: 20,
               minWidth: 36, height: 36, borderRadius: 18,
@@ -3220,38 +3296,38 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             onPress={() => toggleBallExpand(ball._id)}
             style={{
               flex: 1, marginVertical: 12, borderRadius: 20,
-              backgroundColor: isExpanded ? Colors.backgroundElevated : Colors.surface,
-              borderWidth: 1, borderColor: isExpanded ? Colors.primary : Colors.borderLight,
+              backgroundColor: isExpanded ? colors.backgroundElevated : colors.surface,
+              borderWidth: 1, borderColor: isExpanded ? colors.primary : colors.borderLight,
               padding: 16,
-              ...(isExpanded ? { elevation: 4, shadowColor: Colors.primary, shadowOpacity: 0.2, shadowRadius: 8 } : {})
+              ...(isExpanded ? { elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.2, shadowRadius: 8 } : {})
             }}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, fontSize: 12 }}>
+                <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textSecondary, fontSize: 12 }}>
                   {ball.overNumber - 1}.{ball.ballNumber}
                 </Text>
                 {ball.isAICommentary && (ball.batsmanRuns === 4 || ball.batsmanRuns === 6 || ball.isWicket) && (
-                  <View style={{ backgroundColor: Colors.primaryAlpha20, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 0.5, borderColor: Colors.primary }}>
-                    <Text style={{ color: Colors.primary, fontSize: 8, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>AI LIVE</Text>
+                  <View style={{ backgroundColor: colors.primaryAlpha20, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 0.5, borderColor: colors.primary }}>
+                    <Text style={{ color: colors.primary, fontSize: 8, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>AI LIVE</Text>
                   </View>
                 )}
               </View>
-              <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: isExpanded ? Colors.primary : Colors.textSecondary, fontSize: 10, letterSpacing: 0.5 }}>
+              <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: isExpanded ? colors.primary : colors.textSecondary, fontSize: 10, letterSpacing: 0.5 }}>
                 {title}
               </Text>
             </View>
 
             {ball.isAICommentary ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
-                <Text style={{ flex: 1, fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 14, lineHeight: 22 }}>
+                <Text style={{ flex: 1, fontFamily: Typography.fontFamily.regular, color: colors.textPrimary, fontSize: 14, lineHeight: 22 }}>
                   {ball.commentary.replace(/^(Shastri|Bhogle):\s*/i, '')}
                 </Text>
               </View>
             ) : (
-              <Text style={{ fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, fontSize: 14, marginTop: 8, lineHeight: 22 }}>
+              <Text style={{ fontFamily: Typography.fontFamily.regular, color: colors.textPrimary, fontSize: 14, marginTop: 8, lineHeight: 22 }}>
                 <Text
-                  style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}
+                  style={{ fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}
                   onPress={() => {
                     const bowlerId = ball.bowler?._id || ball.bowler;
                     if (bowlerId) navigation.navigate('PlayerDetail', { id: bowlerId.toString() });
@@ -3261,7 +3337,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 </Text>
                 {' to '}
                 <Text
-                  style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}
+                  style={{ fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}
                   onPress={() => {
                     const batsmanId = ball.batsman?._id || ball.batsman;
                     if (batsmanId) navigation.navigate('PlayerDetail', { id: batsmanId.toString() });
@@ -3274,39 +3350,39 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             )}
 
             {isExpanded && (
-              <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: Colors.borderLight }}>
+              <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.borderLight }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   {speed && (
                     <View>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>SPEED</Text>
-                      <Text style={{ color: Colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold }}>{speed}</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>SPEED</Text>
+                      <Text style={{ color: colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold }}>{speed}</Text>
                     </View>
                   )}
                   {shotPos ? (
                     <View>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>SHOT</Text>
-                      <Text style={{ color: Colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold }}>{shotPos}</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>SHOT</Text>
+                      <Text style={{ color: colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold }}>{shotPos}</Text>
                     </View>
                   ) : null}
                   <View>
-                    <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>TIME</Text>
-                    <Text style={{ color: Colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>TIME</Text>
+                    <Text style={{ color: colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold }}>
                       {moment(ball.createdAt).format('h:mm A')}
                     </Text>
                   </View>
                 </View>
 
                 {ball.score && (
-                  <View style={{ flexDirection: 'row', marginTop: 12, backgroundColor: Colors.surfaceDark, borderRadius: 12, padding: 12 }}>
+                  <View style={{ flexDirection: 'row', marginTop: 12, backgroundColor: isDark ? colors.surfaceDark : colors.surfaceVariant, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>Batter</Text>
-                      <Text style={{ color: '#FFF', fontSize: 12, fontFamily: Typography.fontFamily.bold }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 10 }}>Batter</Text>
+                      <Text style={{ color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>
                         {ball.batsman?.name?.split(' ')[0]} {ball.score.strikerRuns}({ball.score.strikerBalls})
                       </Text>
                     </View>
                     <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>Bowler</Text>
-                      <Text style={{ color: '#FFF', fontSize: 12, fontFamily: Typography.fontFamily.bold }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 10 }}>Bowler</Text>
+                      <Text style={{ color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>
                         {ball.bowler?.name?.split(' ')[0]} {ball.score.bowlerWickets}/{ball.score.bowlerRuns}
                       </Text>
                     </View>
@@ -3329,10 +3405,10 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         else if (b.isBye) outcome = `${b.totalRuns}b`;
         else if (b.batsmanRuns === 0) outcome = '0';
 
-        let clr = Colors.textSecondary;
-        if (b.isWicket) clr = Colors.error;
-        else if (b.batsmanRuns === 4 || b.batsmanRuns === 6) clr = Colors.primary;
-        else if (b.batsmanRuns > 0) clr = Colors.textPrimary;
+        let clr = colors.textSecondary;
+        if (b.isWicket) clr = colors.error;
+        else if (b.batsmanRuns === 4 || b.batsmanRuns === 6) clr = colors.primary;
+        else if (b.batsmanRuns > 0) clr = colors.textPrimary;
 
         return (
           <Text key={i} style={{ color: clr, fontFamily: Typography.fontFamily.bold, fontSize: 14 }}>
@@ -3349,20 +3425,20 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       return (
         <View style={{ flexDirection: 'row', paddingRight: 16 }}>
           <View style={{ width: 60, alignItems: 'center' }}>
-            <View style={{ width: 2, flex: 1, backgroundColor: Colors.borderLight }} />
+            <View style={{ width: 2, flex: 1, backgroundColor: colors.borderLight }} />
           </View>
-          <View style={{ flex: 1, marginVertical: 12, backgroundColor: Colors.surfaceVariant, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.borderLight }}>
+          <View style={{ flex: 1, marginVertical: 12, backgroundColor: colors.surfaceVariant, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.borderLight }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, fontSize: 14 }}>
+              <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, fontSize: 14 }}>
                 END OF OVER {summary.overNumber}
               </Text>
-              <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, fontSize: 14 }}>
-                {summary.runs} Runs {summary.wickets > 0 && <Text style={{ color: Colors.error }}> | {summary.wickets} Wkts</Text>}
+              <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, fontSize: 14 }}>
+                {summary.runs} Runs {summary.wickets > 0 && <Text style={{ color: colors.error }}> | {summary.wickets} Wkts</Text>}
               </Text>
             </View>
 
-            <View style={{ flexDirection: 'row', backgroundColor: Colors.surface, padding: 12, borderRadius: 12, alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12, marginRight: 8 }}>Over:</Text>
+            <View style={{ flexDirection: 'row', backgroundColor: colors.surface, padding: 12, borderRadius: 12, alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12, marginRight: 8 }}>Over:</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
                 {sequenceWithDots}
               </View>
@@ -3370,11 +3446,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
             {summary.score && (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 }}>
-                  Score: <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14 }}>{summary.score.runs}-{summary.score.wickets}</Text>
+                <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 }}>
+                  Score: <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 14 }}>{summary.score.runs}-{summary.score.wickets}</Text>
                 </Text>
                 {summary.bowler && !summary.bowlerSnapshot && summary.score.bowlerOvers !== undefined && (
-                  <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 }}>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 }}>
                     {summary.bowler.name}: {summary.score.bowlerOvers} Ov
                   </Text>
                 )}
@@ -3383,39 +3459,39 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
             {/* Batters and Bowlers snapshot locked to the end of this over */}
             {((summary.battersSnapshot && summary.battersSnapshot.length > 0) || summary.bowlerSnapshot) && (
-              <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.borderLight, paddingTop: 12 }}>
+              <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.borderLight, paddingTop: 12 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   {/* Batters */}
                   <View style={{ flex: 1.1, paddingRight: 8 }}>
-                    <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, fontSize: 9, letterSpacing: 0.5, marginBottom: 6 }}>BATTING</Text>
+                    <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, fontSize: 9, letterSpacing: 0.5, marginBottom: 6 }}>BATTING</Text>
                     {summary.battersSnapshot.map((bat, idx) => (
                       <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text style={{ fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary, fontSize: 12, flex: 1, marginRight: 4 }} numberOfLines={1}>
+                        <Text style={{ fontFamily: Typography.fontFamily.medium, color: colors.textPrimary, fontSize: 12, flex: 1, marginRight: 4 }} numberOfLines={1}>
                           {bat.name}
                         </Text>
-                        <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary, fontSize: 12 }}>
+                        <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: colors.textSecondary, fontSize: 12 }}>
                           {bat.runs} <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 10 }}>({bat.balls})</Text>
                         </Text>
                       </View>
                     ))}
                   </View>
 
-                  <View style={{ width: 1, backgroundColor: Colors.borderLight, marginHorizontal: 8 }} />
+                  <View style={{ width: 1, backgroundColor: colors.borderLight, marginHorizontal: 8 }} />
 
                   {/* Bowler */}
                   <View style={{ flex: 1, paddingLeft: 8 }}>
-                    <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, fontSize: 9, letterSpacing: 0.5, marginBottom: 6 }}>BOWLING</Text>
+                    <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, fontSize: 9, letterSpacing: 0.5, marginBottom: 6 }}>BOWLING</Text>
                     {summary.bowlerSnapshot ? (
                       <View>
-                        <Text style={{ fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary, fontSize: 12, marginBottom: 2 }} numberOfLines={1}>
+                        <Text style={{ fontFamily: Typography.fontFamily.medium, color: colors.textPrimary, fontSize: 12, marginBottom: 2 }} numberOfLines={1}>
                           {summary.bowlerSnapshot.name}
                         </Text>
-                        <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary, fontSize: 12 }}>
+                        <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: colors.textSecondary, fontSize: 12 }}>
                           {summary.bowlerSnapshot.wickets}-{summary.bowlerSnapshot.runs} <Text style={{ fontFamily: Typography.fontFamily.regular, fontSize: 10 }}>({summary.bowlerSnapshot.overs} ov, {summary.bowlerSnapshot.maidens}m)</Text>
                         </Text>
                       </View>
                     ) : (
-                      <Text style={{ color: Colors.textTertiary, fontSize: 12, fontStyle: 'italic' }}>No bowler data</Text>
+                      <Text style={{ color: colors.textTertiary, fontSize: 12, fontStyle: 'italic' }}>No bowler data</Text>
                     )}
                   </View>
                 </View>
@@ -3427,7 +3503,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     };
 
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
         {renderFilterChips()}
 
         <FlatList
@@ -3443,17 +3519,17 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               return (
                 <View style={{ flexDirection: 'row', paddingRight: 16 }}>
                   <View style={{ width: 60, alignItems: 'center' }}>
-                    <View style={{ width: 2, flex: 1, backgroundColor: Colors.borderLight }} />
+                    <View style={{ width: 2, flex: 1, backgroundColor: colors.borderLight }} />
                     <View style={{
                       position: 'absolute', top: 12, width: 24, height: 24, borderRadius: 12,
                       backgroundColor: 'rgba(255, 212, 0, 0.1)', borderWidth: 1, borderColor: 'rgba(255, 212, 0, 0.25)',
                       justifyContent: 'center', alignItems: 'center'
                     }}>
-                      <Icon name={item.icon === 'bowling' ? 'bowling' : item.icon === 'cricket' ? 'cricket' : 'account'} size={12} color={Colors.primary} />
+                      <Icon name={item.icon === 'bowling' ? 'bowling' : item.icon === 'cricket' ? 'cricket' : 'account'} size={12} color={colors.primary} />
                     </View>
                   </View>
-                  <View style={{ flex: 1, marginVertical: 6, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: Colors.borderLight, justifyContent: 'center' }}>
-                    <Text style={{ fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, fontSize: 12 }}>
+                  <View style={{ flex: 1, marginVertical: 6, backgroundColor: colors.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: colors.borderLight, justifyContent: 'center' }}>
+                    <Text style={{ fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, fontSize: 12 }}>
                       {item.text}
                     </Text>
                   </View>
@@ -3464,7 +3540,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           }}
           ListEmptyComponent={
             <View style={{ padding: 32, alignItems: 'center' }}>
-              <Text style={{ color: Colors.textSecondary }}>No events found for this filter.</Text>
+              <Text style={{ color: colors.textSecondary }}>No events found for this filter.</Text>
             </View>
           }
         />
@@ -3531,26 +3607,26 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: 0 }]} refreshControl={getRefreshControl()}>
 
         {/* Team Headers */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
 
           {/* Team A Header */}
           <TouchableOpacity
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }}
             onPress={() => match.teamA?._id && navigation.navigate('TeamDetail', { id: match.teamA._id })}
           >
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.borderLight, justifyContent: 'center', alignItems: 'center', marginRight: 8, overflow: 'hidden' }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.borderLight, justifyContent: 'center', alignItems: 'center', marginRight: 8, overflow: 'hidden' }}>
               {(match.teamA?.logo || match.teamA?.logoUrl) ? (
                 <Image source={{ uri: getImageUrl(match.teamA?.logo || match.teamA?.logoUrl) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
               ) : (
-                <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, fontSize: 16 }}>{match.teamA?.name?.charAt(0) || 'A'}</Text>
+                <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textSecondary, fontSize: 16 }}>{match.teamA?.name?.charAt(0) || 'A'}</Text>
               )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, fontSize: 12 }} numberOfLines={2}>{match.teamA?.name}</Text>
+              <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, fontSize: 12 }} numberOfLines={2}>{match.teamA?.name}</Text>
             </View>
           </TouchableOpacity>
 
-          <View style={{ width: 1, height: 30, backgroundColor: Colors.borderLight }} />
+          <View style={{ width: 1, height: 30, backgroundColor: colors.borderLight }} />
 
           {/* Team B Header */}
           <TouchableOpacity
@@ -3558,13 +3634,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             onPress={() => match.teamB?._id && navigation.navigate('TeamDetail', { id: match.teamB._id })}
           >
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, fontSize: 12, textAlign: 'right' }} numberOfLines={2}>{match.teamB?.name}</Text>
+              <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, fontSize: 12, textAlign: 'right' }} numberOfLines={2}>{match.teamB?.name}</Text>
             </View>
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.borderLight, justifyContent: 'center', alignItems: 'center', marginLeft: 8, overflow: 'hidden' }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.borderLight, justifyContent: 'center', alignItems: 'center', marginLeft: 8, overflow: 'hidden' }}>
               {(match.teamB?.logo || match.teamB?.logoUrl) ? (
                 <Image source={{ uri: getImageUrl(match.teamB?.logo || match.teamB?.logoUrl) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
               ) : (
-                <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, fontSize: 16 }}>{match.teamB?.name?.charAt(0) || 'B'}</Text>
+                <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textSecondary, fontSize: 16 }}>{match.teamB?.name?.charAt(0) || 'B'}</Text>
               )}
             </View>
           </TouchableOpacity>
@@ -3572,12 +3648,12 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         </View>
 
         {/* Sub Header */}
-        <View style={{ backgroundColor: '#F0F0F0', paddingVertical: 4, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: Colors.borderLight }}>
-          <Text style={{ fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary }}>Playing Squad</Text>
+        <View style={{ backgroundColor: '#F0F0F0', paddingVertical: 4, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
+          <Text style={{ fontSize: 10, fontFamily: Typography.fontFamily.bold, color: colors.textSecondary }}>Playing Squad</Text>
         </View>
 
         {/* Squad Rows */}
-        <View style={{ backgroundColor: Colors.surface, paddingBottom: 24 }}>
+        <View style={{ backgroundColor: colors.surface, paddingBottom: 24 }}>
           {rows.length === 0 ? <Text style={[styles.emptyText, { marginTop: 24 }]}>Not announced</Text> : rows.map((row, idx) => (
             <View key={`row-${idx}`} style={{ flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' }}>
 
@@ -3585,18 +3661,18 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
                 {row.playerA ? (
                   <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => navigation.navigate('PlayerDetail', { id: row.playerA._id })}>
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.borderLight, justifyContent: 'center', alignItems: 'center', marginRight: 10, overflow: 'hidden' }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.borderLight, justifyContent: 'center', alignItems: 'center', marginRight: 10, overflow: 'hidden' }}>
                       {(row.playerA.photo || row.playerA.userId?.photo) ? (
                         <Image source={{ uri: getImageUrl(row.playerA.photo || row.playerA.userId?.photo) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       ) : (
-                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, fontSize: 16 }}>{row.playerA.name?.charAt(0).toUpperCase()}</Text>
+                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textSecondary, fontSize: 16 }}>{row.playerA.name?.charAt(0).toUpperCase()}</Text>
                       )}
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, fontSize: 13 }} numberOfLines={1}>{row.playerA.name}</Text>
+                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, fontSize: 13 }} numberOfLines={1}>{row.playerA.name}</Text>
                         {isCaptainPlayerA(row.playerA) && (
-                          <View style={{ backgroundColor: Colors.primary, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginLeft: 5 }}>
+                          <View style={{ backgroundColor: colors.primary, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginLeft: 5 }}>
                             <Text style={{ fontSize: 9, fontFamily: Typography.fontFamily.bold, color: '#000000' }}>C</Text>
                           </View>
                         )}
@@ -3605,7 +3681,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         {getPlayerTags(row.playerA).map((tag, tIdx) => (
                           <TouchableOpacity key={tIdx} onPress={() => setSelectedTagDefinition(tag)}>
                             <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: tag.type === 'batting' ? '#F39C12' : '#8E44AD', fontSize: 10 }}>
-                              {tag.name}{tIdx < getPlayerTags(row.playerA).length - 1 ? <Text style={{ color: Colors.textTertiary }}> •</Text> : ''}
+                              {tag.name}{tIdx < getPlayerTags(row.playerA).length - 1 ? <Text style={{ color: colors.textTertiary }}> •</Text> : ''}
                             </Text>
                           </TouchableOpacity>
                         ))}
@@ -3624,27 +3700,27 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     <View style={{ flex: 1, alignItems: 'flex-end' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
                         {isCaptainPlayerB(row.playerB) && (
-                          <View style={{ backgroundColor: Colors.primary, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginRight: 5 }}>
+                          <View style={{ backgroundColor: colors.primary, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginRight: 5 }}>
                             <Text style={{ fontSize: 9, fontFamily: Typography.fontFamily.bold, color: '#000000' }}>C</Text>
                           </View>
                         )}
-                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, fontSize: 13, textAlign: 'right' }} numberOfLines={1}>{row.playerB.name}</Text>
+                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, fontSize: 13, textAlign: 'right' }} numberOfLines={1}>{row.playerB.name}</Text>
                       </View>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 2, marginTop: 2 }}>
                         {getPlayerTags(row.playerB).map((tag, tIdx) => (
                           <TouchableOpacity key={tIdx} onPress={() => setSelectedTagDefinition(tag)}>
                             <Text style={{ fontFamily: Typography.fontFamily.semiBold, color: tag.type === 'batting' ? '#F39C12' : '#8E44AD', fontSize: 10, textAlign: 'right' }}>
-                              {tag.name}{tIdx < getPlayerTags(row.playerB).length - 1 ? <Text style={{ color: Colors.textTertiary }}> •</Text> : ''}
+                              {tag.name}{tIdx < getPlayerTags(row.playerB).length - 1 ? <Text style={{ color: colors.textTertiary }}> •</Text> : ''}
                             </Text>
                           </TouchableOpacity>
                         ))}
                       </View>
                     </View>
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.borderLight, justifyContent: 'center', alignItems: 'center', marginLeft: 10, overflow: 'hidden' }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.borderLight, justifyContent: 'center', alignItems: 'center', marginLeft: 10, overflow: 'hidden' }}>
                       {(row.playerB.photo || row.playerB.userId?.photo) ? (
                         <Image source={{ uri: getImageUrl(row.playerB.photo || row.playerB.userId?.photo) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       ) : (
-                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, fontSize: 16 }}>{row.playerB.name?.charAt(0).toUpperCase()}</Text>
+                        <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textSecondary, fontSize: 16 }}>{row.playerB.name?.charAt(0).toUpperCase()}</Text>
                       )}
                     </View>
                   </TouchableOpacity>
@@ -3688,7 +3764,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const renderScorecard = () => {
     if (loadingScorecards) {
-      return <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />;
+      return <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />;
     }
     let displayScorecards = [...(scorecards || [])];
 
@@ -3748,17 +3824,17 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
           return (
             <View key={index} style={{ marginBottom: 24 }}>
-              <TouchableOpacity onPress={() => toggleInnings(index)} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, backgroundColor: Colors.surfaceVariant, paddingHorizontal: 16, paddingVertical: 14, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, ...Shadows.sm }}>
-                <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontWeight: '900', fontSize: 14, textTransform: 'uppercase' }}>{battingTeamName} {sc.inningsNumber >= 3 ? '(Super Over)' : ''}</Text>
+              <TouchableOpacity onPress={() => toggleInnings(index)} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, backgroundColor: colors.surfaceVariant, paddingHorizontal: 16, paddingVertical: 14, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: colors.border, ...shadows.sm }}>
+                <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontWeight: '900', fontSize: 14, textTransform: 'uppercase' }}>{battingTeamName} {sc.inningsNumber >= 3 ? '(Super Over)' : ''}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>
                     {sc.batting.length > 0 ? (
-                      <>{sc.total?.runs || 0}/{sc.total?.wickets || 0} <Text style={{ fontSize: 11, color: Colors.textSecondary }}>({sc.total?.overs || '0.0'})</Text></>
+                      <>{sc.total?.runs || 0}/{sc.total?.wickets || 0} <Text style={{ fontSize: 11, color: colors.textSecondary }}>({sc.total?.overs || '0.0'})</Text></>
                     ) : (
-                      <Text style={{ color: Colors.textSecondary, fontSize: 13 }}>Yet to bat</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Yet to bat</Text>
                     )}
                   </Text>
-                  <Icon name={isExpanded ? "chevron-up" : "chevron-down"} size={28} color={Colors.primary} />
+                  <Icon name={isExpanded ? "chevron-up" : "chevron-down"} size={28} color={colors.primary} />
                 </View>
               </TouchableOpacity>
 
@@ -3785,7 +3861,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                                 </Text>
                               </TouchableOpacity>
                               {!b.isNotOut && b.dismissal && (
-                                <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 1 }} numberOfLines={1}>{getDismissalText(b)}</Text>
+                                <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 1 }} numberOfLines={1}>{getDismissalText(b)}</Text>
                               )}
                             </View>
                             <Text style={styles.tableRowText}>{b.runs}</Text>
@@ -3798,17 +3874,17 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
                         {/* Extras Details */}
                         <View style={[styles.tableRow, { borderBottomWidth: 0, marginTop: 8 }]}>
-                          <Text style={{ flex: 3, color: Colors.textSecondary }}>Extras</Text>
-                          <Text style={{ flex: 4, color: Colors.textSecondary, fontSize: 12 }}>
+                          <Text style={{ flex: 3, color: colors.textSecondary }}>Extras</Text>
+                          <Text style={{ flex: 4, color: colors.textSecondary, fontSize: 12 }}>
                             (W {sc.extras?.wides || 0}, NB {sc.extras?.noBalls || 0}, B {sc.extras?.byes || 0}, LB {sc.extras?.legByes || 0}, P {sc.extras?.penalties || 0})
                           </Text>
-                          <Text style={{ flex: 1, textAlign: 'right', fontWeight: 'bold', color: Colors.textPrimary }}>
+                          <Text style={{ flex: 1, textAlign: 'right', fontWeight: 'bold', color: colors.textPrimary }}>
                             {(sc.extras?.wides || 0) + (sc.extras?.noBalls || 0) + (sc.extras?.byes || 0) + (sc.extras?.legByes || 0) + (sc.extras?.penalties || 0)}
                           </Text>
                         </View>
                         <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                          <Text style={{ flex: 3, color: Colors.textSecondary, fontWeight: 'bold' }}>Total</Text>
-                          <Text style={{ flex: 2, textAlign: 'right', fontWeight: 'bold', color: Colors.textPrimary }}>
+                          <Text style={{ flex: 3, color: colors.textSecondary, fontWeight: 'bold' }}>Total</Text>
+                          <Text style={{ flex: 2, textAlign: 'right', fontWeight: 'bold', color: colors.textPrimary }}>
                             {sc.total?.runs || 0}/{sc.total?.wickets || 0} ({sc.total?.overs || '0.0'} Ov)
                           </Text>
                         </View>
@@ -3823,8 +3899,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                           const dnb = playingXI.filter(p => !battedIds.includes(p._id?.toString()));
                           if (dnb.length === 0) return null;
                           return (
-                            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight }}>
-                              <Text style={{ color: Colors.textTertiary, fontSize: 10, fontFamily: Typography.fontFamily.bold, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Did Not Bat</Text>
+                            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight }}>
+                              <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: Typography.fontFamily.bold, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Did Not Bat</Text>
                               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
                                 {dnb.map((p, idx) => (
                                   <TouchableOpacity
@@ -3847,9 +3923,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                           const inn = match.innings?.find(i => i.inningsNumber === sc.inningsNumber);
                           if (!inn || !inn.fallOfWickets || inn.fallOfWickets.length === 0) return null;
                           return (
-                            <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.borderLight }}>
-                              <Text style={{ color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.bold, marginBottom: 4 }}>Fall of Wickets</Text>
-                              <Text style={{ color: Colors.textPrimary, fontSize: 13, lineHeight: 20 }}>
+                            <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.borderLight }}>
+                              <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.bold, marginBottom: 4 }}>Fall of Wickets</Text>
+                              <Text style={{ color: colors.textPrimary, fontSize: 13, lineHeight: 20 }}>
                                 {inn.fallOfWickets.map(fow => {
                                   const playerName = fow.batsman?.name || sc.batting.find(b => (b.player?._id || b.player)?.toString() === (fow.batsman?._id || fow.batsman)?.toString())?.player?.name || 'Player';
                                   return `${fow.runs}-${fow.wicket} (${playerName}, ${fow.over} Ov)`;
@@ -3862,7 +3938,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       </>
                     ) : (
                       <View style={{ paddingVertical: 12 }}>
-                        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginBottom: 8 }}>Yet to bat</Text>
+                        <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginBottom: 8 }}>Yet to bat</Text>
                         {(() => {
                           const battingTeamIdStr = (sc.battingTeam?._id || sc.battingTeam)?.toString();
                           const teamAIdStr = (match.teamA?._id || match.teamA)?.toString();
@@ -3903,7 +3979,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                           <Text style={styles.tableRowText}>{b.overs}.{b.balls}</Text>
                           <Text style={styles.tableRowText}>{b.maidens}</Text>
                           <Text style={styles.tableRowText}>{b.runs}</Text>
-                          <Text style={b.wickets > 0 ? [styles.tableRowText, { color: Colors.primary, fontFamily: Typography.fontFamily.bold }] : styles.tableRowText}>{b.wickets}</Text>
+                          <Text style={b.wickets > 0 ? [styles.tableRowText, { color: colors.primary, fontFamily: Typography.fontFamily.bold }] : styles.tableRowText}>{b.wickets}</Text>
                           <Text style={[styles.tableRowText, { flex: 1.5, textAlign: 'right' }]}>{b.economy}</Text>
                         </View>
                       ))}
@@ -3930,7 +4006,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const renderAnalysis = () => {
     if (loadingCommentary || loadingScorecards) {
-      return <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />;
+      return <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />;
     }
     if (!commentary || commentary.length === 0) {
       return <Text style={styles.emptyText}>Not enough data for analysis yet.</Text>;
@@ -4057,31 +4133,43 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       let runs = point.runs !== undefined ? point.runs : (point.batsmanRuns || 0);
       if (point.color === '#E53935' || point.color?.toLowerCase() === 'red') runs = 6;
       else if (point.color === '#4CAF50' || point.color?.toLowerCase() === 'green') runs = 4;
+
       const rad = angle * (Math.PI / 180);
       const dx = Math.cos(rad);
       const dy = Math.sin(rad);
-      let currentMaxDist = currentW / 2;
-      const R = currentW / 2;
-      const dy_pitch = currentCY_ACTUAL - currentCY;
-      const A = dx * dx + dy * dy;
-      const B = 2 * dy_pitch * dy;
-      const C = dy_pitch * dy_pitch - R * R;
-      const disc = B * B - 4 * A * C;
-      if (disc >= 0) currentMaxDist = (-B + Math.sqrt(disc)) / (2 * A);
-      if (runs === 4 || runs === 6) return currentMaxDist;
-      const scorerW = isTurfMatch ? 200 : 240;
-      const scorerH = isTurfMatch ? 300 : 240;
-      const scorerCY = scorerH / 2;
-      const scorerCY_ACTUAL = scorerCY - (isTurfMatch ? 50 : 32);
-      const scorerR = scorerW / 2;
-      const scorer_dy_pitch = scorerCY_ACTUAL - scorerCY;
-      const scorer_B = 2 * scorer_dy_pitch * dy;
-      const scorer_C = scorer_dy_pitch * scorer_dy_pitch - scorerR * scorerR;
-      const scorer_disc = scorer_B * scorer_B - 4 * A * scorer_C;
-      let scorerMaxDist = scorerW / 2;
-      if (scorer_disc >= 0) scorerMaxDist = (-scorer_B + Math.sqrt(scorer_disc)) / (2 * A);
-      const ratio = Math.min((point.distance || 0) / scorerMaxDist, 0.95);
-      return ratio * currentMaxDist;
+
+      const startX = currentW / 2;
+      const startY = currentCY_ACTUAL;
+
+      let maxDistToBoundary = currentW / 2;
+
+      if (isTurfMatch) {
+        const marginX = 2;
+        const marginY = 2;
+        const tMaxX = dx > 0 ? (currentW - marginX - startX) / dx : dx < 0 ? (marginX - startX) / dx : Infinity;
+        const tMaxY = dy > 0 ? (currentH - marginY - startY) / dy : dy < 0 ? (marginY - startY) / dy : Infinity;
+        maxDistToBoundary = Math.min(tMaxX, tMaxY);
+      } else {
+        const vx = startX - (currentW / 2);
+        const vy = startY - currentCY;
+        const r = (currentW / 2) - 2;
+        const b = (vx * dx + vy * dy);
+        const c = (vx * vx + vy * vy) - (r * r);
+        const disc = b * b - c;
+        if (disc >= 0) {
+          maxDistToBoundary = -b + Math.sqrt(disc);
+        } else {
+          maxDistToBoundary = r;
+        }
+      }
+
+      // 6s and 4s go all the way to the boundary edge/rope
+      if (runs >= 6) return maxDistToBoundary * 0.98;
+      if (runs === 4 || runs === 5) return maxDistToBoundary * 0.96;
+      if (runs === 3) return maxDistToBoundary * 0.78;
+      if (runs === 2) return maxDistToBoundary * 0.58;
+      if (runs === 1) return maxDistToBoundary * 0.38;
+      return maxDistToBoundary * 0.22;
     };
 
     const battersMap = {};
@@ -4261,11 +4349,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             { label: 'EXTRAS', value: extras },
           ].map((stat, i) => (
             <View key={i} style={{
-              flex: 1, backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1,
-              borderColor: Colors.borderLight, paddingVertical: 10, alignItems: 'center'
+              flex: 1, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1,
+              borderColor: colors.borderLight, paddingVertical: 10, alignItems: 'center'
             }}>
-              <Text style={{ color: Colors.textSecondary, fontSize: 9, letterSpacing: 0.8, fontFamily: Typography.fontFamily.semiBold, textTransform: 'uppercase', marginBottom: 4 }}>{stat.label}</Text>
-              <Text style={{ color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold }}>{stat.value}</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 9, letterSpacing: 0.8, fontFamily: Typography.fontFamily.semiBold, textTransform: 'uppercase', marginBottom: 4 }}>{stat.label}</Text>
+              <Text style={{ color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold }}>{stat.value}</Text>
             </View>
           ))}
         </View>
@@ -4275,7 +4363,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         ══════════════════════════════════════════════════════════════════ */}
         <View style={[styles.section, { alignItems: 'center', paddingVertical: 24 }]}>
           <View style={{ alignSelf: 'flex-start', marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={{ color: '#00BCD4', fontSize: 10, letterSpacing: 1, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase' }}>SHOT CHART</Text>
+            <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 10, letterSpacing: 1, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase' }}>SHOT CHART</Text>
           </View>
           <Text style={[styles.sectionTitle, { marginBottom: 20, alignSelf: 'flex-start' }]}>Wagon Wheel</Text>
           {(() => {
@@ -4311,22 +4399,22 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     })}
                   </ImageBackground>
                 </View>
-                <Text style={{ position: 'absolute', left: 4, top: CY_ACTUAL + padY - 8, color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>OFF</Text>
-                <Text style={{ position: 'absolute', right: 4, top: CY_ACTUAL + padY - 8, color: Colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>LEG</Text>
+                <Text style={{ position: 'absolute', left: 4, top: CY_ACTUAL + padY - 8, color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>OFF</Text>
+                <Text style={{ position: 'absolute', right: 4, top: CY_ACTUAL + padY - 8, color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>LEG</Text>
               </View>
             );
           })()}
           {/* Legend */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 14, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.borderLight }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 14, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.borderLight }}>
             {[['#E53935', '6s'], ['#4CAF50', '4s'], ['#FFD700', '3s'], ['#FFFFFF', '1s & 2s']].map(([col, lbl]) => (
               <View key={lbl} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <View style={{ width: 14, height: 2.5, backgroundColor: col, borderRadius: 1 }} />
-                <Text style={{ color: Colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.semiBold }}>{lbl}</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.semiBold }}>{lbl}</Text>
               </View>
             ))}
           </View>
           {wagonWheelPoints.length === 0 && (
-            <Text style={{ color: Colors.textSecondary, marginTop: 16, fontStyle: 'italic', fontSize: 12 }}>No wagon wheel data recorded.</Text>
+            <Text style={{ color: colors.textSecondary, marginTop: 16, fontStyle: 'italic', fontSize: 12 }}>No wagon wheel data recorded.</Text>
           )}
         </View>
 
@@ -4336,20 +4424,20 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         <View style={[styles.section, { padding: 20, marginBottom: 0 }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
             <View>
-              <Text style={{ color: '#00BCD4', fontSize: 10, letterSpacing: 1, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 4 }}>MOMENTUM</Text>
+              <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 10, letterSpacing: 1, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 4 }}>MOMENTUM</Text>
               <Text style={styles.sectionTitle}>Run Rate / Over</Text>
             </View>
             {bothTeams && (
               <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#00BCD4' }} />
-                  <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary }} />
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>
                     {match.teamA?.shortName || 'A'}
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFD400' }} />
-                  <Text style={{ color: Colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isDark ? '#FFFFFF' : '#333333' }} />
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>
                     {match.teamB?.shortName || 'B'}
                   </Text>
                 </View>
@@ -4364,7 +4452,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 {/* Y-axis Labels */}
                 <View style={{ width: Y_AXIS_W, height: CHART_H, justifyContent: 'space-between', alignItems: 'flex-end', paddingRight: 8 }}>
                   {[1, 0.75, 0.5, 0.25, 0].map((frac, idx) => (
-                    <Text key={idx} style={{ color: Colors.textSecondary, fontSize: 8, fontFamily: Typography.fontFamily.medium, lineHeight: 10 }}>
+                    <Text key={idx} style={{ color: colors.textSecondary, fontSize: 8, fontFamily: Typography.fontFamily.medium, lineHeight: 10 }}>
                       {Math.round(maxRR * frac)}
                     </Text>
                   ))}
@@ -4377,7 +4465,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     <View key={i} style={{
                       position: 'absolute', left: 0, right: 0,
                       top: CHART_H * (1 - frac),
-                      height: 1, backgroundColor: 'rgba(255,255,255,0.06)'
+                      height: 1, backgroundColor: colors.border
                     }} />
                   ))}
 
@@ -4395,9 +4483,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     return (
                       <View key={`a-${i}`} style={{
                         position: 'absolute', left: x1, top: y1,
-                        width: length, height: 2, backgroundColor: '#00BCD4',
-                        borderRadius: 1, opacity: 0.9,
-                        transform: [{ rotate: `${angle}deg` }, { translateX: length / 2 - length / 2 }],
+                        width: length, height: 2.5, backgroundColor: colors.primary,
+                        borderRadius: 1, opacity: 0.95,
+                        transform: [{ rotate: `${angle}deg` }],
                         transformOrigin: '0% 50%'
                       }} />
                     );
@@ -4417,8 +4505,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     return (
                       <View key={`b-${i}`} style={{
                         position: 'absolute', left: x1, top: y1,
-                        width: length, height: 2, backgroundColor: '#FFD400',
-                        borderRadius: 1, opacity: 0.75,
+                        width: length, height: 2, backgroundColor: isDark ? '#FFFFFF' : '#333333',
+                        borderRadius: 1, opacity: 0.85,
                         transform: [{ rotate: `${angle}deg` }],
                         transformOrigin: '0% 50%'
                       }} />
@@ -4436,9 +4524,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       <View key={`apt-${i}`} style={{
                         position: 'absolute', left: x - 4, top: y - 4,
                         width: 8, height: 8, borderRadius: 4,
-                        backgroundColor: '#00BCD4',
+                        backgroundColor: colors.primary,
                         borderWidth: isLatest || isHighest ? 2 : 0,
-                        borderColor: isHighest ? Colors.primary : '#FFFFFF',
+                        borderColor: isHighest ? '#E53935' : '#000000',
                         zIndex: 2
                       }} />
                     );
@@ -4454,9 +4542,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       <View key={`bpt-${i}`} style={{
                         position: 'absolute', left: x - 4, top: y - 4,
                         width: 8, height: 8, borderRadius: 4,
-                        backgroundColor: '#FFD400',
+                        backgroundColor: isDark ? '#FFFFFF' : '#333333',
                         borderWidth: isLatest ? 2 : 0,
-                        borderColor: '#FFFFFF',
+                        borderColor: colors.primary,
                         zIndex: 2
                       }} />
                     );
@@ -4471,7 +4559,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       <Text key={`xl-${i}`} style={{
                         position: 'absolute', top: CHART_H + 6, left: x - 20,
                         width: 40, textAlign: 'center',
-                        color: Colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.medium
+                        color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.medium
                       }}>Ov {o}</Text>
                     );
                   })}
@@ -4481,33 +4569,27 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               {/* Insight row */}
               <View style={{
                 flexDirection: 'row', marginTop: 20, paddingTop: 16,
-                borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: 4
+                borderTopWidth: 1, borderTopColor: colors.borderLight, gap: 4
               }}>
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>HIGHEST OVER</Text>
-                  <Text style={{ color: Colors.textPrimary, fontSize: 18, fontFamily: Typography.fontFamily.bold, lineHeight: 20 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>HIGHEST OVER</Text>
+                  <Text style={{ color: colors.textPrimary, fontSize: 18, fontFamily: Typography.fontFamily.bold, lineHeight: 20 }}>
                     {highestOver ? highestOver.runs : '—'}
                   </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 10, marginTop: 2 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 2 }}>
                     {highestOver ? `Over ${highestOver.over}` : ''}
                   </Text>
                 </View>
-                <View style={{ width: 1, backgroundColor: Colors.borderLight }} />
-                {/* <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>POWERPLAY</Text>
-                  <Text style={{ color: Colors.textPrimary, fontSize: 18, fontFamily: Typography.fontFamily.bold, lineHeight: 20 }}>{ppRuns}</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 10, marginTop: 2 }}>Overs 1–6</Text>
-                </View> */}
-                {/* <View style={{ width: 1, backgroundColor: Colors.borderLight }} /> */}
+                <View style={{ width: 1, backgroundColor: colors.borderLight }} />
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>CURR. RR</Text>
-                  <Text style={{ color: '#00BCD4', fontSize: 18, fontFamily: Typography.fontFamily.bold, lineHeight: 20 }}>{currentRR}</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 10, marginTop: 2 }}>per over</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>CURR. RR</Text>
+                  <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 18, fontFamily: Typography.fontFamily.bold, lineHeight: 20 }}>{currentRR}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 2 }}>per over</Text>
                 </View>
               </View>
             </View>
           ) : (
-            <Text style={{ color: Colors.textSecondary, fontSize: 12, fontStyle: 'italic' }}>Not enough over data yet.</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, fontStyle: 'italic' }}>Not enough over data yet.</Text>
           )}
         </View>
 
@@ -4516,7 +4598,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         ══════════════════════════════════════════════════════════════════ */}
         <View style={[styles.section, { padding: 20, marginTop: 12, marginBottom: 0 }]}>
           <View style={{ marginBottom: 16 }}>
-            <Text style={{ color: '#00BCD4', fontSize: 10, letterSpacing: 1, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 4 }}>BOWLING</Text>
+            <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 10, letterSpacing: 1, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 4 }}>BOWLING</Text>
             <Text style={styles.sectionTitle}>Bowling Economy</Text>
           </View>
 
@@ -4529,20 +4611,20 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                   <View key={bowler.id} style={{
                     marginBottom: 14, paddingBottom: 14,
                     borderBottomWidth: idx < bowlersList.length - 1 ? 1 : 0,
-                    borderBottomColor: Colors.borderLight
+                    borderBottomColor: colors.borderLight
                   }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                       {/* Avatar */}
                       <View style={{
                         width: 32, height: 32, borderRadius: 16, marginRight: 10,
-                        backgroundColor: isBest ? 'rgba(0,188,212,0.2)' : Colors.borderLight,
-                        borderWidth: isBest ? 1.5 : 0, borderColor: '#00BCD4',
+                        backgroundColor: isBest ? 'rgba(255,204,0,0.15)' : colors.surfaceVariant,
+                        borderWidth: isBest ? 1.5 : 0, borderColor: colors.primary,
                         justifyContent: 'center', alignItems: 'center'
                       }}>
                         {bowler.photo ? (
                           <Image source={{ uri: getImageUrl(bowler.photo) }} style={{ width: 32, height: 32, borderRadius: 16 }} />
                         ) : (
-                          <Text style={{ color: isBest ? '#00BCD4' : Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.bold }}>
+                          <Text style={{ color: isBest ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.bold }}>
                             {bowler.name?.charAt(0).toUpperCase()}
                           </Text>
                         )}
@@ -4550,30 +4632,30 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       {/* Name and stats */}
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={{ color: Colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold }}>{bowler.name}</Text>
+                          <Text style={{ color: colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold }}>{bowler.name}</Text>
                           {isBest && (
-                            <View style={{ backgroundColor: 'rgba(0,188,212,0.15)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                              <Text style={{ color: '#00BCD4', fontSize: 8, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>BEST</Text>
+                            <View style={{ backgroundColor: 'rgba(255,204,0,0.15)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                              <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 8, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 }}>BEST</Text>
                             </View>
                           )}
                         </View>
-                        <Text style={{ color: Colors.textSecondary, fontSize: 11, marginTop: 1 }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 1 }}>
                           {bowler.oversStr} ov  ·  {bowler.wickets} wkt{bowler.wickets !== 1 ? 's' : ''}  ·  {bowler.maidens}M
                         </Text>
                       </View>
                       {/* Economy */}
                       <Text style={{
-                        color: isBest ? '#00BCD4' : Colors.textPrimary,
+                        color: isBest ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textPrimary,
                         fontSize: 16, fontFamily: Typography.fontFamily.bold
                       }}>
                         {bowler.economy.toFixed(2)}
                       </Text>
                     </View>
                     {/* Economy bar */}
-                    <View style={{ height: 6, backgroundColor: Colors.borderLight, borderRadius: 3, overflow: 'hidden' }}>
+                    <View style={{ height: 6, backgroundColor: colors.borderLight, borderRadius: 3, overflow: 'hidden' }}>
                       <View style={{
                         width: `${barWidth}%`, height: '100%', borderRadius: 3,
-                        backgroundColor: isBest ? '#00BCD4' : 'rgba(255,212,0,0.6)'
+                        backgroundColor: isBest ? colors.primary : colors.primaryAlpha30
                       }} />
                     </View>
                   </View>
@@ -4583,189 +4665,269 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               {/* Summary row */}
               <View style={{
                 flexDirection: 'row', marginTop: 4, paddingTop: 14,
-                borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: 4
+                borderTopWidth: 1, borderTopColor: colors.borderLight, gap: 4
               }}>
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>BEST ECONOMY</Text>
-                  <Text style={{ color: '#00BCD4', fontSize: 14, fontFamily: Typography.fontFamily.bold }}>{bestEconomy?.economy.toFixed(2) || '—'}</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={1}>{bestEconomy?.name || ''}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>BEST ECONOMY</Text>
+                  <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 14, fontFamily: Typography.fontFamily.bold }}>{bestEconomy?.economy.toFixed(2) || '—'}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={1}>{bestEconomy?.name || ''}</Text>
                 </View>
-                <View style={{ width: 1, backgroundColor: Colors.borderLight }} />
+                <View style={{ width: 1, backgroundColor: colors.borderLight }} />
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>MOST WICKETS</Text>
-                  <Text style={{ color: Colors.primary, fontSize: 14, fontFamily: Typography.fontFamily.bold }}>{mostWickets?.wickets || '—'}</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={1}>{mostWickets?.name || ''}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>MOST WICKETS</Text>
+                  <Text style={{ color: colors.primary, fontSize: 14, fontFamily: Typography.fontFamily.bold }}>{mostWickets?.wickets || '—'}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={1}>{mostWickets?.name || ''}</Text>
                 </View>
-                <View style={{ width: 1, backgroundColor: Colors.borderLight }} />
+                <View style={{ width: 1, backgroundColor: colors.borderLight }} />
                 <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>BEST SPELL</Text>
-                  <Text style={{ color: Colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold }}>{bestSpell?.spell || '—'}</Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={1}>{bestSpell?.name || ''}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: Typography.fontFamily.semiBold, marginBottom: 4 }}>BEST SPELL</Text>
+                  <Text style={{ color: colors.textPrimary, fontSize: 13, fontFamily: Typography.fontFamily.bold }}>{bestSpell?.spell || '—'}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={1}>{bestSpell?.name || ''}</Text>
                 </View>
               </View>
             </View>
           ) : (
-            <Text style={{ color: Colors.textSecondary, fontSize: 12, fontStyle: 'italic' }}>No bowling data available yet.</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, fontStyle: 'italic' }}>No bowling data available yet.</Text>
           )}
         </View>
 
         {/* ══════════════════════════════════════════════════════════════════
-            4. BATTING IMPACT (Scatter)
+            4. BATTING IMPACT (Quadrant Scatter + Interactive Spotlight)
         ══════════════════════════════════════════════════════════════════ */}
         <View style={[styles.section, { padding: 20, marginTop: 12, marginBottom: 0 }]}>
           <View style={{ marginBottom: 16 }}>
-            <Text style={{ color: '#00BCD4', fontSize: 10, letterSpacing: 1, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 4 }}>BATTING</Text>
+            <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 10, letterSpacing: 1, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 4 }}>BATTING</Text>
             <Text style={styles.sectionTitle}>Batting Impact</Text>
-            <Text style={{ color: Colors.textSecondary, fontSize: 11, marginTop: 2 }}>Runs vs Strike Rate · Tap a dot</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>Runs vs Strike Rate · Tap any dot or player to inspect</Text>
           </View>
 
           {scatterBatters.length > 0 ? (() => {
+            const getBatterTier = (b) => {
+              if (b.runs >= 20 && b.sr >= 130) {
+                return { name: 'High Impact', emoji: '🚀', color: '#FFB300', bg: isDark ? 'rgba(255,179,0,0.15)' : '#FFF8E1' };
+              }
+              if (b.sr >= 140) {
+                return { name: 'Quick Fire', emoji: '⚡', color: '#FFD633', bg: isDark ? 'rgba(255,214,51,0.15)' : '#FFFDE7' };
+              }
+              if (b.runs >= 20) {
+                return { name: 'Anchor', emoji: '⚓', color: '#2ED573', bg: isDark ? 'rgba(46,213,115,0.15)' : '#E8F5E9' };
+              }
+              return { name: 'Builder', emoji: '🛡️', color: colors.textSecondary, bg: isDark ? 'rgba(255,255,255,0.06)' : colors.surfaceVariant };
+            };
+
+            const activeBatter = selectedBatterDot || scatterBatters.sort((a, b) => (b.runs * b.sr) - (a.runs * a.sr))[0];
+            const activeTier = activeBatter ? getBatterTier(activeBatter) : null;
+
             return (
               <View>
-                {/* Zone labels */}
-                <View style={{ flexDirection: 'row', marginBottom: 8, paddingLeft: SCATTER_PAD_L }}>
-                  {[['HIGH IMPACT', '#E53935'], ['ANCHOR', '#FFD400'], ['CAMEO', '#00BCD4']].map(([label, color]) => (
-                    <View key={label} style={{ marginRight: 12, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color, opacity: 0.5 }} />
-                      <Text style={{ color: Colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.semiBold }}>{label}</Text>
+                {/* Zone Legend */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12, paddingHorizontal: 2 }}>
+                  {[
+                    { label: 'High Impact', emoji: '🚀', color: '#FFB300' },
+                    { label: 'Quick Fire', emoji: '⚡', color: '#FFD633' },
+                    { label: 'Anchor', emoji: '⚓', color: '#2ED573' },
+                    { label: 'Builder', emoji: '🛡️', color: colors.textSecondary },
+                  ].map(z => (
+                    <View key={z.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : colors.surfaceVariant, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.border }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: z.color }} />
+                      <Text style={{ color: colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.semiBold }}>{z.emoji} {z.label}</Text>
                     </View>
                   ))}
                 </View>
 
-                {/* Scatter area */}
+                {/* Scatter Chart Area */}
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
                   {/* Y-axis label */}
                   <View style={{ width: SCATTER_PAD_L, justifyContent: 'center', alignItems: 'center', height: SCATTER_H }}>
                     <Text style={{
-                      color: Colors.textSecondary, fontSize: 9,
+                      color: colors.textSecondary, fontSize: 9,
+                      fontFamily: Typography.fontFamily.bold,
+                      letterSpacing: 0.5,
                       transform: [{ rotate: '-90deg' }],
-                      width: SCATTER_H - 20, textAlign: 'center'
-                    }}>STRIKE RATE</Text>
+                      width: SCATTER_H - 10, textAlign: 'center'
+                    }}>STRIKE RATE ↗</Text>
                   </View>
 
                   <View style={{ flex: 1 }}>
-                    <View style={{ height: SCATTER_H, position: 'relative', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 8, overflow: 'visible' }}>
-                      {/* Subtle zone backgrounds */}
-                      <View style={{ position: 'absolute', right: 0, top: 0, width: '40%', height: '45%', backgroundColor: 'rgba(229,57,53,0.04)', borderRadius: 6 }} />
-                      <View style={{ position: 'absolute', right: 0, top: '45%', width: '40%', height: '35%', backgroundColor: 'rgba(255,212,0,0.04)', borderRadius: 6 }} />
-                      <View style={{ position: 'absolute', left: 0, top: 0, width: '40%', height: '45%', backgroundColor: 'rgba(0,188,212,0.04)', borderRadius: 6 }} />
+                    <View style={{
+                      height: SCATTER_H, 
+                      position: 'relative', 
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : colors.surfaceVariant, 
+                      borderRadius: 14, 
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      overflow: 'hidden'
+                    }}>
+                      {/* Subtle Zone Quadrant Dividers */}
+                      <View style={{ position: 'absolute', left: 0, right: 0, top: '50%', height: 1, backgroundColor: colors.border, opacity: 0.7 }} />
+                      <View style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 1, backgroundColor: colors.border, opacity: 0.7 }} />
 
-                      {/* Horizontal grid lines */}
-                      {[0.25, 0.5, 0.75].map((frac, i) => (
-                        <View key={i} style={{
-                          position: 'absolute', left: 0, right: 0,
-                          top: SCATTER_INNER_H * frac + 4,
-                          height: 1, backgroundColor: 'rgba(255,255,255,0.05)'
-                        }} />
-                      ))}
+                      {/* Quadrant Corner Hint Badges */}
+                      <Text style={{ position: 'absolute', top: 6, right: 8, fontSize: 8, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold }}>HIGH IMPACT 🚀</Text>
+                      <Text style={{ position: 'absolute', top: 6, left: 8, fontSize: 8, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold }}>QUICK FIRE ⚡</Text>
+                      <Text style={{ position: 'absolute', bottom: 6, right: 8, fontSize: 8, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold }}>ANCHOR ⚓</Text>
 
-                      {/* Dots */}
-                      {scatterBatters.map((batter, i) => {
+                      {/* Interactive Dots */}
+                      {scatterBatters.map((batter) => {
                         const xFrac = maxRuns > 0 ? batter.runs / maxRuns : 0;
                         const yFrac = maxSR > 0 ? batter.sr / maxSR : 0;
-                        const x = xFrac * SCATTER_INNER_W;
-                        const y = SCATTER_INNER_H * (1 - yFrac) + 4;
-                        const isSelected = selectedBatterDot?.id === batter.id;
+                        const x = Math.max(12, Math.min(xFrac * SCATTER_INNER_W, SCATTER_INNER_W - 12));
+                        const y = Math.max(12, Math.min(SCATTER_INNER_H * (1 - yFrac) + 4, SCATTER_INNER_H - 12));
+                        const isSelected = activeBatter?.id === batter.id;
+                        const tier = getBatterTier(batter);
 
                         return (
                           <TouchableOpacity
                             key={batter.id}
                             style={{
-                              position: 'absolute', left: x - 10, top: y - 10,
-                              width: 20, height: 20,
-                              justifyContent: 'center', alignItems: 'center', zIndex: 3
+                              position: 'absolute', left: x - 13, top: y - 13,
+                              width: 26, height: 26,
+                              justifyContent: 'center', alignItems: 'center', zIndex: isSelected ? 10 : 3
                             }}
-                            onPress={() => setSelectedBatterDot(isSelected ? null : batter)}
+                            onPress={() => setSelectedBatterDot(batter)}
                             activeOpacity={0.8}
                           >
+                            {isSelected && (
+                              <View style={{
+                                position: 'absolute',
+                                width: 22, height: 22, borderRadius: 11,
+                                backgroundColor: 'rgba(255,204,0,0.3)',
+                                borderWidth: 1.5, borderColor: colors.primary
+                              }} />
+                            )}
                             <View style={{
-                              width: isSelected ? 16 : 12, height: isSelected ? 16 : 12,
-                              borderRadius: isSelected ? 8 : 6,
-                              backgroundColor: isSelected ? '#00BCD4' : 'rgba(0,188,212,0.7)',
-                              borderWidth: isSelected ? 2 : 1,
-                              borderColor: isSelected ? '#FFFFFF' : 'rgba(0,188,212,0.4)',
+                              width: isSelected ? 14 : 10, height: isSelected ? 14 : 10,
+                              borderRadius: isSelected ? 7 : 5,
+                              backgroundColor: tier.color,
+                              borderWidth: 1.5,
+                              borderColor: isSelected ? '#000000' : '#FFFFFF',
                             }} />
                           </TouchableOpacity>
                         );
                       })}
-
-                      {/* Tooltip */}
-                      {selectedBatterDot && (() => {
-                        const xFrac = maxRuns > 0 ? selectedBatterDot.runs / maxRuns : 0;
-                        const yFrac = maxSR > 0 ? selectedBatterDot.sr / maxSR : 0;
-                        const x = xFrac * SCATTER_INNER_W;
-                        const y = SCATTER_INNER_H * (1 - yFrac) + 4;
-                        const tipLeft = Math.min(Math.max(x - 64, 0), SCATTER_INNER_W - 130);
-                        const tipTop = y > 80 ? y - 115 : y + 20;
-                        return (
-                          <View style={{
-                            position: 'absolute', left: tipLeft, top: tipTop,
-                            width: 130, backgroundColor: Colors.surface,
-                            borderRadius: 10, padding: 10,
-                            borderWidth: 1, borderColor: '#00BCD4',
-                            zIndex: 10,
-                          }}>
-                            <Text style={{ color: '#00BCD4', fontSize: 12, fontFamily: Typography.fontFamily.bold, marginBottom: 4 }} numberOfLines={1}>{selectedBatterDot.name}</Text>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                              <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>Runs</Text>
-                              <Text style={{ color: Colors.textPrimary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>{selectedBatterDot.runs}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
-                              <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>Balls</Text>
-                              <Text style={{ color: Colors.textPrimary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>{selectedBatterDot.balls}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
-                              <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>SR</Text>
-                              <Text style={{ color: '#00BCD4', fontSize: 10, fontFamily: Typography.fontFamily.bold }}>{selectedBatterDot.sr.toFixed(1)}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
-                              <Text style={{ color: Colors.textSecondary, fontSize: 10 }}>4s / 6s</Text>
-                              <Text style={{ color: Colors.textPrimary, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>{selectedBatterDot.fours} / {selectedBatterDot.sixes}</Text>
-                            </View>
-                          </View>
-                        );
-                      })()}
                     </View>
 
                     {/* X-axis */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 9 }}>0</Text>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 9 }}>{Math.round(maxRuns / 2)}</Text>
-                      <Text style={{ color: Colors.textSecondary, fontSize: 9 }}>{maxRuns}</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 6 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.medium }}>0</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.medium }}>{Math.round(maxRuns / 2)}</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.medium }}>{maxRuns}</Text>
                     </View>
-                    <Text style={{ color: Colors.textSecondary, fontSize: 9, textAlign: 'center', marginTop: 2 }}>RUNS</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.bold, textAlign: 'center', marginTop: 2, letterSpacing: 0.5 }}>RUNS →</Text>
                   </View>
                 </View>
 
-                {/* Batter name list for reference */}
-                <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.borderLight }}>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 9, letterSpacing: 0.5, fontFamily: Typography.fontFamily.semiBold, textTransform: 'uppercase', marginBottom: 8 }}>PLAYERS</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                    {scatterBatters.sort((a, b) => b.runs - a.runs).map(b => (
-                      <TouchableOpacity
-                        key={b.id}
-                        onPress={() => setSelectedBatterDot(selectedBatterDot?.id === b.id ? null : b)}
-                        style={{
-                          paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
-                          backgroundColor: selectedBatterDot?.id === b.id ? 'rgba(0,188,212,0.2)' : Colors.surface,
-                          borderWidth: 1,
-                          borderColor: selectedBatterDot?.id === b.id ? '#00BCD4' : Colors.borderLight
-                        }}
-                      >
-                        <Text style={{
-                          color: selectedBatterDot?.id === b.id ? '#00BCD4' : Colors.textSecondary,
-                          fontSize: 11, fontFamily: Typography.fontFamily.semiBold
+                {/* ── Active Batter Spotlight Card ── */}
+                {activeBatter && activeTier && (
+                  <View style={{
+                    marginTop: 14,
+                    backgroundColor: colors.surface,
+                    borderRadius: 16,
+                    padding: 14,
+                    borderWidth: 1.5,
+                    borderColor: colors.border,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: isDark ? 0.25 : 0.05,
+                    shadowRadius: 6,
+                    elevation: 2,
+                  }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                        <View style={{
+                          width: 36, height: 36, borderRadius: 18,
+                          backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : '#FFF8E1',
+                          justifyContent: 'center', alignItems: 'center',
+                          borderWidth: 1, borderColor: colors.primary
                         }}>
-                          {b.name.split(' ')[0]} · {b.runs}({b.balls})
+                          {activeBatter.photo ? (
+                            <Image source={{ uri: getImageUrl(activeBatter.photo) }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                          ) : (
+                            <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 14, fontFamily: Typography.fontFamily.bold }}>
+                              {activeBatter.name?.charAt(0).toUpperCase()}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold }} numberOfLines={1}>
+                            {activeBatter.name}
+                          </Text>
+                          <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.regular }}>
+                            Batting Performance
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Tier Badge */}
+                      <View style={{ backgroundColor: activeTier.bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: activeTier.color }}>
+                        <Text style={{ color: activeTier.color, fontSize: 11, fontFamily: Typography.fontFamily.bold }}>
+                          {activeTier.emoji} {activeTier.name}
                         </Text>
-                      </TouchableOpacity>
-                    ))}
+                      </View>
+                    </View>
+
+                    {/* Stat Grid */}
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : colors.surfaceVariant, borderRadius: 10, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.semiBold }}>RUNS</Text>
+                        <Text style={{ color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold, marginTop: 2 }}>{activeBatter.runs}</Text>
+                      </View>
+                      <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : colors.surfaceVariant, borderRadius: 10, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.semiBold }}>BALLS</Text>
+                        <Text style={{ color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold, marginTop: 2 }}>{activeBatter.balls}</Text>
+                      </View>
+                      <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : colors.surfaceVariant, borderRadius: 10, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.semiBold }}>SR</Text>
+                        <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontSize: 14, fontFamily: Typography.fontFamily.bold, marginTop: 2 }}>{activeBatter.sr.toFixed(1)}</Text>
+                      </View>
+                      <View style={{ flex: 1.2, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : colors.surfaceVariant, borderRadius: 10, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.semiBold }}>BOUNDARIES</Text>
+                        <Text style={{ color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.bold, marginTop: 3 }}>
+                          {activeBatter.fours}×4 · {activeBatter.sixes}×6
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* ── Batter Selector Pills ── */}
+                <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.borderLight }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 9, letterSpacing: 0.8, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 8 }}>ALL BATTERS IN MATCH</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {scatterBatters.sort((a, b) => b.runs - a.runs).map(b => {
+                      const isSelected = activeBatter?.id === b.id;
+                      const tier = getBatterTier(b);
+                      return (
+                        <TouchableOpacity
+                          key={b.id}
+                          onPress={() => setSelectedBatterDot(b)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 5,
+                            paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
+                            backgroundColor: isSelected ? (isDark ? 'rgba(255,204,0,0.15)' : '#FFFBEA') : colors.surface,
+                            borderWidth: 1,
+                            borderColor: isSelected ? colors.primary : colors.border
+                          }}
+                          activeOpacity={0.75}
+                        >
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tier.color }} />
+                          <Text style={{
+                            color: isSelected ? colors.textPrimary : colors.textSecondary,
+                            fontSize: 11, fontFamily: isSelected ? Typography.fontFamily.bold : Typography.fontFamily.medium
+                          }}>
+                            {b.name.split(' ')[0]} · {b.runs}({b.balls})
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 </View>
               </View>
             );
           })() : (
-            <Text style={{ color: Colors.textSecondary, fontSize: 12, fontStyle: 'italic' }}>No batting data available yet.</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, fontStyle: 'italic' }}>No batting data available yet.</Text>
           )}
         </View>
 
@@ -4778,7 +4940,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const renderLeaderboard = () => {
     if (loadingScorecards) {
-      return <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />;
+      return <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />;
     }
     if (!scorecards || scorecards.length === 0) {
       return <Text style={styles.emptyText}>No scorecard data yet.</Text>;
@@ -4969,7 +5131,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             >
               <Text style={styles.lbRankSm}>{String(idx + 1)}</Text>
               <Text style={styles.lbSimpleName} numberOfLines={1}>{p.name}</Text>
-              <Text style={[styles.lbSimpleStat, p.wickets > 0 && { color: Colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+              <Text style={[styles.lbSimpleStat, p.wickets > 0 && { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>
                 {String(p.wickets)}
               </Text>
               <Text style={styles.lbSimplePoints}>{pts}</Text>
@@ -5041,9 +5203,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         {/* Awards strip */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🏆 Match Awards</Text>
-          {renderAwardCard('cricket', Colors.primary, 'Top Batter', topBatter, topBatter ? `${topBatter.runs}(${topBatter.balls})` : '--', 'Runs')}
-          {renderAwardCard('bowling', Colors.info || '#2196F3', 'Top Bowler', topBowler, topBowler ? `${topBowler.wickets}/${topBowler.runs}` : '--', 'Wkts')}
-          {renderAwardCard('hand-extended', Colors.success, 'Top Fielder', topFielder, topFielder ? `${topFielder.catches + topFielder.stumpings + topFielder.runOuts}` : '--', 'Dismissals')}
+          {renderAwardCard('cricket', colors.primary, 'Top Batter', topBatter, topBatter ? `${topBatter.runs}(${topBatter.balls})` : '--', 'Runs')}
+          {renderAwardCard('bowling', colors.info || '#2196F3', 'Top Bowler', topBowler, topBowler ? `${topBowler.wickets}/${topBowler.runs}` : '--', 'Wkts')}
+          {renderAwardCard('hand-extended', colors.success, 'Top Fielder', topFielder, topFielder ? `${topFielder.catches + topFielder.stumpings + topFielder.runOuts}` : '--', 'Dismissals')}
           {renderAwardCard('star-circle', '#FFD700', 'MVP', topMVP, topMVP ? topMVP.points : '--', 'Points')}
         </View>
 
@@ -5190,45 +5352,51 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
 
       {/* ── Modern Header ── */}
-      <View style={[styles.headerPrimary, { paddingTop: insets.top + 4 }]}>
+      <LinearGradient
+        colors={colors.primaryGradient || ['#FFCC00', '#E6B800']}
+        style={[styles.headerPrimary, { paddingTop: insets.top + 4 }]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.headerBackBtn} onPress={handleBackPress} activeOpacity={0.7}>
             <Icon name="arrow-left" size={20} color="#fff" />
           </TouchableOpacity>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTeamVs} numberOfLines={1}>
-              {match.teamA?.shortName || match.teamA?.name || 'Team A'} vs {match.teamB?.shortName || match.teamB?.name || 'Team B'}
-            </Text>
+            <View style={styles.headerTitleRow}>
+              {/* Status Badge at START */}
+              {match.status === 'in_progress' ? (
+                <View style={styles.statusBadgeLive}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.statusBadgeText}>LIVE</Text>
+                </View>
+              ) : (match.status === 'super_over' || match.isSuperOver || liveState?.isSuperOver) ? (
+                <View style={[styles.statusBadgeLive, { backgroundColor: '#7B1FA2', borderWidth: 1, borderColor: '#FFD54F', paddingHorizontal: 7 }]}>
+                  <Icon name="flash" size={10} color="#FFD54F" style={{ marginRight: 2 }} />
+                  <Text style={[styles.statusBadgeText, { color: '#FFD54F', fontWeight: 'bold' }]}>SUPER OVER</Text>
+                </View>
+              ) : match.status === 'completed' ? (
+                <View style={styles.statusBadgeCompleted}>
+                  <Icon name="check-circle" size={10} color="#fff" style={{ marginRight: 3 }} />
+                  <Text style={styles.statusBadgeText}>Completed</Text>
+                </View>
+              ) : null}
+
+              {/* Scrolling Team Name */}
+              <AutoScrollingText
+                text={`${match.teamA?.shortName || match.teamA?.name || 'Team A'} vs ${match.teamB?.shortName || match.teamB?.name || 'Team B'}`}
+                style={styles.headerTeamVs}
+              />
+            </View>
+
             {match.status === 'scheduled' && match.scheduledAt ? (
               <Text style={styles.headerVsText} numberOfLines={1}>
                 {new Date(match.scheduledAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} • {match.tournament?.name || 'Match'}
               </Text>
-            ) : match.status === 'completed' ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={styles.statusBadgeCompleted}>
-                  <Icon name="check-circle" size={10} color="#fff" style={{ marginRight: 4 }} />
-                  <Text style={styles.statusBadgeText}>Completed</Text>
-                </View>
-                {(match?.isSuperOver || match?.status === 'super_over' || liveState?.isSuperOver) && (
-                  <View style={[styles.statusBadgeLive, { backgroundColor: '#7B1FA2', borderWidth: 0.8, borderColor: '#FFD54F', paddingHorizontal: 6, paddingVertical: 1.5, height: 'auto' }]}>
-                    <Text style={[styles.statusBadgeText, { color: '#FFD54F', fontSize: 9, fontWeight: 'bold' }]}>SUPER OVER</Text>
-                  </View>
-                )}
-              </View>
-            ) : (match.status === 'super_over' || match.isSuperOver || liveState?.isSuperOver) ? (
-              <View style={[styles.statusBadgeLive, { backgroundColor: '#7B1FA2', borderWidth: 1, borderColor: '#FFD54F', paddingHorizontal: 8 }]}>
-                <Icon name="flash" size={11} color="#FFD54F" style={{ marginRight: 3 }} />
-                <Text style={[styles.statusBadgeText, { color: '#FFD54F', fontWeight: 'bold' }]}>SUPER OVER</Text>
-              </View>
-            ) : match.status === 'in_progress' ? (
-              <View style={styles.statusBadgeLive}>
-                <View style={styles.liveDot} />
-                <Text style={styles.statusBadgeText}>LIVE</Text>
-              </View>
             ) : null}
           </View>
 
@@ -5246,11 +5414,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
         </View>
+      </LinearGradient>
 
-        {/* Tab Bar */}
-        <View style={styles.tabBarWrapper}>
-          {renderTabHeader()}
-        </View>
+      {/* Tab Bar (Underline style on clean surface background like TournamentDetailScreen) */}
+      <View style={styles.tabBarWrapper}>
+        {renderTabHeader()}
       </View>
 
       {/* Content */}
@@ -5300,11 +5468,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           bottom: insets.bottom + 16,
           left: 16,
           right: 16,
-          backgroundColor: 'rgba(28, 28, 30, 0.92)',
+          backgroundColor: isDark ? 'rgba(28, 28, 30, 0.95)' : colors.surface,
+          borderWidth: 1,
+          borderColor: colors.border,
           borderRadius: 24,
           padding: 12,
           borderWidth: 1,
-          borderColor: 'rgba(255, 255, 255, 0.15)',
+          borderColor: colors.border,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: 0.5,
@@ -5314,13 +5484,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         }}>
           <TouchableOpacity
             style={{
-              backgroundColor: Colors.primary,
+              backgroundColor: colors.primary,
               borderRadius: 16,
               paddingVertical: 14,
               flexDirection: 'row',
               justifyContent: 'center',
               alignItems: 'center',
-              shadowColor: Colors.primary,
+              shadowColor: colors.primary,
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.4,
               shadowRadius: 8,
@@ -5344,7 +5514,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               style={{ marginTop: 12, paddingVertical: 8, alignItems: 'center' }}
               onPress={() => setDeclareResultModalVisible(true)}
             >
-              <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.semiBold }}>Declare Result (Walkover / Abandon)</Text>
+              <Text style={{ color: isDark ? colors.primary : colors.textPrimary, fontFamily: Typography.fontFamily.semiBold }}>Declare Result (Walkover / Abandon)</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -5354,33 +5524,33 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       <Modal visible={declareResultModalVisible} transparent animationType="slide" onRequestClose={() => setDeclareResultModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { padding: 0 }]}>
-            <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: Colors.borderLight }}>
-              <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, textAlign: 'center' }}>Declare Result</Text>
+            <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
+              <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, textAlign: 'center' }}>Declare Result</Text>
             </View>
             <ScrollView style={{ maxHeight: 300, width: '100%' }}>
               <TouchableOpacity style={styles.declareResultOption} onPress={() => confirmDeclareResult('walkover', match.teamA?._id, match.teamA?.name)}>
-                <Icon name="flag-checkered" size={20} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <Icon name="flag-checkered" size={20} color={colors.textSecondary} style={{ marginRight: 10 }} />
                 <Text style={styles.declareResultOptionText}>Walkover to {match.teamA?.name}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.declareResultOption} onPress={() => confirmDeclareResult('walkover', match.teamB?._id, match.teamB?.name)}>
-                <Icon name="flag-checkered" size={20} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <Icon name="flag-checkered" size={20} color={colors.textSecondary} style={{ marginRight: 10 }} />
                 <Text style={styles.declareResultOptionText}>Walkover to {match.teamB?.name}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.declareResultOption} onPress={() => confirmDeclareResult('tie')}>
-                <Icon name="handshake-outline" size={20} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <Icon name="handshake-outline" size={20} color={colors.textSecondary} style={{ marginRight: 10 }} />
                 <Text style={styles.declareResultOptionText}>Match Drawn (Tie)</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.declareResultOption, { borderBottomWidth: 0 }]} onPress={() => confirmDeclareResult('abandoned')}>
-                <Icon name="close-octagon-outline" size={20} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <Icon name="close-octagon-outline" size={20} color={colors.textSecondary} style={{ marginRight: 10 }} />
                 <Text style={styles.declareResultOptionText}>Abandon Match</Text>
               </TouchableOpacity>
             </ScrollView>
-            <View style={{ padding: 16, width: '100%', borderTopWidth: 1, borderTopColor: Colors.borderLight }}>
+            <View style={{ padding: 16, width: '100%', borderTopWidth: 1, borderTopColor: colors.borderLight }}>
               <TouchableOpacity
-                style={{ paddingVertical: 12, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' }}
+                style={{ paddingVertical: 12, borderRadius: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' }}
                 onPress={() => setDeclareResultModalVisible(false)}
               >
-                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Cancel</Text>
+                <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -5391,24 +5561,24 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       <Modal visible={!!declareConfirmation?.visible} transparent animationType="fade" onRequestClose={() => setDeclareConfirmation(null)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { padding: 24 }]}>
-            <Text style={{ fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 12, textAlign: 'center' }}>
+            <Text style={{ fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 12, textAlign: 'center' }}>
               {declareConfirmation?.title}
             </Text>
-            <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, textAlign: 'center', marginBottom: 24, lineHeight: 22 }}>
+            <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, textAlign: 'center', marginBottom: 24, lineHeight: 22 }}>
               {declareConfirmation?.message}
             </Text>
             <View style={{ flexDirection: 'row', width: '100%', gap: 12 }}>
               <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' }}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' }}
                 onPress={() => setDeclareConfirmation(null)}
               >
-                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Cancel</Text>
+                <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' }}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 8, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }}
                 onPress={executeDeclareResult}
               >
-                <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Confirm</Text>
+                <Text style={{ color: colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Confirm</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -5421,32 +5591,32 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}>
             <TouchableOpacity activeOpacity={1}>
               <View style={{
-                backgroundColor: Colors.surfaceVariant,
+                backgroundColor: colors.surfaceVariant,
                 borderTopLeftRadius: 24, borderTopRightRadius: 24,
                 paddingBottom: 32, overflow: 'hidden',
-                borderTopWidth: 1, borderColor: Colors.border,
+                borderTopWidth: 1, borderColor: colors.border,
               }}>
                 {/* Handle + Header */}
                 <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 8 }}>
-                  <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border }} />
+                  <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: `${Colors.primary}22`, alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon name="cog" size={16} color={Colors.primary} />
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: `${colors.primary}22`, alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon name="cog" size={16} color={colors.primary} />
                     </View>
-                    <Text style={{ fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Match Settings</Text>
+                    <Text style={{ fontSize: 18, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Match Settings</Text>
                   </View>
                   <TouchableOpacity
-                    style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' }}
+                    style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}
                     onPress={() => setShowSettingsModal(false)}
                   >
-                    <Icon name="close" size={16} color={Colors.textSecondary} />
+                    <Icon name="close" size={16} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
                 {/* Divider */}
-                <View style={{ height: 1, backgroundColor: Colors.border, marginHorizontal: 20, marginBottom: 16 }} />
+                <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20, marginBottom: 16 }} />
 
                 {/* Options */}
                 <View style={{ paddingHorizontal: 16, gap: 10 }}>
@@ -5454,8 +5624,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     <TouchableOpacity
                       style={{
                         flexDirection: 'row', alignItems: 'center',
-                        backgroundColor: Colors.surface, borderRadius: 14,
-                        padding: 16, borderWidth: 1, borderColor: Colors.border,
+                        backgroundColor: colors.surface, borderRadius: 14,
+                        padding: 16, borderWidth: 1, borderColor: colors.border,
                       }}
                       activeOpacity={0.7}
                       onPress={() => {
@@ -5463,40 +5633,40 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                         navigation.navigate('MatchSetup', { matchId: cleanMatchId, matchData: match });
                       }}
                     >
-                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${Colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                        <Icon name="pencil" size={20} color={Colors.primary} />
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                        <Icon name="pencil" size={20} color={colors.primary} />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Edit Match Details</Text>
-                        <Text style={{ color: Colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Edit overs, wickets, ground, location, etc</Text>
+                        <Text style={{ color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Edit Match Details</Text>
+                        <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Edit overs, wickets, ground, location, etc</Text>
                       </View>
-                      <Icon name="chevron-right" size={18} color={Colors.textTertiary} />
+                      <Icon name="chevron-right" size={18} color={colors.textTertiary} />
                     </TouchableOpacity>
                   )} */}
                   <TouchableOpacity
                     style={{
                       flexDirection: 'row', alignItems: 'center',
-                      backgroundColor: Colors.surface, borderRadius: 14,
-                      padding: 16, borderWidth: 1, borderColor: Colors.border,
+                      backgroundColor: colors.surface, borderRadius: 14,
+                      padding: 16, borderWidth: 1, borderColor: colors.border,
                     }}
                     activeOpacity={0.7}
                     onPress={() => { setShowSettingsModal(false); setShowAddScorerModal(true); }}
                   >
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${Colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                      <Icon name="account-switch" size={20} color={Colors.primary} />
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                      <Icon name="account-switch" size={20} color={colors.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Change Scorer</Text>
-                      <Text style={{ color: Colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Assign someone to score this match</Text>
+                      <Text style={{ color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Change Scorer</Text>
+                      <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Assign someone to score this match</Text>
                     </View>
-                    <Icon name="chevron-right" size={18} color={Colors.textTertiary} />
+                    <Icon name="chevron-right" size={18} color={colors.textTertiary} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={{
                       flexDirection: 'row', alignItems: 'center',
-                      backgroundColor: Colors.surface, borderRadius: 14,
-                      padding: 16, borderWidth: 1, borderColor: Colors.border,
+                      backgroundColor: colors.surface, borderRadius: 14,
+                      padding: 16, borderWidth: 1, borderColor: colors.border,
                     }}
                     activeOpacity={0.7}
                     onPress={() => { setShowSettingsModal(false); setShowDeclareResultModal(true); }}
@@ -5505,29 +5675,29 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       <Icon name="trophy" size={20} color="#D4AF37" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Declare Result</Text>
-                      <Text style={{ color: Colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Declare winner, tie or walkover</Text>
+                      <Text style={{ color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Declare Result</Text>
+                      <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Declare winner, tie or walkover</Text>
                     </View>
-                    <Icon name="chevron-right" size={18} color={Colors.textTertiary} />
+                    <Icon name="chevron-right" size={18} color={colors.textTertiary} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={{
                       flexDirection: 'row', alignItems: 'center',
-                      backgroundColor: `${Colors.error}0D`, borderRadius: 14,
-                      padding: 16, borderWidth: 1, borderColor: `${Colors.error}30`,
+                      backgroundColor: `${colors.error}0D`, borderRadius: 14,
+                      padding: 16, borderWidth: 1, borderColor: `${colors.error}30`,
                     }}
                     activeOpacity={0.7}
                     onPress={() => { setShowSettingsModal(false); setShowAbandonModal(true); }}
                   >
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${Colors.error}20`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                      <Icon name="cancel" size={20} color={Colors.error} />
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${colors.error}20`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                      <Icon name="cancel" size={20} color={colors.error} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.error, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Abandon Match</Text>
-                      <Text style={{ color: `${Colors.error}88`, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Cancel match due to unforeseen reasons</Text>
+                      <Text style={{ color: colors.error, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Abandon Match</Text>
+                      <Text style={{ color: `${colors.error}88`, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Cancel match due to unforeseen reasons</Text>
                     </View>
-                    <Icon name="chevron-right" size={18} color={`${Colors.error}60`} />
+                    <Icon name="chevron-right" size={18} color={`${colors.error}60`} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -5540,21 +5710,21 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       <Modal visible={showAddScorerModal} animationType="fade" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <View style={{
-            backgroundColor: Colors.surfaceVariant, borderRadius: 20,
+            backgroundColor: colors.surfaceVariant, borderRadius: 20,
             width: '100%', padding: 24,
-            borderWidth: 1, borderColor: Colors.border,
+            borderWidth: 1, borderColor: colors.border,
           }}>
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-              <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${Colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                <Icon name="account-switch" size={18} color={Colors.primary} />
+              <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                <Icon name="account-switch" size={18} color={colors.primary} />
               </View>
-              <Text style={{ flex: 1, fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Change Scorer</Text>
+              <Text style={{ flex: 1, fontSize: 18, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Change Scorer</Text>
               <TouchableOpacity
-                style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}
                 onPress={() => setShowAddScorerModal(false)}
               >
-                <Icon name="close" size={16} color={Colors.textSecondary} />
+                <Icon name="close" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -5568,61 +5738,61 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               const displayName = aName || (typeof match.organizerId === 'object' ? match.organizerId?.name : null) || 'Not Assigned';
               return (
                 <View style={{ marginBottom: 18 }}>
-                  <Text style={{ color: Colors.textSecondary, marginBottom: 10, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Current Scorer</Text>
+                  <Text style={{ color: colors.textSecondary, marginBottom: 10, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Current Scorer</Text>
                   <View style={{
                     flexDirection: 'row', alignItems: 'center', gap: 6,
-                    backgroundColor: `${Colors.primary}14`,
+                    backgroundColor: `${colors.primary}14`,
                     paddingHorizontal: 12, paddingVertical: 7,
-                    borderRadius: 20, borderWidth: 1, borderColor: `${Colors.primary}30`,
+                    borderRadius: 20, borderWidth: 1, borderColor: `${colors.primary}30`,
                     alignSelf: 'flex-start',
                   }}>
-                    <Icon name="account-check" size={13} color={Colors.primary} />
-                    <Text style={{ color: Colors.primary, fontSize: 13, fontFamily: Typography.fontFamily.medium }}>{displayName}</Text>
+                    <Icon name="account-check" size={13} color={colors.primary} />
+                    <Text style={{ color: colors.primary, fontSize: 13, fontFamily: Typography.fontFamily.medium }}>{displayName}</Text>
                   </View>
                 </View>
               );
             })()}
 
             {/* Divider */}
-            <View style={{ height: 1, backgroundColor: Colors.border, marginBottom: 16 }} />
+            <View style={{ height: 1, backgroundColor: colors.border, marginBottom: 16 }} />
 
             {/* Input */}
-            <Text style={{ color: Colors.textSecondary, marginBottom: 8, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Mobile Number</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 12, paddingHorizontal: 14, marginBottom: 20 }}>
-              <Icon name="phone" size={18} color={Colors.textTertiary} style={{ marginRight: 10 }} />
+            <Text style={{ color: colors.textSecondary, marginBottom: 8, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Mobile Number</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 14, marginBottom: 20 }}>
+              <Icon name="phone" size={18} color={colors.textTertiary} style={{ marginRight: 10 }} />
               <TextInput
-                style={{ flex: 1, padding: 12, color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.medium }}
+                style={{ flex: 1, padding: 12, color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.medium }}
                 placeholder="10-digit mobile number"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="numeric"
                 maxLength={10}
                 value={newScorerMobile}
                 onChangeText={setNewScorerMobile}
               />
-              {isScorerSearching && <ActivityIndicator color={Colors.primary} size="small" style={{ marginLeft: 10 }} />}
+              {isScorerSearching && <ActivityIndicator color={colors.primary} size="small" style={{ marginLeft: 10 }} />}
               {newScorerMobile.length === 10 && !isScorerSearching && scorerSearchResult?.exists && (
                 <Icon name="check-circle" size={18} color="#4CAF50" style={{ marginLeft: 10 }} />
               )}
             </View>
 
             {scorerSearchResult && scorerSearchResult.exists && (
-              <View style={{ marginTop: -8, marginBottom: 20, backgroundColor: Colors.surfaceVariant, padding: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${Colors.primary}18`, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                  <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+              <View style={{ marginTop: -8, marginBottom: 20, backgroundColor: colors.surfaceVariant, padding: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${colors.primary}18`, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                  <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
                     {(scorerSearchResult.user?.name || 'U').charAt(0).toUpperCase()}
                   </Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>
                     {scorerSearchResult.user?.name || 'Registered User'}
                   </Text>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Registered User</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Registered User</Text>
                 </View>
               </View>
             )}
 
             {scorerSearchResult && !scorerSearchResult.exists && !isScorerSearching && (
-              <Text style={{ color: Colors.error, fontSize: 13, marginTop: -8, marginBottom: 20, textAlign: 'center', fontFamily: Typography.fontFamily.medium }}>
+              <Text style={{ color: colors.error, fontSize: 13, marginTop: -8, marginBottom: 20, textAlign: 'center', fontFamily: Typography.fontFamily.medium }}>
                 User not found. Please enter a registered user's number.
               </Text>
             )}
@@ -5630,7 +5800,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {/* CTA */}
             <TouchableOpacity
               style={{
-                backgroundColor: Colors.primary, paddingVertical: 15,
+                backgroundColor: colors.primary, paddingVertical: 15,
                 borderRadius: 12, alignItems: 'center', flexDirection: 'row',
                 justifyContent: 'center', gap: 8,
                 opacity: (scorerSearchResult && scorerSearchResult.exists) ? 1 : 0.5
@@ -5639,8 +5809,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               activeOpacity={0.8}
               disabled={!scorerSearchResult?.exists}
             >
-              <Icon name="account-switch" size={18} color={Colors.background} />
-              <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 15 }}>Change Scorer</Text>
+              <Icon name="account-switch" size={18} color={colors.background} />
+              <Text style={{ color: colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 15 }}>Change Scorer</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -5652,61 +5822,61 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       <Modal visible={showDeclareResultModal} animationType="fade" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <View style={{
-            backgroundColor: Colors.surfaceVariant, borderRadius: 20,
+            backgroundColor: colors.surfaceVariant, borderRadius: 20,
             width: '100%', padding: 24,
-            borderWidth: 1, borderColor: Colors.border,
+            borderWidth: 1, borderColor: colors.border,
           }}>
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
               <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#D4AF3718', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
                 <Icon name="trophy" size={18} color="#D4AF37" />
               </View>
-              <Text style={{ flex: 1, fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Declare Result</Text>
+              <Text style={{ flex: 1, fontSize: 18, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Declare Result</Text>
               <TouchableOpacity
-                style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}
                 onPress={() => setShowDeclareResultModal(false)}
               >
-                <Icon name="close" size={16} color={Colors.textSecondary} />
+                <Icon name="close" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             {/* Result type toggle */}
-            <Text style={{ color: Colors.textSecondary, marginBottom: 10, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Result Type</Text>
+            <Text style={{ color: colors.textSecondary, marginBottom: 10, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Result Type</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
               <TouchableOpacity
                 style={{
                   flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
                   borderWidth: 1.5,
-                  borderColor: resultType === 'walkover' ? Colors.primary : Colors.border,
-                  backgroundColor: resultType === 'walkover' ? `${Colors.primary}18` : Colors.surface,
+                  borderColor: resultType === 'walkover' ? colors.primary : colors.border,
+                  backgroundColor: resultType === 'walkover' ? `${colors.primary}18` : colors.surface,
                 }}
                 onPress={() => setResultType('walkover')}
                 activeOpacity={0.7}
               >
-                {resultType === 'walkover' && <Icon name="check-circle" size={14} color={Colors.primary} style={{ marginBottom: 4 }} />}
-                <Text style={{ color: resultType === 'walkover' ? Colors.primary : Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>🏆 Winner</Text>
-                <Text style={{ color: resultType === 'walkover' ? `${Colors.primary}99` : Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginTop: 2 }}>Walkover</Text>
+                {resultType === 'walkover' && <Icon name="check-circle" size={14} color={colors.primary} style={{ marginBottom: 4 }} />}
+                <Text style={{ color: resultType === 'walkover' ? colors.primary : colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>🏆 Winner</Text>
+                <Text style={{ color: resultType === 'walkover' ? `${colors.primary}99` : colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginTop: 2 }}>Walkover</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{
                   flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
                   borderWidth: 1.5,
-                  borderColor: resultType === 'tie' ? Colors.primary : Colors.border,
-                  backgroundColor: resultType === 'tie' ? `${Colors.primary}18` : Colors.surface,
+                  borderColor: resultType === 'tie' ? colors.primary : colors.border,
+                  backgroundColor: resultType === 'tie' ? `${colors.primary}18` : colors.surface,
                 }}
                 onPress={() => { setResultType('tie'); setWinnerTeamId(null); }}
                 activeOpacity={0.7}
               >
-                {resultType === 'tie' && <Icon name="check-circle" size={14} color={Colors.primary} style={{ marginBottom: 4 }} />}
-                <Text style={{ color: resultType === 'tie' ? Colors.primary : Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>🤝 Tie</Text>
-                <Text style={{ color: resultType === 'tie' ? `${Colors.primary}99` : Colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginTop: 2 }}>Draw</Text>
+                {resultType === 'tie' && <Icon name="check-circle" size={14} color={colors.primary} style={{ marginBottom: 4 }} />}
+                <Text style={{ color: resultType === 'tie' ? colors.primary : colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>🤝 Tie</Text>
+                <Text style={{ color: resultType === 'tie' ? `${colors.primary}99` : colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 11, marginTop: 2 }}>Draw</Text>
               </TouchableOpacity>
             </View>
 
             {/* Team selector */}
             {resultType === 'walkover' && (
               <View style={{ marginBottom: 20 }}>
-                <Text style={{ color: Colors.textSecondary, marginBottom: 10, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Select Winning Team</Text>
+                <Text style={{ color: colors.textSecondary, marginBottom: 10, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Select Winning Team</Text>
                 <View style={{ gap: 10 }}>
                   {[{ team: match.teamA, id: match.teamA?._id }, { team: match.teamB, id: match.teamB?._id }].map(({ team, id }) => {
                     const selected = winnerTeamId === id;
@@ -5717,17 +5887,17 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                           flexDirection: 'row', alignItems: 'center',
                           paddingVertical: 14, paddingHorizontal: 16,
                           borderRadius: 12, borderWidth: 1.5,
-                          borderColor: selected ? Colors.primary : Colors.border,
-                          backgroundColor: selected ? `${Colors.primary}14` : Colors.surface,
+                          borderColor: selected ? colors.primary : colors.border,
+                          backgroundColor: selected ? `${colors.primary}14` : colors.surface,
                         }}
                         onPress={() => setWinnerTeamId(id)}
                         activeOpacity={0.7}
                       >
-                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: selected ? `${Colors.primary}30` : Colors.background, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                          <Text style={{ fontSize: 15, fontFamily: Typography.fontFamily.bold, color: selected ? Colors.primary : Colors.textSecondary }}>{team?.shortName?.charAt(0) || team?.name?.charAt(0) || '?'}</Text>
+                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: selected ? `${colors.primary}30` : colors.background, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                          <Text style={{ fontSize: 15, fontFamily: Typography.fontFamily.bold, color: selected ? colors.primary : colors.textSecondary }}>{team?.shortName?.charAt(0) || team?.name?.charAt(0) || '?'}</Text>
                         </View>
-                        <Text style={{ flex: 1, color: selected ? Colors.primary : Colors.textPrimary, fontFamily: selected ? Typography.fontFamily.bold : Typography.fontFamily.medium, fontSize: 15 }}>{team?.name}</Text>
-                        {selected && <Icon name="check-circle" size={20} color={Colors.primary} />}
+                        <Text style={{ flex: 1, color: selected ? colors.primary : colors.textPrimary, fontFamily: selected ? Typography.fontFamily.bold : Typography.fontFamily.medium, fontSize: 15 }}>{team?.name}</Text>
+                        {selected && <Icon name="check-circle" size={20} color={colors.primary} />}
                       </TouchableOpacity>
                     );
                   })}
@@ -5736,20 +5906,20 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             )}
 
             {/* Divider */}
-            <View style={{ height: 1, backgroundColor: Colors.border, marginBottom: 16 }} />
+            <View style={{ height: 1, backgroundColor: colors.border, marginBottom: 16 }} />
 
             {/* CTA */}
             <TouchableOpacity
               style={{
-                backgroundColor: Colors.primary, paddingVertical: 15,
+                backgroundColor: colors.primary, paddingVertical: 15,
                 borderRadius: 12, alignItems: 'center', flexDirection: 'row',
                 justifyContent: 'center', gap: 8,
               }}
               onPress={submitMatchResult}
               activeOpacity={0.8}
             >
-              <Icon name="check" size={18} color={Colors.background} />
-              <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 15 }}>Confirm Result</Text>
+              <Icon name="check" size={18} color={colors.background} />
+              <Text style={{ color: colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 15 }}>Confirm Result</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -5759,30 +5929,30 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       <Modal visible={showAbandonModal} animationType="fade" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <View style={{
-            backgroundColor: Colors.surfaceVariant, borderRadius: 20,
+            backgroundColor: colors.surfaceVariant, borderRadius: 20,
             width: '100%', padding: 24,
-            borderWidth: 1, borderColor: `${Colors.error}30`,
+            borderWidth: 1, borderColor: `${colors.error}30`,
           }}>
             {/* Warning icon */}
             <View style={{ alignItems: 'center', marginBottom: 16 }}>
-              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: `${Colors.error}18`, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                <Icon name="alert" size={26} color={Colors.error} />
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: `${colors.error}18`, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                <Icon name="alert" size={26} color={colors.error} />
               </View>
-              <Text style={{ fontSize: 18, color: Colors.error, fontFamily: Typography.fontFamily.bold }}>Abandon Match</Text>
-              <Text style={{ fontSize: 13, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, marginTop: 4, textAlign: 'center' }}>This action cannot be undone</Text>
+              <Text style={{ fontSize: 18, color: colors.error, fontFamily: Typography.fontFamily.bold }}>Abandon Match</Text>
+              <Text style={{ fontSize: 13, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, marginTop: 4, textAlign: 'center' }}>This action cannot be undone</Text>
             </View>
 
             {/* Divider */}
-            <View style={{ height: 1, backgroundColor: `${Colors.error}25`, marginBottom: 16 }} />
+            <View style={{ height: 1, backgroundColor: `${colors.error}25`, marginBottom: 16 }} />
 
             {/* Input */}
-            <Text style={{ color: Colors.textSecondary, marginBottom: 8, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Reason</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: `${Colors.error}40`, borderRadius: 12, paddingHorizontal: 14, paddingTop: 4, marginBottom: 20 }}>
-              <Icon name="text" size={16} color={Colors.textTertiary} style={{ marginTop: 14, marginRight: 10 }} />
+            <Text style={{ color: colors.textSecondary, marginBottom: 8, fontSize: 12, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8, textTransform: 'uppercase' }}>Reason</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: colors.surface, borderWidth: 1.5, borderColor: `${colors.error}40`, borderRadius: 12, paddingHorizontal: 14, paddingTop: 4, marginBottom: 20 }}>
+              <Icon name="text" size={16} color={colors.textTertiary} style={{ marginTop: 14, marginRight: 10 }} />
               <TextInput
-                style={{ flex: 1, paddingVertical: 12, color: Colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.medium }}
+                style={{ flex: 1, paddingVertical: 12, color: colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.medium }}
                 placeholder="e.g. Rain, Bad Light, Player Injury"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={abandonReason}
                 onChangeText={setAbandonReason}
                 multiline
@@ -5792,14 +5962,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
             {/* Buttons row */}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
                 onPress={() => setShowAbandonModal(false)}
                 activeOpacity={0.7}
               >
-                <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>Cancel</Text>
+                <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ flex: 1.5, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: Colors.error, flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                style={{ flex: 1.5, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: colors.error, flexDirection: 'row', justifyContent: 'center', gap: 8 }}
                 onPress={executeAbandonMatch}
                 activeOpacity={0.8}
               >
@@ -5856,7 +6026,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               {/* Overall Career Stats Row */}
               <View style={styles.ppStatsRow}>
                 {playerPreviewLoading ? (
-                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
                   [{
                     label: 'Matches',
@@ -5919,15 +6089,15 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       <Modal visible={!!selectedTagDefinition} transparent={true} animationType="fade" onRequestClose={() => setSelectedTagDefinition(null)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedTagDefinition(null)}>
           <View style={[styles.modalContent, { width: '70%', alignItems: 'center' }]}>
-            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
-              <Icon name="tag" size={24} color={Colors.primary} />
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+              <Icon name="tag" size={24} color={colors.primary} />
             </View>
-            <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>{selectedTagDefinition?.name}</Text>
-            <Text style={{ fontSize: 14, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 }}>
+            <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>{selectedTagDefinition?.name}</Text>
+            <Text style={{ fontSize: 14, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 }}>
               {selectedTagDefinition?.desc}
             </Text>
-            <TouchableOpacity style={{ marginTop: 24, paddingVertical: 10, paddingHorizontal: 24, backgroundColor: Colors.primary, borderRadius: BorderRadius.md }} onPress={() => setSelectedTagDefinition(null)}>
-              <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold }}>Got It</Text>
+            <TouchableOpacity style={{ marginTop: 24, paddingVertical: 10, paddingHorizontal: 24, backgroundColor: colors.primary, borderRadius: BorderRadius.md }} onPress={() => setSelectedTagDefinition(null)}>
+              <Text style={{ color: colors.background, fontFamily: Typography.fontFamily.bold }}>Got It</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -5983,46 +6153,54 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
-  errorText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 16 },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  errorText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 16 },
 
   // ── Header ──────────────────────────────────────────────────────────────────
   headerPrimary: {
-    backgroundColor: Colors.primary,
-    ...Shadows.lg,
+    paddingBottom: 4,
+    ...shadows.sm,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   headerBackBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.25)',
+    backgroundColor: 'rgba(0,0,0,0.22)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerCenter: {
     flex: 1,
-    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 8,
+    overflow: 'hidden',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    overflow: 'hidden',
+    width: '100%',
   },
   headerTeamVs: {
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.background,
-    textAlign: 'center',
+    color: '#FFFFFF',
     letterSpacing: 0.3,
   },
   headerVsText: {
-    fontFamily: Typography.fontFamily.regular,
-    color: 'rgba(0,0,0,0.65)',
-    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    marginTop: 1,
   },
 
   // Status badges
@@ -6030,26 +6208,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#D32F2F',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
     borderRadius: 99,
-    marginTop: 4,
-    gap: 4,
+    gap: 3.5,
   },
   statusBadgeCompleted: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.30)',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
     borderRadius: 99,
-    marginTop: 4,
-    gap: 4,
+    gap: 3.5,
   },
   statusBadgeBreak: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.warning,
+    backgroundColor: colors.warning,
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 99,
@@ -6068,65 +6244,56 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: '#FF5252',
-    // pulsing would need Animated API
   },
 
-  // ── Tab Bar ──────────────────────────────────────────────────────────────────
+  // ── Tab Bar (matches TournamentDetailScreen) ─────────────────────────────────
   tabBarWrapper: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.15)',
-    marginTop: 4,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   tabsRow: {
-    paddingHorizontal: 12,
-    paddingTop: 2,
-    paddingBottom: 0,
-    gap: 4,
+    paddingHorizontal: 4,
     alignItems: 'center',
   },
   tabItem: {
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'transparent',
     alignItems: 'center',
-    position: 'relative',
+    justifyContent: 'center',
+  },
+  tabItemActive: {
+    borderBottomColor: colors.primary,
   },
   tabText: {
-    color: 'rgba(0,0,0,0.55)',
+    color: colors.textSecondary,
     fontSize: 13,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.medium,
     letterSpacing: 0.2,
   },
   tabTextActive: {
-    color: Colors.background,
+    color: isDark ? colors.primary : colors.primaryDark,
     fontFamily: Typography.fontFamily.bold,
-    opacity: 1,
-  },
-  tabActivePill: {
-    position: 'absolute',
-    bottom: 0,
-    left: 8,
-    right: 8,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: Colors.background,
+    fontSize: 13,
   },
 
   // ── Content ──────────────────────────────────────────────────────────────────
-  tabContentContainer: { flex: 1, backgroundColor: Colors.background },
+  tabContentContainer: { flex: 1, backgroundColor: colors.background },
   content: { padding: Spacing.base, paddingBottom: 100 },
 
   section: {
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     borderRadius: BorderRadius.lg,
     padding: Spacing.base,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadows.sm,
+    borderColor: colors.border,
+    ...shadows.sm,
   },
   sectionTitle: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
     marginBottom: 14,
@@ -6138,26 +6305,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
     alignItems: 'center',
   },
-  infoLabel: { flex: 1, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
-  infoValue: { flex: 2, color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13, textAlign: 'right' },
+  infoLabel: { flex: 1, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
+  infoValue: { flex: 2, color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13, textAlign: 'right' },
 
-  battingTeamName: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 },
+  battingTeamName: { color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 },
   mainScoreRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 12 },
-  scoreNumber: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 38 },
-  oversNumber: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 16, marginLeft: 10 },
-  crrText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 },
-  tossTextPrimary: { color: Colors.primary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
-  yetToStartText: { color: Colors.warning, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginTop: 8 },
+  scoreNumber: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 38 },
+  oversNumber: { color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 16, marginLeft: 10 },
+  crrText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 },
+  tossTextPrimary: { color: colors.primary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
+  yetToStartText: { color: colors.warning, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginTop: 8 },
 
   // Over Timeline (matches Live Scorer style)
   msOverTimeline: {
     marginTop: 14,
   },
   msOverTimelineLabel: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginBottom: 8,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
@@ -6168,105 +6335,105 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   msBallText: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 13,
   },
 
-  tableHeaderRow: { flexDirection: 'row', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, marginBottom: 4 },
-  tableHeaderText: { flex: 1, color: Colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.bold, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.5 },
-  tableRow: { flexDirection: 'row', paddingVertical: 12, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  playerNameActive: { color: Colors.primary, fontSize: 14, fontFamily: Typography.fontFamily.semiBold },
-  playerNameNormal: { color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium },
+  tableHeaderRow: { flexDirection: 'row', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.borderLight, marginBottom: 4 },
+  tableHeaderText: { flex: 1, color: colors.textTertiary, fontSize: 11, fontFamily: Typography.fontFamily.bold, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.5 },
+  tableRow: { flexDirection: 'row', paddingVertical: 12, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  playerNameActive: { color: colors.primary, fontSize: 14, fontFamily: Typography.fontFamily.semiBold },
+  playerNameNormal: { color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium },
   playerNameClickable: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 14,
     fontFamily: Typography.fontFamily.medium,
     // textDecorationLine: 'underline',
     textDecorationColor: 'rgba(255,255,255,0.2)',
   },
-  tableRowText: { flex: 1, color: Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, textAlign: 'center' },
+  tableRowText: { flex: 1, color: colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, textAlign: 'center' },
 
   // Did Not Bat chips
   dnbChip: { flexDirection: 'row', alignItems: 'center' },
-  dnbChipText: { color: Colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.medium, textDecorationColor: 'rgba(255,255,255,0.15)' },
-  dnbComma: { color: Colors.textTertiary, fontSize: 13, marginRight: 4, marginLeft: 1 },
+  dnbChipText: { color: colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.medium, textDecorationColor: 'rgba(255,255,255,0.15)' },
+  dnbComma: { color: colors.textTertiary, fontSize: 13, marginRight: 4, marginLeft: 1 },
 
   // Innings Break Card
-  inningsBreakCard: { borderRadius: BorderRadius.lg, overflow: 'hidden', marginBottom: 12, borderWidth: 1, borderColor: Colors.warning + '50' },
+  inningsBreakCard: { borderRadius: BorderRadius.lg, overflow: 'hidden', marginBottom: 12, borderWidth: 1, borderColor: colors.warning + '50' },
   inningsBreakGradient: { padding: 20 },
   inningsBreakIconRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   inningsBreakIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,143,0,0.15)', justifyContent: 'center', alignItems: 'center' },
-  inningsBreakBadge: { backgroundColor: Colors.warning, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 99 },
+  inningsBreakBadge: { backgroundColor: colors.warning, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 99 },
   inningsBreakBadgeText: { color: '#fff', fontSize: 10, fontFamily: Typography.fontFamily.bold, letterSpacing: 1, textTransform: 'uppercase' },
-  inningsBreakTitle: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 12 },
-  inningsBreakSub: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginTop: 4 },
+  inningsBreakTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 12 },
+  inningsBreakSub: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginTop: 4 },
   targetChaseRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 4 },
-  targetBox: { backgroundColor: Colors.warning, borderRadius: BorderRadius.md, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', minWidth: 70 },
+  targetBox: { backgroundColor: colors.warning, borderRadius: BorderRadius.md, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', minWidth: 70 },
   targetBoxLabel: { color: 'rgba(0,0,0,0.7)', fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 1, textTransform: 'uppercase' },
-  targetBoxValue: { color: Colors.background, fontSize: 26, fontFamily: Typography.fontFamily.bold, lineHeight: 30 },
+  targetBoxValue: { color: colors.textOnPrimary, fontSize: 26, fontFamily: Typography.fontFamily.bold, lineHeight: 30 },
   targetChaseInfo: { flex: 1 },
-  targetChaseTeam: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginBottom: 2 },
-  targetChaseDesc: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12, marginBottom: 2 },
-  targetChaseRRR: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  targetChaseTeam: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14, marginBottom: 2 },
+  targetChaseDesc: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12, marginBottom: 2 },
+  targetChaseRRR: { color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
 
   // Leaderboard
-  awardCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 12 },
+  awardCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: 12 },
   awardIconWrap: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  awardLabel: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 },
-  awardPlayerName: { fontSize: 14, fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary },
-  awardTeam: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 1 },
+  awardLabel: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 },
+  awardPlayerName: { fontSize: 14, fontFamily: Typography.fontFamily.semiBold, color: colors.textPrimary },
+  awardTeam: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: colors.textTertiary, marginTop: 1 },
   awardStatBox: { alignItems: 'flex-end' },
-  awardStatValue: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-  awardStatLabel: { fontSize: 10, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, marginTop: 1 },
+  awardStatValue: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.primary },
+  awardStatLabel: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, marginTop: 1 },
 
-  lbFilterRow: { flexDirection: 'row', marginBottom: 12, backgroundColor: Colors.surfaceVariant, borderRadius: BorderRadius.md, padding: 3, borderWidth: 1, borderColor: Colors.border },
+  lbFilterRow: { flexDirection: 'row', marginBottom: 12, backgroundColor: colors.surfaceVariant, borderRadius: BorderRadius.md, padding: 3, borderWidth: 1, borderColor: colors.border },
   lbFilterBtn: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: BorderRadius.sm },
-  lbFilterBtnActive: { backgroundColor: Colors.primary },
-  lbFilterText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary },
-  lbFilterTextActive: { color: Colors.background, fontFamily: Typography.fontFamily.bold },
+  lbFilterBtnActive: { backgroundColor: colors.primary },
+  lbFilterText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: colors.textSecondary },
+  lbFilterTextActive: { color: colors.textOnPrimary, fontFamily: Typography.fontFamily.bold },
 
-  lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 10 },
-  lbRank: { width: 24, fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, textAlign: 'center' },
-  lbRankSm: { width: 18, fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, textAlign: 'center' },
-  lbSimpleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 8 },
-  lbSimpleName: { flex: 3, fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.primary, textDecorationColor: 'rgba(255,255,255,0.15)' },
-  lbSimpleStat: { width: 40, fontSize: 14, fontFamily: Typography.fontFamily.semiBold, color: Colors.textSecondary, textAlign: 'center' },
-  lbSimplePoints: { flex: 1.5, fontSize: 14, fontFamily: Typography.fontFamily.bold, color: Colors.primary, textAlign: 'right' },
-  lbAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
-  lbAvatarText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
-  lbName: { fontSize: 13, fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary },
-  lbTeam: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 1 },
-  lbPoints: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-  lbPointsLabel: { fontSize: 10, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, textAlign: 'right' },
+  lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: 10 },
+  lbRank: { width: 24, fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, textAlign: 'center' },
+  lbRankSm: { width: 18, fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, textAlign: 'center' },
+  lbSimpleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: 8 },
+  lbSimpleName: { flex: 3, fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.primary, textDecorationColor: 'rgba(255,255,255,0.15)' },
+  lbSimpleStat: { width: 40, fontSize: 14, fontFamily: Typography.fontFamily.semiBold, color: colors.textSecondary, textAlign: 'center' },
+  lbSimplePoints: { flex: 1.5, fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.primary, textAlign: 'right' },
+  lbAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  lbAvatarText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  lbName: { fontSize: 13, fontFamily: Typography.fontFamily.semiBold, color: colors.textPrimary },
+  lbTeam: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: colors.textTertiary, marginTop: 1 },
+  lbPoints: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.primary },
+  lbPointsLabel: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, textAlign: 'right' },
 
   partnershipRow: { paddingTop: 10, marginTop: 2 },
-  partnershipText: { color: Colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.medium },
+  partnershipText: { color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.medium },
 
-  commentaryItem: { flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  commentaryBadge: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center', marginRight: 12, backgroundColor: Colors.surfaceVariant },
-  commentaryBadgeText: { color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold },
-  commentaryOver: { color: Colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.medium, marginBottom: 2 },
-  commentaryDesc: { color: Colors.textSecondary, fontSize: 14, fontFamily: Typography.fontFamily.regular },
-  commentaryAction: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
+  commentaryItem: { flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  commentaryBadge: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center', marginRight: 12, backgroundColor: colors.surfaceVariant },
+  commentaryBadgeText: { color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold },
+  commentaryOver: { color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.medium, marginBottom: 2 },
+  commentaryDesc: { color: colors.textSecondary, fontSize: 14, fontFamily: Typography.fontFamily.regular },
+  commentaryAction: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
 
-  squadPlayerName: { color: Colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium, paddingVertical: 6 },
-  emptyText: { color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 14, textAlign: 'center', marginTop: 20 },
+  squadPlayerName: { color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium, paddingVertical: 6 },
+  emptyText: { color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 14, textAlign: 'center', marginTop: 20 },
 
   // ── Footer ───────────────────────────────────────────────────────────────────
   footer: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: colors.border,
   },
   continueBtn: {
     flexDirection: 'row',
@@ -6274,33 +6441,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 15,
     borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.primary,
-    ...Shadows.glow,
+    backgroundColor: colors.primary,
+    ...shadows.glow,
   },
   continueBtnText: {
-    color: Colors.background,
+    color: colors.textOnPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 16,
     letterSpacing: 0.3,
   },
-  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: BorderRadius.md, backgroundColor: Colors.surfaceVariant, justifyContent: 'center', alignItems: 'center' },
-  cancelBtnText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
-  spectatorBtn: { flex: 2, paddingVertical: 14, borderRadius: BorderRadius.md, backgroundColor: Colors.secondary, justifyContent: 'center', alignItems: 'center' },
+  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: BorderRadius.md, backgroundColor: colors.surfaceVariant, justifyContent: 'center', alignItems: 'center' },
+  cancelBtnText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  spectatorBtn: { flex: 2, paddingVertical: 14, borderRadius: BorderRadius.md, backgroundColor: colors.secondary, justifyContent: 'center', alignItems: 'center' },
   spectatorBtnText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
 
   // ── Modals ───────────────────────────────────────────────────────────────────
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { backgroundColor: Colors.surfaceVariant, borderRadius: BorderRadius.xl, padding: 24, width: '80%', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  declareResultOption: { flexDirection: 'row', justifyContent: 'flex-start', paddingVertical: 16, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, alignItems: 'center', width: '100%' },
-  declareResultOptionText: { fontSize: 16, fontFamily: Typography.fontFamily.medium, color: Colors.textPrimary },
-  modalAvatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 2, borderColor: Colors.primary },
-  modalAvatarText: { color: Colors.primary, fontSize: 32, fontFamily: Typography.fontFamily.bold },
-  modalPlayerName: { color: Colors.textPrimary, fontSize: 20, fontFamily: Typography.fontFamily.bold, marginBottom: 24, textAlign: 'center' },
+  modalContent: { backgroundColor: colors.surfaceVariant, borderRadius: BorderRadius.xl, padding: 24, width: '80%', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  declareResultOption: { flexDirection: 'row', justifyContent: 'flex-start', paddingVertical: 16, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: colors.borderLight, alignItems: 'center', width: '100%' },
+  declareResultOptionText: { fontSize: 16, fontFamily: Typography.fontFamily.medium, color: colors.textPrimary },
+  modalAvatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 2, borderColor: colors.primary },
+  modalAvatarText: { color: colors.primary, fontSize: 32, fontFamily: Typography.fontFamily.bold },
+  modalPlayerName: { color: colors.textPrimary, fontSize: 20, fontFamily: Typography.fontFamily.bold, marginBottom: 24, textAlign: 'center' },
   modalActions: { flexDirection: 'row', width: '100%', gap: 12 },
-  modalBtnCancel: { flex: 1, paddingVertical: 13, borderRadius: BorderRadius.md, backgroundColor: Colors.surface, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  modalBtnTextCancel: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 },
-  modalBtnView: { flex: 1, paddingVertical: 13, borderRadius: BorderRadius.md, backgroundColor: Colors.primary, alignItems: 'center' },
-  modalBtnTextView: { color: Colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  modalBtnCancel: { flex: 1, paddingVertical: 13, borderRadius: BorderRadius.md, backgroundColor: colors.surface, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  modalBtnTextCancel: { color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 },
+  modalBtnView: { flex: 1, paddingVertical: 13, borderRadius: BorderRadius.md, backgroundColor: colors.primary, alignItems: 'center' },
+  modalBtnTextView: { color: colors.textOnPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
   // ── Premium Player Preview Modal ─────────────────────────────────────────────
   ppModalOverlay: {
@@ -6312,9 +6479,11 @@ const styles = StyleSheet.create({
   },
   ppCard: {
     width: '100%',
-    backgroundColor: '#111',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
     elevation: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -6339,7 +6508,7 @@ const styles = StyleSheet.create({
   ppCoverFallbackLetter: {
     fontSize: 80,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
     opacity: 0.4,
   },
   ppGradient: {
@@ -6379,7 +6548,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     marginHorizontal: 16,
     marginVertical: 16,
     borderRadius: 12,
@@ -6397,26 +6566,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 12,
-    backgroundColor: '#0d0d0d',
+    backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+    borderTopColor: colors.border,
   },
   ppStatPill: {
     flex: 1,
     alignItems: 'center',
     borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.08)',
+    borderRightColor: colors.border,
     paddingVertical: 4,
   },
   ppStatValue: {
     fontSize: 22,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
   },
   ppStatLabel: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.45)',
+    color: colors.textSecondary,
     marginTop: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -6435,13 +6604,13 @@ const styles = StyleSheet.create({
   timelineLabel: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   timelineTime: {
     fontSize: 14,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
 });
 

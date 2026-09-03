@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,16 +11,16 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch } from 'react-redux';
 import { setGuestMode } from '../authSlice';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 
 const { width } = Dimensions.get('window');
 
-const ACCENT          = Colors.primary;
-const BG              = '#000000';
-const CARD            = '#000000';
-const BORDER          = Colors.primary;
-const TEXT_PRIMARY    = Colors.primary;
-const TEXT_SECONDARY  = Colors.primary;
+
+
+
+
+
+
 
 const slides = [
   {
@@ -43,14 +43,18 @@ const slides = [
   },
 ];
 
+const OnboardingScreen = () => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+
 /* ─── Animated pagination dots ─────────────────────────── */
-const Pagination = ({ data, scrollX }) => (
+const Pagination = ({ data, scrollX, colors }) => (
   <View style={styles.pagination}>
     {data.map((_, i) => {
       const range     = [(i - 1) * width, i * width, (i + 1) * width];
       const dotWidth  = scrollX.interpolate({ inputRange: range, outputRange: [6, 22, 6], extrapolate: 'clamp' });
       const opacity   = scrollX.interpolate({ inputRange: range, outputRange: [0.3, 1, 0.3], extrapolate: 'clamp' });
-      const bg        = scrollX.interpolate({ inputRange: range, outputRange: [BORDER, ACCENT, BORDER], extrapolate: 'clamp' });
+      const bg        = scrollX.interpolate({ inputRange: range, outputRange: [colors.border, colors.primary, colors.border], extrapolate: 'clamp' });
       return (
         <Animated.View
           key={i}
@@ -62,7 +66,7 @@ const Pagination = ({ data, scrollX }) => (
 );
 
 /* ─── Screen ────────────────────────────────────────────── */
-const OnboardingScreen = () => {
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const slidesRef  = useRef(null);
   const scrollX    = useRef(new Animated.Value(0)).current;
@@ -86,7 +90,7 @@ const OnboardingScreen = () => {
       {/* Icon */}
       <View style={styles.iconBlock}>
         <View style={styles.iconCircle}>
-          <Icon name={item.icon} size={52} color={ACCENT} />
+          <Icon name={item.icon} size={52} color={colors.primary} />
         </View>
       </View>
 
@@ -134,7 +138,7 @@ const OnboardingScreen = () => {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Pagination data={slides} scrollX={scrollX} />
+        <Pagination data={slides} scrollX={scrollX} colors={colors} />
 
         <View style={styles.actions}>
           {!isLast ? (
@@ -166,11 +170,8 @@ const OnboardingScreen = () => {
 };
 
 /* ─── Styles ─────────────────────────────────────────────── */
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: BG,
-  },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
   /* Slide */
   slide: {
@@ -189,9 +190,9 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: CARD,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -204,7 +205,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography.fontSize['2xl'],
     fontFamily: Typography.fontFamily.extraBold,
-    color: TEXT_PRIMARY,
+    color: colors.textPrimary,
     textAlign: 'center',
     marginBottom: Spacing.md,
     letterSpacing: 0.3,
@@ -212,7 +213,7 @@ const styles = StyleSheet.create({
   description: {
     fontSize: Typography.fontSize.base,
     fontFamily: Typography.fontFamily.regular,
-    color: TEXT_SECONDARY,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -252,7 +253,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   skipText: {
-    color: TEXT_SECONDARY,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: Typography.fontSize.base,
   },

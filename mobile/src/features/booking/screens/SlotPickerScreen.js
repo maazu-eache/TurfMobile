@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
@@ -62,6 +63,8 @@ for (let h = 0; h < 24; h++) {
 }
 
 const SlotPickerScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const insets = useSafeAreaInsets();
   const { turf, isRescheduling, reschedulingBookingId, oldTotalPrice } = route.params;
   const dispatch = useDispatch();
@@ -421,12 +424,12 @@ const SlotPickerScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
       
       {/* ── Floating 3D Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 18 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-          <Icon name="arrow-left" size={20} color="#FFF" />
+          <Icon name="arrow-left" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isRescheduling ? 'Reschedule Slots' : 'Select Slots'}</Text>
         <View style={{ width: 36 }} />
@@ -550,7 +553,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
               </Text>
             </TouchableOpacity>
             
-            <Text style={{ color: 'rgba(255,255,255,0.4)', marginHorizontal: 8 }}>to</Text>
+            <Text style={{ color: colors.textSecondary, marginHorizontal: 8 }}>to</Text>
             
             <TouchableOpacity style={styles.filterInput} onPress={() => setShowNativeToPicker(true)}>
               <Icon name="clock-outline" size={14} color="#FFD400" style={{ marginRight: 6 }} />
@@ -765,7 +768,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                 contentContainerStyle={{ paddingVertical: 4 }}
               >
                 {processedSlots.length === 0 ? (
-                  <Text style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginVertical: 24, fontFamily: Typography.fontFamily.medium }}>
+                  <Text style={{ color: colors.textSecondary, textAlign: 'center', marginVertical: 24, fontFamily: Typography.fontFamily.medium }}>
                     No slots found in this time range.
                   </Text>
                 ) : processedSlots.map((slot) => {
@@ -1051,11 +1054,11 @@ const SlotPickerScreen = ({ route, navigation }) => {
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).subtract(1, 'month'))}>
-                  <Icon name="chevron-left" size={24} color="#FFF" />
+                  <Icon name="chevron-left" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.modalTitle}>{calendarMonth.format('MMMM YYYY')}</Text>
                 <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).add(1, 'month'))}>
-                  <Icon name="chevron-right" size={24} color="#FFF" />
+                  <Icon name="chevron-right" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
 
@@ -1092,7 +1095,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
                           setActivePicker('none');
                         }}
                       >
-                        <Text style={[styles.calDayText, isPast && { color: 'rgba(255,255,255,0.2)' }, isSel && { color: '#000' }]}>{i}</Text>
+                        <Text style={[styles.calDayText, isPast && { color: isDark ? 'rgba(255,255,255,0.2)' : colors.textDisabled }, isSel && { color: '#000' }]}>{i}</Text>
                       </TouchableOpacity>
                     );
                   }
@@ -1152,18 +1155,18 @@ const SlotPickerScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   center: { justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { color: 'rgba(255,255,255,0.6)', fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm },
+  loadingText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm },
   scroll: { paddingBottom: 160 },
 
   /* ── Floating 3D Header ── */
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingBottom: 16,
-    backgroundColor: '#0F0F0F',
-    borderBottomWidth: 1, borderColor: '#2A2A2A',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1, borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4, shadowRadius: 8,
@@ -1172,25 +1175,25 @@ const styles = StyleSheet.create({
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#171717',
+    backgroundColor: isDark ? '#171717' : colors.surfaceVariant,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#2A2A2A',
+    borderWidth: 1, borderColor: colors.border,
   },
-  headerTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
+  headerTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
 
   /* ── Horizontal Date Selector ── */
   datePickerContainer: {
     marginTop: 14,
     paddingTop: 8,
     paddingBottom: 14,
-    backgroundColor: '#000',
+    backgroundColor: colors.background,
   },
   dateScroll: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
   calendarBtn: {
     width: 64, height: 86, borderRadius: 20,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: colors.surface,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: '#2A2A2A', borderStyle: 'dashed',
+    borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed',
   },
   calendarBtnText: { fontSize: 10, color: '#FFD400', fontFamily: Typography.fontFamily.bold, marginTop: 4 },
   dateBox: {
@@ -1202,13 +1205,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   dateBoxInactive: {
-    backgroundColor: '#0F0F0F',
-    borderWidth: 1, borderColor: '#2A2A2A',
-    borderBottomWidth: 3, borderBottomColor: '#171717', // extrusion
+    backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.border,
+    borderBottomWidth: 3, borderBottomColor: colors.borderLight, // extrusion
     transform: [{ perspective: 1000 }, { rotateX: '6deg' }, { rotateY: '-4deg' }],
   },
   dateBoxSelected: {
-    backgroundColor: '#171717',
+    backgroundColor: isDark ? '#171717' : colors.surfaceVariant,
     borderWidth: 1, borderColor: '#FFD400',
     borderBottomWidth: 4, borderBottomColor: '#BCA100', // yellow extrusion
     transform: [{ scale: 1.02 }],
@@ -1217,9 +1220,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25, shadowRadius: 10,
     elevation: 8,
   },
-  dateDay: { fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
-  dateNum: { fontSize: 20, color: '#FFF', fontFamily: Typography.fontFamily.bold, marginVertical: 1 },
-  dateMonth: { fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: Typography.fontFamily.medium },
+  dateDay: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase' },
+  dateNum: { fontSize: 20, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginVertical: 1 },
+  dateMonth: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold },
   dateTextSelected: { color: '#FFD400' },
 
   /* ── Availability Summary Card ── */
@@ -1228,8 +1231,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
     borderRadius: 22,
-    backgroundColor: '#0F0F0F',
-    borderWidth: 1, borderColor: '#2A2A2A',
+    backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.border,
     padding: 16,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     shadowColor: '#000',
@@ -1238,25 +1241,25 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   summaryLeft: { flex: 1 },
-  summaryTitle: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginBottom: 12 },
+  summaryTitle: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 12 },
   statsRow: { flexDirection: 'row', gap: 18 },
   statBlock: { flexDirection: 'column' },
-  statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' },
-  statValue: { fontSize: 16, fontFamily: Typography.fontFamily.extraBold, color: '#FFF', marginTop: 2 },
+  statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, textTransform: 'uppercase' },
+  statValue: { fontSize: 16, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary, marginTop: 2 },
   statsCircularProgress: {
     width: 60, height: 60, borderRadius: 30,
-    borderWidth: 4, borderColor: '#2A2A2A',
+    borderWidth: 4, borderColor: colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  progressText: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: '#FFF' },
+  progressText: { fontSize: 14, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary },
   progressSubText: { fontSize: 7, fontFamily: Typography.fontFamily.bold, color: '#FFD400', textTransform: 'uppercase', marginTop: -2 },
 
   /* ── Expandable Time Groups ── */
   groupsContainer: { marginHorizontal: 16, marginTop: 6, gap: 14 },
   groupTile: {
-    backgroundColor: '#0F0F0F',
+    backgroundColor: colors.surface,
     borderRadius: 20,
-    borderWidth: 1, borderColor: '#2A2A2A',
+    borderWidth: 1, borderColor: colors.border,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -1267,15 +1270,15 @@ const styles = StyleSheet.create({
   groupHeader: {
     padding: 16,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#0F0F0F',
+    backgroundColor: colors.surface,
   },
   groupHeaderExpanded: {
-    borderBottomWidth: 1, borderBottomColor: '#2A2A2A',
-    backgroundColor: '#171717',
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: isDark ? '#171717' : colors.surfaceVariant,
   },
   groupHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
-  groupLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
-  groupDesc: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.4)', marginTop: 1 },
+  groupLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  groupDesc: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginTop: 1 },
   groupHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   popularBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
@@ -1284,8 +1287,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   popularText: { color: '#000', fontSize: 8, fontFamily: Typography.fontFamily.bold },
-  groupContent: { padding: 14, backgroundColor: '#0F0F0F' },
-  noSlotsText: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 10 },
+  groupContent: { padding: 14, backgroundColor: colors.surface },
+  noSlotsText: { color: colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 10 },
 
   /* ── Slot Grid & 3D Mini Cards ── */
   slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: '2.5%', justifyContent: 'flex-start' },
@@ -1308,43 +1311,43 @@ const styles = StyleSheet.create({
 
   // Slot States Styles
   slotCardAvailable: {
-    backgroundColor: '#0F0F0F',
+    backgroundColor: colors.surface,
     borderWidth: 1, borderColor: '#FFD400',
     borderBottomWidth: 3, borderBottomColor: '#6A5600', // yellow extrusion
   },
-  slotTextAvailable: { color: '#FFF' },
+  slotTextAvailable: { color: colors.textPrimary },
   slotCardSelected: {
-    backgroundColor: '#171717',
-    borderWidth: 1.5, borderColor: '#FFD400',
-    borderBottomWidth: 4, borderBottomColor: '#BCA100', // thick yellow extrusion
+    backgroundColor: isDark ? '#171717' : '#FFF9D6',
+    borderWidth: 2, borderColor: isDark ? '#FFD400' : colors.primaryDark,
+    borderBottomWidth: 4, borderBottomColor: '#BCA100',
     transform: [{ scale: 1.05 }, { translateY: -4 }, { perspective: 1000 }, { rotateX: '6deg' }],
     shadowColor: '#FFD400',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3, shadowRadius: 8,
     elevation: 8,
   },
-  slotTextSelected: { color: '#FFD400' },
+  slotTextSelected: { color: isDark ? '#FFD400' : '#8A6D00' },
   slotCardBooked: {
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1, borderColor: '#2A2A2A',
+    backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.border,
     borderBottomWidth: 1,
     opacity: 0.45,
   },
-  slotTextBooked: { color: 'rgba(255,255,255,0.3)' },
+  slotTextBooked: { color: colors.textDisabled },
   slotCardPast: {
-    backgroundColor: '#0A0A0A',
-    borderWidth: 1, borderColor: '#222',
+    backgroundColor: isDark ? '#0A0A0A' : colors.surfaceVariant,
+    borderWidth: 1, borderColor: colors.border,
     borderBottomWidth: 1,
-    opacity: 0.3,
+    opacity: isDark ? 0.3 : 0.6,
   },
-  slotTextPast: { color: 'rgba(255,255,255,0.2)' },
+  slotTextPast: { color: colors.textTertiary },
 
   /* ── Bottom Summary Booking Card ── */
   bottomBookingCard: {
     position: 'absolute', bottom: 16, left: 16, right: 16,
     height: 72, borderRadius: 36,
-    backgroundColor: 'rgba(22,22,22,0.95)',
-    borderWidth: 1, borderColor: '#2A2A2A',
+    backgroundColor: isDark ? 'rgba(22,22,22,0.95)' : colors.surface,
+    borderWidth: 1, borderColor: colors.border,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 24,
     shadowColor: '#000',
@@ -1354,8 +1357,8 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   bookingLeft: { flexDirection: 'column' },
-  selectedCountLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
-  selectedPrice: { color: '#FFF', fontSize: 20, fontFamily: Typography.fontFamily.bold, marginTop: 1 },
+  selectedCountLabel: { color: colors.textTertiary, fontSize: 9, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase' },
+  selectedPrice: { color: colors.textPrimary, fontSize: 20, fontFamily: Typography.fontFamily.bold, marginTop: 1 },
   continueBtn: { borderRadius: 20, overflow: 'hidden', shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 },
   continueBtnDisabled: { opacity: 0.4, shadowOpacity: 0 },
   continueBtnGrad: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 20 },
@@ -1363,93 +1366,73 @@ const styles = StyleSheet.create({
 
   /* ── Bulk Booking Modal & Base Modals ── */
   modalOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-  modalContent: { width: '88%', backgroundColor: '#0F0F0F', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#2A2A2A', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 15, elevation: 12 },
+  modalContent: { width: '88%', backgroundColor: colors.surface, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 15, elevation: 12 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 16, color: '#FFF', fontFamily: Typography.fontFamily.bold },
-  modalClose: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#171717', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
-  label: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginBottom: 6, marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  pickerInput: { flex: 1, backgroundColor: '#171717', borderRadius: 12, paddingHorizontal: 12, height: 44, justifyContent: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
-  pickerText: { color: '#FFF', fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  modalTitle: { fontSize: 16, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
+  modalClose: { width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? '#171717' : colors.surfaceVariant, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
+  label: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 6, marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  pickerInput: { flex: 1, backgroundColor: isDark ? '#171717' : colors.surfaceVariant, borderRadius: 12, paddingHorizontal: 12, height: 44, justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
+  pickerText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
   daysGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  dayChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: '#2A2A2A', backgroundColor: '#171717' },
+  dayChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: isDark ? '#171717' : colors.surfaceVariant },
   dayChipSel: { backgroundColor: '#FFD400', borderColor: '#FFD400' },
-  dayChipText: { color: 'rgba(255,255,255,0.6)', fontFamily: Typography.fontFamily.bold, fontSize: 11 },
+  dayChipText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 11 },
   searchBtn: { backgroundColor: '#FFD400', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 },
   searchBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
 
-  previewContainer: { padding: 12, backgroundColor: '#171717', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A' },
-  previewTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginBottom: 12, textAlign: 'center' },
+  previewContainer: { padding: 12, backgroundColor: isDark ? '#171717' : colors.surfaceVariant, borderRadius: 16, borderWidth: 1, borderColor: colors.border },
+  previewTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 12, textAlign: 'center' },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
   previewRowDivider: { borderTopWidth: 1, borderTopColor: '#2A2A2A', paddingTop: 10, marginTop: 8 },
-  previewLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: 'rgba(255,255,255,0.5)' },
-  previewValue: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: '#FFF' },
-  previewLabelPay: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
+  previewLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary },
+  previewValue: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textPrimary },
+  previewLabelPay: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   previewValuePay: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#FFD400' },
-  previewCancelBtn: { flex: 1, backgroundColor: '#171717', paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
-  previewCancelBtnText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  previewCancelBtn: { flex: 1, backgroundColor: isDark ? '#171717' : colors.surfaceVariant, paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  previewCancelBtnText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
   previewAddBtn: { flex: 1, backgroundColor: '#FFD400', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
   previewAddBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
 
   /* ── Time & Calendar Grids ── */
   timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-start', paddingBottom: 10 },
-  timeBox: { width: '23%', paddingVertical: 10, backgroundColor: '#171717', borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#2A2A2A', marginBottom: 6 },
+  timeBox: { width: '23%', paddingVertical: 10, backgroundColor: isDark ? '#171717' : colors.surfaceVariant, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border, marginBottom: 6 },
   timeBoxSel: { backgroundColor: '#FFD400', borderColor: '#FFD400' },
-  timeText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 10 },
+  timeText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 10 },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
-  dayOfWeek: { width: '14.28%', textAlign: 'center', color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontFamily: Typography.fontFamily.bold, fontSize: 11 },
+  dayOfWeek: { width: '14.28%', textAlign: 'center', color: colors.textTertiary, marginBottom: 8, fontFamily: Typography.fontFamily.bold, fontSize: 11 },
   calDay: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginBottom: 6, borderRadius: 12 },
   calDaySel: { backgroundColor: '#FFD400' },
-  calDayText: { color: '#FFF', fontFamily: Typography.fontFamily.medium, fontSize: 12 },
-  closeModalBtn: { marginTop: 16, padding: 12, backgroundColor: '#171717', borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
-  closeModalText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
-  cancellationPolicyContainer: {
-    marginHorizontal: 16,
-    marginTop: 20,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    padding: 14,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  cancellationPolicyTitle: {
-    fontSize: 11,
-    fontFamily: Typography.fontFamily.bold,
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: 4,
-  },
-  cancellationPolicyText: {
-    fontSize: 10,
-    fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.5)',
-    lineHeight: 14,
-  },
+  calDayText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
+  closeModalBtn: { marginTop: 16, padding: 14, backgroundColor: isDark ? '#171717' : colors.surfaceVariant, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  closeModalText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  cancellationPolicyContainer: { marginHorizontal: 16, marginTop: 20, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceVariant, padding: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: colors.border },
+  cancellationPolicyTitle: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 4 },
+  cancellationPolicyText: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, lineHeight: 16 },
 
   /* ── Policy Modal Styles ── */
   policyModalOverlay: { flex: 1, justifyContent: 'flex-end' },
   policyModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)' },
-  policyModalContent: { backgroundColor: '#1A1A1A', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  policyModalContent: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   policyModalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  policyModalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: '#FFF', marginLeft: 12 },
-  policyModalText: { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontFamily: Typography.fontFamily.regular, marginBottom: 12, lineHeight: 22 },
+  policyModalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginLeft: 12 },
+  policyModalText: { fontSize: 14, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginBottom: 12, lineHeight: 22 },
   policyModalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
-  policyModalCancelBtn: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#2A2A2A', alignItems: 'center' },
-  policyModalCancelText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  policyModalCancelBtn: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: isDark ? '#2A2A2A' : colors.surfaceVariant, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  policyModalCancelText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
   policyModalConfirmBtn: { flex: 2, padding: 16, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center' },
   policyModalConfirmText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
 
   /* ── Toggle Switch Styles ── */
   toggleContainer: {
     flexDirection: 'row',
-    backgroundColor: '#171717',
+    backgroundColor: isDark ? '#171717' : colors.surfaceVariant,
     borderRadius: 24,
     padding: 4,
     marginHorizontal: 16,
     marginTop: 4,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
   },
   toggleBtn: {
     flex: 1,
@@ -1461,15 +1444,8 @@ const styles = StyleSheet.create({
   toggleBtnActive: {
     backgroundColor: '#FFD400',
   },
-  toggleBtnText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  toggleBtnTextActive: {
-    color: '#000',
-  },
+  toggleBtnText: { color: isDark ? 'rgba(255,255,255,0.6)' : colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 13, textAlign: 'center' },
+  toggleBtnTextActive: { color: '#000000', fontFamily: Typography.fontFamily.bold },
 
   /* ── Time Filter Styles ── */
   filterContainer: {
@@ -1477,19 +1453,12 @@ const styles = StyleSheet.create({
     marginTop: 0,
     marginBottom: 16,
     padding: 12,
-    backgroundColor: '#171717',
+    backgroundColor: isDark ? '#171717' : colors.surfaceVariant,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
   },
-  filterHeaderLabel: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 10,
-    fontFamily: Typography.fontFamily.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
+  filterHeaderLabel: { color: colors.textTertiary, fontSize: 10, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1498,17 +1467,17 @@ const styles = StyleSheet.create({
   filterInput: {
     flex: 1,
     height: 38,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
   filterText: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
   },
@@ -1545,7 +1514,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#161616',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     padding: 16,
   },
   fsModalHeader: {
@@ -1558,7 +1527,7 @@ const styles = StyleSheet.create({
   fsModalTitle: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFF',
+    color: colors.textPrimary,
   },
   fsModalSubtitle: {
     fontSize: 12,
@@ -1607,7 +1576,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: '#FFF',
+    color: colors.textPrimary,
     marginLeft: 8,
   },
   fsSlotBadge: {
@@ -1624,7 +1593,7 @@ const styles = StyleSheet.create({
   fsSlotPrice: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFF',
+    color: colors.textPrimary,
     minWidth: 44,
     textAlign: 'right',
   },
@@ -1642,12 +1611,12 @@ const styles = StyleSheet.create({
   fsFooterLabel: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.textSecondary,
   },
   fsFooterPriceLabel: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: '#FFF',
+    color: colors.textPrimary,
   },
   fsBookNowBtn: {
     height: 44,
@@ -1679,7 +1648,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#111',
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.borderLight,
     borderRadius: 12,
     padding: 10,
     marginHorizontal: 16,
@@ -1694,7 +1663,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   legendText: {
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.textSecondary,
     fontSize: 10,
     fontFamily: Typography.fontFamily.medium,
     flex: 1,

@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
 import {
   View,
   Text,
@@ -91,6 +92,8 @@ const getMinPrice = (pricing) => {
 // Removed hardcoded CARD_HEIGHTS to use dynamic measurement for a flawless Apple Wallet stack
 
 const TurfDetailScreen = ({ route, navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { id } = route.params;
   const dispatch = useDispatch();
   const { user, isAuthenticated } = useSelector((state) => state.auth);
@@ -326,7 +329,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
         return (
           <View key={row.key} style={styles.pricingCardRow}>
             <View style={styles.pricingLabelBlock}>
-              <Icon name={row.icon} size={14} color="rgba(255,255,255,0.6)" style={{ marginRight: 6 }} />
+              <Icon name={row.icon} size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
               <Text style={styles.pricingDayLabel}>{row.label}</Text>
             </View>
             <View style={styles.pricingDivider} />
@@ -545,7 +548,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
@@ -848,7 +851,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
           
           <View style={styles.galleryModalCard}>
             <TouchableOpacity style={styles.galleryModalCloseBtn} onPress={() => setSelectedImageIndex(null)}>
-              <Icon name="close" size={20} color="#FFF" />
+              <Icon name="close" size={20} color={colors.textPrimary} />
             </TouchableOpacity>
             
             {selectedImageIndex !== null && (
@@ -879,8 +882,8 @@ const TurfDetailScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   center: { justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm },
   scroll: { paddingBottom: 120 },
@@ -889,15 +892,15 @@ const styles = StyleSheet.create({
   fullScreenImageContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.78)', justifyContent: 'center', alignItems: 'center' },
   galleryModalCard: {
     width: SCREEN_WIDTH - 32,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.border,
     paddingVertical: 16,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
+    shadowOpacity: isDark ? 0.5 : 0.15,
     shadowRadius: 16,
     elevation: 10,
   },
@@ -905,15 +908,17 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginRight: 16,
     marginBottom: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   galleryModalFooterText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.medium,
     marginTop: 10,
@@ -932,7 +937,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
-  paginationText: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 11 },
+  paginationText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 11 },
   heroFloatingBadge: {
     position: 'absolute', left: 16, bottom: 50,
     flexDirection: 'row', alignItems: 'center',
@@ -948,7 +953,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 24,
     padding: 18,
-    backgroundColor: '#161616',
+    backgroundColor: colors.surface,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -964,7 +969,7 @@ const styles = StyleSheet.create({
   glassTitle: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.extraBold,
-    color: '#FFF',
+    color: colors.textPrimary,
     flex: 1,
     lineHeight: 24,
   },
@@ -977,7 +982,7 @@ const styles = StyleSheet.create({
   ratingTextGold: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 11 },
 
   locationRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginBottom: 12 },
-  locationText: { color: 'rgba(255,255,255,0.65)', fontFamily: Typography.fontFamily.medium, fontSize: 12, flex: 1 },
+  locationText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12, flex: 1 },
 
   badgesRow: { flexDirection: 'row', gap: 6, marginBottom: 16, flexWrap: 'wrap' },
   verifiedBadgeCompact: {
@@ -1009,16 +1014,16 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.06)', paddingTop: 12,
   },
   priceContainer: { flexDirection: 'column' },
-  priceLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
-  priceValue: { color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
-  priceUnit: { color: 'rgba(255,255,255,0.5)', fontSize: 11, fontFamily: Typography.fontFamily.medium },
+  priceLabel: { color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
+  priceValue: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  priceUnit: { color: colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.medium },
 
   /* ── Card Stack Morphism (Standard stack card) ── */
   stackCard: {
     marginHorizontal: 16,
     borderRadius: 22,
     padding: 18,
-    backgroundColor: '#161616',
+    backgroundColor: colors.surface,
     borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.06)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -1028,7 +1033,7 @@ const styles = StyleSheet.create({
     marginTop: 16, // Beautiful spacing between cards naturally
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  cardHeaderTitle: { color: '#FFF', fontSize: 14, fontFamily: Typography.fontFamily.bold, marginLeft: 8 },
+  cardHeaderTitle: { color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.bold, marginLeft: 8 },
 
   /* ── CARD 1: Quick Information Grid (2x3 Grid) ── */
   grid2x3: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
@@ -1040,19 +1045,14 @@ const styles = StyleSheet.create({
     borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.04)',
   },
   gridIcon: { marginBottom: 6 },
-  gridLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: Typography.fontFamily.medium },
-  gridValue: { color: '#FFF', fontSize: 11, fontFamily: Typography.fontFamily.bold, marginTop: 2 },
+  gridLabel: { color: colors.textTertiary, fontSize: 9, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase' },
+  gridValue: { color: colors.textPrimary, fontSize: 11, fontFamily: Typography.fontFamily.bold, marginTop: 2 },
 
   /* ── CARD 2: About ── */
   aboutContainer: {
     paddingVertical: 2,
   },
-  aboutText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 12,
-    lineHeight: 18,
-    fontFamily: Typography.fontFamily.regular,
-  },
+  aboutText: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, fontFamily: Typography.fontFamily.medium },
 
   /* ── CARD 3: Pricing Stack ── */
   pricingStack: { gap: 10 },
@@ -1063,7 +1063,7 @@ const styles = StyleSheet.create({
     borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.04)',
   },
   pricingLabelBlock: { flexDirection: 'row', alignItems: 'center', width: 120 },
-  pricingDayLabel: { color: '#FFF', fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  pricingDayLabel: { color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.bold },
   pricingDivider: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginHorizontal: 12 },
   pricingAmount: { color: '#FFCC00', fontSize: 14, fontFamily: Typography.fontFamily.extraBold },
 
@@ -1076,7 +1076,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 8, paddingHorizontal: 12,
   },
-  amenityText: { color: '#FFF', fontSize: 12, fontFamily: Typography.fontFamily.semiBold },
+  amenityText: { color: colors.textPrimary, fontSize: 12, fontFamily: Typography.fontFamily.semiBold },
 
   /* ── CARD 5: Gallery Card ── */
   galleryScroll: { gap: 10 },
@@ -1097,14 +1097,14 @@ const styles = StyleSheet.create({
     borderRadius: 14, padding: 12, marginBottom: 14,
   },
   overviewScoreBlock: { alignItems: 'center', width: 100 },
-  overviewScore: { color: '#FFF', fontSize: 26, fontFamily: Typography.fontFamily.extraBold },
+  overviewScore: { color: colors.textPrimary, fontSize: 26, fontFamily: Typography.fontFamily.extraBold },
   overviewStars: { flexDirection: 'row', gap: 2, marginVertical: 4 },
-  overviewCount: { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontFamily: Typography.fontFamily.medium },
+  overviewCount: { color: colors.textSecondary, fontSize: 10, fontFamily: Typography.fontFamily.medium },
   overviewDivider: { width: 1, height: 50, backgroundColor: 'rgba(255,255,255,0.08)' },
   topReviewQuote: { flex: 1, paddingLeft: 14 },
-  quoteText: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontFamily: Typography.fontFamily.medium, fontStyle: 'italic', lineHeight: 15 },
+  quoteText: { color: colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.medium, fontStyle: 'italic', lineHeight: 15 },
   quoteAuthor: { color: '#FFCC00', fontSize: 9, fontFamily: Typography.fontFamily.bold, marginTop: 4 },
-  emptyReviewsLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 10 },
+  emptyReviewsLabel: { color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 10 },
   reviewList: { gap: 10, marginTop: 10 },
   reviewCard: {
     backgroundColor: 'rgba(255,255,255,0.02)',
@@ -1114,10 +1114,10 @@ const styles = StyleSheet.create({
   reviewCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   reviewerAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.1)' },
   reviewerInfo: { flex: 1, marginLeft: 8 },
-  reviewerName: { color: '#FFF', fontSize: 11, fontFamily: Typography.fontFamily.bold },
+  reviewerName: { color: colors.textPrimary, fontSize: 11, fontFamily: Typography.fontFamily.bold },
   starsRow: { flexDirection: 'row', gap: 2, marginTop: 2 },
-  reviewDate: { color: 'rgba(255,255,255,0.3)', fontSize: 9, fontFamily: Typography.fontFamily.medium },
-  reviewText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontFamily: Typography.fontFamily.regular, lineHeight: 16 },
+  reviewDate: { color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.medium },
+  reviewText: { color: colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.regular, lineHeight: 16 },
 
   /* ── CARD 7: Similar Turfs ── */
   similarScroll: { gap: 10 },
@@ -1129,9 +1129,9 @@ const styles = StyleSheet.create({
   },
   similarCardImg: { width: '100%', height: 80, resizeMode: 'cover' },
   similarCardContent: { padding: 8, gap: 2 },
-  similarCardName: { color: '#FFF', fontSize: 11, fontFamily: Typography.fontFamily.bold },
+  similarCardName: { color: colors.textPrimary, fontSize: 11, fontFamily: Typography.fontFamily.bold },
   similarCardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  similarCardMetaText: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: Typography.fontFamily.medium },
+  similarCardMetaText: { color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.medium },
   similarCardMetaDot: { color: 'rgba(255,255,255,0.2)', fontSize: 8 },
   similarCardPrice: { color: '#FFCC00', fontSize: 10, fontFamily: Typography.fontFamily.extraBold, marginTop: 4 },
 
@@ -1145,19 +1145,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 10,
   },
   topBarRight: { flexDirection: 'row', gap: 10 },
-  floatingIconBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)',
-  },
+  floatingIconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
   floatingIconBtnFav: { backgroundColor: 'rgba(255,71,87,0.2)' },
 
   /* ── Bottom Sticky Booking Bar ── */
   bottomStickyBar: {
     position: 'absolute', bottom: 16, left: 16, right: 16,
     height: 72, borderRadius: 36,
-    backgroundColor: 'rgba(22,22,22,0.95)',
+    backgroundColor: isDark ? 'rgba(22,22,22,0.95)' : colors.surface,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 24,
@@ -1169,10 +1164,10 @@ const styles = StyleSheet.create({
     zIndex: 200, // Bottom bar stays on top of everything
   },
   bottomPriceBlock: { flexDirection: 'column' },
-  bottomPriceLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
+  bottomPriceLabel: { color: colors.textSecondary, fontSize: 9, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
   bottomPriceRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 1 },
-  bottomPriceValue: { color: '#FFF', fontSize: 18, fontFamily: Typography.fontFamily.bold },
-  bottomPriceUnit: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontFamily: Typography.fontFamily.medium, marginLeft: 2 },
+  bottomPriceValue: { color: colors.textPrimary, fontSize: 18, fontFamily: Typography.fontFamily.bold },
+  bottomPriceUnit: { color: colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.medium, marginLeft: 2 },
   bookingPillBtn: { borderRadius: 20, overflow: 'hidden', shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 },
   bookingPillBtnGrad: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 20 },
   bookingBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
@@ -1187,7 +1182,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 212, 0, 0.1)',
   },
   detailLocationBtnText: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 13,
   },
@@ -1195,7 +1190,7 @@ const styles = StyleSheet.create({
   /* ── Rating modal ── */
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: '#161616',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 20,
@@ -1205,17 +1200,17 @@ const styles = StyleSheet.create({
   sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.1)', alignSelf: 'center', marginBottom: 12 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   modalTitleBlock: { flex: 1 },
-  modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: '#FFF' },
+  modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   modalSubtitle: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },
   modalCloseBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' },
   starsContainer: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 8 },
   ratingLabel: { textAlign: 'center', color: '#FFCC00', fontFamily: Typography.fontFamily.bold, fontSize: 14, marginBottom: 16 },
   commentInput: {
-    backgroundColor: '#000',
+    backgroundColor: colors.background,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: 12,
     padding: 12,
-    color: '#FFF',
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
     height: 100, textAlignVertical: 'top',
     marginBottom: 16,

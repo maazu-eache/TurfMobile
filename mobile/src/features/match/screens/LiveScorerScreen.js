@@ -8,7 +8,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { scoreBall, undoBall, fetchLiveState, addMatchScorer, setInitialPlayers, setLiveState } from '../matchSlice';
 import api, { BASE_URL, getImageUrl } from '../../../api/axios';
 import socketService from '../../../services/socketService';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import GoldenSpinner from '../../../components/GoldenSpinner';
 import SharePreviewModal from '../../tournament/components/SharePreviewModal';
@@ -79,6 +79,8 @@ const ScoreBtn3D = ({ onPress, style, children, lift = 5 }) => {
 const globalAlwaysSkipWagonWheel = {};
 
 const LiveScorerScreen = ({ navigation, route }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const matchIdRaw = route.params?.matchId || route.params?.id || route.params?.match?._id || route.params?.match;
   const cleanMatchId = socketService.cleanId(matchIdRaw);
   const matchId = cleanMatchId;
@@ -739,7 +741,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
               {dlsPar !== null && dlsPar > 0 ? (() => {
                 const isAhead = s?.runs > dlsPar;
                 const isBehind = s?.runs < dlsPar;
-                const color = isAhead ? '#22c55e' : isBehind ? '#ef4444' : Colors.textSecondary;
+                const color = isAhead ? '#22c55e' : isBehind ? '#ef4444' : colors.textSecondary;
                 const statusText = isAhead ? 'Ahead' : isBehind ? 'Behind' : 'On Par';
                 const statusIcon = isAhead ? '▲' : isBehind ? '▼' : '=';
                 const battingName = battingTeam === m?.teamA?._id ? m?.teamA?.name : m?.teamB?.name;
@@ -767,12 +769,12 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
   if (isFinishing) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }]}>
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginBottom: 16 }} />
-        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 18 }}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginBottom: 16 }} />
+        <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 18 }}>
           Finalizing Match...
         </Text>
-        <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginTop: 8 }}>
+        <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14, marginTop: 8 }}>
           Calculating scorecard and awards
         </Text>
       </View>
@@ -1708,10 +1710,17 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 { marginRight: 7 },
                 isWicket && styles.ballWicket,
                 isFour && { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
-                isSix && { backgroundColor: '#2196F3', borderColor: '#2196F3' },
-                isZero && { backgroundColor: Colors.surfaceVariant, borderColor: Colors.border }
+                isSix && { backgroundColor: colors.primary, borderColor: colors.primary },
+                isZero && { backgroundColor: colors.surfaceVariant, borderColor: colors.border }
               ]}>
-                <Text style={[styles.ballText, (isWicket || isFour || isSix) && { color: '#FFF' }, isZero && { color: Colors.textSecondary }]}>{ball.display}</Text>
+                <Text style={[
+                  styles.ballText, 
+                  (isWicket || isFour) && { color: '#FFF' }, 
+                  isSix && { color: '#000000', fontFamily: Typography.fontFamily.bold },
+                  isZero && { color: colors.textSecondary }
+                ]}>
+                  {ball.display}
+                </Text>
               </View>
             );
           })}
@@ -1729,7 +1738,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {isScoring && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }]}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       )}
       {scoringToast ? (
@@ -1740,7 +1749,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBackPress} style={styles.headerBackBtn}>
-          <Icon name="arrow-left" size={20} color={Colors.textPrimary} />
+          <Icon name="arrow-left" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <View style={styles.headerTeamsRow}>
@@ -1757,8 +1766,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
             <Text style={styles.headerLiveText}>LIVE</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={() => setShowSettingsModal(true)} style={[styles.headerActionBtn, { backgroundColor: Colors.primaryAlpha20 }]}>
-          <Icon name="cog" size={18} color={Colors.primary} />
+        <TouchableOpacity onPress={() => setShowSettingsModal(true)} style={[styles.headerActionBtn, { backgroundColor: colors.primaryAlpha20 }]}>
+          <Icon name="cog" size={18} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -1783,7 +1792,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             return (
               <View style={{ width: '100%' }}>
                 <View style={styles.playersGridHeader}>
-                  <Icon name="cricket" size={12} color={Colors.textTertiary} />
+                  <Icon name="cricket" size={12} color={colors.textTertiary} />
                   <Text style={styles.playersGridHeaderText}>Batting</Text>
                 </View>
               <View style={styles.battingRow}>
@@ -1866,7 +1875,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                             return balls > 0 ? ((displayBowlerStats.runs / balls) * 6).toFixed(2) : '0.00';
                           })()}
                         </Text>
-                        {isScorer && (!currentOverBalls || currentOverBalls.length === 0) ? <Icon name="chevron-right" size={16} color={Colors.textTertiary} /> : null}
+                        {isScorer && (!currentOverBalls || currentOverBalls.length === 0) ? <Icon name="chevron-right" size={16} color={colors.textTertiary} /> : null}
                       </TouchableOpacity>
                     );
                   })()}
@@ -1880,7 +1889,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
         {!isScorer ? (
           <View style={styles.readOnlyContainer}>
-            <Icon name="shield-lock-outline" size={32} color={Colors.textTertiary} />
+            <Icon name="shield-lock-outline" size={32} color={colors.textTertiary} />
             <Text style={styles.readOnlyText}>You are viewing this match as a spectator.</Text>
             <TouchableOpacity style={styles.actionBtnPrimary} onPress={() => navigation.navigate('MatchSummary', { matchId: match._id, initialTab: 'Scorecard' })}>
               <Text style={[styles.actionBtnText, styles.textDark]}>Full Scorecard</Text>
@@ -1921,14 +1930,14 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       <Text style={styles.keypadActionBtnSecondaryText}>UNDO BALL</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.keypadActionBtn, { flex: 1, height: 44, backgroundColor: Colors.error }]}
+                      style={[styles.keypadActionBtn, { flex: 1, height: 44, backgroundColor: colors.error }]}
                       onPress={() => executeSettingsAction('end_innings')}
                     >
                       <Text style={styles.keypadActionBtnText}>END (DRAW)</Text>
                     </TouchableOpacity>
                   </View>
                   <TouchableOpacity
-                    style={[styles.keypadActionBtn, { backgroundColor: Colors.accent, height: 50 }]}
+                    style={[styles.keypadActionBtn, { backgroundColor: colors.accent, height: 50 }]}
                     onPress={() => executeSettingsAction('super_over')}
                   >
                     <Text style={[styles.keypadActionBtnText, { fontSize: 16 }]}>⚡ SUPER OVER</Text>
@@ -1953,7 +1962,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.keypadActionBtn, { flex: 1, height: 50, backgroundColor: Colors.accent }]}
+                    style={[styles.keypadActionBtn, { flex: 1, height: 50, backgroundColor: colors.accent }]}
                     onPress={() => {
                       showCustomAlert(
                         isMatchComplete || isTargetAchieved ? "End Match" : "End Innings",
@@ -1975,7 +1984,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
           ) : (liveState?.needsBowler || !bowler) && !batterNeeded ? (
             <View style={styles.needsBowlerCard}>
               <View style={styles.needsBowlerIconRow}>
-                <Icon name="cricket" size={28} color={Colors.primary} />
+                <Icon name="cricket" size={28} color={colors.primary} />
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={styles.needsBowlerTitle}>Over Completed</Text>
                   <Text style={styles.needsBowlerSub}>Select bowler for next over or undo previous ball</Text>
@@ -2019,13 +2028,13 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   <Text style={[styles.scoreBtnText, styles.scoreBtnBoundaryText]}>4</Text>
                 </ScoreBtn3D>
                 <ScoreBtn3D style={[styles.scoreBtn, styles.scoreBtnSix]} onPress={() => handleScore(6)}>
-                  <Text style={[styles.scoreBtnText, styles.scoreBtnBoundaryText]}>6</Text>
+                  <Text style={[styles.scoreBtnText, styles.scoreBtnBoundaryText, { color: '#000000' }]}>6</Text>
                 </ScoreBtn3D>
                 <ScoreBtn3D style={[styles.scoreBtn, styles.scoreBtnWicket]} onPress={() => setShowWicketPanel(true)}>
                   <Text style={[styles.scoreBtnText, { color: '#fff', fontSize: 15 }]}>WICKET</Text>
                 </ScoreBtn3D>
                 <ScoreBtn3D style={[styles.scoreBtnExtra, styles.scoreBtnMore]} onPress={() => setShowFiveSevenModal(true)}>
-                  <Text style={[styles.scoreBtnExtraText, { color: Colors.primary }]}>MORE</Text>
+                  <Text style={[styles.scoreBtnExtraText, { color: isDark ? colors.primary : colors.textPrimary }]}>MORE</Text>
                 </ScoreBtn3D>
               </View>
 
@@ -2052,17 +2061,17 @@ const LiveScorerScreen = ({ navigation, route }) => {
       {showAddScorerModal ? (
         <Modal visible={true} transparent animationType="slide" onRequestClose={() => setShowAddScorerModal(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: Colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 30 }}>
+            <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 30 }}>
               {/* Header */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-                <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary }}>Add / Change Scorer</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>Add / Change Scorer</Text>
                 <TouchableOpacity onPress={() => { setShowAddScorerModal(false); setNewScorerMobile(''); }}>
-                  <Icon name="close" size={24} color={Colors.textSecondary} />
+                  <Icon name="close" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
               {/* Tab Bar */}
-              <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 14, backgroundColor: Colors.surface, borderRadius: 10, padding: 3 }}>
+              <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 14, backgroundColor: colors.surface, borderRadius: 10, padding: 3 }}>
                 {[
                   { key: 'teamA', label: match?.teamA?.name || 'Team A' },
                   { key: 'teamB', label: match?.teamB?.name || 'Team B' },
@@ -2073,7 +2082,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     onPress={() => setScorerTab(tab.key)}
                     style={[
                       { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-                      scorerTab === tab.key && { backgroundColor: Colors.primary },
+                      scorerTab === tab.key && { backgroundColor: colors.primary },
                     ]}
                   >
                     <Text
@@ -2081,7 +2090,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       style={{
                         fontSize: 11,
                         fontFamily: Typography.fontFamily.semiBold,
-                        color: scorerTab === tab.key ? '#000' : Colors.textSecondary,
+                        color: scorerTab === tab.key ? '#000' : colors.textSecondary,
                       }}
                     >
                       {tab.label}
@@ -2093,13 +2102,13 @@ const LiveScorerScreen = ({ navigation, route }) => {
               {/* Tab Content */}
               {scorerTab === 'search' ? (
                 <View style={{ padding: 16 }}>
-                  <Text style={{ color: Colors.textSecondary, marginBottom: 10, fontSize: 13 }}>Enter mobile number to search and add scorer:</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border }}>
-                    <Icon name="phone-outline" size={20} color={Colors.textTertiary} />
+                  <Text style={{ color: colors.textSecondary, marginBottom: 10, fontSize: 13 }}>Enter mobile number to search and add scorer:</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border }}>
+                    <Icon name="phone-outline" size={20} color={colors.textTertiary} />
                     <TextInput
-                      style={{ flex: 1, color: Colors.textPrimary, fontSize: 15, paddingVertical: 12, marginLeft: 8 }}
+                      style={{ flex: 1, color: colors.textPrimary, fontSize: 15, paddingVertical: 12, marginLeft: 8 }}
                       placeholder="10-digit mobile number"
-                      placeholderTextColor={Colors.textTertiary}
+                      placeholderTextColor={colors.textTertiary}
                       keyboardType="phone-pad"
                       value={newScorerMobile}
                       onChangeText={(val) => {
@@ -2112,27 +2121,27 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       }}
                       maxLength={10}
                     />
-                    {isScorerSearching && <ActivityIndicator color={Colors.primary} size="small" />}
+                    {isScorerSearching && <ActivityIndicator color={colors.primary} size="small" />}
                   </View>
 
                   {scorerSearchResult && scorerSearchResult.exists && (
-                    <View style={{ marginTop: 16, backgroundColor: Colors.surfaceVariant, padding: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                        <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                    <View style={{ marginTop: 16, backgroundColor: colors.surfaceVariant, padding: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                        <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
                           {(scorerSearchResult.user?.name || 'U').charAt(0).toUpperCase()}
                         </Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>
+                        <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>
                           {scorerSearchResult.user?.name || 'Registered User'}
                         </Text>
-                        <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Registered User</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Registered User</Text>
                       </View>
                     </View>
                   )}
 
                   {scorerSearchResult && !scorerSearchResult.exists && (
-                    <Text style={{ color: Colors.error, fontSize: 13, marginTop: 12, textAlign: 'center' }}>
+                    <Text style={{ color: colors.error, fontSize: 13, marginTop: 12, textAlign: 'center' }}>
                       User not found. Please enter a registered user's number.
                     </Text>
                   )}
@@ -2170,9 +2179,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   showsVerticalScrollIndicator={false}
                   ListEmptyComponent={() => (
                     <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                      <Icon name="account-group-outline" size={48} color={Colors.textTertiary} />
-                      <Text style={{ color: Colors.textTertiary, marginTop: 10, fontSize: 14 }}>No players available</Text>
-                      <Text style={{ color: Colors.textTertiary, fontSize: 12, marginTop: 4 }}>All players may already be scorers</Text>
+                      <Icon name="account-group-outline" size={48} color={colors.textTertiary} />
+                      <Text style={{ color: colors.textTertiary, marginTop: 10, fontSize: 14 }}>No players available</Text>
+                      <Text style={{ color: colors.textTertiary, fontSize: 12, marginTop: 4 }}>All players may already be scorers</Text>
                     </View>
                   )}
                   renderItem={({ item }) => {
@@ -2182,33 +2191,33 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     const pid = item._id || item.userId?._id;
                     const isAdding = scorerAddingId === pid;
                     return (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.border }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
                         {/* Avatar */}
                         {photo ? (
                           <Image source={{ uri: getImageUrl(photo) }} style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }} />
                         ) : (
-                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                            <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 18 }}>{name.charAt(0).toUpperCase()}</Text>
+                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                            <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 18 }}>{name.charAt(0).toUpperCase()}</Text>
                           </View>
                         )}
                         {/* Name & Role */}
                         <View style={{ flex: 1 }}>
-                          <Text style={{ color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>{name}</Text>
-                          {role ? <Text style={{ color: Colors.textSecondary, fontSize: 11, marginTop: 2 }}>{role}</Text> : null}
+                          <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>{name}</Text>
+                          {role ? <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>{role}</Text> : null}
                         </View>
                         {/* Add Button */}
                         <TouchableOpacity
                           onPress={() => handleAddScorerFromPlayer(item)}
                           disabled={isAdding}
                           style={{
-                            backgroundColor: isAdding ? Colors.border : Colors.primary,
+                            backgroundColor: isAdding ? colors.border : colors.primary,
                             paddingHorizontal: 14,
                             paddingVertical: 8,
                             borderRadius: 8,
                           }}
                         >
                           {isAdding
-                            ? <Icon name="loading" size={16} color={Colors.textSecondary} />
+                            ? <Icon name="loading" size={16} color={colors.textSecondary} />
                             : <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Add</Text>
                           }
                         </TouchableOpacity>
@@ -2225,48 +2234,51 @@ const LiveScorerScreen = ({ navigation, route }) => {
       {/* Extras Panel (Bottom Sheet) */}
       {showExtrasPanel ? (
         <View style={styles.bottomSheetOverlay}>
-          <View style={styles.bottomSheet}>
-            <View style={styles.bsHeader}>
-              <Text style={styles.bsTitle}>
-                {showExtrasPanel.type === 'wide' ? 'Wide' :
-                  showExtrasPanel.type === 'noBall' ? 'No Ball' :
-                    showExtrasPanel.type === 'bye' ? 'Bye Runs' : 'Leg Bye'}
-              </Text>
-              <TouchableOpacity onPress={() => setShowExtrasPanel(null)}><Icon name="close" size={24} color="#FFF" /></TouchableOpacity>
+          <View style={[styles.bottomSheet, { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 32 }]}>
+            <View style={[styles.bsHeader, { alignItems: 'center', marginBottom: 18, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }} onPress={() => setShowExtrasPanel(null)} activeOpacity={0.7}>
+                <Icon name="arrow-left" size={22} color={colors.textPrimary} />
+                <Text style={[styles.bsTitle, { color: colors.textPrimary, fontSize: 18 }]}>
+                  {showExtrasPanel.type === 'wide' ? 'Wide Delivery' :
+                    showExtrasPanel.type === 'noBall' ? 'No Ball Delivery' :
+                      showExtrasPanel.type === 'bye' ? 'Bye Runs' : 'Leg Bye Runs'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowExtrasPanel(null)} style={{ padding: 4 }} activeOpacity={0.7}>
+                <Icon name="close" size={22} color={colors.textPrimary} />
+              </TouchableOpacity>
             </View>
 
             {/* Wicket Toggle for WD/NB */}
             {(showExtrasPanel.type === 'wide' || showExtrasPanel.type === 'noBall') && (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Wicket on this delivery?</Text>
+                <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Wicket on this delivery?</Text>
                 <View style={{ flexDirection: 'row', gap: 16 }}>
                   <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                     onPress={() => setExtraWicketToggle(true)}
                     activeOpacity={0.7}
                   >
-                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: extraWicketToggle ? Colors.primary : Colors.border, alignItems: 'center', justifyContent: 'center' }}>
-                      {extraWicketToggle && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: extraWicketToggle ? colors.primary : colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                      {extraWicketToggle && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary }} />}
                     </View>
-                    <Text style={{ color: extraWicketToggle ? Colors.textPrimary : Colors.textSecondary, fontFamily: extraWicketToggle ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>Yes</Text>
+                    <Text style={{ color: extraWicketToggle ? colors.textPrimary : colors.textSecondary, fontFamily: extraWicketToggle ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>Yes</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                     onPress={() => setExtraWicketToggle(false)}
                     activeOpacity={0.7}
                   >
-                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: !extraWicketToggle ? Colors.primary : Colors.border, alignItems: 'center', justifyContent: 'center' }}>
-                      {!extraWicketToggle && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: !extraWicketToggle ? colors.primary : colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                      {!extraWicketToggle && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary }} />}
                     </View>
-                    <Text style={{ color: !extraWicketToggle ? Colors.textPrimary : Colors.textSecondary, fontFamily: !extraWicketToggle ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>No</Text>
+                    <Text style={{ color: !extraWicketToggle ? colors.textPrimary : colors.textSecondary, fontFamily: !extraWicketToggle ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>No</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
 
-
-
-            <Text style={{ color: Colors.textSecondary, marginBottom: 12, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Select additional runs scored:</Text>
+            <Text style={{ color: colors.textSecondary, marginBottom: 12, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Select additional runs scored:</Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 }}>
               {[0, 1, 2, 3, 4, 5, 6].map((runs) => {
                 const actualRuns = (showExtrasPanel.type === 'bye' || showExtrasPanel.type === 'legBye')
@@ -2283,15 +2295,15 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       height: 40, 
                       borderRadius: 8, 
                       borderWidth: 1, 
-                      borderColor: isSelected ? Colors.primary : Colors.border,
-                      backgroundColor: isSelected ? Colors.primary : 'transparent',
+                      borderColor: isSelected ? colors.primary : colors.border,
+                      backgroundColor: isSelected ? colors.primary : 'transparent',
                       alignItems: 'center', 
                       justifyContent: 'center'
                     }} 
                     onPress={() => setSelectedExtraRuns(runs)}
                   >
                     <Text style={{
-                      color: isSelected ? '#000' : Colors.textPrimary,
+                      color: isSelected ? '#000' : colors.textPrimary,
                       fontFamily: Typography.fontFamily.semiBold,
                       fontSize: 16
                     }}>
@@ -2304,81 +2316,97 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
             {showExtrasPanel.type === 'noBall' && selectedExtraRuns > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <Text style={{ color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Runs scored from:</Text>
+                <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Runs scored from:</Text>
                 <View style={{ flexDirection: 'row', gap: 16 }}>
                   <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                     onPress={() => setNbRunSource('bat')}
                     activeOpacity={0.7}
                   >
-                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: nbRunSource === 'bat' ? Colors.primary : Colors.border, alignItems: 'center', justifyContent: 'center' }}>
-                      {nbRunSource === 'bat' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: nbRunSource === 'bat' ? colors.primary : colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                      {nbRunSource === 'bat' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary }} />}
                     </View>
-                    <Text style={{ color: nbRunSource === 'bat' ? Colors.textPrimary : Colors.textSecondary, fontFamily: nbRunSource === 'bat' ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>Bat</Text>
+                    <Text style={{ color: nbRunSource === 'bat' ? colors.textPrimary : colors.textSecondary, fontFamily: nbRunSource === 'bat' ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>Bat</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                     onPress={() => setNbRunSource('byes')}
                     activeOpacity={0.7}
                   >
-                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: nbRunSource === 'byes' ? Colors.primary : Colors.border, alignItems: 'center', justifyContent: 'center' }}>
-                      {nbRunSource === 'byes' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: nbRunSource === 'byes' ? colors.primary : colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                      {nbRunSource === 'byes' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary }} />}
                     </View>
-                    <Text style={{ color: nbRunSource === 'byes' ? Colors.textPrimary : Colors.textSecondary, fontFamily: nbRunSource === 'byes' ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>Byes</Text>
+                    <Text style={{ color: nbRunSource === 'byes' ? colors.textPrimary : colors.textSecondary, fontFamily: nbRunSource === 'byes' ? Typography.fontFamily.semiBold : Typography.fontFamily.medium, fontSize: 14 }}>Byes</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
 
-            <TouchableOpacity
-              style={{
-                backgroundColor: Colors.primary,
-                paddingVertical: 14,
-                borderRadius: 12,
-                alignItems: 'center',
-                marginTop: 10
-              }}
-              onPress={() => {
-                const runs = selectedExtraRuns;
-                const actualRuns = (showExtrasPanel.type === 'bye' || showExtrasPanel.type === 'legBye') ? runs + 1 : runs;
-                const opts = {};
-                let scoreValue = 0;
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: colors.surfaceVariant,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+                onPress={() => setShowExtrasPanel(null)}
+              >
+                <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 15 }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1.5,
+                  backgroundColor: colors.primary,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                }}
+                onPress={() => {
+                  const runs = selectedExtraRuns;
+                  const actualRuns = (showExtrasPanel.type === 'bye' || showExtrasPanel.type === 'legBye') ? runs + 1 : runs;
+                  const opts = {};
+                  let scoreValue = 0;
 
-                if (showExtrasPanel.type === 'wide') {
-                  opts.isWide = true;
-                  opts.extraRuns = actualRuns;
-                } else if (showExtrasPanel.type === 'noBall') {
-                  opts.isNoBall = true;
-                  if (nbRunSource === 'byes') {
+                  if (showExtrasPanel.type === 'wide') {
+                    opts.isWide = true;
+                    opts.extraRuns = actualRuns;
+                  } else if (showExtrasPanel.type === 'noBall') {
+                    opts.isNoBall = true;
+                    if (nbRunSource === 'byes') {
+                      opts.isBye = true;
+                      opts.extraRuns = actualRuns;
+                      scoreValue = 0;
+                    } else {
+                      opts.extraRuns = 0;
+                      scoreValue = actualRuns;
+                    }
+                  } else if (showExtrasPanel.type === 'bye') {
                     opts.isBye = true;
                     opts.extraRuns = actualRuns;
-                    scoreValue = 0;
-                  } else {
-                    opts.extraRuns = 0;
-                    scoreValue = actualRuns;
+                  } else if (showExtrasPanel.type === 'legBye') {
+                    opts.isLegBye = true;
+                    opts.extraRuns = actualRuns;
                   }
-                } else if (showExtrasPanel.type === 'bye') {
-                  opts.isBye = true;
-                  opts.extraRuns = actualRuns;
-                } else if (showExtrasPanel.type === 'legBye') {
-                  opts.isLegBye = true;
-                  opts.extraRuns = actualRuns;
-                }
 
-                if (extraWicketToggle && (showExtrasPanel.type === 'wide' || showExtrasPanel.type === 'noBall')) {
-                  setPendingExtraOpts(opts);
-                  setPendingExtraScore(scoreValue);
-                  setShowExtrasPanel(null);
-                  setExtraWicketToggle(false);
-                  setShowWicketPanel(true);
-                } else {
-                  handleScore(scoreValue, opts);
-                  setShowExtrasPanel(null);
-                }
-              }}
-            >
-              <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>Confirm</Text>
-            </TouchableOpacity>
+                  if (extraWicketToggle && (showExtrasPanel.type === 'wide' || showExtrasPanel.type === 'noBall')) {
+                    setPendingExtraOpts(opts);
+                    setPendingExtraScore(scoreValue);
+                    setShowExtrasPanel(null);
+                    setExtraWicketToggle(false);
+                    setShowWicketPanel(true);
+                  } else {
+                    handleScore(scoreValue, opts);
+                    setShowExtrasPanel(null);
+                  }
+                }}
+              >
+                <Text style={{ color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 15 }}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       ) : null}
@@ -2388,12 +2416,12 @@ const LiveScorerScreen = ({ navigation, route }) => {
         <View style={styles.bottomSheetOverlay}>
           <View style={styles.bottomSheet}>
             <View style={styles.bsHeader}>
-              <Text style={styles.bsTitle}>Wicket</Text>
+              <Text style={[styles.bsTitle, { color: colors.textPrimary }]}>Wicket</Text>
               <TouchableOpacity onPress={() => {
                 setShowWicketPanel(false);
                 setPendingExtraOpts(null);
                 setPendingExtraScore(0);
-              }}><Icon name="close" size={24} color="#FFF" /></TouchableOpacity>
+              }}><Icon name="close" size={24} color={colors.textPrimary} /></TouchableOpacity>
             </View>
             <View style={styles.bsGrid}>
               {(() => {
@@ -2414,6 +2442,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   cheating:         { image: require('../../../../Cheating.png'), label: 'Cheating' },
                 };
 
+                const wicketColor = isDark ? '#FF8A80' : '#D32F2F';
+
                 return availableWickets.map((type) => {
                   const meta = WICKET_META[type] || { icon: 'close-circle', label: type.replace(/_/g, ' ').toUpperCase() };
                   return (
@@ -2432,10 +2462,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       onPress={() => handleWicketSelect(type)}
                     >
                       {meta.image
-                        ? <Image source={meta.image} style={{ width: 48, height: 48, tintColor: '#FFF' }} resizeMode="contain" />
-                        : <Icon name={meta.icon} size={42} color="#FFF" />
+                        ? <Image source={meta.image} style={{ width: 44, height: 44, tintColor: wicketColor }} resizeMode="contain" />
+                        : <Icon name={meta.icon} size={38} color={wicketColor} />
                       }
-                      <Text style={[styles.bsBtnText, { fontSize: 10, textAlign: 'center' }]}>{meta.label.toUpperCase()}</Text>
+                      <Text style={[styles.bsBtnText, { fontSize: 10, textAlign: 'center', color: wicketColor, fontFamily: Typography.fontFamily.bold }]}>{meta.label.toUpperCase()}</Text>
                     </TouchableOpacity>
                   );
                 });
@@ -2457,7 +2487,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
               {fielderSelectionMode ? (
                 <View style={{ flex: 1, width: '100%' }}>
                   <View style={[styles.bsHeader, { paddingHorizontal: 0, marginBottom: 15, alignItems: 'center' }]}>
-                    <TouchableOpacity onPress={() => setFielderSelectionMode(null)}><Icon name="arrow-left" size={24} color={Colors.textPrimary} /></TouchableOpacity>
+                    <TouchableOpacity onPress={() => setFielderSelectionMode(null)}><Icon name="arrow-left" size={24} color={colors.textPrimary} /></TouchableOpacity>
                     <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.modalTitle, { flex: 1, textAlign: 'center', marginHorizontal: 10, marginBottom: 0 }]}>Select {fielderSelectionMode === 'primary' ? 'Primary Fielder' : 'Secondary Fielder'}</Text>
                     <View style={{ width: 24 }} />
                   </View>
@@ -2475,13 +2505,13 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       if (fielderSelectionMode === 'secondary') {
                         return (
                           <TouchableOpacity
-                            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, marginBottom: 10 }}
+                            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 10 }}
                             onPress={() => { setSecondaryFielder(null); setFielderSelectionMode(null); }}
                           >
-                            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.border, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                              <Icon name="close" size={20} color={Colors.textSecondary} />
+                            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.border, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                              <Icon name="close" size={20} color={colors.textSecondary} />
                             </View>
-                            <Text style={{ color: Colors.textPrimary, fontSize: 16 }}>None</Text>
+                            <Text style={{ color: colors.textPrimary, fontSize: 16 }}>None</Text>
                           </TouchableOpacity>
                         );
                       }
@@ -2492,7 +2522,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       const photo = item.photo || item.user?.photo || item.userId?.photo || item.avatar || item.profileImage || item.image || item.profilePic || item.profile;
                       return (
                         <TouchableOpacity
-                          style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border }}
+                          style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}
                           onPress={() => {
                             if (fielderSelectionMode === 'primary') setPrimaryFielder(item._id);
                             if (fielderSelectionMode === 'secondary') setSecondaryFielder(item._id);
@@ -2502,11 +2532,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
                           {photo ? (
                             <Image source={{ uri: getImageUrl(photo) }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
                           ) : (
-                            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                               <Text style={{ color: '#000', fontWeight: 'bold' }}>{item.name.charAt(0).toUpperCase()}</Text>
                             </View>
                           )}
-                          <Text style={{ color: Colors.textPrimary, fontSize: 16 }}>{item.name}</Text>
+                          <Text style={{ color: colors.textPrimary, fontSize: 16 }}>{item.name}</Text>
                         </TouchableOpacity>
                       );
                     }}
@@ -2516,29 +2546,29 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 <>
                   <View style={styles.bsHeader}>
                     <Text style={styles.modalTitle}>{advWicketType?.replace(/_/g, ' ').toUpperCase()}</Text>
-                    <TouchableOpacity onPress={() => setShowAdvancedWicketModal(false)}><Icon name="close" size={24} color={Colors.textPrimary} /></TouchableOpacity>
+                    <TouchableOpacity onPress={() => setShowAdvancedWicketModal(false)}><Icon name="close" size={24} color={colors.textPrimary} /></TouchableOpacity>
                   </View>
                   <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ width: '100%' }}>
 
                     {/* Dismissed Batter Selection (For Run Out, Obstructing, Cheating, Retired) */}
                     {['run_out', 'obstructing_field', 'cheating', 'retired_hurt', 'retired_out'].includes(advWicketType) && (
                       <View style={{ marginBottom: 20 }}>
-                        <Text style={{ color: Colors.textSecondary, marginBottom: 10 }}>Who got out?</Text>
+                        <Text style={{ color: colors.textSecondary, marginBottom: 10 }}>Who got out?</Text>
                         <View style={{ flexDirection: 'row', gap: 10 }}>
                           {[liveState.striker, liveState.nonStriker].filter(Boolean).map(b => (
                             <TouchableOpacity
                               key={b._id}
-                              style={[{ flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 8, flex: 1 }, dismissedBatter === b._id ? { backgroundColor: Colors.primary } : { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }]}
+                              style={[{ flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 8, flex: 1 }, dismissedBatter === b._id ? { backgroundColor: colors.primary } : { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
                               onPress={() => setDismissedBatter(b._id)}
                             >
                               {(b.photo || b.userId?.photo || b.avatar) ? (
                                 <Image source={{ uri: getImageUrl(b.photo || b.userId?.photo || b.avatar) }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 8 }} resizeMode="cover" />
                               ) : (
-                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: dismissedBatter === b._id ? '#000' : Colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
-                                  <Text style={{ color: dismissedBatter === b._id ? Colors.primary : '#000', fontWeight: 'bold' }}>{b.name.charAt(0).toUpperCase()}</Text>
+                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: dismissedBatter === b._id ? '#000' : colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                                  <Text style={{ color: dismissedBatter === b._id ? colors.primary : '#000', fontWeight: 'bold' }}>{b.name.charAt(0).toUpperCase()}</Text>
                                 </View>
                               )}
-                              <Text style={[{ flex: 1, fontSize: 14, fontWeight: '600' }, dismissedBatter === b._id ? { color: '#000' } : { color: Colors.textPrimary }]} numberOfLines={1}>{b.name}</Text>
+                              <Text style={[{ flex: 1, fontSize: 14, fontWeight: '600' }, dismissedBatter === b._id ? { color: '#000' } : { color: colors.textPrimary }]} numberOfLines={1}>{b.name}</Text>
                             </TouchableOpacity>
                           ))}
                         </View>
@@ -2548,7 +2578,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     {/* Fielder Selection (For Caught, Caught Behind, Stumped, Run Out) */}
                     {['caught', 'caught_behind', 'stumped', 'run_out'].includes(advWicketType) && (
                       <View style={{ marginBottom: 20 }}>
-                        <Text style={{ color: Colors.textSecondary, marginBottom: 10 }}>
+                        <Text style={{ color: colors.textSecondary, marginBottom: 10 }}>
                           {advWicketType === 'run_out' ? 'Primary Fielder (Assisted by)' : advWicketType === 'stumped' ? 'Stumped by' : 'Catcher'}
                         </Text>
                         {(() => {
@@ -2559,26 +2589,26 @@ const LiveScorerScreen = ({ navigation, route }) => {
                           const selected = fieldingSquad.find(f => String(f._id) === String(primaryFielder));
                           return (
                             <TouchableOpacity
-                              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border }}
+                              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}
                               onPress={() => setFielderSelectionMode('primary')}
                             >
                               {selected ? (
                                 selected.photo ? (
                                   <Image source={{ uri: getImageUrl(selected.photo) }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
                                 ) : (
-                                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                                     <Text style={{ color: '#000', fontWeight: 'bold' }}>{selected.name.charAt(0).toUpperCase()}</Text>
                                   </View>
                                 )
                               ) : (
-                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.border, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                                  <Icon name="account" size={20} color={Colors.textSecondary} />
+                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.border, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                                  <Icon name="account" size={20} color={colors.textSecondary} />
                                 </View>
                               )}
                               <View style={{ flex: 1 }}>
-                                <Text style={{ color: Colors.textPrimary, fontSize: 16 }}>{selected ? selected.name : 'Tap to Select Fielder'}</Text>
+                                <Text style={{ color: colors.textPrimary, fontSize: 16 }}>{selected ? selected.name : 'Tap to Select Fielder'}</Text>
                               </View>
-                              <Icon name="chevron-down" size={20} color={Colors.textTertiary} />
+                              <Icon name="chevron-down" size={20} color={colors.textTertiary} />
                             </TouchableOpacity>
                           );
                         })()}
@@ -2588,7 +2618,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     {/* Secondary Fielder (For Run Out) */}
                     {advWicketType === 'run_out' && (
                       <View style={{ marginBottom: 20 }}>
-                        <Text style={{ color: Colors.textSecondary, marginBottom: 10 }}>Secondary Fielder (Optional)</Text>
+                        <Text style={{ color: colors.textSecondary, marginBottom: 10 }}>Secondary Fielder (Optional)</Text>
                         {(() => {
                           const _batId2 = String(liveState?.battingTeam?._id || liveState?.battingTeam || '');
                           const _tAId2 = String(liveState?.match?.teamA?._id || liveState?.match?.teamA || '');
@@ -2597,26 +2627,26 @@ const LiveScorerScreen = ({ navigation, route }) => {
                           const selected = fieldingSquad.find(f => String(f._id) === String(secondaryFielder));
                           return (
                             <TouchableOpacity
-                              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border }}
+                              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}
                               onPress={() => setFielderSelectionMode('secondary')}
                             >
                               {selected ? (
                                 selected.photo ? (
                                   <Image source={{ uri: getImageUrl(selected.photo) }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
                                 ) : (
-                                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                                     <Text style={{ color: '#000', fontWeight: 'bold' }}>{selected.name.charAt(0).toUpperCase()}</Text>
                                   </View>
                                 )
                               ) : (
-                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.border, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                                  <Icon name="account-off" size={20} color={Colors.textSecondary} />
+                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.border, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                                  <Icon name="account-off" size={20} color={colors.textSecondary} />
                                 </View>
                               )}
                               <View style={{ flex: 1 }}>
-                                <Text style={{ color: Colors.textPrimary, fontSize: 16 }}>{selected ? selected.name : 'None (Tap to Select)'}</Text>
+                                <Text style={{ color: colors.textPrimary, fontSize: 16 }}>{selected ? selected.name : 'None (Tap to Select)'}</Text>
                               </View>
-                              <Icon name="chevron-down" size={20} color={Colors.textTertiary} />
+                              <Icon name="chevron-down" size={20} color={colors.textTertiary} />
                             </TouchableOpacity>
                           );
                         })()}
@@ -2626,15 +2656,15 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     {/* Runs completed on Run Out */}
                     {advWicketType === 'run_out' && !pendingExtraOpts && (
                       <View style={{ marginBottom: 20 }}>
-                        <Text style={{ color: Colors.textSecondary, marginBottom: 10 }}>Runs completed before Run Out</Text>
+                        <Text style={{ color: colors.textSecondary, marginBottom: 10 }}>Runs completed before Run Out</Text>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
                           {[0, 1, 2, 3, 4, 5].map(runs => (
                             <TouchableOpacity
                               key={runs}
-                              style={[{ flex: 1, paddingVertical: 12, backgroundColor: Colors.surfaceVariant, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: 'transparent' }, advWicketRuns === runs && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
+                              style={[{ flex: 1, paddingVertical: 12, backgroundColor: colors.surfaceVariant, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: 'transparent' }, advWicketRuns === runs && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                               onPress={() => setAdvWicketRuns(runs)}
                             >
-                              <Text style={[{ color: Colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }, advWicketRuns === runs && { color: '#000' }]}>{runs}</Text>
+                              <Text style={[{ color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }, advWicketRuns === runs && { color: '#000' }]}>{runs}</Text>
                             </TouchableOpacity>
                           ))}
                         </View>
@@ -2662,74 +2692,74 @@ const LiveScorerScreen = ({ navigation, route }) => {
           >
             <TouchableOpacity
               activeOpacity={1}
-              style={{ width: '75%', backgroundColor: Colors.background, height: '100%', padding: 20, paddingTop: 60, elevation: 5, shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 5 }}
+              style={{ width: '75%', backgroundColor: colors.background, height: '100%', padding: 20, paddingTop: 60, elevation: 5, shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 5 }}
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ fontSize: 20, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Match Settings</Text>
-                <TouchableOpacity onPress={() => setShowSettingsModal(false)}><Icon name="close" size={24} color={Colors.textSecondary} /></TouchableOpacity>
+                <Text style={{ fontSize: 20, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Match Settings</Text>
+                <TouchableOpacity onPress={() => setShowSettingsModal(false)}><Icon name="close" size={24} color={colors.textSecondary} /></TouchableOpacity>
               </View>
               <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 <View style={{ gap: 12 }}>
-                  <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('view_scoreboard')}>
-                    <Icon name="clipboard-text-outline" size={20} color={Colors.primary} style={{ marginRight: 12 }} />
-                    <Text style={[styles.bsBtnText, { color: Colors.primary }]}>View Full Scorecard</Text>
+                  <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('view_scoreboard')}>
+                    <Icon name="clipboard-text-outline" size={20} color={colors.primary} style={{ marginRight: 12 }} />
+                    <Text style={[styles.bsBtnText, { color: colors.primary }]}>View Full Scorecard</Text>
                   </TouchableOpacity>
 
                   {isCreator && isMatchActive ? (
-                    <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('toggle_single_wicket')}>
-                      <Icon name="account-outline" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
-                      <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>{match?.isSingleWicketBatting ? 'Disable' : 'Enable'} Single Wicket Batting</Text>
+                    <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('toggle_single_wicket')}>
+                      <Icon name="account-outline" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
+                      <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>{match?.isSingleWicketBatting ? 'Disable' : 'Enable'} Single Wicket Batting</Text>
                     </TouchableOpacity>
                   ) : null}
 
-                  <View style={{ height: 1, backgroundColor: Colors.border, marginVertical: 8 }} />
+                  <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
 
                   {(isCreator || isScorer) && isMatchActive ? (
                     <>
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('add_penalty_runs')}>
-                        <Icon name="plus-circle-outline" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
-                        <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Add Penalty Runs</Text>
+                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('add_penalty_runs')}>
+                        <Icon name="plus-circle-outline" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
+                        <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Add Penalty Runs</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('retired_hurt')}>
-                        <Icon name="medical-bag" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
-                        <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Retired Hurt</Text>
+                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('retired_hurt')}>
+                        <Icon name="medical-bag" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
+                        <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Retired Hurt</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_innings')}>
-                        <Icon name="flag-outline" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
-                        <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Declare Innings</Text>
+                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_innings')}>
+                        <Icon name="flag-outline" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
+                        <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Declare Innings</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('end_innings')}>
-                        <Icon name="stop-circle-outline" size={20} color={Colors.textPrimary} style={{ marginRight: 12 }} />
-                        <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>End Innings Manually</Text>
+                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('end_innings')}>
+                        <Icon name="stop-circle-outline" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
+                        <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>End Innings Manually</Text>
                       </TouchableOpacity>
 
                       {/* ── Between / 2nd Innings Settings ─────────────── */}
                       {liveState?.inningsNumber >= 2 && (
                         <>
-                          <View style={{ height: 1, backgroundColor: Colors.border, marginVertical: 8 }} />
-                          <Text style={{ fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 4, paddingHorizontal: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>2nd Innings Settings</Text>
+                          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+                          <Text style={{ fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 4, paddingHorizontal: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>2nd Innings Settings</Text>
 
-                          <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('revise_overs')}>
+                          <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('revise_overs')}>
                             <Icon name="weather-lightning-rainy" size={20} color='#29B6F6' style={{ marginRight: 12 }} />
                             <View style={{ flex: 1 }}>
-                              <Text style={[styles.bsBtnText, { color: Colors.textPrimary }]}>Revised Target (Rain / DLS)</Text>
-                              <Text style={{ fontSize: 10, color: Colors.textTertiary, marginTop: 1 }}>Reduce overs & set new target</Text>
+                              <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Revised Target (Rain / DLS)</Text>
+                              <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }}>Reduce overs & set new target</Text>
                             </View>
                           </TouchableOpacity>
 
-                          <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: Colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_dls')}>
-                            <Icon name="scale-balance" size={20} color={Colors.info} style={{ marginRight: 12 }} />
+                          <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_dls')}>
+                            <Icon name="scale-balance" size={20} color={colors.info} style={{ marginRight: 12 }} />
                             <View style={{ flex: 1 }}>
-                              <Text style={[styles.bsBtnText, { color: Colors.info }]}>Declare Winner via DLS</Text>
-                              <Text style={{ fontSize: 10, color: Colors.textTertiary, marginTop: 1 }}>End match now using DLS method</Text>
+                              <Text style={[styles.bsBtnText, { color: colors.info }]}>Declare Winner via DLS</Text>
+                              <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }}>End match now using DLS method</Text>
                             </View>
                           </TouchableOpacity>
 
-                          <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16, borderWidth: 1, borderColor: `${Colors.error}40` }]} onPress={() => handleSettingsAction('abandon')}>
-                            <Icon name="cancel" size={20} color={Colors.error} style={{ marginRight: 12 }} />
+                          <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16, borderWidth: 1, borderColor: `${colors.error}40` }]} onPress={() => handleSettingsAction('abandon')}>
+                            <Icon name="cancel" size={20} color={colors.error} style={{ marginRight: 12 }} />
                             <View style={{ flex: 1 }}>
-                              <Text style={[styles.bsBtnText, { color: Colors.error }]}>Abandon Match</Text>
-                              <Text style={{ fontSize: 10, color: `${Colors.error}99`, marginTop: 1 }}>Irreversible — match will be void</Text>
+                              <Text style={[styles.bsBtnText, { color: colors.error }]}>Abandon Match</Text>
+                              <Text style={{ fontSize: 10, color: `${colors.error}99`, marginTop: 1 }}>Irreversible — match will be void</Text>
                             </View>
                           </TouchableOpacity>
                         </>
@@ -2738,8 +2768,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       {/* Abandon always accessible in 1st innings too */}
                       {liveState?.inningsNumber < 2 && (
                         <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('abandon')}>
-                          <Icon name="cancel" size={20} color={Colors.error} style={{ marginRight: 12 }} />
-                          <Text style={[styles.bsBtnText, { color: Colors.error }]}>Abandon Match</Text>
+                          <Icon name="cancel" size={20} color={colors.error} style={{ marginRight: 12 }} />
+                          <Text style={[styles.bsBtnText, { color: colors.error }]}>Abandon Match</Text>
                         </TouchableOpacity>
                       )}
                     </>
@@ -2759,17 +2789,17 @@ const LiveScorerScreen = ({ navigation, route }) => {
               <Text style={styles.modalTitle}>Penalty Runs</Text>
               <Text style={styles.modalSub}>Add runs without counting a ball.</Text>
 
-              <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>Award Penalty to:</Text>
+              <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>Award Penalty to:</Text>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-                <TouchableOpacity style={[styles.bsBtn, { flex: 1 }, penaltyTeam === 'batting' ? { backgroundColor: Colors.primary } : { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }]} onPress={() => setPenaltyTeam('batting')}>
-                  <Text style={[styles.bsBtnText, penaltyTeam === 'batting' ? { color: '#000' } : { color: Colors.textPrimary }]}>Batting Team</Text>
+                <TouchableOpacity style={[styles.bsBtn, { flex: 1 }, penaltyTeam === 'batting' ? { backgroundColor: colors.primary } : { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]} onPress={() => setPenaltyTeam('batting')}>
+                  <Text style={[styles.bsBtnText, penaltyTeam === 'batting' ? { color: '#000' } : { color: colors.textPrimary }]}>Batting Team</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.bsBtn, { flex: 1 }, penaltyTeam === 'fielding' ? { backgroundColor: Colors.primary } : { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }]} onPress={() => setPenaltyTeam('fielding')}>
-                  <Text style={[styles.bsBtnText, penaltyTeam === 'fielding' ? { color: '#000' } : { color: Colors.textPrimary }]}>Fielding Team</Text>
+                <TouchableOpacity style={[styles.bsBtn, { flex: 1 }, penaltyTeam === 'fielding' ? { backgroundColor: colors.primary } : { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]} onPress={() => setPenaltyTeam('fielding')}>
+                  <Text style={[styles.bsBtnText, penaltyTeam === 'fielding' ? { color: '#000' } : { color: colors.textPrimary }]}>Fielding Team</Text>
                 </TouchableOpacity>
               </View>
 
-              <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>Penalty Runs:</Text>
+              <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>Penalty Runs:</Text>
               <TextInput
                 style={styles.modalInput}
                 keyboardType="numeric"
@@ -2798,7 +2828,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
               <Text style={styles.modalTitle}>Revise Match</Text>
               <Text style={styles.modalSub}>Reduce overs due to rain or other interruptions.</Text>
 
-              <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>Revised Total Overs:</Text>
+              <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>Revised Total Overs:</Text>
               <TextInput
                 style={styles.modalInput}
                 keyboardType="numeric"
@@ -2808,7 +2838,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
               {liveState?.inningsNumber === 2 && (
                 <>
-                  <Text style={{ color: Colors.textTertiary, fontSize: 12, marginTop: 10 }}>Note: The revised target will be automatically calculated using the DLS method.</Text>
+                  <Text style={{ color: colors.textTertiary, fontSize: 12, marginTop: 10 }}>Note: The revised target will be automatically calculated using the DLS method.</Text>
                 </>
               )}
 
@@ -2833,7 +2863,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
               <Text style={styles.modalTitle}>Abandon Match</Text>
               <Text style={styles.modalSub}>Are you sure you want to abandon this match? This action cannot be undone.</Text>
 
-              <Text style={{ color: Colors.textSecondary, marginBottom: 8, marginTop: 10 }}>Reason for abandoning:</Text>
+              <Text style={{ color: colors.textSecondary, marginBottom: 8, marginTop: 10 }}>Reason for abandoning:</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {['Rain', 'Bad Light', 'Pitch Unplayable', 'Other'].map(r => {
                   const presets = ['Rain', 'Bad Light', 'Pitch Unplayable'];
@@ -2845,16 +2875,16 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     <TouchableOpacity
                       key={r}
                       style={{
-                        backgroundColor: isSelected ? Colors.primary : Colors.surface,
+                        backgroundColor: isSelected ? colors.primary : colors.surface,
                         paddingVertical: 8,
                         paddingHorizontal: 12,
                         borderRadius: 16,
                         borderWidth: 1,
-                        borderColor: isSelected ? Colors.primary : Colors.border
+                        borderColor: isSelected ? colors.primary : colors.border
                       }}
                       onPress={() => setAbandonReason(r === 'Other' ? 'Custom Reason' : r)}
                     >
-                      <Text style={{ color: isSelected ? '#000' : Colors.textPrimary, fontSize: 12 }}>{r}</Text>
+                      <Text style={{ color: isSelected ? '#000' : colors.textPrimary, fontSize: 12 }}>{r}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -2864,7 +2894,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 <TextInput
                   style={[styles.modalInput, { height: 80 }]}
                   placeholder="Type custom reason here"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={abandonReason === 'Custom Reason' ? '' : abandonReason}
                   onChangeText={setAbandonReason}
                   multiline
@@ -2875,7 +2905,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setShowAbandonModal(false)}>
                   <Text style={styles.modalBtnTextCancel}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalBtnAdd, { backgroundColor: Colors.error }]} onPress={submitAbandon}>
+                <TouchableOpacity style={[styles.modalBtnAdd, { backgroundColor: colors.error }]} onPress={submitAbandon}>
                   <Text style={[styles.modalBtnTextAdd, { color: '#FFF' }]}>Abandon Match</Text>
                 </TouchableOpacity>
               </View>
@@ -2918,10 +2948,24 @@ const LiveScorerScreen = ({ navigation, route }) => {
                           const { locationX, locationY } = evt.nativeEvent;
                           const dx = locationX - CX;
                           const dy = locationY - CY_ACTUAL;
-                          let distance = Math.sqrt(dx * dx + dy * dy);
+                          const rawDist = Math.sqrt(dx * dx + dy * dy);
+                          if (rawDist < 1) return;
 
-                          let maxDist = W / 2;
-                          if (distance > 0) {
+                          let boundaryDist = W / 2;
+                          if (isTurf) {
+                            // Rectangle boundary intersection: [0, W] x [0, H]
+                            let tX = Infinity;
+                            if (dx > 0) tX = (W - CX) / dx;
+                            else if (dx < 0) tX = (0 - CX) / dx;
+
+                            let tY = Infinity;
+                            if (dy > 0) tY = (H - CY_ACTUAL) / dy;
+                            else if (dy < 0) tY = (0 - CY_ACTUAL) / dy;
+
+                            const tBoundary = Math.min(Math.abs(tX), Math.abs(tY));
+                            boundaryDist = tBoundary * rawDist;
+                          } else {
+                            // Circle boundary intersection: (x - CX)^2 + (y - CY)^2 = R^2
                             const R = W / 2;
                             const dy_pitch = CY_ACTUAL - CY;
                             const A = dx * dx + dy * dy;
@@ -2930,24 +2974,29 @@ const LiveScorerScreen = ({ navigation, route }) => {
                             const disc = B * B - 4 * A * C;
                             if (disc >= 0) {
                               const t = (-B + Math.sqrt(disc)) / (2 * A);
-                              maxDist = t * Math.sqrt(A);
+                              boundaryDist = t * rawDist;
                             }
                           }
 
                           const runsToUse = pendingRuns > 0 ? pendingRuns : (pendingScoreOptions?.extraRuns || 0);
+                          let distance = rawDist;
 
-                          if (runsToUse === 4 || runsToUse === 6) {
-                            distance = maxDist; // Boundaries always reach the edge
+                          if (runsToUse === 6) {
+                            distance = boundaryDist; // Six always reaches the complete boundary/end of the ground
+                          } else if (runsToUse === 4) {
+                            distance = boundaryDist * 0.96; // Four reaches the boundary line
                           } else {
-                            distance = Math.min(distance, maxDist); // Cap at edge for 1s, 2s, 3s
+                            // 1, 2, 3 runs scaled proportionately inside the field
+                            const maxInfield = boundaryDist * 0.82;
+                            distance = Math.min(rawDist, maxInfield);
                           }
 
                           let angle = Math.atan2(dy, dx) * (180 / Math.PI);
 
-                          let color = '#FFFFFF'; // 1s & 2s (White)
-                          if (runsToUse === 3) color = '#FFD700'; // 3s (Yellow)
-                          else if (runsToUse === 4) color = '#4CAF50'; // 4s (Green)
-                          else if (runsToUse === 6) color = '#E53935'; // 6s (Red)
+                          let color = "#FFFFFF"; // 1s & 2s (White)
+                          if (runsToUse === 3) color = "#FFD700"; // 3s (Yellow)
+                          else if (runsToUse === 4) color = "#4CAF50"; // 4s (Green)
+                          else if (runsToUse === 6) color = "#E53935"; // 6s (Red)
 
                           setWagonWheelData({ angle, distance, color });
                         }}
@@ -2964,9 +3013,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
                             <View style={{
                               position: 'absolute',
                               left: CX - wagonWheelData.distance / 2,
-                              top: CY_ACTUAL - 0.75,
+                              top: CY_ACTUAL - 1.25,
                               width: wagonWheelData.distance,
-                              height: 1.5,
+                              height: 2.5,
+                              borderRadius: 1.25,
                               backgroundColor: wagonWheelData.color,
                               transform: [
                                 { rotate: `${wagonWheelData.angle}deg` },
@@ -2989,8 +3039,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20, paddingHorizontal: 10 }}
                 onPress={() => setAlwaysSkipWagonWheel(!alwaysSkipWagonWheel)}
               >
-                <Icon name={alwaysSkipWagonWheel ? 'checkbox-marked' : 'checkbox-blank-outline'} size={24} color={Colors.primary} />
-                <Text style={{ marginLeft: 10, color: Colors.textSecondary, fontSize: 14 }}>Don't show this again for this match</Text>
+                <Icon name={alwaysSkipWagonWheel ? 'checkbox-marked' : 'checkbox-blank-outline'} size={24} color={colors.primary} />
+                <Text style={{ marginLeft: 10, color: colors.textSecondary, fontSize: 14 }}>Don't show this again for this match</Text>
               </TouchableOpacity>
 
               <View style={styles.modalActions}>
@@ -3035,7 +3085,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 {[5, 7, 8].map((runs) => (
                   <TouchableOpacity
                     key={runs}
-                    style={[styles.bsBtn, { flex: 1, paddingVertical: 14, backgroundColor: Colors.primary }]}
+                    style={[styles.bsBtn, { flex: 1, paddingVertical: 14, backgroundColor: colors.primary }]}
                     onPress={() => {
                       setShowFiveSevenModal(false);
                       handleScore(runs);
@@ -3062,38 +3112,38 @@ const LiveScorerScreen = ({ navigation, route }) => {
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { height: 'auto', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <Text style={{ fontSize: 20, color: Colors.textPrimary, fontWeight: 'bold' }}>Who is on strike?</Text>
+                <Text style={{ fontSize: 20, color: colors.textPrimary, fontWeight: 'bold' }}>Who is on strike?</Text>
                 <TouchableOpacity onPress={() => setShowStrikeModal(false)}>
-                  <Icon name="close" size={24} color={Colors.textPrimary} />
+                  <Icon name="close" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
               <View style={{ flexDirection: 'row', gap: 16 }}>
                 <TouchableOpacity
-                  style={{ flex: 1, backgroundColor: Colors.surface, padding: 20, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: Colors.border }}
+                  style={{ flex: 1, backgroundColor: colors.surface, padding: 20, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}
                   onPress={() => handleSelectStrike(striker?._id || striker)}
                 >
                   {striker?.photo ? (
                     <Image key="strike-photo-1" source={{ uri: getImageUrl(striker.photo) }} style={{ width: 70, height: 70, borderRadius: 35, marginBottom: 12 }} />
                   ) : (
-                    <View key="strike-avatar-1" style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                    <View key="strike-avatar-1" style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
                       <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 24 }}>{striker?.name?.charAt(0)?.toUpperCase()}</Text>
                     </View>
                   )}
-                  <Text style={{ color: Colors.textPrimary, fontSize: 16, textAlign: 'center', fontWeight: '500' }} numberOfLines={2}>{striker?.name}</Text>
+                  <Text style={{ color: colors.textPrimary, fontSize: 16, textAlign: 'center', fontWeight: '500' }} numberOfLines={2}>{striker?.name}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={{ flex: 1, backgroundColor: Colors.surface, padding: 20, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: Colors.border }}
+                  style={{ flex: 1, backgroundColor: colors.surface, padding: 20, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}
                   onPress={() => handleSelectStrike(nonStriker?._id || nonStriker)}
                 >
                   {nonStriker?.photo ? (
                     <Image key="strike-photo-2" source={{ uri: getImageUrl(nonStriker.photo) }} style={{ width: 70, height: 70, borderRadius: 35, marginBottom: 12 }} />
                   ) : (
-                    <View key="strike-avatar-2" style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                    <View key="strike-avatar-2" style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
                       <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 24 }}>{nonStriker?.name?.charAt(0)?.toUpperCase()}</Text>
                     </View>
                   )}
-                  <Text style={{ color: Colors.textPrimary, fontSize: 16, textAlign: 'center', fontWeight: '500' }} numberOfLines={2}>{nonStriker?.name}</Text>
+                  <Text style={{ color: colors.textPrimary, fontSize: 16, textAlign: 'center', fontWeight: '500' }} numberOfLines={2}>{nonStriker?.name}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -3115,22 +3165,22 @@ const LiveScorerScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   playerChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     marginRight: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   playerChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   playerChipText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 14,
   },
   playerChipTextActive: {
@@ -3139,8 +3189,8 @@ const styles = StyleSheet.create({
   },
 
   // ── Layout ──
-  container: { flex: 1, backgroundColor: Colors.background },
-  loading: { color: Colors.textPrimary, textAlign: 'center', marginTop: 100 },
+  container: { flex: 1, backgroundColor: colors.background },
+  loading: { color: colors.textPrimary, textAlign: 'center', marginTop: 100 },
   content: { flex: 1 },
 
   // ── Header ──
@@ -3150,8 +3200,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.backgroundCard,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
     gap: 8,
   },
   headerBackBtn: {
@@ -3162,7 +3212,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   headerCenter: {
     flex: 1,
@@ -3177,19 +3227,19 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   headerTeamName: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textSecondary,
+    color: colors.textPrimary,
   },
   headerTeamNameRight: {
   },
   headerTeamNameActive: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 12,
   },
   headerVsChip: {
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     borderRadius: 3,
     paddingHorizontal: 4,
     paddingVertical: 1,
@@ -3197,13 +3247,13 @@ const styles = StyleSheet.create({
   headerVsText: {
     fontSize: 7,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     letterSpacing: 1,
   },
   headerTitle: {
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     flexShrink: 1,
   },
   headerLiveBadge: {
@@ -3222,12 +3272,12 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.error,
+    backgroundColor: colors.error,
   },
   headerLiveText: {
     fontSize: 8,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.error,
+    color: colors.error,
     letterSpacing: 0.5,
   },
   headerActions: {
@@ -3243,7 +3293,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
 
   // ── Score Board ──
@@ -3252,9 +3302,9 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.sm,
     alignItems: 'center',
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   teamsRow: {
     flexDirection: 'row',
@@ -3267,7 +3317,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textAlign: 'right',
     letterSpacing: 0.3,
   },
@@ -3275,11 +3325,11 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   teamLabelActive: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 13,
   },
   vsChip: {
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     borderRadius: 4,
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -3287,13 +3337,13 @@ const styles = StyleSheet.create({
   vsText: {
     fontSize: 9,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     letterSpacing: 1.5,
   },
   scoreBoardDivider: {
     width: 30,
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     marginBottom: 4,
   },
   mainScore: {
@@ -3308,7 +3358,7 @@ const styles = StyleSheet.create({
   },
   runs: {
     fontSize: 52,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     lineHeight: 56,
     letterSpacing: -1.5,
@@ -3318,12 +3368,12 @@ const styles = StyleSheet.create({
   },
   wickets: {
     fontSize: 22,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.semiBold,
     lineHeight: 26,
   },
   oversText: {
-    color: Colors.textTertiary,
+    color: colors.textSecondary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.regular,
     lineHeight: 16,
@@ -3331,15 +3381,15 @@ const styles = StyleSheet.create({
   },
   statsPill: {
     marginTop: 6,
-    backgroundColor: Colors.backgroundSecondary || Colors.surface,
+    backgroundColor: colors.backgroundSecondary || colors.surface,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   statsPillText: {
-    color: Colors.textSecondary,
+    color: colors.textPrimary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.semiBold,
     letterSpacing: 0.4,
@@ -3352,7 +3402,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.primary + '35',
+    borderColor: colors.primary + '35',
     backgroundColor: 'rgba(154,188,47,0.07)',
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -3368,18 +3418,18 @@ const styles = StyleSheet.create({
   chaseNeedLabel: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   chaseNeedRuns: {
     fontSize: 20,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
     lineHeight: 24,
   },
   chaseDlsTag: {
     fontSize: 10,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
   chaseMetaRow: {
     flexDirection: 'row',
@@ -3393,7 +3443,7 @@ const styles = StyleSheet.create({
   chaseMetaLabel: {
     fontSize: 9,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     marginBottom: 1,
@@ -3401,12 +3451,12 @@ const styles = StyleSheet.create({
   chaseMetaValue: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   chaseMetaDot: {
     width: 1,
     height: 22,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
   },
   chaseDlsParRow: {
     borderRadius: 5,
@@ -3421,11 +3471,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   chaseStripHighlight: {
-    color: Colors.primary,
+    color: colors.primary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 13,
   },
-  chaseStripText: { fontSize: 12, color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
+  chaseStripText: { fontSize: 12, color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
   chaseStripMuted: { fontSize: 0 },
   chaseStripDls: { fontSize: 0 },
   chaseStripDlsPar: { fontSize: 0 },
@@ -3444,7 +3494,7 @@ const styles = StyleSheet.create({
   dlsParValue: { fontSize: 0 },
   dlsParStatus: { fontSize: 0 },
   tossText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.regular,
     textAlign: 'center',
@@ -3456,12 +3506,12 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   crrText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.semiBold,
   },
   chaseText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
     textAlign: 'center',
@@ -3475,7 +3525,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   overTimelineLabel: {
-    color: Colors.textTertiary,
+    color: colors.textPrimary,
     marginBottom: 8,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
@@ -3487,16 +3537,16 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
-  ballWicket: { backgroundColor: Colors.error, borderColor: Colors.error },
+  ballWicket: { backgroundColor: colors.error, borderColor: colors.error },
   ballBoundary: { backgroundColor: '#FFC107', borderColor: '#FFC107' },
   ballText: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 13,
   },
@@ -3506,10 +3556,10 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.md,
     marginTop: Spacing.sm,
     marginBottom: Spacing.sm,
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   playersGridHeader: {
@@ -3523,7 +3573,7 @@ const styles = StyleSheet.create({
   playersGridHeaderText: {
     fontSize: 10,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
@@ -3540,7 +3590,7 @@ const styles = StyleSheet.create({
   },
   batterColStriker: {
     borderLeftWidth: 2,
-    borderLeftColor: Colors.primary,
+    borderLeftColor: colors.primary,
   },
   batterColInner: {
     flexDirection: 'row',
@@ -3555,7 +3605,7 @@ const styles = StyleSheet.create({
     marginBottom: 1,
   },
   strikerAsterisk: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 14,
     fontFamily: Typography.fontFamily.bold,
     lineHeight: 16,
@@ -3564,48 +3614,48 @@ const styles = StyleSheet.create({
   batterColName: {
     fontSize: 14,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textSecondary,
+    color: colors.textPrimary,
     flexShrink: 1,
   },
   batterColNameActive: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
   },
   batterColScore: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     flexShrink: 0,
   },
   batterColScoreActive: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   batterColBalls: {
     fontSize: 11,
-    color: Colors.textTertiary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.regular,
   },
   batterColDivider: {
     width: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     marginVertical: 4,
   },
   // Legacy chip styles (unused but kept)
   batterChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20, backgroundColor: 'transparent', gap: 2 },
   batterChipStriker: { backgroundColor: 'rgba(154,188,47,0.12)', borderWidth: 1, borderColor: 'rgba(154,188,47,0.3)' },
-  batterChipName: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginRight: 4, maxWidth: 80 },
-  batterChipNameStriker: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
+  batterChipName: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginRight: 4, maxWidth: 80 },
+  batterChipNameStriker: { color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
   batterChipScoreWrap: { flexDirection: 'row', alignItems: 'baseline', gap: 1 },
-  batterChipRuns: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary },
-  batterChipRunsStriker: { color: Colors.primary, fontSize: 16 },
-  batterChipBalls: { fontSize: 10, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular },
+  batterChipRuns: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textSecondary },
+  batterChipRunsStriker: { color: colors.primary, fontSize: 16 },
+  batterChipBalls: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular },
   batterChipSep: { paddingHorizontal: 2 },
   // Legacy styles kept for non-batting areas
   playerRowBordered: {
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
   },
   playerStatsCol: {
     flex: 1,
@@ -3615,7 +3665,7 @@ const styles = StyleSheet.create({
   },
   playerStatsColDivider: {
     width: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: colors.borderLight,
     height: '100%',
   },
   strikerHighlightCol: {
@@ -3625,7 +3675,7 @@ const styles = StyleSheet.create({
   },
   playerRowDividerLine: {
     height: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: colors.borderLight,
     width: '100%',
   },
   playerNameRow: {
@@ -3634,30 +3684,30 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   playerName: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 16,
     flexShrink: 1,
     paddingHorizontal: 2,
   },
-  strikerName: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold },
+  strikerName: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
   playerScore: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 15,
   },
   playerScoreBalls: {
     fontSize: 12,
-    color: Colors.textTertiary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.regular,
   },
   bowlerOverText: {
-    color: Colors.textTertiary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 12,
   },
   bowlerStatsText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 13,
   },
@@ -3666,14 +3716,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 3,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: colors.borderLight,
     marginBottom: 1,
   },
   bowlingTableHeaderCell: {
     width: 46,
     fontSize: 9,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textTertiary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     textAlign: 'right',
@@ -3684,13 +3734,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   bowlingTableName: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 13,
   },
   bowlingTableCell: {
     width: 46,
-    color: Colors.textSecondary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.medium,
     fontSize: 12,
     textAlign: 'right',
@@ -3698,11 +3748,11 @@ const styles = StyleSheet.create({
 
   // ── Keypad ──
   keypad: {
-    backgroundColor: Colors.backgroundCard,
+    backgroundColor: colors.surface,
     paddingHorizontal: 10,
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: colors.border,
   },
   keypadRow: {
     flexDirection: 'row',
@@ -3712,31 +3762,31 @@ const styles = StyleSheet.create({
   scoreBtn: {
     flex: 1,
     height: 72,
-    backgroundColor: Colors.card,
+    backgroundColor: isDark ? colors.surface : colors.surfaceVariant,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderBottomWidth: 5,
-    borderBottomColor: '#1A1A1A',
+    borderColor: colors.border,
+    borderBottomWidth: 4,
+    borderBottomColor: isDark ? "#111111" : colors.border,
   },
   scoreBtnFour: {
-    backgroundColor: 'rgba(76, 175, 80, 0.18)',
-    borderColor: 'rgba(76, 175, 80, 0.4)',
-    borderBottomColor: 'rgba(76, 175, 80, 0.6)',
+    backgroundColor: "#4CAF50",
+    borderColor: "#388E3C",
+    borderBottomColor: "#2E7D32",
   },
   scoreBtnSix: {
-    backgroundColor: 'rgba(33, 150, 243, 0.18)',
-    borderColor: 'rgba(33, 150, 243, 0.4)',
-    borderBottomColor: 'rgba(33, 150, 243, 0.6)',
+    backgroundColor: colors.primary,
+    borderColor: isDark ? "#E6B800" : "#D4A300",
+    borderBottomColor: isDark ? "#B38F00" : "#A67C00",
   },
   scoreBtnMore: {
-    backgroundColor: Colors.primaryAlpha10,
-    borderColor: Colors.primaryAlpha30,
-    borderBottomColor: 'rgba(255, 204, 0, 0.4)',
+    backgroundColor: isDark ? colors.primaryAlpha10 : colors.surfaceVariant,
+    borderColor: colors.border,
+    borderBottomColor: isDark ? colors.primaryAlpha30 : colors.border,
     height: 72,
-    borderBottomWidth: 5,
+    borderBottomWidth: 4,
   },
   scoreBtnWicket: {
     backgroundColor: '#F44336',
@@ -3749,12 +3799,12 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
   },
   scoreBtnText: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 28,
     fontFamily: Typography.fontFamily.semiBold,
   },
   scoreBtnSubText: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontSize: 10,
     fontFamily: Typography.fontFamily.bold,
     marginTop: -2,
@@ -3763,18 +3813,18 @@ const styles = StyleSheet.create({
   scoreBtnUndo: {
     flex: 1,
     height: 72,
-    backgroundColor: Colors.card,
+    backgroundColor: colors.card,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderStyle: 'dashed',
     borderBottomWidth: 3,
     borderBottomColor: '#1A1A1A',
   },
   scoreBtnUndoText: {
-    color: Colors.textTertiary,
+    color: colors.textSecondary,
     fontSize: 13,
     fontFamily: Typography.fontFamily.bold,
     letterSpacing: 0.5,
@@ -3782,17 +3832,17 @@ const styles = StyleSheet.create({
   scoreBtnExtra: {
     flex: 1,
     height: 60,
-    backgroundColor: Colors.primaryAlpha10,
+    backgroundColor: isDark ? colors.primaryAlpha10 : colors.surfaceVariant,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: Colors.primaryAlpha30,
+    borderColor: colors.border,
     borderBottomWidth: 4,
-    borderBottomColor: 'rgba(255, 204, 0, 0.3)',
+    borderBottomColor: isDark ? colors.primaryAlpha30 : colors.border,
   },
   scoreBtnExtraText: {
-    color: Colors.primary,
+    color: isDark ? colors.primary : colors.textPrimary,
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
     letterSpacing: 0.3,
@@ -3807,7 +3857,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scoreBtnTextSecondary: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 14,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -3819,9 +3869,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   keypadActionBtnSecondary: {
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   keypadActionBtnText: {
     color: '#fff',
@@ -3830,21 +3880,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   keypadActionBtnSecondaryText: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 13,
     fontFamily: Typography.fontFamily.bold,
   },
   inningsCompleteTitle: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
     marginBottom: 4,
   },
   inningsCompleteSubtitle: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: Spacing.base,
     fontStyle: 'italic',
@@ -3852,7 +3902,7 @@ const styles = StyleSheet.create({
   tiedText: {
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.warning,
+    color: colors.warning,
     textAlign: 'center',
     marginBottom: 4,
   },
@@ -3862,13 +3912,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.xl,
-    backgroundColor: Colors.surfaceVariant,
+    backgroundColor: colors.surfaceVariant,
     borderRadius: BorderRadius.md,
     marginTop: Spacing.xl,
     marginHorizontal: Spacing.md,
   },
   readOnlyText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
     marginTop: 12,
     marginBottom: 20,
@@ -3877,28 +3927,28 @@ const styles = StyleSheet.create({
 
   // ── Modals ──
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, padding: 24, width: '100%' },
-  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 8 },
-  modalSub: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, marginBottom: 20 },
-  modalInput: { height: 50, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.md, paddingHorizontal: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 16, marginBottom: 24 },
+  modalContent: { backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: 24, width: '100%' },
+  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 8 },
+  modalSub: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginBottom: 20 },
+  modalInput: { height: 50, borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.md, paddingHorizontal: 16, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 16, marginBottom: 24 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
-  modalBtnCancel: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: Colors.surfaceVariant },
-  modalBtnTextCancel: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
-  modalBtnAdd: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  modalBtnTextAdd: { color: Colors.background || '#000000', fontFamily: Typography.fontFamily.bold },
+  modalBtnCancel: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: colors.surfaceVariant },
+  modalBtnTextCancel: { color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold },
+  modalBtnAdd: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: BorderRadius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  modalBtnTextAdd: { color: colors.background || '#000000', fontFamily: Typography.fontFamily.bold },
 
   bottomSheetOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end', zIndex: 100 },
-  bottomSheet: { backgroundColor: Colors.backgroundModal, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl, paddingBottom: 40 },
+  bottomSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl, paddingBottom: 40, borderWidth: 1, borderColor: colors.border },
   bsHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.lg },
-  bsTitle: { color: '#FFF', fontSize: 20, fontFamily: Typography.fontFamily.bold },
+  bsTitle: { color: colors.textPrimary, fontSize: 20, fontFamily: Typography.fontFamily.bold },
   bsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  bsBtn: { width: '48%', height: 50, backgroundColor: Colors.surfaceVariant, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  bsBtnDanger: { backgroundColor: 'rgba(244,67,54,0.1)' },
-  bsBtnText: { color: '#FFF', fontFamily: Typography.fontFamily.medium },
+  bsBtn: { width: '48%', height: 50, backgroundColor: colors.surfaceVariant, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  bsBtnDanger: { backgroundColor: isDark ? 'rgba(244,67,54,0.18)' : 'rgba(244,67,54,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(244,67,54,0.35)' : 'rgba(244,67,54,0.2)' },
+  bsBtnText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.medium },
 
   // action button shared
   actionBtnPrimary: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: BorderRadius.md,
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -3912,11 +3962,11 @@ const styles = StyleSheet.create({
   },
 
   needsBowlerCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     alignItems: 'center',
     gap: Spacing.md,
     marginVertical: Spacing.sm,
@@ -3927,17 +3977,17 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   needsBowlerTitle: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 16,
     fontFamily: Typography.fontFamily.bold,
   },
   needsBowlerSub: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     fontFamily: Typography.fontFamily.regular,
   },
   selectBowlerBtnAction: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

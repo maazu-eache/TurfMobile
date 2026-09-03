@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Image, Modal, FlatList, Platform, ToastAndroid, Dimensions,
@@ -14,7 +14,7 @@ import {
 } from '../playerSlice';
 import SharePreviewModal from '../../tournament/components/SharePreviewModal';
 import { PlayerProfilePoster } from '../../tournament/components/PosterTemplates';
-import { Colors, Typography, BorderRadius, Shadows } from '../../../theme/theme';
+import { useTheme, Typography, BorderRadius, Spacing } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -62,6 +62,8 @@ const ACH_CFG = {
 const BallColors = { Tennis: '#10B981', 'Hard Tennis': '#F59E0B', Leather: '#EF4444', Other: '#8B5CF6' };
 
 const PlayerDetailScreen = ({ navigation, route }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { id } = route.params || {};
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
@@ -301,10 +303,10 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   };
 
   if (localLoading) {
-    return (<SafeAreaView style={styles.centeredState}><ActivityIndicator size="large" color={Colors.primary} /><Text style={styles.loadingText}>Loading profile…</Text></SafeAreaView>);
+    return (<SafeAreaView style={styles.centeredState}><ActivityIndicator size="large" color={colors.primary} /><Text style={styles.loadingText}>Loading profile…</Text></SafeAreaView>);
   }
   if (!viewedPlayer || viewedPlayer._id !== id) {
-    return (<SafeAreaView style={styles.centeredState}><Icon name="alert-circle-outline" size={52} color={Colors.error} /><Text style={styles.errorText}>Player profile not found</Text><TouchableOpacity style={styles.goBackBtn} onPress={() => navigation.goBack()}><Text style={styles.goBackBtnText}>Go Back</Text></TouchableOpacity></SafeAreaView>);
+    return (<SafeAreaView style={styles.centeredState}><Icon name="alert-circle-outline" size={52} color={colors.error} /><Text style={styles.errorText}>Player profile not found</Text><TouchableOpacity style={styles.goBackBtn} onPress={() => navigation.goBack()}><Text style={styles.goBackBtnText}>Go Back</Text></TouchableOpacity></SafeAreaView>);
   }
 
   const viewedPlayerUserId = viewedPlayer.userId?._id || viewedPlayer.userId;
@@ -353,7 +355,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
 
   const SectionHeader = ({ icon, label }) => (
     <View style={styles.sectionHeader}>
-      <View style={styles.sectionIconWrap}><Icon name={icon} size={15} color={Colors.primary} /></View>
+      <View style={styles.sectionIconWrap}><Icon name={icon} size={15} color={colors.primary} /></View>
       <Text style={styles.sectionTitle}>{label}</Text>
     </View>
   );
@@ -369,12 +371,12 @@ const PlayerDetailScreen = ({ navigation, route }) => {
     availableBallTypes && availableBallTypes.length > 0 ? (
       <View style={styles.filterSection}>
         <View style={styles.filterHeaderRow}>
-          <View style={styles.filterIconWrap}><Icon name="filter-outline" size={12} color={Colors.primary} /></View>
+          <View style={styles.filterIconWrap}><Icon name="filter-outline" size={12} color={colors.primary} /></View>
           <Text style={styles.filterHeaderText}>FILTER BY BALL TYPE</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
           <TouchableOpacity style={[styles.filterPillCircular, ballTypeFilter === 'Overall' && styles.filterPillCircularActive, { opacity: ballTypeFilter === 'Overall' ? 1 : 0.45 }]} onPress={() => setBallTypeFilter('Overall')} activeOpacity={0.75}>
-            <Icon name="globe-outline" size={20} color={ballTypeFilter === 'Overall' ? Colors.primary : Colors.textSecondary} />
+            <Icon name="globe-outline" size={20} color={ballTypeFilter === 'Overall' ? colors.primary : colors.textSecondary} />
           </TouchableOpacity>
           {availableBallTypes.map(bt => {
             const isActive = ballTypeFilter === bt;
@@ -447,10 +449,10 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   );
 
   const renderMatchesTab = () => {
-    if (matchesLoading) return <View style={styles.tabCenteredEmpty}><ActivityIndicator color={Colors.primary} size="large" /></View>;
+    if (matchesLoading) return <View style={styles.tabCenteredEmpty}><ActivityIndicator color={colors.primary} size="large" /></View>;
     if (!matchHistory || matchHistory.length === 0) return (
       <View style={styles.tabCenteredEmpty}>
-        <Icon name="baseball-outline" size={52} color={Colors.textTertiary} />
+        <Icon name="baseball-outline" size={52} color={colors.textTertiary} />
         <Text style={styles.emptyText}>No match history yet</Text>
       </View>
     );
@@ -472,7 +474,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                 {/* Top row: Team Names + Status Indicator */}
                 <View style={styles.matchCardHeader}>
                   <Text style={styles.matchTeamsText} numberOfLines={1}>
-                    {teamAName} <Text style={{ color: Colors.primary, fontFamily: Typography.fontFamily.bold }}>vs</Text> {teamBName}
+                    {teamAName} <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold }}>vs</Text> {teamBName}
                   </Text>
                 </View>
 
@@ -482,7 +484,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                     {/* Batting Stats */}
                     {match.runs !== null && (
                       <View>
-                        <Text style={styles.matchRunsValue}>{match.runs}{match.isNotOut ? '*' : ''} <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular }}>runs</Text></Text>
+                        <Text style={styles.matchRunsValue}>{match.runs}{match.isNotOut ? '*' : ''} <Text style={{ fontSize: 13, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular }}>runs</Text></Text>
                         <Text style={styles.matchRunsLabel}>{match.balls || 0} balls · {match.fours || 0}×4s · {match.sixes || 0}×6s</Text>
                       </View>
                     )}
@@ -497,7 +499,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                       <View>
                         <Text style={styles.matchRunsValue}>
                           {match.bowling.wickets}-{match.bowling.runs}{' '}
-                          <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular }}>
+                          <Text style={{ fontSize: 13, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular }}>
                             ({match.bowling.overs}.{match.bowling.balls} ov)
                           </Text>
                         </Text>
@@ -524,12 +526,12 @@ const PlayerDetailScreen = ({ navigation, route }) => {
 
                 {/* Bottom row: Match Status / Result Summary */}
                 <View style={styles.matchCardFooter}>
-                  <Text style={[styles.matchStatusText, isLive && { color: Colors.primary }]} numberOfLines={1}>
+                  <Text style={[styles.matchStatusText, isLive && { color: colors.primary }]} numberOfLines={1}>
                     {statusText}
                   </Text>
                 </View>
               </View>
-              <Icon name="chevron-forward" size={16} color={Colors.textTertiary} style={{ marginLeft: 8 }} />
+              <Icon name="chevron-forward" size={16} color={colors.textTertiary} style={{ marginLeft: 8 }} />
             </TouchableOpacity>
           );
         })}
@@ -538,11 +540,11 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   };
 
   const renderTeamsTab = () => {
-    if (teamsLoading) return <View style={styles.tabCenteredEmpty}><ActivityIndicator color={Colors.primary} size="large" /></View>;
+    if (teamsLoading) return <View style={styles.tabCenteredEmpty}><ActivityIndicator color={colors.primary} size="large" /></View>;
     const teams = playerTeams.length > 0 ? playerTeams : (viewedPlayer.teams || []);
     if (!teams || teams.length === 0) return (
       <View style={styles.tabCenteredEmpty}>
-        <Icon name="people-outline" size={52} color={Colors.textTertiary} />
+        <Icon name="people-outline" size={52} color={colors.textTertiary} />
         <Text style={styles.emptyText}>Not part of any team yet</Text>
       </View>
     );
@@ -552,13 +554,17 @@ const PlayerDetailScreen = ({ navigation, route }) => {
         {team.logo ? (
           <Image source={{ uri: getImageUrl(team.logo) }} style={styles.teamLogo} />
         ) : (
-          <View style={styles.teamLogoFallback}><Icon name="shield-outline" size={22} color={Colors.primary} /></View>
+          <View style={styles.teamLogoFallback}>
+            <Text style={styles.teamLogoInitial}>
+              {(team.name || 'T').trim().charAt(0).toUpperCase()}
+            </Text>
+          </View>
         )}
         <View style={{ flex: 1, marginLeft: 14 }}>
           <Text style={styles.teamName}>{team.name || 'Unknown Team'}</Text>
           {team.category && <Text style={styles.teamCategory}>{team.category}</Text>}
         </View>
-        <Icon name="chevron-forward" size={16} color={Colors.textTertiary} />
+        <Icon name="chevron-forward" size={16} color={colors.textTertiary} />
       </TouchableOpacity>
     ));
   };
@@ -566,7 +572,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   const renderAchievementsTab = () => {
     if (!achievements || achievements.length === 0) return (
       <View style={styles.tabCenteredEmpty}>
-        <Icon name="trophy-outline" size={52} color={Colors.textTertiary} />
+        <Icon name="trophy-outline" size={52} color={colors.textTertiary} />
         <Text style={styles.emptyText}>No achievements yet</Text>
         <Text style={styles.emptySubText}>Keep playing to earn awards!</Text>
       </View>
@@ -602,15 +608,15 @@ const PlayerDetailScreen = ({ navigation, route }) => {
       <View style={[styles.navBarAbsolute, { paddingTop: insets.top }]} pointerEvents="box-none">
         <View style={styles.navBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Icon name="arrow-back" size={22} color={Colors.textPrimary} />
+            <Icon name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <TouchableOpacity style={styles.navShareBtn} onPress={handleSharePress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Icon name="share-social-outline" size={20} color={Colors.primary} />
+              <Icon name="share-social-outline" size={20} color="#FFFFFF" />
             </TouchableOpacity>
             {!isOwnProfile && (
               <TouchableOpacity style={styles.navShareBtn} onPress={() => setShowMenuModal(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Icon name="ellipsis-vertical" size={20} color={Colors.primary} />
+                <Icon name="ellipsis-vertical" size={20} color="#FFFFFF" />
               </TouchableOpacity>
             )}
           </View>
@@ -621,7 +627,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} colors={[Colors.primary]} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} colors={[colors.primary]} />
         }
       >
         {/* ── HERO BANNER — full-bleed profile photo with gradient overlay ── */}
@@ -657,7 +663,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
               {/* Clean Meta Info Row (Role • Batting Style • Bowling Style) */}
               <View style={styles.heroMetaRow}>
                 <View style={styles.heroMetaItem}>
-                  <MCIcon name="cricket" size={13} color={Colors.primary} style={{ marginRight: 4 }} />
+                  <MCIcon name="cricket" size={13} color={colors.primary} style={{ marginRight: 4 }} />
                   <Text style={styles.heroRoleHighlight}>{viewedPlayer.playingRole || 'Cricket Player'}</Text>
                 </View>
                 {viewedPlayer.battingStyle ? (
@@ -690,7 +696,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                         <MCIcon
                           name={tag.type === 'batting' ? 'lightning-bolt' : 'fire'}
                           size={12}
-                          color={Colors.primary}
+                          color={colors.primary}
                           style={{ marginRight: 4 }}
                         />
                         <Text style={styles.heroTagBadgeText}>{tag.name}</Text>
@@ -708,7 +714,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                   const locStr = [city, state].filter(Boolean).join(', ');
                   return (
                     <View style={styles.heroLocationRow}>
-                      <MCIcon name="map-marker" size={13} color={Colors.primary} style={{ marginRight: 4 }} />
+                      <MCIcon name="map-marker" size={13} color={colors.primary} style={{ marginRight: 4 }} />
                       <Text style={styles.heroLocationText}>{locStr || 'Location not set'}</Text>
                     </View>
                   );
@@ -723,7 +729,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                     <Icon
                       name={isFollowing ? 'checkmark-circle' : 'person-add-outline'}
                       size={14}
-                      color={isFollowing ? Colors.primary : '#000'}
+                      color={isFollowing ? colors.primary : '#000'}
                       style={{ marginRight: 5 }}
                     />
                     <Text style={[styles.heroFollowBtnText, isFollowing && styles.heroFollowingBtnText]}>
@@ -768,7 +774,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
         <View style={styles.tabBar}>
           {TABS.map(tab => (
             <TouchableOpacity key={tab.key} style={[styles.tabItem, activeTab === tab.key && styles.tabItemActive]} onPress={() => setActiveTab(tab.key)} activeOpacity={0.8}>
-              <Icon name={tab.icon} size={16} color={activeTab === tab.key ? Colors.primary : Colors.textTertiary} />
+              <Icon name={tab.icon} size={16} color={activeTab === tab.key ? colors.primary : colors.textTertiary} />
               <Text style={[styles.tabLabel, activeTab === tab.key && styles.tabLabelActive]}>{tab.label}</Text>
             </TouchableOpacity>
           ))}
@@ -791,12 +797,12 @@ const PlayerDetailScreen = ({ navigation, route }) => {
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{socialType === 'followers' ? 'Followers' : 'Following'}<Text style={styles.modalCount}> ({socialList.length})</Text></Text>
-              <TouchableOpacity onPress={() => setSocialModalVisible(false)} style={styles.modalCloseBtn}><Icon name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setSocialModalVisible(false)} style={styles.modalCloseBtn}><Icon name="close" size={20} color={colors.textSecondary} /></TouchableOpacity>
             </View>
             {socialLoading ? (
-              <ActivityIndicator size="large" color={Colors.primary} style={{ marginVertical: 48 }} />
+              <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 48 }} />
             ) : socialList.length === 0 ? (
-              <View style={styles.emptyWrap}><Icon name="people-outline" size={52} color={Colors.textTertiary} /><Text style={styles.emptyText}>No users yet</Text></View>
+              <View style={styles.emptyWrap}><Icon name="people-outline" size={52} color={colors.textTertiary} /><Text style={styles.emptyText}>No users yet</Text></View>
             ) : (
               <FlatList data={socialList} keyExtractor={item => item._id}
                 contentContainerStyle={{ paddingBottom: 24 }}
@@ -816,7 +822,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                           />
                         ) : (
                           <View style={styles.listAvatarFallback}>
-                            <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.primary }}>
+                            <Text style={{ fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.primary }}>
                               {(item.name || '?').charAt(0).toUpperCase()}
                             </Text>
                           </View>
@@ -852,13 +858,13 @@ const PlayerDetailScreen = ({ navigation, route }) => {
       <Modal visible={!!selectedTagDefinition} transparent animationType="fade" onRequestClose={() => setSelectedTagDefinition(null)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedTagDefinition(null)}>
           <View style={[styles.modalSheet, { width: '80%', alignItems: 'center', alignSelf: 'center', marginBottom: 'auto', marginTop: 'auto', borderRadius: 20 }]}>
-            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
-              <Icon name="pricetag" size={24} color={Colors.primary} />
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+              <Icon name="pricetag" size={24} color={colors.primary} />
             </View>
-            <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>{selectedTagDefinition?.name}</Text>
-            <Text style={{ fontSize: 14, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 }}>{selectedTagDefinition?.desc}</Text>
-            <TouchableOpacity style={{ marginTop: 24, paddingVertical: 10, paddingHorizontal: 24, backgroundColor: Colors.primary, borderRadius: BorderRadius.md }} onPress={() => setSelectedTagDefinition(null)}>
-              <Text style={{ color: Colors.background, fontFamily: Typography.fontFamily.bold }}>Got It</Text>
+            <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>{selectedTagDefinition?.name}</Text>
+            <Text style={{ fontSize: 14, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 }}>{selectedTagDefinition?.desc}</Text>
+            <TouchableOpacity style={{ marginTop: 24, paddingVertical: 10, paddingHorizontal: 24, backgroundColor: colors.primary, borderRadius: BorderRadius.md }} onPress={() => setSelectedTagDefinition(null)}>
+              <Text style={{ color: colors.background, fontFamily: Typography.fontFamily.bold }}>Got It</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -877,7 +883,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
               height: 280, 
               borderRadius: 140, 
               borderWidth: 4, 
-              borderColor: Colors.primary, 
+              borderColor: colors.primary, 
               resizeMode: 'cover' 
             }} 
           />
@@ -891,22 +897,22 @@ const PlayerDetailScreen = ({ navigation, route }) => {
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Actions</Text>
-              <TouchableOpacity onPress={() => setShowMenuModal(false)} style={styles.modalCloseBtn}><Icon name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowMenuModal(false)} style={styles.modalCloseBtn}><Icon name="close" size={20} color={colors.textSecondary} /></TouchableOpacity>
             </View>
             <View style={{ paddingVertical: 12, gap: 12 }}>
               <TouchableOpacity 
-                style={{ flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border }} 
+                style={{ flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border }} 
                 onPress={() => { setShowMenuModal(false); setShowReportModal(true); }}
               >
-                <Icon name="flag-outline" size={20} color={Colors.primary} style={{ marginRight: 12 }} />
-                <Text style={{ fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.semiBold }}>Report Player</Text>
+                <Icon name="flag-outline" size={20} color={colors.primary} style={{ marginRight: 12 }} />
+                <Text style={{ fontSize: 16, color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold }}>Report Player</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={{ flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: 'rgba(244,67,54,0.06)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(244,67,54,0.15)' }} 
                 onPress={handleBlockUser}
               >
-                <Icon name="ban" size={20} color={Colors.error} style={{ marginRight: 12 }} />
-                <Text style={{ fontSize: 16, color: Colors.error, fontFamily: Typography.fontFamily.semiBold }}>Block Player</Text>
+                <Icon name="ban" size={20} color={colors.error} style={{ marginRight: 12 }} />
+                <Text style={{ fontSize: 16, color: colors.error, fontFamily: Typography.fontFamily.semiBold }}>Block Player</Text>
               </TouchableOpacity>
             </View>
             <SafeAreaView edges={['bottom']} />
@@ -924,10 +930,10 @@ const PlayerDetailScreen = ({ navigation, route }) => {
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Report Profile</Text>
-              <TouchableOpacity onPress={() => setShowReportModal(false)} style={styles.modalCloseBtn}><Icon name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowReportModal(false)} style={styles.modalCloseBtn}><Icon name="close" size={20} color={colors.textSecondary} /></TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <Text style={{ fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginBottom: 16, lineHeight: 22 }}>
+              <Text style={{ fontSize: 14, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginBottom: 16, lineHeight: 22 }}>
                 Please select a reason for reporting this profile. Our team will review the account and take appropriate action.
               </Text>
               
@@ -945,18 +951,18 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                       key={item.key}
                       style={{ 
                         flexDirection: 'row', alignItems: 'center', padding: 14, 
-                        backgroundColor: isSelected ? 'rgba(255,204,0,0.1)' : Colors.surface,
-                        borderRadius: 12, borderWidth: 1, borderColor: isSelected ? Colors.primary : Colors.border
+                        backgroundColor: isSelected ? 'rgba(255,204,0,0.1)' : colors.surface,
+                        borderRadius: 12, borderWidth: 1, borderColor: isSelected ? colors.primary : colors.border
                       }}
                       onPress={() => setReportReason(item.key)}
                     >
                       <View style={{ 
-                        width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: isSelected ? Colors.primary : Colors.textTertiary,
+                        width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: isSelected ? colors.primary : colors.textTertiary,
                         justifyContent: 'center', alignItems: 'center', marginRight: 12
                       }}>
-                        {isSelected && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />}
+                        {isSelected && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary }} />}
                       </View>
-                      <Text style={{ fontSize: 15, color: Colors.textPrimary, fontFamily: isSelected ? Typography.fontFamily.semiBold : Typography.fontFamily.regular }}>
+                      <Text style={{ fontSize: 15, color: colors.textPrimary, fontFamily: isSelected ? Typography.fontFamily.semiBold : Typography.fontFamily.regular }}>
                         {item.label}
                       </Text>
                     </TouchableOpacity>
@@ -964,17 +970,17 @@ const PlayerDetailScreen = ({ navigation, route }) => {
                 })}
               </View>
 
-              <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8, marginLeft: 4 }}>
+              <Text style={{ fontSize: 13, color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8, marginLeft: 4 }}>
                 Additional Details (Optional)
               </Text>
               <View style={{ 
-                height: 80, backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
+                height: 80, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border,
                 paddingHorizontal: 12, marginBottom: 24
               }}>
                 <TextInput
                   style={{ flex: 1, color: '#FFF', fontSize: 14, textAlignVertical: 'top', paddingTop: 8 }}
                   placeholder="Explain why you are flagging this profile..."
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   value={reportDetails}
                   onChangeText={setReportDetails}
                   multiline
@@ -984,16 +990,16 @@ const PlayerDetailScreen = ({ navigation, route }) => {
 
               <TouchableOpacity 
                 style={{ 
-                  height: 48, borderRadius: 12, backgroundColor: Colors.primary, 
+                  height: 48, borderRadius: 12, backgroundColor: colors.primary, 
                   justifyContent: 'center', alignItems: 'center', flexDirection: 'row'
                 }}
                 onPress={handleReportUser}
                 disabled={reportLoading}
               >
                 {reportLoading ? (
-                  <ActivityIndicator color={Colors.background} size="small" />
+                  <ActivityIndicator color={colors.background} size="small" />
                 ) : (
-                  <Text style={{ color: Colors.background, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>Submit Report</Text>
+                  <Text style={{ color: colors.background, fontSize: 16, fontFamily: Typography.fontFamily.bold }}>Submit Report</Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
@@ -1019,19 +1025,19 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  centeredState: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background, paddingHorizontal: 32 },
-  loadingText: { marginTop: 14, fontSize: 14, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  errorText: { marginTop: 14, fontSize: 16, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 24, textAlign: 'center' },
-  goBackBtn: { backgroundColor: Colors.primary, borderRadius: BorderRadius.xl, paddingHorizontal: 28, paddingVertical: 13 },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  centeredState: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, paddingHorizontal: 32 },
+  loadingText: { marginTop: 14, fontSize: 14, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  errorText: { marginTop: 14, fontSize: 16, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: 24, textAlign: 'center' },
+  goBackBtn: { backgroundColor: colors.primary, borderRadius: BorderRadius.xl, paddingHorizontal: 28, paddingVertical: 13 },
   goBackBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 15 },
 
   // ── Floating nav bar over banner ──────────────────────────────────────────
   navBarAbsolute: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20 },
   navBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, height: 52 },
-  navBackBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
-  navShareBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  navBackBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.55)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  navShareBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.55)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
 
   scrollContent: { paddingBottom: 20 },
 
@@ -1072,7 +1078,7 @@ const styles = StyleSheet.create({
   heroBgFallbackLetter: {
     fontSize: 80,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
     opacity: 0.4,
   },
   heroBannerGradient: {
@@ -1111,7 +1117,7 @@ const styles = StyleSheet.create({
   heroFollowBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 7,
@@ -1119,14 +1125,14 @@ const styles = StyleSheet.create({
   heroFollowingBtn: {
     backgroundColor: 'rgba(255,204,0,0.12)',
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   heroFollowBtnText: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.bold,
     color: '#000',
   },
-  heroFollowingBtnText: { color: Colors.primary },
+  heroFollowingBtnText: { color: colors.primary },
 
   // ── Name / Role ───────────────────────────────────────────────────────────
   heroName: {
@@ -1154,7 +1160,7 @@ const styles = StyleSheet.create({
   heroRoleHighlight: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
     letterSpacing: 0.2,
   },
   heroMetaDot: {
@@ -1185,7 +1191,7 @@ const styles = StyleSheet.create({
   heroTagBadgeText: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
-    color: Colors.primary,
+    color: colors.primary,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
@@ -1201,7 +1207,7 @@ const styles = StyleSheet.create({
   heroFollowBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 6,
@@ -1209,67 +1215,67 @@ const styles = StyleSheet.create({
   heroFollowingBtn: {
     backgroundColor: 'rgba(255,204,0,0.12)',
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   heroFollowBtnText: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
     color: '#000',
   },
-  heroFollowingBtnText: { color: Colors.primary },
+  heroFollowingBtnText: { color: colors.primary },
 
   // ── Stats strip ──────────────────────────────────────────────────────────
   statsStrip: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
     paddingVertical: 14,
   },
   statsStripItem: { flex: 1, alignItems: 'center' },
-  statsStripValue: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
-  statsStripLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
-  statsStripDivider: { width: 1, height: 32, backgroundColor: Colors.border, alignSelf: 'center' },
+  statsStripValue: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: colors.primary },
+  statsStripLabel: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  statsStripDivider: { width: 1, height: 32, backgroundColor: colors.border, alignSelf: 'center' },
 
   // ── Follow button ─────────────────────────────────────────────────────────
   followBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.primary, borderRadius: 20,
+    backgroundColor: colors.primary, borderRadius: 20,
     paddingVertical: 9, paddingHorizontal: 24,
     alignSelf: 'center', minWidth: 130,
   },
-  followingBtn: { backgroundColor: 'rgba(255,204,0,0.08)', borderWidth: 1.5, borderColor: Colors.primary },
+  followingBtn: { backgroundColor: 'rgba(255,204,0,0.08)', borderWidth: 1.5, borderColor: colors.primary },
   followBtnText: { color: '#000', fontSize: 14, fontFamily: Typography.fontFamily.bold },
-  followingBtnText: { color: Colors.primary },
+  followingBtnText: { color: colors.primary },
 
   // ── Tab bar ───────────────────────────────────────────────────────────────
-  tabBar: { flexDirection: 'row', backgroundColor: Colors.backgroundCard, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  tabBar: { flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   tabItem: { flex: 1, alignItems: 'center', paddingVertical: 12, gap: 3, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
-  tabItemActive: { borderBottomColor: Colors.primary },
-  tabLabel: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold, color: Colors.textTertiary },
-  tabLabelActive: { color: Colors.primary },
+  tabItemActive: { borderBottomColor: colors.primary },
+  tabLabel: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold, color: colors.textTertiary },
+  tabLabelActive: { color: colors.primary },
 
   // ── Ball type filter ──────────────────────────────────────────────────────
-  filterSection: { marginHorizontal: 16, marginTop: 16, marginBottom: 8, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', paddingTop: 12, paddingBottom: 4 },
+  filterSection: { marginHorizontal: 16, marginTop: 16, marginBottom: 8, backgroundColor: colors.surface, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', paddingTop: 12, paddingBottom: 4 },
   filterHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, marginBottom: 10 },
-  filterIconWrap: { width: 20, height: 20, borderRadius: 6, backgroundColor: Colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.primaryAlpha20 },
-  filterHeaderText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.textTertiary, letterSpacing: 1.2 },
+  filterIconWrap: { width: 20, height: 20, borderRadius: 6, backgroundColor: colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primaryAlpha20 },
+  filterHeaderText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, letterSpacing: 1.2 },
   filterScrollContent: { paddingHorizontal: 12, paddingBottom: 12, gap: 8, alignItems: 'center' },
-  filterPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 24, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.backgroundCard },
-  filterPillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  filterPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 24, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
+  filterPillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   filterPillCircular: {
     width: 44,
     height: 44,
     borderRadius: 22,
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.backgroundCard,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   filterPillCircularActive: {
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   filterPillCircularImage: {
     width: '100%',
@@ -1278,81 +1284,95 @@ const styles = StyleSheet.create({
 
   // ── Section headers ───────────────────────────────────────────────────────
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginBottom: 10, marginTop: 16 },
-  sectionIconWrap: { width: 26, height: 26, borderRadius: 8, backgroundColor: Colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.primaryAlpha20 },
-  sectionTitle: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, textTransform: 'uppercase', letterSpacing: 1 },
+  sectionIconWrap: { width: 26, height: 26, borderRadius: 8, backgroundColor: colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primaryAlpha20 },
+  sectionTitle: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, textTransform: 'uppercase', letterSpacing: 1 },
 
   // ── Cards ─────────────────────────────────────────────────────────────────
-  card: { backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, padding: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadows.sm },
-  cardDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 14 },
+  card: { backgroundColor: colors.surface, borderRadius: BorderRadius.xl, padding: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.border, ...shadows.sm },
+  cardDivider: { height: 1, backgroundColor: colors.border, marginVertical: 14 },
   statsGrid: { flexDirection: 'row', justifyContent: 'space-between' },
-  statPill: { flex: 1, alignItems: 'center', backgroundColor: Colors.backgroundElevated, borderRadius: 10, paddingVertical: 10, marginHorizontal: 3, borderWidth: 1, borderColor: Colors.border },
-  statPillVal: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  statPillValHL: { color: Colors.primary },
-  statPillLbl: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, marginTop: 3, textAlign: 'center' },
+  statPill: { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 10, paddingVertical: 10, marginHorizontal: 3, borderWidth: 1, borderColor: colors.border },
+  statPillVal: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  statPillValHL: { color: colors.primary },
+  statPillLbl: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, marginTop: 3, textAlign: 'center' },
   infoGrid: { gap: 8 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  infoLabel: { fontSize: 13, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary },
-  infoValuePill: { backgroundColor: Colors.backgroundElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: Colors.border },
-  infoValue: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.textPrimary },
+  infoLabel: { fontSize: 13, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary },
+  infoValuePill: { backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: colors.border },
+  infoValue: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: colors.textPrimary },
 
   // ── Match cards ───────────────────────────────────────────────────────────
-  matchCard: { marginHorizontal: 16, marginBottom: 10, padding: 14, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'center', ...Shadows.sm },
-  matchCardLive: { borderColor: Colors.primaryAlpha30, shadowColor: Colors.primary, shadowOpacity: 0.15, shadowRadius: 8 },
+  matchCard: { marginHorizontal: 16, marginBottom: 10, padding: 14, backgroundColor: colors.surface, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', ...shadows.sm },
+  matchCardLive: { borderColor: colors.primaryAlpha30, shadowColor: colors.primary, shadowOpacity: 0.15, shadowRadius: 8 },
   matchCardLeft: { marginRight: 12, alignItems: 'flex-start', minWidth: 80 },
-  matchBallTypeBadge: { backgroundColor: Colors.primaryAlpha10, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: Colors.primaryAlpha20, marginBottom: 5 },
-  matchBallTypeBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  matchBallTypeBadge: { backgroundColor: colors.primaryAlpha10, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colors.primaryAlpha20, marginBottom: 5 },
+  matchBallTypeBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, color: colors.primary },
   liveBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 71, 87, 0.15)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(255, 71, 87, 0.3)' },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF4757', marginRight: 5 },
   liveText: { color: '#FF4757', fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
-  matchDate: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary },
+  matchDate: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: colors.textTertiary },
   matchCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingBottom: 8, marginBottom: 10 },
-  matchTeamsText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+  matchTeamsText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   matchCardBody: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   matchCardFooter: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingTop: 8 },
-  matchStatusText: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary, flex: 1 },
+  matchStatusText: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, flex: 1 },
   matchCardCenter: { flex: 1 },
-  matchRunsValue: { fontSize: 22, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  matchRunsLabel: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },
-  matchDNB: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: Colors.textTertiary, fontStyle: 'italic' },
+  matchRunsValue: { fontSize: 22, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  matchRunsLabel: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, marginTop: 2 },
+  matchDNB: { fontSize: 14, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, fontStyle: 'italic' },
 
   // ── Team cards ────────────────────────────────────────────────────────────
-  teamCard: { marginHorizontal: 16, marginBottom: 10, padding: 16, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'center', ...Shadows.sm },
+  teamCard: { marginHorizontal: 16, marginBottom: 10, padding: 16, backgroundColor: colors.surface, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', ...shadows.sm },
   teamLogo: { width: 46, height: 46, borderRadius: 23 },
-  teamLogoFallback: { width: 46, height: 46, borderRadius: 23, backgroundColor: Colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.primaryAlpha20 },
-  teamName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  teamCategory: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },
+  teamLogoFallback: { 
+    width: 46, 
+    height: 46, 
+    borderRadius: 23, 
+    backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : '#FFF9DB', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    borderWidth: 1.5, 
+    borderColor: isDark ? 'rgba(255,204,0,0.35)' : '#FFE066' 
+  },
+  teamLogoInitial: {
+    fontSize: 20,
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+  },
+  teamName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  teamCategory: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, marginTop: 2 },
 
   // ── Achievement cards ─────────────────────────────────────────────────────
-  achievementCard: { marginHorizontal: 16, marginBottom: 10, padding: 16, backgroundColor: Colors.backgroundCard, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: Colors.border, flexDirection: 'row', alignItems: 'flex-start', ...Shadows.sm },
+  achievementCard: { marginHorizontal: 16, marginBottom: 10, padding: 16, backgroundColor: colors.surface, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'flex-start', ...shadows.sm },
   achievementIconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, flexShrink: 0, backgroundColor: 'rgba(255,204,0,0.1)', borderColor: 'rgba(255,204,0,0.25)' },
-  achievementTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary, marginBottom: 3 },
-  achievementSub: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 2 },
-  achievementDate: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: Colors.textTertiary, marginTop: 5 },
+  achievementTitle: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 3 },
+  achievementSub: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, marginTop: 2 },
+  achievementDate: { fontSize: 11, fontFamily: Typography.fontFamily.regular, color: colors.textTertiary, marginTop: 5 },
   achievementBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginLeft: 8, flexShrink: 0, marginTop: 2, backgroundColor: 'rgba(255,204,0,0.1)', borderWidth: 1, borderColor: 'rgba(255,204,0,0.2)' },
-  achievementBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold, color: Colors.primary },
+  achievementBadgeText: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold, color: colors.primary },
 
   // ── Empty / loading states ────────────────────────────────────────────────
   tabCenteredEmpty: { alignItems: 'center', paddingVertical: 64 },
-  emptyText: { marginTop: 14, fontSize: 14, color: Colors.textTertiary, fontFamily: Typography.fontFamily.medium },
-  emptySubText: { marginTop: 6, fontSize: 12, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular },
+  emptyText: { marginTop: 14, fontSize: 14, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium },
+  emptySubText: { marginTop: 6, fontSize: 12, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular },
   emptyWrap: { alignItems: 'center', paddingVertical: 48 },
 
   // ── Social modal ──────────────────────────────────────────────────────────
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: Colors.backgroundCard, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: 36, maxHeight: '85%', borderTopWidth: 1, borderColor: Colors.border },
-  modalHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: 36, maxHeight: '85%', borderTopWidth: 1, borderColor: colors.border },
+  modalHandle: { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  modalCount: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.regular },
-  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.backgroundElevated, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  socialListItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  modalCount: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
+  socialListItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   socialListLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 },
   listAvatar: { width: 44, height: 44, borderRadius: 22 },
-  listAvatarFallback: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.primaryAlpha20 },
-  listName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
-  listRole: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: Colors.textSecondary, marginTop: 1 },
-  listActionBtn: { borderRadius: 8, borderWidth: 1, borderColor: Colors.errorLight, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(244,67,54,0.06)' },
-  listActionText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: Colors.error },
+  listAvatarFallback: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primaryAlpha20 },
+  listName: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  listRole: { fontSize: 12, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, marginTop: 1 },
+  listActionBtn: { borderRadius: 8, borderWidth: 1, borderColor: colors.errorLight, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(244,67,54,0.06)' },
+  listActionText: { fontSize: 12, fontFamily: Typography.fontFamily.semiBold, color: colors.error },
 
 });
 

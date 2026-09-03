@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Modal } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useSelector } from 'react-redux';
-import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -21,6 +21,10 @@ const PLAYERS_OPTIONS = ['5', '6', '7', '8', '9', '10', '11', '15'];
 const OVERS_OPTIONS = ['3', '5', '8', '10', '12', '15', '20', '50'];
 const WICKETS_OPTIONS = ['10', '11', '15', '20'];
 
+const TournamentCreateScreen = ({ navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+
 const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
   const [visible, setVisible] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -30,7 +34,7 @@ const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
       <View 
         style={[
           styles.numberInputWrapper,
-          isFocused && { borderColor: Colors.primary }
+          isFocused && { borderColor: colors.primary }
         ]}
       >
         <TextInput
@@ -57,7 +61,7 @@ const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
             <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
               {options.map(opt => (
                 <TouchableOpacity key={opt} style={styles.modalOption} onPress={() => { onChangeText(opt); setVisible(false); }}>
-                  <Text style={[styles.modalOptionText, value === opt && { color: Colors.primary }]}>{opt}</Text>
+                  <Text style={[styles.modalOptionText, value === opt && { color: colors.primary }]}>{opt}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -76,7 +80,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
     <>
       <TouchableOpacity onPress={() => setVisible(true)} style={styles.input} activeOpacity={0.8}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ color: value ? Colors.textPrimary : 'rgba(255,255,255,0.5)', fontFamily: Typography.fontFamily.medium }}>
+          <Text style={{ color: value ? colors.textPrimary : 'rgba(255,255,255,0.5)', fontFamily: Typography.fontFamily.medium }}>
             {value || `Select ${label}`}
           </Text>
           <Icon name="chevron-down" size={16} color="rgba(255,255,255,0.5)" />
@@ -88,7 +92,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
             <Text style={styles.modalTitle}>Select {label}</Text>
             {options.map(opt => (
               <TouchableOpacity key={opt} style={styles.modalOption} onPress={() => { onSelect(opt); setVisible(false); }}>
-                <Text style={[styles.modalOptionText, value === opt && { color: Colors.primary }]}>{opt}</Text>
+                <Text style={[styles.modalOptionText, value === opt && { color: colors.primary }]}>{opt}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -98,7 +102,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
   );
 };
 
-const TournamentCreateScreen = ({ navigation }) => {
+
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -361,7 +365,7 @@ const TournamentCreateScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => step === 0 ? navigation.goBack() : setStep(0)}>
-          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+          <Icon name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create Tournament</Text>
         <View style={{ width: 24 }} />
@@ -390,7 +394,7 @@ const TournamentCreateScreen = ({ navigation }) => {
 
         {form.tournamentType === 'Auction' && (
           <View style={{ paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: 'rgba(255, 179, 0, 0.1)', borderRadius: 8, marginBottom: Spacing.sm }}>
-            <Text style={{ color: Colors.warning, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center' }}>
+            <Text style={{ color: colors.warning, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center' }}>
               ⚡ Auction Mode: Players will register & undergo live bidding by team owners!
             </Text>
           </View>
@@ -410,7 +414,7 @@ const TournamentCreateScreen = ({ navigation }) => {
                     </View>
                   )}
                 </TouchableOpacity>
-                <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
+                <Text style={{ color: colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
                   Note: Maximum image size allowed is under 3 MB.
                 </Text>
               </View>
@@ -427,9 +431,9 @@ const TournamentCreateScreen = ({ navigation }) => {
                 <View style={styles.organizerProfile}>
                   <Image source={{ uri: user?.photo ? getImageUrl(user.photo) : 'https://via.placeholder.com/40' }} style={styles.organizerAvatar} />
                   <Text style={styles.organizerNameText}>{user?.name || 'You'}</Text>
-                  <Icon name="check-circle" size={16} color={Colors.primary} style={{ marginLeft: 'auto' }} />
+                  <Icon name="check-circle" size={16} color={colors.primary} style={{ marginLeft: 'auto' }} />
                 </View>
-                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 4 }}>You will be the primary organizer.</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>You will be the primary organizer.</Text>
               </View>
               <View style={[styles.inputGroup, { zIndex: 10 }]}>
                 <Text style={styles.label}>City *</Text>
@@ -468,7 +472,7 @@ const TournamentCreateScreen = ({ navigation }) => {
                   <View key={idx} style={styles.organizerProfile}>
                     <Image source={{ uri: o.photo ? getImageUrl(o.photo) : 'https://via.placeholder.com/40' }} style={styles.organizerAvatar} />
                     <Text style={styles.organizerNameText}>{o.name}</Text>
-                    <TouchableOpacity onPress={() => removeMultiUser('coOrganizers', idx)} style={{ marginLeft: 'auto' }}><Icon name="x" size={16} color={Colors.error} /></TouchableOpacity>
+                    <TouchableOpacity onPress={() => removeMultiUser('coOrganizers', idx)} style={{ marginLeft: 'auto' }}><Icon name="x" size={16} color={colors.error} /></TouchableOpacity>
                   </View>
                 ))}
               </View>
@@ -510,7 +514,7 @@ const TournamentCreateScreen = ({ navigation }) => {
                 <Text style={styles.label}>{form.tournamentType === 'Auction' ? 'Player Registration Fee (₹)' : 'Team Registration Fee (₹)'}</Text>
                 <TextInput style={styles.input} keyboardType="numeric" placeholderTextColor={offWhite} value={form.entryFee} onChangeText={(t) => setForm({ ...form, entryFee: t.replace(/[^0-9]/g, '') })} placeholder="₹ 0" />
                 {form.tournamentType === 'Auction' && (
-                  <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
+                  <Text style={{ color: colors.primary, fontSize: 12, marginTop: 6, fontFamily: Typography.fontFamily.medium }}>
                     Note: A {platformFeePercent}% platform fee will be deducted for each registration made through the platform.
                   </Text>
                 )}
@@ -582,17 +586,17 @@ const TournamentCreateScreen = ({ navigation }) => {
                     onSubmitEditing={handleAddRule}
                     returnKeyType="done"
                   />
-                  <TouchableOpacity onPress={handleAddRule} style={{ backgroundColor: Colors.primary, width: 44, height: 44, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' }}>
-                    <Icon name="plus" size={20} color={Colors.white} />
+                  <TouchableOpacity onPress={handleAddRule} style={{ backgroundColor: colors.primary, width: 44, height: 44, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' }}>
+                    <Icon name="plus" size={20} color={colors.white} />
                   </TouchableOpacity>
                 </View>
                 
                 {rulesList.map((rule, idx) => (
-                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm }}>
-                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary, marginRight: Spacing.sm }} />
-                    <Text style={{ flex: 1, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>{rule}</Text>
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary, marginRight: Spacing.sm }} />
+                    <Text style={{ flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>{rule}</Text>
                     <TouchableOpacity onPress={() => handleRemoveRule(idx)} style={{ padding: 4 }}>
-                      <Icon name="x" size={16} color={Colors.error} />
+                      <Icon name="x" size={16} color={colors.error} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -606,7 +610,7 @@ const TournamentCreateScreen = ({ navigation }) => {
         <TouchableOpacity style={styles.primaryBtn} onPress={handleNext} disabled={loading}>
           {loading ? (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <ActivityIndicator color={Colors.white} style={{ marginRight: 8 }} />
+              <ActivityIndicator color={colors.white} style={{ marginRight: 8 }} />
               <Text style={styles.primaryBtnText}>{step === 0 ? 'Processing...' : 'Creating...'}</Text>
             </View>
           ) : (
@@ -635,67 +639,67 @@ const TournamentCreateScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: Colors.textPrimary },
+const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   stepper: { flexDirection: 'row', justifyContent: 'center', paddingTop: Spacing.lg, paddingBottom: Spacing.md },
   stepItem: { alignItems: 'center', marginHorizontal: Spacing.lg },
-  stepCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  stepCircleActive: { backgroundColor: Colors.primary },
-  stepNumber: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.bold },
-  stepNumberActive: { color: Colors.white },
-  stepText: { fontSize: 12, color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  stepTextActive: { color: Colors.primary },
+  stepCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+  stepCircleActive: { backgroundColor: colors.primary },
+  stepNumber: { color: colors.textSecondary, fontFamily: Typography.fontFamily.bold },
+  stepNumberActive: { color: colors.white },
+  stepText: { fontSize: 12, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  stepTextActive: { color: colors.primary },
   
-  typeToggle: { flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, padding: 4 },
+  typeToggle: { flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: 4 },
   typeBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: BorderRadius.md },
-  typeBtnActive: { backgroundColor: Colors.primary },
-  typeBtnText: { color: Colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  typeBtnTextActive: { color: Colors.white, fontFamily: Typography.fontFamily.bold },
+  typeBtnActive: { backgroundColor: colors.primary },
+  typeBtnText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
+  typeBtnTextActive: { color: colors.white, fontFamily: Typography.fontFamily.bold },
 
   checkboxContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm },
-  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.sm },
-  checkboxActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  checkboxLabel: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14, flex: 1 },
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.sm },
+  checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkboxLabel: { color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, fontSize: 14, flex: 1 },
 
   comingSoon: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
-  comingSoonText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18, marginTop: Spacing.lg },
+  comingSoonText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18, marginTop: Spacing.lg },
 
   formContainer: { padding: Spacing.lg },
   inputGroup: { marginBottom: Spacing.md },
-  label: { fontSize: 14, color: Colors.textSecondary, marginBottom: 8, fontFamily: Typography.fontFamily.medium },
-  input: { backgroundColor: Colors.backgroundElevated, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, height: 50, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium, justifyContent: 'center' },
+  label: { fontSize: 14, color: colors.textSecondary, marginBottom: 8, fontFamily: Typography.fontFamily.medium },
+  input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, height: 50, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, justifyContent: 'center' },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
-  infoText: { color: Colors.primary, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium },
+  infoText: { color: colors.primary, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium },
   
-  footer: { padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border },
-  primaryBtn: { backgroundColor: Colors.primary, height: 52, borderRadius: BorderRadius.lg, justifyContent: 'center', alignItems: 'center' },
-  primaryBtnText: { color: Colors.white, fontSize: 16, fontFamily: Typography.fontFamily.bold },
+  footer: { padding: Spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
+  primaryBtn: { backgroundColor: colors.primary, height: 52, borderRadius: BorderRadius.lg, justifyContent: 'center', alignItems: 'center' },
+  primaryBtnText: { color: colors.white, fontSize: 16, fontFamily: Typography.fontFamily.bold },
   
-  organizerProfile: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundElevated, padding: Spacing.sm, borderRadius: BorderRadius.md, marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
+  organizerProfile: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: Spacing.sm, borderRadius: BorderRadius.md, marginTop: Spacing.sm, borderWidth: 1, borderColor: colors.border },
   organizerAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: Spacing.sm, backgroundColor: '#444' },
-  organizerNameText: { color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  organizerNameText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
-  bannerContainer: { height: 150, backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  bannerContainer: { height: 150, backgroundColor: colors.surface, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   bannerPlaceholder: { alignItems: 'center' },
   bannerImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  bannerText: { color: Colors.textSecondary, marginTop: Spacing.sm, fontFamily: Typography.fontFamily.medium, fontSize: 14 },
+  bannerText: { color: colors.textSecondary, marginTop: Spacing.sm, fontFamily: Typography.fontFamily.medium, fontSize: 14 },
 
-  lookupBtn: { backgroundColor: Colors.primary, height: 50, paddingHorizontal: 20, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' },
-  lookupBtnText: { color: Colors.white, fontFamily: Typography.fontFamily.bold },
+  lookupBtn: { backgroundColor: colors.primary, height: 50, paddingHorizontal: 20, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' },
+  lookupBtnText: { color: colors.white, fontFamily: Typography.fontFamily.bold },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '80%', backgroundColor: Colors.backgroundElevated, borderRadius: BorderRadius.lg, padding: Spacing.lg, maxHeight: '80%' },
-  modalTitle: { fontSize: 18, color: Colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginBottom: Spacing.md },
-  modalOption: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalOptionText: { fontSize: 16, color: Colors.textPrimary, fontFamily: Typography.fontFamily.medium },
+  modalContent: { width: '80%', backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, maxHeight: '80%' },
+  modalTitle: { fontSize: 18, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginBottom: Spacing.md },
+  modalOption: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  modalOptionText: { fontSize: 16, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium },
   numberInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundElevated,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: BorderRadius.md,
     height: 50,
   },
@@ -705,7 +709,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderLeftWidth: 1,
-    borderLeftColor: Colors.border,
+    borderLeftColor: colors.border,
   },
 });
 

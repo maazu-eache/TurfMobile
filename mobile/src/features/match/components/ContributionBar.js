@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { Colors, Typography } from '../../../theme/theme';
+import { useTheme, Colors, Typography } from '../../../theme/theme';
 
 /**
  * ContributionBar
@@ -16,6 +16,9 @@ const ContributionBar = ({
   player2Balls = 0,
   totalRuns = 0,
 }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+
   const totalPlayerRuns = player1Runs + player2Runs;
 
   let p1Pct = 0;
@@ -110,14 +113,14 @@ const ContributionBar = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors, isDark) => StyleSheet.create({
   container: {
     width: '100%',
     marginVertical: 2,
   },
   batterHeaderRow: {
     flexDirection: 'row',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
     width: '100%',
@@ -131,41 +134,41 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   playerNameLeft: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 13,
   },
   playerNameRight: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 13,
     textAlign: 'right',
   },
   runsTextLeft: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 12,
     marginTop: 1,
   },
   runsTextRight: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.regular,
     fontSize: 12,
     textAlign: 'right',
     marginTop: 1,
   },
   runsBold: {
-    color: Colors.primary,
+    color: isDark ? Colors.primary : colors.primaryDark,
     fontFamily: Typography.fontFamily.bold,
   },
   barTrack: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#222222',
+    backgroundColor: isDark ? '#222222' : colors.surfaceVariant,
     flexDirection: 'row',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: colors.border,
     width: '100%',
     marginVertical: 4,
   },
@@ -177,7 +180,7 @@ const styles = StyleSheet.create({
   },
   barRight: {
     height: '100%',
-    backgroundColor: '#856600',
+    backgroundColor: isDark ? '#856600' : '#E6B800',
     borderTopRightRadius: 4,
     borderBottomRightRadius: 4,
   },
@@ -186,25 +189,25 @@ const styles = StyleSheet.create({
   },
   barEmpty: {
     flex: 1,
-    backgroundColor: '#222222',
+    backgroundColor: isDark ? '#222222' : colors.surfaceVariant,
   },
   pctRow: {
     flexDirection: 'row',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
     marginTop: 2,
   },
   pctLeft: {
     flex: 1,
-    color: Colors.primary,
+    color: isDark ? Colors.primary : colors.primaryDark,
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
     textAlign: 'left',
   },
   pctRight: {
     flex: 1,
-    color: '#D4AF37',
+    color: isDark ? '#D4AF37' : '#B8860B',
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
     textAlign: 'right',
