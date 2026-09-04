@@ -442,7 +442,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
           <StatPill value={fielding.catches || 0} label="Catches" />
           <StatPill value={fielding.runOuts || 0} label="Run Outs" />
           <StatPill value={fielding.stumpings || 0} label="Stumpings" />
-          <StatPill value={career.playerOfMatchAwards || 0} label="POTM" highlight />
+          <StatPill value={fielding.caughtBehind || fielding.caughtBehinds || 0} label="Caught Behind" />
         </View>
       </View>
     </>

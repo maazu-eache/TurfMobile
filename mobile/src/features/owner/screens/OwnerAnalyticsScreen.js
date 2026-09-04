@@ -242,7 +242,6 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
   const bookingStatus = analytics?.bookingStatus || [];
   const paymentBreakdown = analytics?.paymentBreakdown || [];
   const customerAnalytics = analytics?.customerAnalytics || {};
-  const insights = analytics?.insights || [];
 
   const selectedTurfName = selectedTurfId === 'all'
     ? 'All Turfs'
@@ -448,32 +447,6 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
                   ))}
                 </Card>
               )}
-
-              {/* ── AI Business Insights ───────────────────────────────── */}
-              {insights.length > 0 && (
-                <Card colors={colors} shadows={shadows} isDark={isDark} style={{ marginBottom: 12 }}>
-                  <View style={ss.insightHeader}>
-                    <View style={ss.insightIconWrap}>
-                      <Icon name="robot-outline" size={16} color={isDark ? '#FFD400' : colors.primaryDark} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={ss.sectionLabelTxt}>AI Business Insights</Text>
-                      <Text style={ss.insightSub}>Personalised for your turf</Text>
-                    </View>
-                  </View>
-                  {insights.map((insight, i) => (
-                    <View key={i} style={ss.insightItem}>
-                      <View style={ss.insightDot} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={ss.insightTxt}>{insight.text || insight}</Text>
-                        {insight.action && (
-                          <Text style={ss.insightAction}>{insight.action}</Text>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                </Card>
-              )}
             </>
           )}
         </ScrollView>
@@ -635,24 +608,6 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
 
   statusLabel: { fontSize: 12, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, textTransform: 'capitalize' },
   statusVal: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
-
-  insightHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  insightIconWrap: {
-    width: 32, height: 32, borderRadius: 10,
-    backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : '#FFF9DB', justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: isDark ? 'rgba(255,204,0,0.3)' : '#FFE066',
-  },
-  insightSub: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, marginTop: 1 },
-  insightItem: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  insightDot: {
-    width: 5, height: 5, borderRadius: 3,
-    backgroundColor: isDark ? '#FFD400' : colors.primaryDark, marginTop: 7, flexShrink: 0,
-  },
-  insightTxt: { fontSize: 13, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, lineHeight: 20 },
-  insightAction: {
-    fontSize: 12, fontFamily: Typography.fontFamily.medium, color: isDark ? '#FFD400' : colors.primaryDark,
-    lineHeight: 18, marginTop: 4, fontStyle: 'italic',
-  },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   bottomSheet: {

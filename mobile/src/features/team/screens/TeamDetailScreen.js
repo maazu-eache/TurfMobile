@@ -214,10 +214,11 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   trophiesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 10,
   },
   trophyCardGrid: {
-    width: (SCREEN_W - 38) / 2,
+    width: '48.5%',
     backgroundColor: colors.surface,
     borderRadius: 14,
     padding: 12,
@@ -461,10 +462,11 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   achGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 10,
   },
   achCard: {
-    width: (SCREEN_W - 14 * 2 - 10) / 2, 
+    width: '48.5%', 
     backgroundColor: colors.surface,
     borderRadius: 14, 
     padding: 12, 
@@ -1306,8 +1308,19 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
   const renderMatchesTab = () => {
     if (statsLoading && !teamStats) return <LoadingState />;
-    const recentMatches = teamStats?.recentMatches || [];
-    if (!recentMatches.length) return <EmptyState icon="cricket" label="No match history yet" />;
+    const rawMatches = teamStats?.recentMatches || [];
+    if (!rawMatches.length) return <EmptyState icon="cricket" label="No match history yet" />;
+
+    const recentMatches = [...rawMatches].sort((a, b) => {
+      const aLive = a.result === 'LIVE' || ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(a.status);
+      const bLive = b.result === 'LIVE' || ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(b.status);
+      if (aLive && !bLive) return -1;
+      if (!aLive && bLive) return 1;
+
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
 
     return (
       <ScrollView
@@ -1355,7 +1368,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 ) : null}
               </View>
               <Text style={styles.matchDate}>
-                {m.completedAt ? new Date(m.completedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                {m.createdAt ? new Date(m.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
               </Text>
             </TouchableOpacity>
           );

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Image, ScrollView, Animated, Dimensions, Platform, Switch } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Image, ScrollView, Animated, Dimensions, Platform, Switch, RefreshControl } from 'react-native';
 import FinanceView from './FinanceView';
 import SupportAdminView from './SupportAdminView';
 import UgcReportsAdminView from './UgcReportsAdminView';
@@ -89,8 +89,27 @@ const AdminDashboardScreen = ({ navigation }) => {
       if (settlementWallets.length === 0) {
         fetchSettlements();
       }
+    } else if (tab === 'maintenance_slots') {
+      fetchMaintenanceSlots();
     }
   };
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Maintenance Slots state (Read-only overview per turf)
+  const [maintenanceSlots, setMaintenanceSlots] = useState([]);
+  const [loadingMaintenance, setLoadingMaintenance] = useState(false);
+  const [selectedMaintenanceTurfId, setSelectedMaintenanceTurfId] = useState('all');
+  const [turfModalVisible, setTurfModalVisible] = useState(false);
+  const [turfModalSearch, setTurfModalSearch] = useState('');
+
+  // Turf Booking History modal state
+  const [selectedTurfForHistory, setSelectedTurfForHistory] = useState(null);
+  const [turfHistoryData, setTurfHistoryData] = useState(null);
+  const [loadingTurfHistory, setLoadingTurfHistory] = useState(false);
+  const [turfHistoryTab, setTurfHistoryTab] = useState('all'); // 'all' | 'online' | 'offline'
+  const [turfHistoryDateFilter, setTurfHistoryDateFilter] = useState('all'); // 'all' | 'today' | 'week' | 'month'
+  const [turfHistorySearch, setTurfHistorySearch] = useState('');
+
   const [selectedImageModal, setSelectedImageModal] = useState(null);
   const [owners, setOwners] = useState([]);
   const [users, setUsers] = useState([]);
@@ -159,6 +178,7 @@ const AdminDashboardScreen = ({ navigation }) => {
     useCallback(() => {
       fetchData();
       fetchSettings();
+      fetchMaintenanceSlots();
     }, [])
   );
 
@@ -369,43 +389,58 @@ const AdminDashboardScreen = ({ navigation }) => {
         api.get('/admin/bookings/offline?limit=100')
       ]);
 
-      if (ownersRes.status === 'fulfilled') setOwners(ownersRes.value.data.data || []);
-      if (usersRes.status === 'fulfilled') setUsers(usersRes.value.data.data || []);
-      if (turfsRes.status === 'fulfilled') setTurfs(turfsRes.value.data.data || []);
+      if (ownersRes.status === 'fulfilled') {
+        const d = ownersRes.value.data?.data ?? ownersRes.value.data;
+        setOwners(Array.isArray(d) ? d : []);
+      }
+      if (usersRes.status === 'fulfilled') {
+        const d = usersRes.value.data?.data ?? usersRes.value.data;
+        setUsers(Array.isArray(d) ? d : []);
+      }
+      if (turfsRes.status === 'fulfilled') {
+        const d = turfsRes.value.data?.data ?? turfsRes.value.data;
+        setTurfs(Array.isArray(d) ? d : []);
+      }
       
       if (waitlistRes && waitlistRes.status === 'fulfilled') {
-        const wData = waitlistRes.value.data;
-        setWaitlist(wData?.data || wData || []);
+        const wData = waitlistRes.value.data?.data ?? waitlistRes.value.data;
+        setWaitlist(Array.isArray(wData) ? wData : []);
       } else if (waitlistRes?.status === 'rejected') {
         console.log('Failed to fetch waitlist', waitlistRes.reason);
       }
       if (refundsRes && refundsRes.status === 'fulfilled') {
-        setRefunds(refundsRes.value.data.data || []);
+        const rData = refundsRes.value.data?.data ?? refundsRes.value.data;
+        setRefunds(Array.isArray(rData) ? rData : []);
       } else if (refundsRes?.status === 'rejected') {
         console.log('Failed to fetch refunds', refundsRes.reason);
       }
       if (settlementsRes && settlementsRes.status === 'fulfilled') {
-        const allSettlements = settlementsRes.value.data.data || [];
-        setSettlements(allSettlements);
-        setSettlementRequests(allSettlements);
+        const allSettlements = settlementsRes.value.data?.data ?? settlementsRes.value.data;
+        const sArr = Array.isArray(allSettlements) ? allSettlements : [];
+        setSettlements(sArr);
+        setSettlementRequests(sArr);
       } else if (settlementsRes?.status === 'rejected') {
         console.log('Failed to fetch settlements', settlementsRes.reason);
       }
       
       if (ticketsRes && ticketsRes.status === 'fulfilled') {
-        setOpenTickets(ticketsRes.value.data?.data?.length || 0);
+        const tData = ticketsRes.value.data?.data ?? ticketsRes.value.data;
+        setOpenTickets(Array.isArray(tData) ? tData.length : (typeof tData === 'number' ? tData : 0));
       }
 
       if (ugcReportsRes && ugcReportsRes.status === 'fulfilled') {
-        const reps = ugcReportsRes.value.data?.data || [];
-        setPendingUgcReports(reps.filter(r => r.status === 'pending').length);
+        const reps = ugcReportsRes.value.data?.data ?? ugcReportsRes.value.data;
+        const repArr = Array.isArray(reps) ? reps : [];
+        setPendingUgcReports(repArr.filter(r => r?.status === 'pending').length);
       }
 
       if (onlineBookingsRes && onlineBookingsRes.status === 'fulfilled') {
-        setOnlineBookings(onlineBookingsRes.value.data.data || []);
+        const d = onlineBookingsRes.value.data?.data ?? onlineBookingsRes.value.data;
+        setOnlineBookings(Array.isArray(d) ? d : []);
       }
       if (offlineBookingsRes && offlineBookingsRes.status === 'fulfilled') {
-        setOfflineBookings(offlineBookingsRes.value.data.data || []);
+        const d = offlineBookingsRes.value.data?.data ?? offlineBookingsRes.value.data;
+        setOfflineBookings(Array.isArray(d) ? d : []);
       }
     } catch (err) {
       console.error('Failed to fetch admin data', err);
@@ -421,15 +456,58 @@ const AdminDashboardScreen = ({ navigation }) => {
         api.get('/admin/settlements'),
         api.get('/admin/owner-wallets'),
       ]);
-      setSettlementRequests(reqRes.data?.data || []);
-      setSettlementWallets(walletRes.data?.data || []);
-      // also update the badge count
-      setSettlements(reqRes.data?.data || []);
+      const reqData = reqRes.data?.data ?? reqRes.data;
+      const walletData = walletRes.data?.data ?? walletRes.data;
+      const sArr = Array.isArray(reqData) ? reqData : [];
+      setSettlementRequests(sArr);
+      setSettlementWallets(Array.isArray(walletData) ? walletData : []);
+      setSettlements(sArr);
     } catch (err) {
       console.log('Failed to fetch settlements', err);
     } finally {
       setLoadingSettlements(false);
     }
+  };
+
+  const fetchMaintenanceSlots = async (turfId = null) => {
+    setLoadingMaintenance(true);
+    try {
+      const targetTurf = turfId !== undefined && turfId !== null ? turfId : selectedMaintenanceTurfId;
+      const url = targetTurf && targetTurf !== 'all'
+        ? `/admin/maintenance-slots?turfId=${targetTurf}`
+        : '/admin/maintenance-slots';
+      const res = await api.get(url);
+      const data = res.data?.data?.slots ?? res.data?.data ?? res.data;
+      setMaintenanceSlots(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.log('Failed to fetch maintenance slots', err);
+      setMaintenanceSlots([]);
+    } finally {
+      setLoadingMaintenance(false);
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchData();
+      await fetchSettings();
+      if (['settlements_requests', 'settlements_turf', 'settlements_org'].includes(activeTab)) {
+        await fetchSettlements();
+      }
+      if (activeTab === 'maintenance_slots') {
+        await fetchMaintenanceSlots(selectedMaintenanceTurfId !== 'all' ? selectedMaintenanceTurfId : null);
+      }
+    } catch (e) {
+      console.log('Refresh error:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [activeTab, selectedMaintenanceTurfId]);
+
+  const handleSelectTurfForMaintenance = (turfId) => {
+    setSelectedMaintenanceTurfId(turfId);
+    fetchMaintenanceSlots(turfId);
   };
 
   const renderOwnerCard = ({ item }) => {
@@ -622,6 +700,94 @@ const AdminDashboardScreen = ({ navigation }) => {
     );
   };
 
+  const handleOpenTurfHistory = async (turf) => {
+    setSelectedTurfForHistory(turf);
+    setTurfHistoryTab('all');
+    setTurfHistoryDateFilter('all');
+    setTurfHistorySearch('');
+    setLoadingTurfHistory(true);
+    try {
+      const res = await api.get(`/admin/turfs/${turf._id}/booking-history`);
+      setTurfHistoryData(res.data?.data || null);
+    } catch (err) {
+      console.log('Failed to fetch turf booking history', err);
+      const online = safeOnlineBookings.filter(b => (b.turf?._id || b.turf) === turf._id);
+      const offline = safeOfflineBookings.filter(b => (b.turf?._id || b.turf) === turf._id);
+      let onRev = 0;
+      let offRev = 0;
+      online.forEach(b => { if (b.status !== 'cancelled') onRev += (b.finalAmount || b.totalAmount || 0); });
+      offline.forEach(b => { offRev += (b.amount || b.price || b.totalAmount || 0); });
+      setTurfHistoryData({
+        turf,
+        summary: {
+          totalRevenue: onRev + offRev,
+          onlineRevenue: onRev,
+          offlineRevenue: offRev,
+          totalCount: online.length + offline.length,
+          onlineCount: online.length,
+          offlineCount: offline.length
+        },
+        onlineBookings: online.map(b => ({ ...b, bookingType: 'online', amount: b.finalAmount || b.totalAmount || 0, bookingDate: b.date || b.slotsSnapshot?.[0]?.date || b.createdAt })),
+        offlineBookings: offline.map(b => ({ ...b, bookingType: 'offline', amount: b.amount || b.price || b.totalAmount || 0, bookingDate: b.date || b.createdAt }))
+      });
+    } finally {
+      setLoadingTurfHistory(false);
+    }
+  };
+
+  const getFilteredTurfBookings = () => {
+    if (!turfHistoryData) return { list: [], totalAmount: 0, onlineAmount: 0, offlineAmount: 0, totalCount: 0 };
+
+    let allBookings = [];
+    if (turfHistoryTab === 'all' || turfHistoryTab === 'online') {
+      allBookings = allBookings.concat(turfHistoryData.onlineBookings || []);
+    }
+    if (turfHistoryTab === 'all' || turfHistoryTab === 'offline') {
+      allBookings = allBookings.concat(turfHistoryData.offlineBookings || []);
+    }
+
+    allBookings.sort((a, b) => new Date(b.bookingDate || b.createdAt) - new Date(a.bookingDate || a.createdAt));
+
+    const now = moment();
+    if (turfHistoryDateFilter === 'today') {
+      allBookings = allBookings.filter(b => moment(b.bookingDate || b.createdAt).isSame(now, 'day'));
+    } else if (turfHistoryDateFilter === 'week') {
+      allBookings = allBookings.filter(b => moment(b.bookingDate || b.createdAt).isSame(now, 'isoWeek'));
+    } else if (turfHistoryDateFilter === 'month') {
+      allBookings = allBookings.filter(b => moment(b.bookingDate || b.createdAt).isSame(now, 'month'));
+    }
+
+    const sq = turfHistorySearch.toLowerCase().trim();
+    if (sq) {
+      allBookings = allBookings.filter(b => {
+        const ref = (b.bookingRef || b._id || '').toLowerCase();
+        const userName = (b.user?.name || b.customerName || '').toLowerCase();
+        const userContact = (b.user?.email || b.user?.mobile || b.customerMobile || '').toLowerCase();
+        const reason = (b.reason || '').toLowerCase();
+        return ref.includes(sq) || userName.includes(sq) || userContact.includes(sq) || reason.includes(sq);
+      });
+    }
+
+    let totalAmount = 0;
+    let onlineAmount = 0;
+    let offlineAmount = 0;
+
+    allBookings.forEach(b => {
+      const amt = b.amount || 0;
+      if (b.bookingType === 'online') {
+        if (b.status !== 'cancelled') {
+          onlineAmount += amt;
+          totalAmount += amt;
+        }
+      } else {
+        offlineAmount += amt;
+        totalAmount += amt;
+      }
+    });
+
+    return { list: allBookings, totalAmount, onlineAmount, offlineAmount, totalCount: allBookings.length };
+  };
+
   const renderTurfCard = ({ item }) => {
     const isActive   = item.status === 'active';
     const isSuspend  = item.status === 'suspended';
@@ -646,7 +812,11 @@ const AdminDashboardScreen = ({ navigation }) => {
     ].filter(Boolean);
 
     return (
-      <View style={styles.turfCard}>
+      <TouchableOpacity
+        style={styles.turfCard}
+        activeOpacity={0.92}
+        onPress={() => handleOpenTurfHistory(item)}
+      >
         {/* ── Cover image or placeholder ── */}
         {item.coverImage ? (
           <View style={styles.turfCoverWrap}>
@@ -838,7 +1008,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -1317,66 +1487,248 @@ const AdminDashboardScreen = ({ navigation }) => {
     ]);
   };
 
-  const pendingRefunds = refunds.filter(r => r.status === 'pending').length;
-  const pendingSettlements = settlements.filter(s => s.status === 'pending').length;
-  const totalAlerts = pendingRefunds + pendingSettlements + openTickets;
+  const safeRefunds = Array.isArray(refunds) ? refunds : [];
+  const safeSettlements = Array.isArray(settlements) ? settlements : [];
+  const safeOwners = Array.isArray(owners) ? owners : [];
+  const safeUsers = Array.isArray(users) ? users : [];
+  const safeTurfs = Array.isArray(turfs) ? turfs : [];
+  const safeOnlineBookings = Array.isArray(onlineBookings) ? onlineBookings : [];
+  const safeOfflineBookings = Array.isArray(offlineBookings) ? offlineBookings : [];
+  const safeWaitlist = Array.isArray(waitlist) ? waitlist : [];
+  const safeSettlementRequests = Array.isArray(settlementRequests) ? settlementRequests : [];
+  const safeSettlementWallets = Array.isArray(settlementWallets) ? settlementWallets : [];
+  const safeMaintenanceSlots = Array.isArray(maintenanceSlots) ? maintenanceSlots : [];
+
+  const pendingRefunds = safeRefunds.filter(r => r?.status === 'pending').length;
+  const pendingSettlements = safeSettlements.filter(s => s?.status === 'pending').length;
+  const totalAlerts = pendingRefunds + pendingSettlements + (typeof openTickets === 'number' ? openTickets : 0);
 
   // Search filter helpers
   const q = searchQuery.toLowerCase().trim();
-  const filteredOwners = owners.filter(o => !q ||
-    (o.businessName || '').toLowerCase().includes(q) ||
-    (o.userId?.name || '').toLowerCase().includes(q) ||
-    (o.userId?.email || '').toLowerCase().includes(q)
+  const filteredOwners = safeOwners.filter(o => !q ||
+    (o?.businessName || '').toLowerCase().includes(q) ||
+    (o?.userId?.name || '').toLowerCase().includes(q) ||
+    (o?.userId?.email || '').toLowerCase().includes(q)
   );
-  const filteredUsers = users.filter(u => !q ||
-    (u.name || '').toLowerCase().includes(q) ||
-    (u.email || '').toLowerCase().includes(q)
+  const filteredUsers = safeUsers.filter(u => !q ||
+    (u?.name || '').toLowerCase().includes(q) ||
+    (u?.email || '').toLowerCase().includes(q)
   );
-  const filteredTurfs = turfs.filter(t => !q ||
-    (t.name || '').toLowerCase().includes(q) ||
-    (t.city || '').toLowerCase().includes(q) ||
-    (t.owner?.businessName || '').toLowerCase().includes(q)
+  const filteredTurfs = safeTurfs.filter(t => !q ||
+    (t?.name || '').toLowerCase().includes(q) ||
+    (t?.city || '').toLowerCase().includes(q) ||
+    (t?.owner?.businessName || '').toLowerCase().includes(q)
   );
-  const filteredOnlineBookings = onlineBookings.filter(b => !q ||
-    (b.bookingRef || '').toLowerCase().includes(q) ||
-    (b.user?.name || '').toLowerCase().includes(q) ||
-    (b.user?.email || '').toLowerCase().includes(q) ||
-    (b.user?.mobile || '').toLowerCase().includes(q) ||
-    (b.turf?.name || '').toLowerCase().includes(q) ||
-    (b.turf?.city || '').toLowerCase().includes(q) ||
-    (b.status || '').toLowerCase().includes(q)
+  const filteredOnlineBookings = safeOnlineBookings.filter(b => !q ||
+    (b?.bookingRef || '').toLowerCase().includes(q) ||
+    (b?.user?.name || '').toLowerCase().includes(q) ||
+    (b?.user?.email || '').toLowerCase().includes(q) ||
+    (b?.user?.mobile || '').toLowerCase().includes(q) ||
+    (b?.turf?.name || '').toLowerCase().includes(q) ||
+    (b?.turf?.city || '').toLowerCase().includes(q) ||
+    (b?.status || '').toLowerCase().includes(q)
   );
-  const filteredOfflineBookings = offlineBookings.filter(b => !q ||
-    (b.customerName || '').toLowerCase().includes(q) ||
-    (b.customerMobile || '').toLowerCase().includes(q) ||
-    (b.turf?.name || '').toLowerCase().includes(q) ||
-    (b.reason || '').toLowerCase().includes(q) ||
-    (b.owner?.businessName || '').toLowerCase().includes(q)
+  const filteredOfflineBookings = safeOfflineBookings.filter(b => !q ||
+    (b?.customerName || '').toLowerCase().includes(q) ||
+    (b?.customerMobile || '').toLowerCase().includes(q) ||
+    (b?.turf?.name || '').toLowerCase().includes(q) ||
+    (b?.reason || '').toLowerCase().includes(q) ||
+    (b?.owner?.businessName || '').toLowerCase().includes(q)
   );
-  const filteredRefunds = refunds.filter(r => !q ||
-    (r.user?.name || '').toLowerCase().includes(q) ||
-    (r.user?.email || '').toLowerCase().includes(q) ||
-    (r.booking?.bookingRef || '').toLowerCase().includes(q) ||
-    (r.booking?.turf?.name || '').toLowerCase().includes(q)
+  const filteredRefunds = safeRefunds.filter(r => !q ||
+    (r?.user?.name || '').toLowerCase().includes(q) ||
+    (r?.user?.email || '').toLowerCase().includes(q) ||
+    (r?.booking?.bookingRef || '').toLowerCase().includes(q) ||
+    (r?.booking?.turf?.name || '').toLowerCase().includes(q)
   );
-  const filteredWaitlist = waitlist.filter(w => !q ||
-    (w.name || '').toLowerCase().includes(q) ||
-    (w.email || '').toLowerCase().includes(q)
+  const filteredWaitlist = safeWaitlist.filter(w => !q ||
+    (w?.name || '').toLowerCase().includes(q) ||
+    (w?.email || '').toLowerCase().includes(q)
   );
-  const filteredSettlementReqs = settlementRequests.filter(s => !q ||
-    (s.owner?.businessName || '').toLowerCase().includes(q) ||
-    (s.owner?.userId?.name || '').toLowerCase().includes(q) ||
-    (s.owner?.userId?.email || '').toLowerCase().includes(q)
+  const filteredSettlementReqs = safeSettlementRequests.filter(s => !q ||
+    (s?.owner?.businessName || '').toLowerCase().includes(q) ||
+    (s?.owner?.userId?.name || '').toLowerCase().includes(q) ||
+    (s?.owner?.userId?.email || '').toLowerCase().includes(q)
   );
-  const filteredTurfWallets = settlementWallets.filter(w => w.businessName !== 'Tournament Organizer' && (!q ||
-    (w.businessName || '').toLowerCase().includes(q) ||
-    (w.ownerName || '').toLowerCase().includes(q) ||
-    (w.email || '').toLowerCase().includes(q)
+  const filteredTurfWallets = safeSettlementWallets.filter(w => w?.businessName !== 'Tournament Organizer' && (!q ||
+    (w?.businessName || '').toLowerCase().includes(q) ||
+    (w?.ownerName || '').toLowerCase().includes(q) ||
+    (w?.email || '').toLowerCase().includes(q)
   ));
-  const filteredOrgWallets = settlementWallets.filter(w => w.businessName === 'Tournament Organizer' && (!q ||
-    (w.ownerName || '').toLowerCase().includes(q) ||
-    (w.email || '').toLowerCase().includes(q)
+  const filteredOrgWallets = safeSettlementWallets.filter(w => w?.businessName === 'Tournament Organizer' && (!q ||
+    (w?.ownerName || '').toLowerCase().includes(q) ||
+    (w?.email || '').toLowerCase().includes(q)
   ));
+
+  const filteredMaintenanceSlots = safeMaintenanceSlots.filter(s => {
+    const turfMatches = selectedMaintenanceTurfId === 'all' || (s?.turf?._id || s?.turf) === selectedMaintenanceTurfId;
+    if (!turfMatches) return false;
+    if (!q) return true;
+    return (
+      (s?.turf?.name || '').toLowerCase().includes(q) ||
+      (s?.turf?.city || '').toLowerCase().includes(q) ||
+      (s?.startTime || '').toLowerCase().includes(q) ||
+      (s?.endTime || '').toLowerCase().includes(q)
+    );
+  });
+
+  const renderDashboardHeader = () => {
+    return (
+      <View style={{ marginBottom: 10 }}>
+        {/* Stats Row */}
+        <View style={styles.statsContainer}>
+          <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('users'); setSearchQuery(''); }} activeOpacity={0.8}>
+            <View style={[styles.statGrad, { backgroundColor: colors.surface }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Icon name="account-group" size={20} color={isDark ? '#FFD400' : colors.primaryDark} />
+              </View>
+              <Text style={styles.statValue}>{safeOwners.length + safeUsers.length}</Text>
+              <Text style={styles.statLabel}>Total Users</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('owners'); setSearchQuery(''); }} activeOpacity={0.8}>
+            <View style={[styles.statGrad, { backgroundColor: colors.surface }]}>
+              <Icon name="briefcase-account" size={20} color="#5B8DEF" />
+              <Text style={[styles.statValue, { color: '#5B8DEF' }]}>{safeOwners.length}</Text>
+              <Text style={styles.statLabel}>Owners</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('turfs'); setSearchQuery(''); }} activeOpacity={0.8}>
+            <View style={[styles.statGrad, { backgroundColor: colors.surface }]}>
+              <Icon name="soccer-field" size={20} color="#2ED573" />
+              <Text style={[styles.statValue, { color: '#2ED573' }]}>{safeTurfs.length}</Text>
+              <Text style={styles.statLabel}>Turfs</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <AppUpdateBanner />
+
+        {['owners', 'turfs', 'users', 'online_bookings', 'offline_bookings', 'refunds', 'waitlist', 'settlements_requests', 'settlements_turf', 'settlements_org', 'maintenance_slots'].includes(activeTab) && (
+          <AdminSearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} colors={colors} styles={styles} />
+        )}
+      </View>
+    );
+  };
+
+  const renderMaintenanceSlotsView = () => {
+    const selectedTurfObj = safeTurfs.find(t => t?._id === selectedMaintenanceTurfId);
+    const totalMaintenanceSlots = filteredMaintenanceSlots.length;
+
+    return (
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+        keyboardShouldPersistTaps="handled"
+      >
+        {renderDashboardHeader()}
+
+        {/* ── Compact & Cute Turf Dropdown Selector ── */}
+        <TouchableOpacity
+          style={styles.turfDropdownBtn}
+          onPress={() => {
+            setTurfModalSearch('');
+            setTurfModalVisible(true);
+          }}
+          activeOpacity={0.75}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
+            <View style={styles.turfDropdownIconWrap}>
+              <Icon name="soccer-field" size={15} color={isDark ? '#FFD400' : colors.primaryDark} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.turfDropdownLabel}>FILTER BY TURF</Text>
+              <Text style={styles.turfDropdownValue} numberOfLines={1}>
+                {selectedMaintenanceTurfId === 'all'
+                  ? 'All Turfs'
+                  : (selectedTurfObj?.name || 'Selected Turf')}
+              </Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={styles.turfDropdownCountBadge}>
+              <Text style={styles.turfDropdownCountBadgeText}>
+                {totalMaintenanceSlots} {totalMaintenanceSlots === 1 ? 'Slot' : 'Slots'}
+              </Text>
+            </View>
+            <Icon name="chevron-down" size={18} color={colors.textSecondary} />
+          </View>
+        </TouchableOpacity>
+
+        {/* ── Slots List ── */}
+        {loadingMaintenance ? (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={{ marginTop: 10, color: colors.textSecondary }}>Loading maintenance slots...</Text>
+          </View>
+        ) : totalMaintenanceSlots === 0 ? (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(46,213,115,0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+              <Icon name="check-decagram" size={28} color="#2ED573" />
+            </View>
+            <Text style={{ fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, textAlign: 'center' }}>
+              No Maintenance Slots Found
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.textTertiary, textAlign: 'center', marginTop: 4 }}>
+              {selectedMaintenanceTurfId === 'all'
+                ? 'All slots across all turfs are running normally.'
+                : `No maintenance slots currently active for ${selectedTurfObj?.name || 'this turf'}.`}
+            </Text>
+          </View>
+        ) : (
+          <View style={{ marginTop: 10 }}>
+            {filteredMaintenanceSlots.map((slot) => {
+              const turfName = slot.turf?.name || 'Turf';
+              const turfCity = slot.turf?.city || '';
+              const dateFormatted = moment(slot.date).format('ddd, DD MMM YYYY');
+
+              return (
+                <View key={slot._id} style={styles.activeMaintCard}>
+                  {/* Top Row: Turf & City + Cute Maint Tag */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+                      <Icon name="soccer-field" size={14} color={isDark ? '#FFD400' : colors.primaryDark} />
+                      <Text style={styles.activeMaintTurf} numberOfLines={1}>{turfName}</Text>
+                      {turfCity ? (
+                        <View style={styles.activeMaintCityBadge}>
+                          <Text style={styles.activeMaintCityText} numberOfLines={1}>{turfCity}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <View style={styles.maintRedBadge}>
+                      <Icon name="tools" size={9} color="#FF4757" />
+                      <Text style={styles.maintRedBadgeText}>MAINT</Text>
+                    </View>
+                  </View>
+
+                  {/* Bottom Row: Date & Time + Base Price */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 7 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Icon name="calendar-outline" size={12} color={colors.textSecondary} />
+                        <Text style={styles.activeMaintDate}>{dateFormatted}</Text>
+                      </View>
+                      <Text style={{ color: colors.textTertiary, fontSize: 10 }}>•</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Icon name="clock-outline" size={12} color="#FF4757" />
+                        <Text style={styles.activeMaintTime}>{slot.startTime} - {slot.endTime}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.activeMaintPriceWrap}>
+                      <Text style={styles.activeMaintPriceLabel}>Base</Text>
+                      <Text style={styles.activeMaintPriceVal}>₹{slot.price || 0}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
 
   const SidebarItem = ({ tab, icon, label, badge }) => {
     const isActive = activeTab === tab;
@@ -1386,9 +1738,6 @@ const AdminDashboardScreen = ({ navigation }) => {
         onPress={() => handleTabSelect(tab)}
         activeOpacity={0.7}
       >
-        {/* Active indicator bar */}
-        <View style={[styles.sidebarActiveBar, isActive && styles.sidebarActiveBarVisible]} />
-
         {/* Icon */}
         <View style={[styles.sidebarIconWrap, isActive && styles.sidebarIconWrapActive]}>
           <Icon name={icon} size={18} color={isActive ? Colors.primary : Colors.textTertiary} />
@@ -1414,7 +1763,7 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* ── Premium Header ──────────────────────────────── */}
+      {/* ── Fixed Header Bar ──────────────────────────────── */}
       <View style={styles.header}>
         {/* Top row: title + actions */}
         <View style={styles.headerTop}>
@@ -1470,39 +1819,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* Divider */}
-        <View style={styles.headerDivider} />
-
-        {/* Stats Row */}
-        <View style={styles.statsContainer}>
-          <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('users'); setSearchQuery(''); }} activeOpacity={0.8}>
-            <View style={[styles.statGrad, { backgroundColor: colors.surface }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Icon name="account-group" size={20} color={isDark ? '#FFD400' : colors.primaryDark} />
-              </View>
-              <Text style={styles.statValue}>{owners.length + users.length}</Text>
-              <Text style={styles.statLabel}>Total Users</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('owners'); setSearchQuery(''); }} activeOpacity={0.8}>
-            <View style={[styles.statGrad, { backgroundColor: colors.surface }]}>
-              <Icon name="briefcase-account" size={20} color="#5B8DEF" />
-              <Text style={[styles.statValue, { color: '#5B8DEF' }]}>{owners.length}</Text>
-              <Text style={styles.statLabel}>Owners</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.statBox} onPress={() => { setActiveTab('turfs'); setSearchQuery(''); }} activeOpacity={0.8}>
-            <View style={[styles.statGrad, { backgroundColor: colors.surface }]}>
-              <Icon name="soccer-field" size={20} color="#2ED573" />
-              <Text style={[styles.statValue, { color: '#2ED573' }]}>{turfs.length}</Text>
-              <Text style={styles.statLabel}>Turfs</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
       </View>
-      
-      <AppUpdateBanner />
 
       {/* Settlement Action Modal */}
       <Modal visible={!!selectedSettlement} animationType="fade" transparent>
@@ -1707,41 +2024,89 @@ const AdminDashboardScreen = ({ navigation }) => {
 
       {/* Main Content */}
       <View style={styles.contentArea}>
-        {['owners', 'turfs', 'users', 'online_bookings', 'offline_bookings', 'refunds', 'waitlist', 'settlements_requests', 'settlements_turf', 'settlements_org'].includes(activeTab) && (
-          <AdminSearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} colors={colors} styles={styles} />
-        )}
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={Colors.primary} />
           </View>
         ) : activeTab === 'owners' ? (
-          <FlatList data={filteredOwners} keyExtractor={item => item._id} renderItem={renderOwnerCard}
-            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No owners found.'}</Text>} />
+          <FlatList
+            data={filteredOwners}
+            keyExtractor={item => item._id}
+            renderItem={renderOwnerCard}
+            ListHeaderComponent={renderDashboardHeader}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No owners found.'}</Text>}
+          />
         ) : activeTab === 'turfs' ? (
-          <FlatList data={filteredTurfs} keyExtractor={item => item._id} renderItem={renderTurfCard}
-            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No turfs found.'}</Text>} />
+          <FlatList
+            data={filteredTurfs}
+            keyExtractor={item => item._id}
+            renderItem={renderTurfCard}
+            ListHeaderComponent={renderDashboardHeader}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No turfs found.'}</Text>}
+          />
+        ) : activeTab === 'maintenance_slots' ? (
+          renderMaintenanceSlotsView()
         ) : activeTab === 'users' ? (
-          <FlatList data={filteredUsers} keyExtractor={item => item._id} renderItem={renderUserCard}
-            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No users found.'}</Text>} />
+          <FlatList
+            data={filteredUsers}
+            keyExtractor={item => item._id}
+            renderItem={renderUserCard}
+            ListHeaderComponent={renderDashboardHeader}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No users found.'}</Text>}
+          />
         ) : activeTab === 'online_bookings' ? (
-          <FlatList data={filteredOnlineBookings} keyExtractor={item => item._id} renderItem={renderOnlineBookingCard}
-            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No online bookings found.'}</Text>} />
+          <FlatList
+            data={filteredOnlineBookings}
+            keyExtractor={item => item._id}
+            renderItem={renderOnlineBookingCard}
+            ListHeaderComponent={renderDashboardHeader}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No online bookings found.'}</Text>}
+          />
         ) : activeTab === 'offline_bookings' ? (
-          <FlatList data={filteredOfflineBookings} keyExtractor={item => item._id} renderItem={renderOfflineBookingCard}
-            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No offline bookings found.'}</Text>} />
+          <FlatList
+            data={filteredOfflineBookings}
+            keyExtractor={item => item._id}
+            renderItem={renderOfflineBookingCard}
+            ListHeaderComponent={renderDashboardHeader}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No offline bookings found.'}</Text>}
+          />
         ) : activeTab === 'refunds' ? (
-          <FlatList data={filteredRefunds} keyExtractor={item => item._id} renderItem={renderRefundCard}
-            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No refunds found.'}</Text>} />
+          <FlatList
+            data={filteredRefunds}
+            keyExtractor={item => item._id}
+            renderItem={renderRefundCard}
+            ListHeaderComponent={renderDashboardHeader}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No refunds found.'}</Text>}
+          />
         ) : activeTab === 'waitlist' ? (
-          <FlatList data={filteredWaitlist} keyExtractor={item => item._id} renderItem={renderWaitlistCard}
-            contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No waitlist entries found.'}</Text>} />
+          <FlatList
+            data={filteredWaitlist}
+            keyExtractor={item => item._id}
+            renderItem={renderWaitlistCard}
+            ListHeaderComponent={renderDashboardHeader}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+            ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No waitlist entries found.'}</Text>}
+          />
         ) : activeTab === 'settlements_requests' ? (
           loadingSettlements ? (
             <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
@@ -1750,8 +2115,10 @@ const AdminDashboardScreen = ({ navigation }) => {
               data={filteredSettlementReqs}
               keyExtractor={item => item._id}
               renderItem={renderSettlementRequest}
+              ListHeaderComponent={renderDashboardHeader}
               contentContainerStyle={styles.list}
               keyboardShouldPersistTaps="handled"
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
               ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No withdrawal requests found.'}</Text>}
             />
           )
@@ -1763,8 +2130,10 @@ const AdminDashboardScreen = ({ navigation }) => {
               data={filteredTurfWallets}
               keyExtractor={item => item._id}
               renderItem={renderWalletCard}
+              ListHeaderComponent={renderDashboardHeader}
               contentContainerStyle={styles.list}
               keyboardShouldPersistTaps="handled"
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
               ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No turf owner wallets found.'}</Text>}
             />
           )
@@ -1776,8 +2145,10 @@ const AdminDashboardScreen = ({ navigation }) => {
               data={filteredOrgWallets}
               keyExtractor={item => item._id}
               renderItem={renderWalletCard}
+              ListHeaderComponent={renderDashboardHeader}
               contentContainerStyle={styles.list}
               keyboardShouldPersistTaps="handled"
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
               ListEmptyComponent={<Text style={styles.emptyText}>{q ? 'No results found.' : 'No organizer wallets found.'}</Text>}
             />
           )
@@ -1819,7 +2190,8 @@ const AdminDashboardScreen = ({ navigation }) => {
           {/* ── MANAGEMENT ── */}
           <Text style={styles.sidebarSectionLabel}>MANAGEMENT</Text>
           <SidebarItem tab="turfs" icon="soccer-field" label="Turfs"
-            badge={turfs.filter(t => (t.pendingPlatformFee > 0 && t.pendingPaymentId) || t.deletionRequested).length} />
+            badge={(Array.isArray(turfs) ? turfs : []).filter(t => (t?.pendingPlatformFee > 0 && t?.pendingPaymentId) || t?.deletionRequested).length} />
+          <SidebarItem tab="maintenance_slots" icon="tools" label="Maintenance Slots" badge={0} />
           <SidebarItem tab="owners" icon="briefcase-account" label="Owners" badge={0} />
           <SidebarItem tab="users" icon="account-group" label="Users" badge={0} />
           <SidebarItem tab="waitlist" icon="clipboard-list-outline" label="Waitlist" badge={0} />
@@ -1861,7 +2233,6 @@ const AdminDashboardScreen = ({ navigation }) => {
             onPress={toggleTheme}
             activeOpacity={0.7}
           >
-            <View style={styles.sidebarActiveBar} />
             <View style={styles.sidebarIconWrap}>
               <Icon name={isDark ? "weather-sunny" : "weather-night"} size={18} color={isDark ? "#FFD400" : "#5B8DEF"} />
             </View>
@@ -1879,6 +2250,370 @@ const AdminDashboardScreen = ({ navigation }) => {
           <Text style={styles.overlayText}>Processing transaction...</Text>
         </View>
       )}
+
+      {/* ── TURF PICKER MODAL (Maintenance Slots) ── */}
+      <Modal visible={turfModalVisible} transparent animationType="fade" onRequestClose={() => setTurfModalVisible(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setTurfModalVisible(false)}>
+          <View style={styles.dropdownModalContent} onStartShouldSetResponder={() => true}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <View>
+                <Text style={styles.modalTitle}>Select Turf</Text>
+                <Text style={{ fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginTop: 1 }}>
+                  Filter maintenance slots by venue
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setTurfModalVisible(false)} style={styles.modalCloseBtn}>
+                <Icon name="close" size={18} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Search Bar for quick search in long lists */}
+            {safeTurfs.length > 3 && (
+              <View style={styles.modalSearchBox}>
+                <Icon name="magnify" size={16} color={colors.textTertiary} style={{ marginRight: 6 }} />
+                <TextInput
+                  placeholder="Search turf or city..."
+                  placeholderTextColor={colors.textTertiary}
+                  value={turfModalSearch}
+                  onChangeText={setTurfModalSearch}
+                  style={styles.modalSearchInput}
+                  autoCapitalize="none"
+                />
+                {turfModalSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setTurfModalSearch('')} style={{ padding: 2 }}>
+                    <Icon name="close-circle" size={14} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {/* "All Turfs" Option */}
+              {(!turfModalSearch || 'all turfs'.includes(turfModalSearch.toLowerCase())) && (
+                <TouchableOpacity
+                  style={[styles.dropdownItem, selectedMaintenanceTurfId === 'all' && styles.dropdownItemActive]}
+                  onPress={() => {
+                    handleSelectTurfForMaintenance('all');
+                    setTurfModalVisible(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
+                    <View style={[styles.dropdownItemIconWrap, selectedMaintenanceTurfId === 'all' && styles.dropdownItemIconWrapActive]}>
+                      <Icon name="stadium-variant" size={16} color={selectedMaintenanceTurfId === 'all' ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textSecondary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.dropdownItemText, selectedMaintenanceTurfId === 'all' && styles.dropdownItemTextActive]} numberOfLines={1}>
+                        All Turfs
+                      </Text>
+                      <Text style={styles.dropdownItemSubText} numberOfLines={1}>Across all registered venues</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.dropdownRightCol}>
+                    <View style={[styles.dropdownBadge, selectedMaintenanceTurfId === 'all' && styles.dropdownBadgeActive]}>
+                      <Text style={[styles.dropdownBadgeText, selectedMaintenanceTurfId === 'all' && styles.dropdownBadgeTextActive]}>
+                        {safeMaintenanceSlots.length}
+                      </Text>
+                    </View>
+                    <View style={styles.dropdownCheckWrap}>
+                      {selectedMaintenanceTurfId === 'all' && (
+                        <Icon name="check-circle" size={18} color={isDark ? '#FFD400' : colors.primaryDark} />
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Filtered Turfs List */}
+              {safeTurfs
+                .filter(t => {
+                  if (!turfModalSearch.trim()) return true;
+                  const q = turfModalSearch.toLowerCase();
+                  return (t?.name || '').toLowerCase().includes(q) || (t?.city || '').toLowerCase().includes(q);
+                })
+                .map(t => {
+                  const isSelected = selectedMaintenanceTurfId === t?._id;
+                  const count = safeMaintenanceSlots.filter(s => (s?.turf?._id || s?.turf) === t?._id).length;
+                  return (
+                    <TouchableOpacity
+                      key={t?._id}
+                      style={[styles.dropdownItem, isSelected && styles.dropdownItemActive]}
+                      onPress={() => {
+                        handleSelectTurfForMaintenance(t?._id);
+                        setTurfModalVisible(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
+                        <View style={[styles.dropdownItemIconWrap, isSelected && styles.dropdownItemIconWrapActive]}>
+                          <Icon name="soccer-field" size={16} color={isSelected ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textSecondary} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.dropdownItemText, isSelected && styles.dropdownItemTextActive]} numberOfLines={1}>
+                            {t?.name || 'Turf'}
+                          </Text>
+                          {t?.city ? <Text style={styles.dropdownItemSubText} numberOfLines={1}>{t.city}</Text> : null}
+                        </View>
+                      </View>
+
+                      <View style={styles.dropdownRightCol}>
+                        {count > 0 ? (
+                          <View style={[styles.dropdownBadge, isSelected && styles.dropdownBadgeActive]}>
+                            <Text style={[styles.dropdownBadgeText, isSelected && styles.dropdownBadgeTextActive]}>
+                              {count}
+                            </Text>
+                          </View>
+                        ) : null}
+                        <View style={styles.dropdownCheckWrap}>
+                          {isSelected && (
+                            <Icon name="check-circle" size={18} color={isDark ? '#FFD400' : colors.primaryDark} />
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── TURF BOOKING HISTORY MODAL (Online + Offline + Financial Analytics) ── */}
+      <Modal visible={!!selectedTurfForHistory} transparent animationType="slide" onRequestClose={() => setSelectedTurfForHistory(null)}>
+        <View style={styles.turfHistoryModalOverlay}>
+          <View style={styles.turfHistoryModalCard}>
+            {/* Header */}
+            <View style={styles.turfHistoryHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <View style={styles.turfHistoryAvatarWrap}>
+                  <Icon name="soccer-field" size={20} color={isDark ? '#FFD400' : colors.primaryDark} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.turfHistoryTitle} numberOfLines={1}>
+                    {selectedTurfForHistory?.name || 'Turf Booking History'}
+                  </Text>
+                  <Text style={styles.turfHistorySubtitle} numberOfLines={1}>
+                    <Icon name="map-marker" size={11} color={colors.textTertiary} /> {selectedTurfForHistory?.city || 'City'}, {selectedTurfForHistory?.state || ''} • <Icon name="account-tie" size={11} color={colors.textTertiary} /> {selectedTurfForHistory?.owner?.businessName || selectedTurfForHistory?.owner?.userId?.name || 'Owner'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setSelectedTurfForHistory(null)} style={styles.turfHistoryCloseBtn} activeOpacity={0.7}>
+                <Icon name="close" size={20} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {loadingTurfHistory ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={{ marginTop: 12, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium }}>Loading booking history...</Text>
+              </View>
+            ) : (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 40 }}
+                keyboardShouldPersistTaps="handled"
+                refreshControl={
+                  <RefreshControl
+                    refreshing={loadingTurfHistory}
+                    onRefresh={() => selectedTurfForHistory && handleOpenTurfHistory(selectedTurfForHistory)}
+                    colors={[Colors.primary]}
+                    tintColor={Colors.primary}
+                  />
+                }
+              >
+                {/* ── Financial Summary KPI Banner ── */}
+                {(() => {
+                  const { list, totalAmount, onlineAmount, offlineAmount, totalCount } = getFilteredTurfBookings();
+                  return (
+                    <>
+                      <View style={styles.turfHistorySummaryCard}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <View>
+                            <Text style={styles.turfHistorySummaryLabel}>TOTAL REVENUE COLLECTED</Text>
+                            <Text style={styles.turfHistorySummaryValue}>₹{totalAmount.toLocaleString()}</Text>
+                          </View>
+                          <View style={styles.turfHistoryTotalBadge}>
+                            <Text style={styles.turfHistoryTotalBadgeText}>{totalCount} {totalCount === 1 ? 'Booking' : 'Bookings'}</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.turfHistoryDivider} />
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.turfHistorySubRevenueLabel}>Online Revenue</Text>
+                            <Text style={[styles.turfHistorySubRevenueVal, { color: '#2ED573' }]}>₹{onlineAmount.toLocaleString()}</Text>
+                          </View>
+                          <View style={{ width: 1, backgroundColor: colors.border, marginHorizontal: 12 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.turfHistorySubRevenueLabel}>Offline Revenue</Text>
+                            <Text style={[styles.turfHistorySubRevenueVal, { color: '#5B8DEF' }]}>₹{offlineAmount.toLocaleString()}</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* ── Filter Bar: Booking Type (All / Online / Offline) ── */}
+                      <View style={styles.turfHistoryTypeTabs}>
+                        <TouchableOpacity
+                          style={[styles.turfHistoryTypeTab, turfHistoryTab === 'all' && styles.turfHistoryTypeTabActive]}
+                          onPress={() => setTurfHistoryTab('all')}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.turfHistoryTypeTabText, turfHistoryTab === 'all' && styles.turfHistoryTypeTabTextActive]}>
+                            All ({turfHistoryData?.summary?.totalCount || 0})
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.turfHistoryTypeTab, turfHistoryTab === 'online' && styles.turfHistoryTypeTabActive]}
+                          onPress={() => setTurfHistoryTab('online')}
+                          activeOpacity={0.7}
+                        >
+                          <Icon name="cloud-check" size={13} color={turfHistoryTab === 'online' ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textSecondary} />
+                          <Text style={[styles.turfHistoryTypeTabText, turfHistoryTab === 'online' && styles.turfHistoryTypeTabTextActive]}>
+                            Online ({turfHistoryData?.summary?.onlineCount || 0})
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.turfHistoryTypeTab, turfHistoryTab === 'offline' && styles.turfHistoryTypeTabActive]}
+                          onPress={() => setTurfHistoryTab('offline')}
+                          activeOpacity={0.7}
+                        >
+                          <Icon name="calendar-clock" size={13} color={turfHistoryTab === 'offline' ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textSecondary} />
+                          <Text style={[styles.turfHistoryTypeTabText, turfHistoryTab === 'offline' && styles.turfHistoryTypeTabTextActive]}>
+                            Offline ({turfHistoryData?.summary?.offlineCount || 0})
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* ── Date Filter Chips ── */}
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
+                        {[
+                          { id: 'all', label: 'All Time' },
+                          { id: 'today', label: 'Today' },
+                          { id: 'week', label: 'This Week' },
+                          { id: 'month', label: 'This Month' },
+                        ].map(df => (
+                          <TouchableOpacity
+                            key={df.id}
+                            style={[styles.turfDateChip, turfHistoryDateFilter === df.id && styles.turfDateChipActive]}
+                            onPress={() => setTurfHistoryDateFilter(df.id)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.turfDateChipText, turfHistoryDateFilter === df.id && styles.turfDateChipTextActive]}>
+                              {df.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+
+                      {/* ── Search Input ── */}
+                      <View style={styles.turfHistorySearchBar}>
+                        <Icon name="magnify" size={16} color={colors.textTertiary} />
+                        <TextInput
+                          style={styles.turfHistorySearchInput}
+                          placeholder="Search by customer, phone, ref..."
+                          placeholderTextColor={colors.textTertiary}
+                          value={turfHistorySearch}
+                          onChangeText={setTurfHistorySearch}
+                          clearButtonMode="while-editing"
+                        />
+                        {turfHistorySearch ? (
+                          <TouchableOpacity onPress={() => setTurfHistorySearch('')}>
+                            <Icon name="close-circle" size={16} color={colors.textTertiary} />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+
+                      {/* ── Bookings List ── */}
+                      {list.length === 0 ? (
+                        <View style={{ padding: 40, alignItems: 'center' }}>
+                          <Icon name="calendar-blank-outline" size={40} color={colors.textTertiary} />
+                          <Text style={{ fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginTop: 10 }}>
+                            No Bookings Found
+                          </Text>
+                          <Text style={{ fontSize: 12, color: colors.textTertiary, textAlign: 'center', marginTop: 4 }}>
+                            No bookings matching current filter criteria.
+                          </Text>
+                        </View>
+                      ) : (
+                        list.map(b => {
+                          const isOnline = b.bookingType === 'online';
+                          const isConfirmed = b.status === 'confirmed' || b.status === 'completed';
+                          const isCancelled = b.status === 'cancelled';
+                          const statusColor = isOnline
+                            ? (isConfirmed ? '#2ED573' : isCancelled ? Colors.error : '#FF9800')
+                            : (b.isPaid !== false ? '#5B8DEF' : '#FF9800');
+                          const statusBg = isOnline
+                            ? (isConfirmed ? 'rgba(46,213,115,0.12)' : isCancelled ? 'rgba(255,71,87,0.12)' : 'rgba(255,152,0,0.12)')
+                            : (b.isPaid !== false ? 'rgba(91,141,239,0.12)' : 'rgba(255,152,0,0.12)');
+                          const customerName = isOnline ? (b.user?.name || b.user?.email || 'Customer') : (b.customerName || 'Walk-in Customer');
+                          const customerPhone = isOnline ? (b.user?.mobile || '') : (b.customerMobile || '');
+                          const customerEmail = isOnline ? (b.user?.email || '') : '';
+                          const dateFormatted = moment(b.bookingDate || b.createdAt).format('ddd, DD MMM YYYY');
+                          const timeStr = isOnline
+                            ? (b.slotsSnapshot?.[0] ? `${b.slotsSnapshot[0].startTime} - ${b.slotsSnapshot[0].endTime}` : '')
+                            : (b.startTime ? `${b.startTime} - ${b.endTime}` : '');
+                          const refOrReason = isOnline ? (b.bookingRef || b._id?.slice(-8).toUpperCase()) : (b.reason || 'Offline').replace(/_/g, ' ').toUpperCase();
+
+                          return (
+                            <View key={b._id} style={styles.turfBookingCard}>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                  <View style={[styles.typeBadge, isOnline ? styles.typeBadgeOnline : styles.typeBadgeOffline]}>
+                                    <Icon name={isOnline ? 'cloud-check' : 'calendar-clock'} size={11} color={isOnline ? '#2ED573' : '#5B8DEF'} />
+                                    <Text style={[styles.typeBadgeText, { color: isOnline ? '#2ED573' : '#5B8DEF' }]}>
+                                      {isOnline ? 'ONLINE' : 'OFFLINE'}
+                                    </Text>
+                                  </View>
+                                  <Text style={styles.bookingRefText}>{refOrReason}</Text>
+                                </View>
+                                <View style={[styles.statusBadgeSmall, { backgroundColor: statusBg, borderColor: statusColor + '55' }]}>
+                                  <Text style={[styles.statusBadgeSmallText, { color: statusColor }]}>
+                                    {isOnline ? (b.status?.toUpperCase() || 'CONFIRMED') : (b.isPaid !== false ? 'PAID' : 'UNPAID')}
+                                  </Text>
+                                </View>
+                              </View>
+
+                              <View style={styles.bookingCardDivider} />
+
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <View style={{ flex: 1, marginRight: 10 }}>
+                                  <Text style={styles.bookingCustomerName}>{customerName}</Text>
+                                  {customerPhone || customerEmail ? (
+                                    <Text style={styles.bookingCustomerContact}>
+                                      {customerPhone} {customerEmail ? `• ${customerEmail}` : ''}
+                                    </Text>
+                                  ) : null}
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                    <Text style={styles.bookingDateText}>
+                                      <Icon name="calendar" size={11} color={colors.textSecondary} /> {dateFormatted}
+                                    </Text>
+                                    {timeStr ? (
+                                      <Text style={styles.bookingTimeText}>
+                                        <Icon name="clock-outline" size={11} color={isDark ? '#FFD400' : colors.primaryDark} /> {timeStr}
+                                      </Text>
+                                    ) : null}
+                                  </View>
+                                </View>
+
+                                <View style={{ alignItems: 'flex-end' }}>
+                                  <Text style={{ fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>Amount</Text>
+                                  <Text style={styles.bookingAmountText}>₹{b.amount || 0}</Text>
+                                </View>
+                              </View>
+                            </View>
+                          );
+                        })
+                      )}
+                    </>
+                  );
+                })()}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* ── ROLE CHANGE MODAL ── */}
       <Modal visible={!!roleModalUser} transparent animationType="fade" onRequestClose={() => !isUpdatingRole && setRoleModalUser(null)}>
@@ -2804,6 +3539,797 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
     fontSize: 14,
     fontFamily: Typography.fontFamily.bold,
     color: isDark ? '#000' : '#FFF',
+  },
+
+  // ── Maintenance Slots Styles ──────────────────────────────────────────
+  maintTurfBar: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  maintTurfChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  maintTurfChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  maintTurfChipText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  maintTurfChipTextActive: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
+  },
+  maintChipBadge: {
+    backgroundColor: '#FF4757',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+    marginLeft: 2,
+  },
+  maintChipBadgeText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF',
+  },
+
+  maintSubTabWrap: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceVariant,
+    marginHorizontal: 14,
+    marginTop: 12,
+    marginBottom: 12,
+    borderRadius: 12,
+    padding: 3,
+  },
+  maintSubTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 9,
+    borderRadius: 9,
+  },
+  maintSubTabActive: {
+    backgroundColor: isDark ? 'rgba(255,212,0,0.18)' : '#FFF',
+    borderWidth: 1,
+    borderColor: isDark ? '#FFD400' : colors.border,
+    ...(isDark ? {} : shadows.sm),
+  },
+  maintSubTabText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textTertiary,
+  },
+  maintSubTabTextActive: {
+    color: isDark ? '#FFD400' : colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+  },
+
+  maintHeaderCard: {
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12,
+    ...(isDark ? {} : shadows.sm),
+  },
+  maintTurfTitle: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  maintTurfLocation: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  maintTurfBadge: {
+    backgroundColor: 'rgba(255,212,0,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,212,0,0.3)',
+  },
+  maintTurfBadgeText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+  },
+
+  maintDateNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceVariant,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  maintDateArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  maintDateText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  maintDateSub: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+    marginTop: 1,
+  },
+
+  quickDatePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quickDatePillActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  quickDatePillText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  quickDatePillTextActive: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
+  },
+
+  maintStatsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
+  },
+  maintStatBox: {
+    flex: 1,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    borderLeftWidth: 3,
+  },
+  maintStatVal: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  maintStatLbl: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+
+  sectionTitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textSecondary,
+  },
+
+  slotGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  slotGridCard: {
+    width: (SCREEN_WIDTH - 38) / 2,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1.5,
+  },
+  slotGridCardSelected: {
+    borderColor: Colors.primary,
+    borderWidth: 2,
+  },
+  slotTimeText: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  slotStatusTag: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  slotPriceText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textTertiary,
+  },
+
+  slotActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surface,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    marginTop: 16,
+    ...(isDark ? {} : shadows.md),
+  },
+  slotActionCount: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  slotActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  slotActionBtnText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFF',
+  },
+
+  activeMaintCard: {
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 10,
+    ...(isDark ? {} : shadows.sm),
+  },
+  // ── Maintenance Card (Cute & Compact) ──
+  activeMaintCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.06)' : colors.border,
+    borderLeftWidth: 3.5,
+    borderLeftColor: '#FF4757',
+    marginBottom: 8,
+    ...(isDark ? {} : shadows.sm),
+  },
+  activeMaintTurf: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+    flexShrink: 1,
+  },
+  activeMaintCityBadge: {
+    backgroundColor: colors.surfaceVariant,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 5,
+    maxWidth: 90,
+  },
+  activeMaintCityText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  maintRedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(255,71,87,0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,71,87,0.25)',
+  },
+  maintRedBadgeText: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FF4757',
+    letterSpacing: 0.3,
+  },
+  activeMaintDate: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  activeMaintTime: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FF4757',
+  },
+  activeMaintPriceWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surfaceVariant,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  activeMaintPriceLabel: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textTertiary,
+  },
+  activeMaintPriceVal: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+
+  // ── Turf Dropdown Picker ──
+  turfDropdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 2,
+    ...(isDark ? {} : shadows.sm),
+  },
+  turfDropdownIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.12)' : 'rgba(91,141,239,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  turfDropdownLabel: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textTertiary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  turfDropdownValue: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+    marginTop: 1,
+  },
+  turfDropdownCountBadge: {
+    backgroundColor: isDark ? 'rgba(255,212,0,0.12)' : 'rgba(91,141,239,0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,212,0,0.25)' : 'rgba(91,141,239,0.25)',
+  },
+  turfDropdownCountBadgeText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+  },
+
+  // ── Dropdown Modal Content & Alignments ──
+  dropdownModalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: 16,
+    width: '90%',
+    maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...(isDark ? {} : shadows.lg),
+  },
+  modalCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceVariant,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textPrimary,
+    padding: 0,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.md,
+    marginBottom: 3,
+  },
+  dropdownItemActive: {
+    backgroundColor: isDark ? 'rgba(255,212,0,0.1)' : 'rgba(91,141,239,0.1)',
+  },
+  dropdownItemIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceVariant,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropdownItemIconWrapActive: {
+    backgroundColor: isDark ? 'rgba(255,212,0,0.18)' : 'rgba(91,141,239,0.18)',
+  },
+  dropdownItemText: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textPrimary,
+  },
+  dropdownItemTextActive: {
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+  },
+  dropdownItemSubText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textTertiary,
+    marginTop: 1,
+  },
+  dropdownRightCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    minWidth: 56,
+    gap: 6,
+  },
+  dropdownBadge: {
+    backgroundColor: colors.surfaceVariant,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  dropdownBadgeActive: {
+    backgroundColor: isDark ? 'rgba(255,212,0,0.2)' : 'rgba(91,141,239,0.2)',
+  },
+  dropdownBadgeText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textSecondary,
+  },
+  dropdownBadgeTextActive: {
+    color: isDark ? '#FFD400' : colors.primaryDark,
+  },
+  dropdownCheckWrap: {
+    width: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(46,213,115,0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(46,213,115,0.3)',
+  },
+  restoreBtnText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#2ED573',
+  },
+
+  bulkMaintTitle: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  bulkTurfSelect: {
+    backgroundColor: colors.surfaceVariant,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: 4,
+  },
+  bulkTextInput: {
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  bulkActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: 10,
+  },
+  // ── Turf Booking History Modal ──
+  turfHistoryModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  turfHistoryModalCard: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 16,
+    maxHeight: '92%',
+    minHeight: '60%',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  turfHistoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    marginBottom: 12,
+  },
+  turfHistoryAvatarWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.12)' : 'rgba(91,141,239,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  turfHistoryTitle: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  turfHistorySubtitle: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  turfHistoryCloseBtn: {
+    padding: 6,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceVariant,
+  },
+  turfHistorySummaryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12,
+    ...(isDark ? {} : shadows.sm),
+  },
+  turfHistorySummaryLabel: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textTertiary,
+    letterSpacing: 0.6,
+  },
+  turfHistorySummaryValue: {
+    fontSize: 22,
+    fontFamily: Typography.fontFamily.extraBold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+    marginTop: 2,
+  },
+  turfHistoryTotalBadge: {
+    backgroundColor: isDark ? 'rgba(255,212,0,0.15)' : 'rgba(91,141,239,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  turfHistoryTotalBadgeText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+  },
+  turfHistoryDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 10,
+  },
+  turfHistorySubRevenueLabel: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textTertiary,
+  },
+  turfHistorySubRevenueVal: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    marginTop: 1,
+  },
+  turfHistoryTypeTabs: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 6,
+  },
+  turfHistoryTypeTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    borderRadius: 9,
+  },
+  turfHistoryTypeTabActive: {
+    backgroundColor: isDark ? 'rgba(255,212,0,0.15)' : 'rgba(91,141,239,0.15)',
+  },
+  turfHistoryTypeTabText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textTertiary,
+  },
+  turfHistoryTypeTabTextActive: {
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+  },
+  turfDateChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  turfDateChipActive: {
+    backgroundColor: isDark ? '#FFD400' : colors.primaryDark,
+    borderColor: isDark ? '#FFD400' : colors.primaryDark,
+  },
+  turfDateChipText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  turfDateChipTextActive: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
+  },
+  turfHistorySearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginVertical: 8,
+  },
+  turfHistorySearchInput: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
+    padding: 0,
+  },
+  turfBookingCard: {
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 8,
+  },
+  typeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  typeBadgeOnline: {
+    backgroundColor: 'rgba(46,213,115,0.12)',
+  },
+  typeBadgeOffline: {
+    backgroundColor: 'rgba(91,141,239,0.12)',
+  },
+  typeBadgeText: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  bookingRefText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  statusBadgeSmall: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  statusBadgeSmallText: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  bookingCardDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 8,
+  },
+  bookingCustomerName: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  bookingCustomerContact: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textTertiary,
+    marginTop: 1,
+  },
+  bookingDateText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  bookingTimeText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+    marginLeft: 6,
+  },
+  bookingAmountText: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+    marginTop: 1,
   },
 });
 

@@ -386,7 +386,7 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
 
         <TouchableOpacity style={styles.dateInputContainer} onPress={() => setShowCalendar(true)}>
           <Icon name="calendar-month" size={20} color={colors.textTertiary} />
-          <Text style={[styles.searchInput, { color: dateFilter ? colors.textPrimary : colors.textTertiary, marginTop: 10 }]}>
+          <Text style={[styles.searchInput, { color: dateFilter ? colors.textPrimary : colors.textTertiary, textAlignVertical: 'center', lineHeight: 20 }]} numberOfLines={1}>
             {dateFilter || 'DD/MM/YYYY'}
           </Text>
           {dateFilter.length > 0 && (
@@ -623,24 +623,25 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
                 const startDay = moment(calendarMonth).startOf('month').day();
                 const daysInMonth = moment(calendarMonth).daysInMonth();
                 const grid = [];
-                for(let i=0; i<startDay; i++) grid.push(<View key={`empty-${i}`} style={styles.calDay} />);
-                for(let i=1; i<=daysInMonth; i++) {
-                  const d = moment(calendarMonth).date(i);
+                for (let i = 0; i < startDay; i++) {
+                  grid.push(<View key={`empty-${i}`} style={styles.calDay} />);
+                }
+                for (let i = 1; i <= daysInMonth; i++) {
+                  const d = moment(calendarMonth).clone().date(i);
                   const dStr = d.format('DD/MM/YYYY');
                   const isSel = dateFilter === dStr;
-                  return (
-                    grid.push(
-                      <TouchableOpacity 
-                        key={`day-${i}`} 
-                        style={[styles.calDay, isSel && styles.calDaySel]}
-                        onPress={() => {
-                          setDateFilter(dStr);
-                          setShowCalendar(false);
-                        }}
-                      >
-                        <Text style={[styles.calDayText, isSel && { color: '#000', fontWeight: 'bold' }]}>{i}</Text>
-                      </TouchableOpacity>
-                    )
+                  grid.push(
+                    <TouchableOpacity 
+                      key={`day-${i}`} 
+                      style={[styles.calDay, isSel && styles.calDaySel]}
+                      onPress={() => {
+                        setDateFilter(dStr);
+                        setShowCalendar(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.calDayText, isSel && { color: '#000', fontWeight: 'bold' }]}>{i}</Text>
+                    </TouchableOpacity>
                   );
                 }
                 return grid;

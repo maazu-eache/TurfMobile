@@ -703,7 +703,10 @@ const TeamCreateScreen = ({ navigation, route }) => {
 
       const fromTournamentId = route.params?.fromTournamentId;
       if (fromTournamentId) {
-        navigation.navigate('TournamentDetail', { id: fromTournamentId, action: 'join-team' });
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        }
+        navigation.navigate('TournamentDetail', { tournamentId: fromTournamentId, id: fromTournamentId, action: 'join-team' });
       } else {
         navigation.replace('TeamDetail', { id: teamId });
       }

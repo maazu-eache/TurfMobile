@@ -61,12 +61,43 @@ for (let h = 0; h < 24; h++) {
   TIME_OPTIONS.push(`${hr}:00`);
   TIME_OPTIONS.push(`${hr}:30`);
 }
+TIME_OPTIONS.push('23:59');
+
+const ONE_HOUR_SLOTS = [];
+for (let h = 0; h < 24; h++) {
+  const startH = h.toString().padStart(2, '0');
+  const start = `${startH}:00`;
+  const end = h === 23 ? '23:59' : `${(h + 1).toString().padStart(2, '0')}:00`;
+  const label = `${formatISTTime(start)} - ${end === '23:59' ? '11:59 PM' : formatISTTime(end)}`;
+  ONE_HOUR_SLOTS.push({ startTime: start, endTime: end, label });
+}
+
+const THIRTY_MIN_SLOTS = [];
+for (let h = 0; h < 24; h++) {
+  const startH = h.toString().padStart(2, '0');
+  const start1 = `${startH}:00`;
+  const end1 = `${startH}:30`;
+  THIRTY_MIN_SLOTS.push({
+    startTime: start1,
+    endTime: end1,
+    label: `${formatISTTime(start1)} - ${formatISTTime(end1)}`
+  });
+
+  const start2 = `${startH}:30`;
+  const end2 = h === 23 ? '23:59' : `${(h + 1).toString().padStart(2, '0')}:00`;
+  THIRTY_MIN_SLOTS.push({
+    startTime: start2,
+    endTime: end2,
+    label: `${formatISTTime(start2)} - ${end2 === '23:59' ? '11:59 PM' : formatISTTime(end2)}`
+  });
+}
 
 const SlotManagerScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { colors, isDark, shadows } = useTheme();
   const styles = useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
-  const { dashboard } = useSelector((state) => state.owner);
+  const { dashboard } = useSelector((state) => state.owner || {});
+  const { user } = useSelector((state) => state.auth || {});
   const turfs = dashboard?.owner?.turfs || [];
   
   const [selectedTurf, setSelectedTurf] = useState(turfs[0]?._id || null);
@@ -157,13 +188,20 @@ const SlotManagerScreen = ({ navigation, route }) => {
 
   // Bulk Search / Update Modals
   const [bulkModalVisible, setBulkModalVisible] = useState(false);
+  const [bulkLockMode, setBulkLockMode] = useState('without_price'); // 'without_price' or 'with_price'
   const [bulkData, setBulkData] = useState({
-    startDate: '', endDate: '', startTime: '', endTime: '', action: 'status',
-    daysOfWeek: [], 
-    actionData: { status: 'available', price: 0, customerName: '', customerMobile: '', amount: 0, reason: 'walk_in' }
+    startDate: moment().format('YYYY-MM-DD'),
+    endDate: moment().add(7, 'days').format('YYYY-MM-DD'),
+    startTime: '06:00',
+    endTime: '07:00',
+    selectedTimeSlots: [{ startTime: '06:00', endTime: '07:00', label: '06:00 AM - 07:00 AM' }],
+    action: 'status',
+    daysOfWeek: [moment().day()], // Default to today's day of week
+    actionData: { status: 'maintenance', price: 0, customerName: '', customerMobile: '', amount: 0, reason: 'maintenance' }
   });
   const [previewResult, setPreviewResult] = useState(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [timePickerTab, setTimePickerTab] = useState('60'); // '60' for 1-hour slots, '30' for 30-min slots
 
   // Pickers and Custom JS Calendar
   const [showCalendar, setShowCalendar] = useState(false);
@@ -616,12 +654,61 @@ const SlotManagerScreen = ({ navigation, route }) => {
   };
 
   const toggleBulkDayOfWeek = (dayIndex) => {
-    const current = bulkData.daysOfWeek;
+    const current = bulkData.daysOfWeek || [];
     if (current.includes(dayIndex)) {
       setBulkData({ ...bulkData, daysOfWeek: current.filter(d => d !== dayIndex) });
     } else {
       setBulkData({ ...bulkData, daysOfWeek: [...current, dayIndex] });
     }
+  };
+
+  const toggleAllBulkDays = () => {
+    const current = bulkData.daysOfWeek || [];
+    if (current.length === 7) {
+      setBulkData({ ...bulkData, daysOfWeek: [] });
+    } else {
+      setBulkData({ ...bulkData, daysOfWeek: [0, 1, 2, 3, 4, 5, 6] });
+    }
+  };
+
+  const toggleSlotTimeSelection = (slot) => {
+    const current = bulkData.selectedTimeSlots || [];
+    const exists = current.some(s => s.startTime === slot.startTime && s.endTime === slot.endTime);
+    let updated;
+    if (exists) {
+      updated = current.filter(s => !(s.startTime === slot.startTime && s.endTime === slot.endTime));
+    } else {
+      updated = [...current, slot];
+    }
+    updated.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    setBulkData(prev => ({
+      ...prev,
+      selectedTimeSlots: updated,
+      startTime: updated[0]?.startTime || '',
+      endTime: updated[updated.length - 1]?.endTime || ''
+    }));
+    resetPreview();
+  };
+
+  const selectAllSlotsInTab = () => {
+    const slotsInCurrentTab = timePickerTab === '60' ? ONE_HOUR_SLOTS : THIRTY_MIN_SLOTS;
+    const current = bulkData.selectedTimeSlots || [];
+    const allSelected = slotsInCurrentTab.every(s => current.some(cs => cs.startTime === s.startTime && cs.endTime === s.endTime));
+    let updated;
+    if (allSelected) {
+      updated = current.filter(cs => !slotsInCurrentTab.some(s => s.startTime === cs.startTime && s.endTime === cs.endTime));
+    } else {
+      const missing = slotsInCurrentTab.filter(s => !current.some(cs => cs.startTime === s.startTime && cs.endTime === s.endTime));
+      updated = [...current, ...missing];
+    }
+    updated.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    setBulkData(prev => ({
+      ...prev,
+      selectedTimeSlots: updated,
+      startTime: updated[0]?.startTime || '',
+      endTime: updated[updated.length - 1]?.endTime || ''
+    }));
+    resetPreview();
   };
 
   const resetPreview = () => setPreviewResult(null);
@@ -630,40 +717,123 @@ const SlotManagerScreen = ({ navigation, route }) => {
     if (!bulkData.startDate || !bulkData.endDate) {
       return showCustomAlert('Missing Info', 'Please select a date range first.');
     }
-    if (!bulkData.startTime || !bulkData.endTime) {
-      return showCustomAlert('Missing Info', 'Please select both start and end times. Time range is required.');
+    const slotsToQuery = (bulkData.selectedTimeSlots && bulkData.selectedTimeSlots.length > 0)
+      ? bulkData.selectedTimeSlots
+      : (bulkData.startTime && bulkData.endTime ? [{ startTime: bulkData.startTime, endTime: bulkData.endTime }] : []);
+
+    if (slotsToQuery.length === 0) {
+      return showCustomAlert('Missing Info', 'Please select at least one slot timing.');
     }
     setIsPreviewing(true);
-    const { startTime, endTime, startDate, endDate } = bulkData;
-    const isCrossMidnight = startTime && endTime && startTime > endTime;
+    const { startDate, endDate } = bulkData;
     try {
-      let fetchedSlots = [];
-      if (isCrossMidnight) {
-        const nextDayDaysOfWeek = bulkData.daysOfWeek.length > 0 
-          ? bulkData.daysOfWeek.map(d => (d + 1) % 7) 
-          : [];
+      const searchPromises = slotsToQuery.map(async (ts) => {
+        const isCrossMidnight = ts.startTime && ts.endTime && ts.startTime > ts.endTime;
+        if (isCrossMidnight) {
+          const nextDayDaysOfWeek = (bulkData.daysOfWeek || []).length > 0 
+            ? bulkData.daysOfWeek.map(d => (d + 1) % 7) 
+            : [];
+          const [r1, r2] = await Promise.all([
+            api.post('/slots/bulk-search', { turfId: selectedTurf, ...bulkData, startTime: ts.startTime, endTime: '23:59', includeAllStatuses: true }),
+            api.post('/slots/bulk-search', {
+              turfId: selectedTurf, ...bulkData,
+              startTime: '00:00',
+              endTime: ts.endTime,
+              startDate: moment(startDate).add(1, 'day').format('YYYY-MM-DD'),
+              endDate:   moment(endDate).add(1, 'day').format('YYYY-MM-DD'),
+              daysOfWeek: nextDayDaysOfWeek,
+              includeAllStatuses: true
+            }),
+          ]);
+          return [...(r1.data.data || []), ...(r2.data.data || [])];
+        } else {
+          const r = await api.post('/slots/bulk-search', { 
+            turfId: selectedTurf, 
+            ...bulkData, 
+            startTime: ts.startTime, 
+            endTime: ts.endTime, 
+            includeAllStatuses: true 
+          });
+          return r.data.data || [];
+        }
+      });
 
-        const [r1, r2] = await Promise.all([
-          api.post('/slots/bulk-search', { turfId: selectedTurf, ...bulkData, endTime: '23:59' }),
-          api.post('/slots/bulk-search', {
-            turfId: selectedTurf, ...bulkData,
-            startTime: '00:00',
-            startDate: moment(startDate).add(1, 'day').format('YYYY-MM-DD'),
-            endDate:   moment(endDate).add(1, 'day').format('YYYY-MM-DD'),
-            daysOfWeek: nextDayDaysOfWeek
-          }),
-        ]);
-        fetchedSlots = [...(r1.data.data || []), ...(r2.data.data || [])];
-      } else {
-        const r = await api.post('/slots/bulk-search', { turfId: selectedTurf, ...bulkData });
-        fetchedSlots = r.data.data || [];
-      }
+      const nestedResults = await Promise.all(searchPromises);
+      const allResults = nestedResults.flat();
 
-      if (fetchedSlots.length === 0) {
-        showCustomAlert('No Slots Found', 'No available slots matched your criteria.');
+      // Deduplicate by slot _id
+      const seen = new Set();
+      const fetchedSlots = allResults.filter(s => {
+        if (!s._id || seen.has(s._id)) return false;
+        seen.add(s._id);
+        return true;
+      });
+
+      // Sort by date and start time
+      fetchedSlots.sort((a, b) => {
+        const dDiff = new Date(a.date) - new Date(b.date);
+        if (dDiff !== 0) return dDiff;
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+
+      // Annotate each slot with computed status (available, booked, maintenance, past)
+      const allSlotsAnnotated = fetchedSlots.map(s => {
+        const dStr = moment(s.date).format('YYYY-MM-DD');
+        const isPast = isPastSlot(dStr, s.startTime);
+        let computedStatus = 'available';
+        let statusLabel = 'Available';
+        let statusColor = '#22C55E';
+        let isSelectable = false;
+
+        if (isPast) {
+          computedStatus = 'past';
+          statusLabel = 'Past';
+          statusColor = '#9CA3AF';
+          isSelectable = false;
+        } else if (s.status === 'booked' || s.status === 'offline_booking') {
+          computedStatus = 'booked';
+          statusLabel = s.status === 'offline_booking' ? 'Offline Booked' : 'Booked';
+          statusColor = '#EF4444';
+          isSelectable = false;
+        } else if (s.status === 'maintenance') {
+          computedStatus = 'maintenance';
+          statusLabel = 'Locked';
+          statusColor = '#F59E0B';
+          isSelectable = false;
+        } else {
+          computedStatus = 'available';
+          statusLabel = 'Available';
+          statusColor = '#22C55E';
+          isSelectable = true;
+        }
+
+        return { ...s, computedStatus, statusLabel, statusColor, isSelectable };
+      });
+
+      const validSlots = allSlotsAnnotated.filter(s => s.isSelectable);
+
+      if (allSlotsAnnotated.length === 0) {
+        showCustomAlert('No Slots Found', 'No slots matched your criteria for the selected range.');
+        setPreviewResult(null);
       } else {
-        const defaultPrice = fetchedSlots[0]?.price ?? 0;
-        setPreviewResult({ slots: fetchedSlots, customPrice: String(defaultPrice) });
+        const sumPrice = validSlots.reduce((sum, s) => sum + (s.price || 0), 0);
+        const avgPrice = validSlots.length > 0 ? Math.round(sumPrice / validSlots.length) : 0;
+        setPreviewResult({ 
+          allSlots: allSlotsAnnotated,
+          slots: validSlots, 
+          customPrice: String(avgPrice),
+          totalAmount: String(sumPrice),
+        });
+
+        // Prefill customer name for owner lock if empty
+        setBulkData(prev => ({
+          ...prev,
+          actionData: {
+            ...prev.actionData,
+            amount: sumPrice,
+            customerName: prev.actionData.customerName || (user?.name ? `${user.name} (Owner)` : 'Owner'),
+          }
+        }));
       }
     } catch (err) {
       showCustomAlert('Error', err.response?.data?.message || 'Failed to search slots');
@@ -673,44 +843,56 @@ const SlotManagerScreen = ({ navigation, route }) => {
   };
 
   const handleBulkUpdate = async () => {
-    if (!previewResult) return;
-    const { startTime, endTime, startDate, endDate } = bulkData;
-    const isCrossMidnight = startTime && endTime && startTime > endTime;
-    const customPrice = Number(previewResult.customPrice) || 0;
-    const payload = {
-      ...bulkData,
-      actionData: {
-        ...bulkData.actionData,
-        price: customPrice,
-        amount: bulkData.action === 'offline_booking' ? customPrice : bulkData.actionData.amount,
-      },
-    };
+    if (!previewResult || !previewResult.slots || previewResult.slots.length === 0) return;
+    const isWithPrice = bulkLockMode === 'with_price';
+    const slotIds = [];
+    previewResult.slots.forEach(s => {
+      if (s._id) {
+        slotIds.push(s._id);
+      } else if (s.originalSlots && Array.isArray(s.originalSlots)) {
+        slotIds.push(...s.originalSlots.map(os => os._id));
+      }
+    });
+
+    if (isWithPrice) {
+      if (!bulkData.actionData.customerMobile || bulkData.actionData.customerMobile.trim().length < 10) {
+        return showCustomAlert('Missing Info', 'Please enter a valid 10-digit customer mobile number.');
+      }
+      if (!bulkData.actionData.customerName || !bulkData.actionData.customerName.trim()) {
+        return showCustomAlert('Missing Info', 'Please enter customer name.');
+      }
+    }
 
     try {
-      if (isCrossMidnight) {
-        const nextDayDaysOfWeek = bulkData.daysOfWeek.length > 0 
-          ? bulkData.daysOfWeek.map(d => (d + 1) % 7) 
-          : [];
+      setLoading(true);
+      const action = isWithPrice ? 'offline_booking' : 'status';
+      const actionData = isWithPrice ? {
+        status: 'offline_booking',
+        customerMobile: bulkData.actionData.customerMobile.trim(),
+        customerName: bulkData.actionData.customerName.trim(),
+        amount: Number(previewResult.totalAmount) || 0,
+        reason: 'walk_in',
+      } : {
+        status: 'maintenance',
+        reason: 'maintenance',
+        customerName: user?.name ? `${user.name} (Owner)` : 'Owner Lock',
+      };
 
-        await Promise.all([
-          api.post('/slots/bulk', { turfId: selectedTurf, ...payload, endTime: '23:59' }),
-          api.post('/slots/bulk', {
-            turfId: selectedTurf, ...payload,
-            startTime: '00:00',
-            startDate: moment(startDate).add(1, 'day').format('YYYY-MM-DD'),
-            endDate:   moment(endDate).add(1, 'day').format('YYYY-MM-DD'),
-            daysOfWeek: nextDayDaysOfWeek
-          }),
-        ]);
-      } else {
-        await api.post('/slots/bulk', { turfId: selectedTurf, ...payload });
-      }
+      await api.post('/slots/bulk-update-ids', {
+        turfId: selectedTurf,
+        slotIds,
+        action,
+        actionData,
+      });
+
       setBulkModalVisible(false);
       setPreviewResult(null);
-      showCustomAlert('Success', `Bulk action applied to ${previewResult.slots.length} slots!`);
+      showCustomAlert('Success', `${isWithPrice ? 'Bulk Offline Booking created' : 'Bulk slots locked for owner'} (${slotIds.length} slots)!`);
       fetchSlots();
     } catch (err) {
-      showCustomAlert('Error', err.response?.data?.message || 'Failed to apply bulk update');
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to apply bulk lock');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1040,6 +1222,39 @@ const SlotManagerScreen = ({ navigation, route }) => {
                 {filterFromTime || filterToTime ? 'Display Filtered Slots' : 'Display All Slots'}
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.displaySlotsBtn, { marginTop: 10, backgroundColor: isDark ? '#1A1A1A' : '#FFF9DB', borderWidth: 1.5, borderColor: '#FFD400' }]}
+              onPress={() => {
+                setBulkData({
+                  startDate: moment().format('YYYY-MM-DD'),
+                  endDate: moment().add(7, 'days').format('YYYY-MM-DD'),
+                  daysOfWeek: [moment().day()],
+                  startTime: filterFromTime || '06:00',
+                  endTime: filterToTime || '07:00',
+                  selectedTimeSlots: [{
+                    startTime: filterFromTime || '06:00',
+                    endTime: filterToTime || '07:00',
+                    label: `${formatISTTime(filterFromTime || '06:00')} - ${formatISTTime(filterToTime || '07:00')}`
+                  }],
+                  actionData: {
+                    price: '',
+                    customerMobile: '',
+                    customerName: '',
+                    lockReason: user?.name ? `${user.name} (Owner)` : 'Owner Lock'
+                  }
+                });
+                setBulkLockMode('without_price');
+                setPreviewResult(null);
+                setBulkModalVisible(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Icon name="lock-clock" size={18} color={isDark ? '#FFD400' : colors.primaryDark} style={{ marginRight: 8 }} />
+              <Text style={[styles.displaySlotsBtnText, { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold }]}>
+                Bulk Slots Lock & Booking
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1055,7 +1270,11 @@ const SlotManagerScreen = ({ navigation, route }) => {
               <View style={styles.statsRow}>
                 <View style={styles.statBlock}>
                   <Text style={styles.statLabel}>Available</Text>
-                  <Text style={styles.statValue}>{processedSlots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length}</Text>
+                  <Text style={styles.statValue}>{processedSlots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).length}</Text>
+                </View>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Locked</Text>
+                  <Text style={[styles.statValue, { color: '#FF4757' }]}>{processedSlots.filter(s => s.status === 'maintenance').length}</Text>
                 </View>
                 <View style={styles.statBlock}>
                   <Text style={styles.statLabel}>Online</Text>
@@ -1077,11 +1296,11 @@ const SlotManagerScreen = ({ navigation, route }) => {
                   cx={30} cy={30} r={26}
                   stroke="#FFD400" strokeWidth={4} fill="none"
                   strokeDasharray={2 * Math.PI * 26}
-                  strokeDashoffset={(2 * Math.PI * 26) * (1 - (processedSlots.length ? (processedSlots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length / processedSlots.length) : 0))}
+                  strokeDashoffset={(2 * Math.PI * 26) * (1 - (processedSlots.length ? (processedSlots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).length / processedSlots.length) : 0))}
                   rotation="-90" origin="30, 30" strokeLinecap="round"
                 />
               </Svg>
-              <Text style={styles.progressText}>{processedSlots.filter(s => (s.status === 'available' || s.status === 'maintenance') && !isPastSlot(selectedDate, s.startTime)).length}</Text>
+              <Text style={styles.progressText}>{processedSlots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).length}</Text>
               <Text style={styles.progressSubText}>Slots</Text>
             </View>
           </View>
@@ -1361,133 +1580,255 @@ const SlotManagerScreen = ({ navigation, route }) => {
         </View>
       </Modal>
 
-      {/* Bulk Operations Modal */}
-      <Modal visible={bulkModalVisible} transparent animationType="slide">
+      {/* ── Bulk Slots Locking Modal ── */}
+      <Modal visible={bulkModalVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => { setBulkModalVisible(false); setPreviewResult(null); }}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeaderTitle}>
-              <Text style={styles.modalTitle}>Bulk Operations</Text>
+              <View>
+                <Text style={styles.modalTitle}>Bulk Slots Lock &amp; Booking</Text>
+                <Text style={{ fontSize: 11, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>
+                  Filter and lock multiple available slots in bulk
+                </Text>
+              </View>
               <TouchableOpacity onPress={() => { setBulkModalVisible(false); setPreviewResult(null); }} style={styles.modalClose}>
                 <Icon name="close" size={18} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
-            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <Text style={styles.stepLabel}>1. Select Criteria</Text>
+            <KeyboardAwareScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ paddingBottom: 16 }} enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={true}>
+              {/* ── STEP 1: Criteria Selection ── */}
+              <Text style={styles.stepLabel}>1. Select Date &amp; Time Range</Text>
 
               <Text style={styles.modalSubtitle}>Date Range</Text>
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
-                <TouchableOpacity style={styles.pickerInput} onPress={() => { resetPreview(); setActivePicker('start'); setShowCalendar(true); }}>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                <TouchableOpacity style={[styles.pickerInput, { flex: 1 }]} onPress={() => { resetPreview(); setActivePicker('start'); setShowCalendar(true); }}>
+                  <Icon name="calendar-start" size={16} color="#FFD400" style={{ marginRight: 6 }} />
                   <Text style={styles.pickerText}>
-                    {bulkData.startDate ? moment(bulkData.startDate).format('DD MMM YYYY') : 'Start Date'}
+                    {bulkData.startDate ? moment(bulkData.startDate).format('DD MMM YYYY') : 'From Date'}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.pickerInput} onPress={() => { resetPreview(); setActivePicker('end'); setShowCalendar(true); }}>
+
+                <TouchableOpacity style={[styles.pickerInput, { flex: 1 }]} onPress={() => { resetPreview(); setActivePicker('end'); setShowCalendar(true); }}>
+                  <Icon name="calendar-end" size={16} color="#FFD400" style={{ marginRight: 6 }} />
                   <Text style={styles.pickerText}>
-                    {bulkData.endDate ? moment(bulkData.endDate).format('DD MMM YYYY') : 'End Date'}
+                    {bulkData.endDate ? moment(bulkData.endDate).format('DD MMM YYYY') : 'To Date'}
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.modalSubtitle}>Days of Week</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={styles.modalSubtitle}>Days of Week</Text>
+                <TouchableOpacity onPress={() => { resetPreview(); toggleAllBulkDays(); }}>
+                  <Text style={{ fontSize: 11, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark }}>
+                    {(bulkData.daysOfWeek || []).length === 7 ? 'Deselect All' : 'Select All Days'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.daysGrid}>
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={[styles.dayChip, bulkData.daysOfWeek.includes(i) && styles.dayChipSel]}
-                    onPress={() => { resetPreview(); toggleBulkDayOfWeek(i); }}
-                  >
-                    <Text style={[styles.dayChipText, bulkData.daysOfWeek.includes(i) && { color: '#000' }]}>{d}</Text>
-                  </TouchableOpacity>
-                ))}
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => {
+                  const isSel = (bulkData.daysOfWeek || []).includes(i);
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      style={[styles.dayChip, isSel && styles.dayChipSel]}
+                      onPress={() => { resetPreview(); toggleBulkDayOfWeek(i); }}
+                    >
+                      <Text style={[styles.dayChipText, isSel && { color: '#000', fontWeight: 'bold' }]}>{d}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
-              <Text style={styles.modalSubtitle}>Slot Range <Text style={{ color: '#FF4757' }}>*</Text></Text>
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
-                <TouchableOpacity style={[styles.pickerInput, !bulkData.startTime && styles.inputRequired]} onPress={() => { resetPreview(); setActivePicker('startTime'); }}>
-                  <Text style={styles.pickerText}>{bulkData.startTime ? formatISTTime(bulkData.startTime) : 'Start Slot *'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.pickerInput, !bulkData.endTime && styles.inputRequired]} onPress={() => { resetPreview(); setActivePicker('endTime'); }}>
-                  <Text style={styles.pickerText}>{bulkData.endTime ? formatISTTime(bulkData.endTime) : 'End Slot *'}</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.modalSubtitle}>Action to Apply</Text>
-              <View style={[styles.actionButtons, { marginBottom: 15 }]}>
-                <TouchableOpacity style={[styles.actionBtn, bulkData.action === 'status' && styles.actionBtnActive]} onPress={() => { resetPreview(); setBulkData({ ...bulkData, action: 'status' }); }}>
-                  <Text style={[styles.actionBtnText, bulkData.action === 'status' && { color: '#000' }]}>Status</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, bulkData.action === 'offline_booking' && styles.actionBtnActive]} onPress={() => { resetPreview(); setBulkData({ ...bulkData, action: 'offline_booking' }); }}>
-                  <Text style={[styles.actionBtnText, bulkData.action === 'offline_booking' && { color: '#000' }]}>Offline Booking</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, bulkData.action === 'price' && styles.actionBtnActive]} onPress={() => { resetPreview(); setBulkData({ ...bulkData, action: 'price' }); }}>
-                  <Text style={[styles.actionBtnText, bulkData.action === 'price' && { color: '#000' }]}>Change Price</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 4 }}>
+                <Text style={[styles.modalSubtitle, { marginBottom: 0 }]}>
+                  Slot Timings <Text style={{ color: '#FF4757' }}>*</Text>
+                </Text>
+                <TouchableOpacity onPress={() => { resetPreview(); setActivePicker('slotTime'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Icon name="plus-circle-outline" size={14} color={isDark ? '#FFD400' : colors.primaryDark} />
+                  <Text style={{ fontSize: 11.5, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark }}>
+                    {bulkData.selectedTimeSlots && bulkData.selectedTimeSlots.length > 0 ? '+ Add/Change Slots' : 'Select Slots'}
+                  </Text>
                 </TouchableOpacity>
               </View>
 
-              {bulkData.action === 'status' && (
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
-                  <TouchableOpacity style={[styles.actionSubBtn, bulkData.actionData.status === 'available' && styles.actionSubBtnActive]} onPress={() => setBulkData({ ...bulkData, actionData: { ...bulkData.actionData, status: 'available' } })}>
-                    <Text style={[styles.actionSubBtnText, bulkData.actionData.status === 'available' && { color: isDark ? '#FFD400' : colors.primaryDark }]}>Available</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionSubBtn, bulkData.actionData.status === 'maintenance' && { borderColor: '#FF4757', backgroundColor: 'rgba(255, 71, 87, 0.1)' }]} onPress={() => setBulkData({ ...bulkData, actionData: { ...bulkData.actionData, status: 'maintenance' } })}>
-                    <Text style={[styles.actionSubBtnText, bulkData.actionData.status === 'maintenance' && { color: '#FF4757' }]}>Maintenance</Text>
-                  </TouchableOpacity>
+              {bulkData.selectedTimeSlots && bulkData.selectedTimeSlots.length > 0 ? (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+                  {bulkData.selectedTimeSlots.map((ts, idx) => (
+                    <View 
+                      key={`${ts.startTime}-${ts.endTime}-${idx}`}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: isDark ? 'rgba(255,212,0,0.12)' : '#FFF9DB',
+                        borderWidth: 1,
+                        borderColor: isDark ? 'rgba(255,212,0,0.35)' : '#FFE066',
+                        borderRadius: 8,
+                        paddingVertical: 5,
+                        paddingHorizontal: 8,
+                        gap: 6
+                      }}
+                    >
+                      <Icon name="clock-outline" size={12} color={isDark ? '#FFD400' : colors.primaryDark} />
+                      <Text style={{ fontSize: 11, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>
+                        {ts.label || `${formatISTTime(ts.startTime)} - ${ts.endTime === '23:59' ? '11:59 PM' : formatISTTime(ts.endTime)}`}
+                      </Text>
+                      <TouchableOpacity 
+                        onPress={() => {
+                          const updated = bulkData.selectedTimeSlots.filter((_, i) => i !== idx);
+                          setBulkData(prev => ({
+                            ...prev,
+                            selectedTimeSlots: updated,
+                            startTime: updated[0]?.startTime || '',
+                            endTime: updated[updated.length - 1]?.endTime || ''
+                          }));
+                          resetPreview();
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Icon name="close" size={12} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
                 </View>
+              ) : (
+                <TouchableOpacity 
+                  style={[
+                    styles.pickerInput, 
+                    styles.inputRequired, 
+                    { marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13 }
+                  ]} 
+                  onPress={() => { resetPreview(); setActivePicker('slotTime'); }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Icon name="clock-outline" size={16} color="#FFD400" />
+                    <Text style={[styles.pickerText, { fontSize: 13, fontFamily: Typography.fontFamily.semiBold }]}>
+                      Select Slot Timings (Multiple Allowed) *
+                    </Text>
+                  </View>
+                  <Icon name="chevron-down" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
               )}
 
               <TouchableOpacity style={styles.searchSlotsBtn} onPress={handlePreviewSlots} disabled={isPreviewing}>
                 {isPreviewing ? <ActivityIndicator color="#000" size="small" /> : (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Icon name="magnify" size={18} color="#000" />
-                    <Text style={styles.searchSlotsBtnText}>Search Slots</Text>
+                    <Icon name="filter-outline" size={18} color="#000" />
+                    <Text style={styles.searchSlotsBtnText}>Filter &amp; List Slots</Text>
                   </View>
                 )}
               </TouchableOpacity>
 
-              {/* ── STEP 2: Preview + Confirm ── */}
+              {/* ── STEP 2: Filtered Slots Preview & Locking Options ── */}
               {previewResult && (
                 <View style={styles.previewCard}>
-                  <Text style={[styles.stepLabel, { marginTop: 0 }]}>2. Review &amp; Confirm</Text>
+                  <Text style={[styles.stepLabel, { marginTop: 0 }]}>2. Filtered Slots Preview &amp; Lock</Text>
 
+                  {/* Summary Bar */}
                   <View style={styles.previewSummaryRow}>
                     <View style={styles.previewStat}>
                       <Icon name="calendar-check" size={20} color="#FFD400" />
                       <Text style={styles.previewStatValue}>{previewResult.slots.length}</Text>
-                      <Text style={styles.previewStatLabel}>Slots Found</Text>
+                      <Text style={styles.previewStatLabel}>Available Slots</Text>
                     </View>
                     <View style={styles.previewDivider} />
                     <View style={styles.previewStat}>
-                      <Icon name="currency-inr" size={20} color="#FFD400" />
-                      <Text style={styles.previewStatValue}>₹{previewResult.customPrice || 0}</Text>
-                      <Text style={styles.previewStatLabel}>Per Slot</Text>
-                    </View>
-                    <View style={styles.previewDivider} />
-                    <View style={styles.previewStat}>
-                      <Icon name="sigma" size={20} color="#FFD400" />
-                      <Text style={styles.previewStatValue}>₹{(Number(previewResult.customPrice) || 0) * previewResult.slots.length}</Text>
-                      <Text style={styles.previewStatLabel}>Total</Text>
+                      <Icon name="cash" size={20} color="#FFD400" />
+                      <Text style={styles.previewStatValue}>₹{previewResult.totalAmount}</Text>
+                      <Text style={styles.previewStatLabel}>Total Price</Text>
                     </View>
                   </View>
 
-                  <Text style={styles.modalSubtitle}>Price Per Slot (₹)</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="Enter price per slot"
-                    placeholderTextColor={colors.textTertiary}
-                    keyboardType="numeric"
-                    value={previewResult.customPrice}
-                    onChangeText={t => setPreviewResult({ ...previewResult, customPrice: t })}
-                  />
+                  {/* Filtered Slots Preview List */}
+                  <Text style={[styles.modalSubtitle, { marginTop: 12 }]}>
+                    Matching Slots ({previewResult.allSlots ? previewResult.allSlots.length : previewResult.slots.length}) - {previewResult.slots.length} Available to Lock
+                  </Text>
+                  <View style={{ maxHeight: 200, backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : colors.surfaceVariant, borderRadius: 12, padding: 8, marginBottom: 16, borderWidth: 1, borderColor: colors.border }}>
+                    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={true}>
+                      {(previewResult.allSlots || previewResult.slots).map((s, idx) => {
+                        const isSelectable = s.isSelectable !== false;
+                        const badgeColor = s.statusColor || '#22C55E';
+                        const badgeLabel = s.statusLabel || (isSelectable ? 'Available' : 'Unavailable');
+                        return (
+                          <View 
+                            key={s._id || idx} 
+                            style={{ 
+                              flexDirection: 'row', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center', 
+                              paddingVertical: 8, 
+                              paddingHorizontal: 8, 
+                              borderBottomWidth: idx === (previewResult.allSlots || previewResult.slots).length - 1 ? 0 : 1, 
+                              borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : colors.border,
+                              opacity: isSelectable ? 1 : 0.6
+                            }}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Icon name="clock-time-four-outline" size={14} color={badgeColor} />
+                              <View>
+                                <Text style={{ fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>
+                                  {moment(s.date).format('DD MMM YYYY (ddd)')}
+                                </Text>
+                                <Text style={{ fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary }}>
+                                  {formatISTTime(s.startTime)} - {s.endTime === '23:59' ? '11:59 PM' : formatISTTime(s.endTime)}
+                                </Text>
+                              </View>
+                            </View>
+                            <View style={{ alignItems: 'flex-end' }}>
+                              <Text style={{ fontSize: 12, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark }}>
+                                ₹{s.price}
+                              </Text>
+                              <View style={{ backgroundColor: `${badgeColor}20`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 2 }}>
+                                <Text style={{ fontSize: 9, fontFamily: Typography.fontFamily.bold, color: badgeColor }}>
+                                  {badgeLabel}
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
 
-                  {bulkData.action === 'offline_booking' && (
-                    <View>
-                      <Text style={styles.modalSubtitle}>Customer Details</Text>
+                  {/* Lock In Mode Switcher (2 Options) */}
+                  <Text style={styles.modalSubtitle}>Select Lock Mode</Text>
+                  <View style={{ flexDirection: 'row', backgroundColor: isDark ? '#262626' : '#E5E7EB', borderRadius: 12, padding: 4, marginBottom: 16 }}>
+                    <TouchableOpacity
+                      style={[{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 }, bulkLockMode === 'without_price' && { backgroundColor: '#FFD400' }]}
+                      onPress={() => setBulkLockMode('without_price')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }, bulkLockMode === 'without_price' && { color: '#000' }]}>
+                        Without Price
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 }, bulkLockMode === 'with_price' && { backgroundColor: '#FFD400' }]}
+                      onPress={() => setBulkLockMode('with_price')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }, bulkLockMode === 'with_price' && { color: '#000' }]}>
+                        With Price
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {bulkLockMode === 'without_price' ? (
+                    <View style={{ backgroundColor: isDark ? 'rgba(255,204,0,0.08)' : '#FFF9DB', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: isDark ? 'rgba(255,204,0,0.2)' : '#FFE066', marginBottom: 16 }}>
+                      <Text style={{ fontSize: 12, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium }}>
+                        💡 <Text style={{ fontFamily: Typography.fontFamily.bold }}>Owner Lock Mode:</Text> Slots will be locked under <Text style={{ fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark }}>{user?.name || 'Owner'}</Text> without customer billing.
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ marginBottom: 16, gap: 10 }}>
+                      <Text style={styles.modalSubtitle}>Customer Details &amp; Price</Text>
                       <TextInput
                         style={styles.modalInput}
-                        placeholder="Mobile Number"
+                        placeholder="Customer Mobile Number (10 digits) *"
                         placeholderTextColor={colors.textTertiary}
                         keyboardType="phone-pad"
+                        maxLength={10}
                         value={bulkData.actionData.customerMobile}
                         onChangeText={handleBulkMobileChange}
                       />
@@ -1498,17 +1839,46 @@ const SlotManagerScreen = ({ navigation, route }) => {
                         value={bulkData.actionData.customerName}
                         onChangeText={t => setBulkData({ ...bulkData, actionData: { ...bulkData.actionData, customerName: t } })}
                       />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <Text style={[styles.modalSubtitle, { marginBottom: 0 }]}>Total Amount (₹):</Text>
+                        <TextInput
+                          style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
+                          placeholder="Amount"
+                          placeholderTextColor={colors.textTertiary}
+                          keyboardType="numeric"
+                          value={String(previewResult.totalAmount || '')}
+                          onChangeText={t => setPreviewResult({ ...previewResult, totalAmount: t })}
+                        />
+                      </View>
                     </View>
                   )}
 
-                  <TouchableOpacity style={[styles.saveBtn, { marginTop: 20 }]} onPress={handleBulkUpdate}>
-                     <LinearGradient colors={['#FFD400', '#FFB700']} style={styles.saveBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                       <Text style={styles.saveBtnTextPrimary}>
-                         {bulkData.action === 'offline_booking'
-                            ? `Confirm Offline Booking (${previewResult.slots.length} slots)`
-                            : `Apply to ${previewResult.slots.length} Slots`}
-                       </Text>
-                     </LinearGradient>
+                  {/* Lock In Submit Button */}
+                  <TouchableOpacity 
+                    style={{
+                      backgroundColor: '#FFD400',
+                      borderRadius: 16,
+                      paddingVertical: 16,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginTop: 8
+                    }} 
+                    onPress={handleBulkUpdate} 
+                    disabled={loading} 
+                    activeOpacity={0.8}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#000" size="small" />
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Icon name={bulkLockMode === 'with_price' ? "cash-register" : "lock-outline"} size={18} color="#000" />
+                        <Text style={styles.saveBtnTextPrimary}>
+                          {bulkLockMode === 'without_price'
+                            ? `Lock In Without Price (${previewResult.slots.length} Slots)`
+                            : `Lock In With Price (₹${previewResult.totalAmount || 0})`}
+                        </Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 </View>
               )}
@@ -1519,42 +1889,133 @@ const SlotManagerScreen = ({ navigation, route }) => {
         </View>
       </Modal>
 
-      {/* Time Picker Modal */}
-      <Modal visible={activePicker === 'startTime' || activePicker === 'endTime'} transparent animationType="fade">
+      {/* Time Picker Modal with Multiple Selection, 1-Hour & 30-Min Tabs */}
+      <Modal 
+        visible={activePicker === 'slotTime' || activePicker === 'startTime' || activePicker === 'endTime'} 
+        transparent 
+        animationType="fade" 
+        statusBarTranslucent 
+        onRequestClose={() => setActivePicker('none')}
+      >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { maxHeight: '85%', height: '85%', paddingBottom: 14 }]}>
             <View style={styles.modalHeaderTitle}>
-              <Text style={styles.modalTitle}>Select Time</Text>
-              <TouchableOpacity onPress={() => setActivePicker('none')} style={styles.modalClose}>
-                <Icon name="close" size={18} color={colors.textPrimary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Select Slot Timings</Text>
+                <Text style={{ fontSize: 11, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>
+                  Tap multiple slots to select / unselect
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity onPress={selectAllSlotsInTab} style={{ backgroundColor: isDark ? '#262626' : '#E5E7EB', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 10.5, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark }}>
+                    Select All
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setActivePicker('none')} style={styles.modalClose}>
+                  <Icon name="close" size={18} color={colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Tab Switcher: 1 Hour vs 30 Mins */}
+            <View style={{ flexDirection: 'row', backgroundColor: isDark ? '#262626' : '#E5E7EB', borderRadius: 10, padding: 3, marginVertical: 8 }}>
+              <TouchableOpacity
+                style={[{ flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8 }, timePickerTab === '60' && { backgroundColor: '#FFD400' }]}
+                onPress={() => setTimePickerTab('60')}
+                activeOpacity={0.8}
+              >
+                <Text style={[{ fontSize: 11.5, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }, timePickerTab === '60' && { color: '#000' }]}>
+                  1 Hour Slots
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[{ flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8 }, timePickerTab === '30' && { backgroundColor: '#FFD400' }]}
+                onPress={() => setTimePickerTab('30')}
+                activeOpacity={0.8}
+              >
+                <Text style={[{ fontSize: 11.5, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }, timePickerTab === '30' && { color: '#000' }]}>
+                  30 Mins Slots
+                </Text>
               </TouchableOpacity>
             </View>
-            <ScrollView contentContainerStyle={styles.timeGrid}>
-              {Array.from({ length: 24 }).map((_, i) => {
-                const hour = i.toString().padStart(2, '0');
-                const timeStr = `${hour}:00`;
-                const isSelected = activePicker === 'startTime' ? bulkData.startTime === timeStr : bulkData.endTime === timeStr;
-                return (
-                  <TouchableOpacity
-                    key={timeStr}
-                    style={[styles.timeBox, isSelected && styles.timeBoxSel]}
-                    onPress={() => {
-                      if (activePicker === 'startTime') setBulkData({ ...bulkData, startTime: timeStr });
-                      else setBulkData({ ...bulkData, endTime: timeStr });
-                      setActivePicker('none');
-                    }}
-                  >
-                    <Text style={[styles.timeText, isSelected && { color: '#000' }]}>{formatISTTime(timeStr)}</Text>
-                  </TouchableOpacity>
-                )
-              })}
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 10 }} showsVerticalScrollIndicator={true}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'space-between' }}>
+                {(timePickerTab === '60' ? ONE_HOUR_SLOTS : THIRTY_MIN_SLOTS).map((slot) => {
+                  const isSelected = (bulkData.selectedTimeSlots || []).some(
+                    s => s.startTime === slot.startTime && s.endTime === slot.endTime
+                  );
+                  return (
+                    <TouchableOpacity
+                      key={`${slot.startTime}-${slot.endTime}`}
+                      style={[
+                        {
+                          width: '48.8%',
+                          backgroundColor: isDark ? '#1F1F1F' : '#F8F9FA',
+                          borderRadius: 10,
+                          paddingVertical: 10,
+                          paddingHorizontal: 6,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? '#FFD400' : (isDark ? '#2E2E2E' : '#E5E7EB')
+                        },
+                        isSelected && { backgroundColor: isDark ? 'rgba(255,212,0,0.18)' : '#FFF9DB', borderColor: '#FFD400' }
+                      ]}
+                      onPress={() => toggleSlotTimeSelection(slot)}
+                      activeOpacity={0.7}
+                    >
+                      <Icon 
+                        name={isSelected ? "check-circle" : "circle-outline"} 
+                        size={13} 
+                        color={isSelected ? (isDark ? '#FFD400' : '#D97706') : colors.textTertiary} 
+                      />
+                      <Text 
+                        style={[
+                          { 
+                            fontSize: 10, 
+                            fontFamily: isSelected ? Typography.fontFamily.bold : Typography.fontFamily.medium, 
+                            color: isSelected ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textPrimary,
+                            textAlign: 'center'
+                          }
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {slot.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </ScrollView>
+
+            {/* Bottom Done Button */}
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#FFD400',
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: 6
+              }}
+              onPress={() => setActivePicker('none')}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#000' }}>
+                Done ({(bulkData.selectedTimeSlots || []).length} Slots Selected)
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
       {/* Calendar Modal */}
-      <Modal visible={showCalendar} transparent animationType="fade">
+      <Modal visible={showCalendar} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowCalendar(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeaderTitle}>
@@ -1580,6 +2041,8 @@ const SlotManagerScreen = ({ navigation, route }) => {
                   const d = moment(calendarMonth).date(i);
                   const dStr = d.format('YYYY-MM-DD');
                   const isPast = d.isBefore(moment(), 'day');
+                  const isBulkOrDiscount = activePicker === 'start' || activePicker === 'end' || activePicker === 'discountStart' || activePicker === 'discountEnd';
+                  const isDisabled = isPast && isBulkOrDiscount;
                   const isSel = (activePicker === 'none' && selectedDate === dStr) ||
                     (activePicker === 'start' && bulkData.startDate === dStr) ||
                     (activePicker === 'end' && bulkData.endDate === dStr) ||
@@ -1589,7 +2052,12 @@ const SlotManagerScreen = ({ navigation, route }) => {
                   grid.push(
                     <TouchableOpacity
                       key={`day-${i}`}
-                      style={[styles.calDay, isSel && styles.calDaySel]}
+                      disabled={isDisabled}
+                      style={[
+                        styles.calDay, 
+                        isSel && styles.calDaySel,
+                        isDisabled && { opacity: 0.35 }
+                      ]}
                       onPress={() => {
                         if (activePicker === 'start') {
                           setBulkData({ ...bulkData, startDate: dStr });
@@ -1607,7 +2075,15 @@ const SlotManagerScreen = ({ navigation, route }) => {
                         setActivePicker('none');
                       }}
                     >
-                      <Text style={[styles.calDayText, isPast && { color: 'rgba(255,255,255,0.5)' }, isSel && { color: '#000' }]}>{i}</Text>
+                      <Text 
+                        style={[
+                          styles.calDayText, 
+                          isPast && { color: isDark ? 'rgba(255,255,255,0.35)' : '#9CA3AF' }, 
+                          isSel && { color: '#000', fontFamily: Typography.fontFamily.bold }
+                        ]}
+                      >
+                        {i}
+                      </Text>
                     </TouchableOpacity>
                   );
                 }

@@ -40,7 +40,7 @@ const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
         <TextInput
           style={[styles.input, { flex: 1, borderWidth: 0, backgroundColor: 'transparent', height: '100%', paddingVertical: 0 }]}
           keyboardType="numeric"
-          placeholderTextColor="rgba(255,255,255,0.4)"
+          placeholderTextColor={colors.textTertiary}
           value={value}
           onChangeText={onChangeText}
           onFocus={() => setIsFocused(true)}
@@ -51,7 +51,7 @@ const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
           style={styles.dropdownTrigger}
           activeOpacity={0.8}
         >
-          <Icon name="chevron-down" size={16} color="rgba(255,255,255,0.5)" />
+          <Icon name="chevron-down" size={16} color={colors.textTertiary} />
         </TouchableOpacity>
       </View>
       <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
@@ -80,10 +80,10 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
     <>
       <TouchableOpacity onPress={() => setVisible(true)} style={styles.input} activeOpacity={0.8}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ color: value ? colors.textPrimary : 'rgba(255,255,255,0.5)', fontFamily: Typography.fontFamily.medium }}>
+          <Text style={{ color: value ? colors.textPrimary : colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>
             {value || `Select ${label}`}
           </Text>
-          <Icon name="chevron-down" size={16} color="rgba(255,255,255,0.5)" />
+          <Icon name="chevron-down" size={16} color={colors.textTertiary} />
         </View>
       </TouchableOpacity>
       <Modal visible={visible} transparent animationType="fade">
@@ -358,7 +358,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
     }
   };
 
-  const offWhite = 'rgba(255, 255, 255, 0.5)';
+  const offWhite = colors.textTertiary;
   const bowlerQuota = form.overs && !isNaN(parseInt(form.overs)) ? Math.ceil(parseInt(form.overs) / 5) : 0;
 
   return (
@@ -648,15 +648,15 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   stepCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
   stepCircleActive: { backgroundColor: colors.primary },
   stepNumber: { color: colors.textSecondary, fontFamily: Typography.fontFamily.bold },
-  stepNumberActive: { color: colors.white },
+  stepNumberActive: { color: colors.textOnPrimary || '#000000' },
   stepText: { fontSize: 12, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  stepTextActive: { color: colors.primary },
+  stepTextActive: { color: isDark ? colors.primary : '#A37B00' },
   
-  typeToggle: { flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: 4 },
+  typeToggle: { flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: isDark ? colors.surface : '#F0F2F5', borderRadius: BorderRadius.lg, padding: 4, borderWidth: 1, borderColor: colors.border },
   typeBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: BorderRadius.md },
   typeBtnActive: { backgroundColor: colors.primary },
   typeBtnText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium },
-  typeBtnTextActive: { color: colors.white, fontFamily: Typography.fontFamily.bold },
+  typeBtnTextActive: { color: colors.textOnPrimary || '#000000', fontFamily: Typography.fontFamily.bold },
 
   checkboxContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm },
   checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.sm },
@@ -671,14 +671,14 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   label: { fontSize: 14, color: colors.textSecondary, marginBottom: 8, fontFamily: Typography.fontFamily.medium },
   input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, height: 50, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, justifyContent: 'center' },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
-  infoText: { color: colors.primary, fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium },
+  infoText: { color: isDark ? colors.primary : '#A37B00', fontSize: 12, marginTop: 4, fontFamily: Typography.fontFamily.medium },
   
   footer: { padding: Spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
   primaryBtn: { backgroundColor: colors.primary, height: 52, borderRadius: BorderRadius.lg, justifyContent: 'center', alignItems: 'center' },
-  primaryBtnText: { color: colors.white, fontSize: 16, fontFamily: Typography.fontFamily.bold },
+  primaryBtnText: { color: colors.textOnPrimary || '#000000', fontSize: 16, fontFamily: Typography.fontFamily.bold },
   
   organizerProfile: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: Spacing.sm, borderRadius: BorderRadius.md, marginTop: Spacing.sm, borderWidth: 1, borderColor: colors.border },
-  organizerAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: Spacing.sm, backgroundColor: '#444' },
+  organizerAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: Spacing.sm, backgroundColor: isDark ? '#444' : '#DDD' },
   organizerNameText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
   bannerContainer: { height: 150, backgroundColor: colors.surface, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
@@ -687,7 +687,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   bannerText: { color: colors.textSecondary, marginTop: Spacing.sm, fontFamily: Typography.fontFamily.medium, fontSize: 14 },
 
   lookupBtn: { backgroundColor: colors.primary, height: 50, paddingHorizontal: 20, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' },
-  lookupBtnText: { color: colors.white, fontFamily: Typography.fontFamily.bold },
+  lookupBtnText: { color: colors.textOnPrimary || '#000000', fontFamily: Typography.fontFamily.bold },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: '80%', backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, maxHeight: '80%' },

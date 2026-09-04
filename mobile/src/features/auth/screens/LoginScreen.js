@@ -1056,10 +1056,10 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   error: { color: colors.error, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginTop: 12, textAlign: 'center' },
 
   verifyBtn: {
-    height: 52, borderRadius: 14, backgroundColor: '#FFD400', justifyContent: 'center', alignItems: 'center', flexDirection: 'row',
-    shadowColor: '#FFD400', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 8,
+    height: 52, borderRadius: 14, backgroundColor: isDark ? '#FFD400' : (colors.primary || '#FFD400'), justifyContent: 'center', alignItems: 'center', flexDirection: 'row',
+    shadowColor: isDark ? '#FFD400' : (colors.primary || '#FFD400'), shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 8,
   },
-  verifyBtnDisabled: { backgroundColor: '#333', shadowOpacity: 0 },
+  verifyBtnDisabled: { opacity: 0.75, shadowOpacity: 0, elevation: 0 },
   verifyBtnText: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: '#000000' },
 
   toggleButton: { marginTop: 24, alignItems: 'center' },

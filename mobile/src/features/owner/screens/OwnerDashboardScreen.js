@@ -78,7 +78,7 @@ const StarRow = ({ colors }) => (
 const OwnerDashboardScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
-  const { colors, isDark, shadows } = useTheme();
+  const { colors, isDark, shadows, themeMode, setThemeMode } = useTheme();
   const styles = useMemo(() => createStyles(colors, isDark, shadows), [colors, isDark, shadows]);
   const turfStatusMap = useMemo(() => getTurfStatus(colors), [colors]);
 
@@ -545,9 +545,38 @@ const OwnerDashboardScreen = ({ navigation }) => {
           </ScrollView>
 
           <View style={styles.sidebarFooter}>
-            
+            <View style={styles.themeRow}>
+              <View style={styles.themeInfo}>
+                <Icon name={isDark ? "weather-night" : "weather-sunny"} size={16} color={colors.primary} />
+                <Text style={styles.themeTitle}>App Appearance</Text>
+              </View>
+              <View style={styles.themeSelector}>
+                {[
+                  { key: 'light', label: 'Light' },
+                  { key: 'dark', label: 'Dark' },
+                  { key: 'system', label: 'System' },
+                ].map((mode) => (
+                  <TouchableOpacity
+                    key={mode.key}
+                    style={[
+                      styles.themeOptionBtn,
+                      themeMode === mode.key && styles.themeOptionBtnActive
+                    ]}
+                    onPress={() => setThemeMode(mode.key)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.themeOptionTxt,
+                      themeMode === mode.key && styles.themeOptionTxtActive
+                    ]}>
+                      {mode.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
-            <TouchableOpacity style={[styles.sidebarItem, { marginHorizontal: 0 }]} onPress={handleLogout} activeOpacity={0.7}>
+            <TouchableOpacity style={[styles.sidebarItem, { marginHorizontal: 0, marginTop: 12 }]} onPress={handleLogout} activeOpacity={0.7}>
               <View style={[styles.sidebarIconBox, { backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : '#FEE2E2' }]}>
                 <Icon name="logout" size={19} color="#EF4444" />
               </View>
@@ -831,6 +860,47 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
   sidebarIconBox: { width: 38, height: 38, borderRadius: 11, backgroundColor: isDark ? 'rgba(255,204,0,0.1)' : '#FFF9DB', justifyContent: 'center', alignItems: 'center' },
   sidebarItemTxt: { fontSize: 15, fontFamily: Typography.fontFamily.medium, color: colors.textPrimary },
   sidebarFooter: { paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 16 },
+  themeRow: {
+    gap: 8,
+    marginBottom: 4,
+  },
+  themeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  themeTitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textPrimary,
+  },
+  themeSelector: {
+    flexDirection: 'row',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.surfaceVariant,
+    borderRadius: 12,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
+  },
+  themeOptionBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+  },
+  themeOptionBtnActive: {
+    backgroundColor: colors.primary,
+  },
+  themeOptionTxt: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  themeOptionTxtActive: {
+    color: '#000000',
+    fontFamily: Typography.fontFamily.bold,
+  },
 });
 
 export default OwnerDashboardScreen;

@@ -417,14 +417,29 @@ const CustomerNavigator = ({ navigation }) => {
     }
   };
 
+  const ROOT_TAB_SCREENS = {
+    Home: 'HomeMain',
+    Search: 'SearchMain',
+    'My Cricket': 'MyCricketMain',
+    Bookings: 'BookingHistory',
+    Profile: 'ProfileMain',
+  };
+
+  const getTargetRouteName = (route) => {
+    const focused = getFocusedRouteNameFromRoute(route);
+    if (focused) return focused;
+    if (route.params?.screen) return route.params.screen;
+    return ROOT_TAB_SCREENS[route.name] || '';
+  };
+
   return (
     <Tab.Navigator
       initialRouteName="Home"
       tabBar={(props) => <CustomTabBar {...props} insets={insets} />}
       screenOptions={({ route }) => {
-        const routeName = getFocusedRouteNameFromRoute(route) ?? '';
-        const hiddenRoutes = ['MatchSetup', 'MatchTeamSelection', 'Toss', 'PlayingXI', 'LiveScorer', 'MatchPlayerSelection', 'SuperOver', 'AddPlayer', 'SelectBowler', 'Scorecard', 'MatchSummary', 'TournamentDetail', 'AuctionLiveOrganiser', 'AuctionLivePublic', 'AuctionLiveTeamOwner', 'GlobalLeaderboard', 'QualificationCalculator', 'AuctionRegistration'];
-        const isHidden = hiddenRoutes.includes(routeName);
+        const targetRoute = getTargetRouteName(route);
+        const isRootScreen = ROOT_TAB_SCREENS[route.name] === targetRoute;
+        const isHidden = !isRootScreen;
         return {
           headerShown: false,
           tabBarStyle: isHidden ? { display: 'none' } : {},

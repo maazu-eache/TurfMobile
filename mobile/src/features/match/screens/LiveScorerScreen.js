@@ -204,10 +204,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
     const currentOvers = currentState.score?.overs || '0.0';
     const newOvers = newState.score?.overs || '0.0';
-    
+
     const currentBalls = getOversTotalBalls(currentOvers);
     const newBalls = getOversTotalBalls(newOvers);
-    
+
     if (newBalls > currentBalls) return true;
     if (newBalls < currentBalls) return false;
 
@@ -350,7 +350,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
         (typeof match.activeScorerId === 'object' ? match.activeScorerId?._id : match.activeScorerId) ||
         (typeof match.creator === 'object' ? match.creator?._id : match.creator) ||
         (typeof match.organizerId === 'object' ? match.organizerId?._id : match.organizerId);
-        
+
       if (activeScorerId && String(activeScorerId) !== String(currentUser._id)) {
         showCustomAlert('Access Transferred', 'You have transferred scoring rights. You are no longer the active scorer.');
         navigation.reset({ index: 0, routes: [{ name: 'MatchSummary', params: { matchId: cleanMatchId } }] });
@@ -1456,7 +1456,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
           type: optimisticBallType,
           display: optimisticBallDisplay
         };
-        
+
         // If we are at exactly X.0 overs, the next ball is definitively the start of a new over.
         // We wipe any stale balls from the previous over to prevent appending to them.
         const isStartOfNewOver = currentOvers % 1 === 0;
@@ -1503,7 +1503,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
         if (options.isWide) runsRunByBatsmen = options.extraRuns || 0;
         if (options.isBye || options.isLegBye) runsRunByBatsmen = options.extraRuns || 0;
         if (options.isNoBall && options.isBye) runsRunByBatsmen = options.extraRuns || 0; // for NB Byes
-        
+
         const shouldRotateStrike = (runsRunByBatsmen % 2 === 1);
 
         let nextStriker = liveState.striker;
@@ -1568,12 +1568,12 @@ const LiveScorerScreen = ({ navigation, route }) => {
         const updatedWickets = currentWickets;
         const updatedOvers = currentOvers.toFixed(1);
 
-        const newTeamAScore = isTeamABatting 
-          ? { ...liveState.teamAScore, runs: updatedRuns, wickets: updatedWickets, overs: updatedOvers } 
+        const newTeamAScore = isTeamABatting
+          ? { ...liveState.teamAScore, runs: updatedRuns, wickets: updatedWickets, overs: updatedOvers }
           : liveState.teamAScore;
 
-        const newTeamBScore = !isTeamABatting 
-          ? { ...liveState.teamBScore, runs: updatedRuns, wickets: updatedWickets, overs: updatedOvers } 
+        const newTeamBScore = !isTeamABatting
+          ? { ...liveState.teamBScore, runs: updatedRuns, wickets: updatedWickets, overs: updatedOvers }
           : liveState.teamBScore;
 
         const optimisticState = {
@@ -1688,11 +1688,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
     return (
       <View style={styles.overTimeline}>
         <Text style={styles.overTimelineLabel}>This Over:</Text>
-        <ScrollView 
+        <ScrollView
           ref={overTimelineScrollRef}
-          horizontal 
+          horizontal
           nestedScrollEnabled={true}
-          showsHorizontalScrollIndicator={false} 
+          showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.timelineScroll}
           onContentSizeChange={() => {
             overTimelineScrollRef.current?.scrollToEnd({ animated: true });
@@ -1714,8 +1714,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 isZero && { backgroundColor: colors.surfaceVariant, borderColor: colors.border }
               ]}>
                 <Text style={[
-                  styles.ballText, 
-                  (isWicket || isFour) && { color: '#FFF' }, 
+                  styles.ballText,
+                  (isWicket || isFour) && { color: '#FFF' },
                   isSix && { color: '#000000', fontFamily: Typography.fontFamily.bold },
                   isZero && { color: colors.textSecondary }
                 ]}>
@@ -1795,47 +1795,47 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   <Icon name="cricket" size={12} color={colors.textTertiary} />
                   <Text style={styles.playersGridHeaderText}>Batting</Text>
                 </View>
-              <View style={styles.battingRow}>
-                {/* Left batter col */}
-                {leftBatterId ? (
-                  <TouchableOpacity
-                    style={[styles.batterCol, isLeftStriker && styles.batterColStriker]}
-                    onPress={() => handleRotateStrikePress(leftBatterId, leftPlayerStats)}
-                    disabled={!isScorer}
-                    activeOpacity={0.75}
-                  >
-                    <View style={styles.batterColInner}>
-                      <Text style={[styles.batterColName, isLeftStriker && styles.batterColNameActive]} numberOfLines={1}>
-                        {isLeftStriker ? '* ' : ''}{leftPlayer?.name || 'Striker'}
-                      </Text>
-                      <Text style={[styles.batterColScore, isLeftStriker && styles.batterColScoreActive]}>
-                        {leftPlayerStats?.runs ?? 0}<Text style={styles.batterColBalls}>({leftPlayerStats?.balls ?? 0})</Text>
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ) : <View style={{ flex: 1 }} />}
+                <View style={styles.battingRow}>
+                  {/* Left batter col */}
+                  {leftBatterId ? (
+                    <TouchableOpacity
+                      style={[styles.batterCol, isLeftStriker && styles.batterColStriker]}
+                      onPress={() => handleRotateStrikePress(leftBatterId, leftPlayerStats)}
+                      disabled={!isScorer}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.batterColInner}>
+                        <Text style={[styles.batterColName, isLeftStriker && styles.batterColNameActive]} numberOfLines={1}>
+                          {isLeftStriker ? '* ' : ''}{leftPlayer?.name || 'Striker'}
+                        </Text>
+                        <Text style={[styles.batterColScore, isLeftStriker && styles.batterColScoreActive]}>
+                          {leftPlayerStats?.runs ?? 0}<Text style={styles.batterColBalls}>({leftPlayerStats?.balls ?? 0})</Text>
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : <View style={{ flex: 1 }} />}
 
-                {leftBatterId && rightBatterId ? <View style={styles.batterColDivider} /> : null}
+                  {leftBatterId && rightBatterId ? <View style={styles.batterColDivider} /> : null}
 
-                {/* Right batter col */}
-                {rightBatterId ? (
-                  <TouchableOpacity
-                    style={[styles.batterCol, isRightStriker && styles.batterColStriker]}
-                    onPress={() => handleRotateStrikePress(rightBatterId, rightPlayerStats)}
-                    disabled={!isScorer}
-                    activeOpacity={0.75}
-                  >
-                    <View style={styles.batterColInner}>
-                      <Text style={[styles.batterColName, isRightStriker && styles.batterColNameActive]} numberOfLines={1}>
-                        {isRightStriker ? '* ' : ''}{rightPlayer?.name || 'Non-Striker'}
-                      </Text>
-                      <Text style={[styles.batterColScore, isRightStriker && styles.batterColScoreActive]}>
-                        {rightPlayerStats?.runs ?? 0}<Text style={styles.batterColBalls}>({rightPlayerStats?.balls ?? 0})</Text>
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ) : <View style={{ flex: 1 }} />}
-              </View>
+                  {/* Right batter col */}
+                  {rightBatterId ? (
+                    <TouchableOpacity
+                      style={[styles.batterCol, isRightStriker && styles.batterColStriker]}
+                      onPress={() => handleRotateStrikePress(rightBatterId, rightPlayerStats)}
+                      disabled={!isScorer}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.batterColInner}>
+                        <Text style={[styles.batterColName, isRightStriker && styles.batterColNameActive]} numberOfLines={1}>
+                          {isRightStriker ? '* ' : ''}{rightPlayer?.name || 'Non-Striker'}
+                        </Text>
+                        <Text style={[styles.batterColScore, isRightStriker && styles.batterColScoreActive]}>
+                          {rightPlayerStats?.runs ?? 0}<Text style={styles.batterColBalls}>({rightPlayerStats?.balls ?? 0})</Text>
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : <View style={{ flex: 1 }} />}
+                </View>
 
                 <View style={styles.playerRowDividerLine} />
 
@@ -2175,6 +2175,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     });
                   })()}
                   keyExtractor={item => String(item._id || item.userId?._id || Math.random())}
+                  initialNumToRender={10}
+                  maxToRenderPerBatch={10}
+                  windowSize={5}
+                  removeClippedSubviews={Platform.OS === 'android'}
                   contentContainerStyle={{ padding: 16, gap: 10 }}
                   showsVerticalScrollIndicator={false}
                   ListEmptyComponent={() => (
@@ -2284,22 +2288,22 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 const actualRuns = (showExtrasPanel.type === 'bye' || showExtrasPanel.type === 'legBye')
                   ? runs + 1
                   : runs;
-                  
+
                 const isSelected = selectedExtraRuns === runs;
 
                 return (
-                  <TouchableOpacity 
-                    key={runs} 
+                  <TouchableOpacity
+                    key={runs}
                     style={{
-                      width: 40, 
-                      height: 40, 
-                      borderRadius: 8, 
-                      borderWidth: 1, 
+                      width: 40,
+                      height: 40,
+                      borderRadius: 8,
+                      borderWidth: 1,
                       borderColor: isSelected ? colors.primary : colors.border,
                       backgroundColor: isSelected ? colors.primary : 'transparent',
-                      alignItems: 'center', 
+                      alignItems: 'center',
                       justifyContent: 'center'
-                    }} 
+                    }}
                     onPress={() => setSelectedExtraRuns(runs)}
                   >
                     <Text style={{
@@ -2430,16 +2434,16 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 if (pendingExtraOpts?.isNoBall) availableWickets = ['run_out', 'obstructing_field', 'cheating'];
 
                 const WICKET_META = {
-                  bowled:           { image: require('../../../../Bowled.png'), label: 'Bowled' },
-                  caught:           { image: require('../../../../Caught.png'), label: 'Caught' },
-                  caught_behind:    { image: require('../../../../CaughtBehind.png'), label: 'Caught Behind' },
-                  caught_and_bowled:{ image: require('../../../../CaughtBowled.png'), label: 'Caught & Bowled' },
-                  lbw:              { image: require('../../../../LBW.png'), label: 'LBW' },
-                  run_out:          { image: require('../../../../RunOut.png'), label: 'Run Out' },
-                  stumped:          { image: require('../../../../Stumped.png'), label: 'Stumped' },
-                  hit_wicket:       { image: require('../../../../HitWicket.png'), label: 'Hit Wicket' },
-                  obstructing_field:{ image: require('../../../../FieldRestrict.png'), label: 'Obstructing Field' },
-                  cheating:         { image: require('../../../../Cheating.png'), label: 'Cheating' },
+                  bowled: { image: require('../../../../Bowled.png'), label: 'Bowled' },
+                  caught: { image: require('../../../../Caught.png'), label: 'Caught' },
+                  caught_behind: { image: require('../../../../CaughtBehind.png'), label: 'Caught Behind' },
+                  caught_and_bowled: { image: require('../../../../CaughtBowled.png'), label: 'Caught & Bowled' },
+                  lbw: { image: require('../../../../LBW.png'), label: 'LBW' },
+                  run_out: { image: require('../../../../RunOut.png'), label: 'Run Out' },
+                  stumped: { image: require('../../../../Stumped.png'), label: 'Stumped' },
+                  hit_wicket: { image: require('../../../../HitWicket.png'), label: 'Hit Wicket' },
+                  obstructing_field: { image: require('../../../../FieldRestrict.png'), label: 'Obstructing Field' },
+                  cheating: { image: require('../../../../Cheating.png'), label: 'Cheating' },
                 };
 
                 const wicketColor = isDark ? '#FF8A80' : '#D32F2F';
@@ -3189,7 +3193,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
 
   // ── Layout ──
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.background, overflow: 'hidden' },
   loading: { color: colors.textPrimary, textAlign: 'center', marginTop: 100 },
   content: { flex: 1 },
 
@@ -3938,7 +3942,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   modalBtnTextAdd: { color: colors.background || '#000000', fontFamily: Typography.fontFamily.bold },
 
   bottomSheetOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end', zIndex: 100 },
-  bottomSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl, paddingBottom: 40, borderWidth: 1, borderColor: colors.border },
+  bottomSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl, paddingBottom: 40, borderWidth: 1, borderColor: colors.border, maxHeight: '85%' },
   bsHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.lg },
   bsTitle: { color: colors.textPrimary, fontSize: 20, fontFamily: Typography.fontFamily.bold },
   bsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useTheme } from '../../../theme/ThemeContext';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, FlatList, Animated, Dimensions, Modal, TouchableWithoutFeedback, RefreshControl
+  Image, FlatList, Animated, Dimensions, Modal, TouchableWithoutFeedback, RefreshControl, Alert
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +17,7 @@ import api, { getImageUrl } from '../../../api/axios';
 import NotificationBell from '../../../components/NotificationBell';
 import PlayerProfileCard from '../../../components/PlayerProfileCard';
 import AppUpdateBanner from '../../../components/common/AppUpdateBanner';
-import { toggleUserFavourite, setUserFavouriteStatus } from '../../auth/authSlice';
+import { toggleUserFavourite, setUserFavouriteStatus, logout, logoutLocal } from '../../auth/authSlice';
 import { PremiumTurfCarousel } from '../components/PremiumTurfCarousel';
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -64,27 +64,49 @@ const CRICKET_ACTIONS = [
 
 const HomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { colors, shadows, isDark } = useTheme();
+  const { colors, shadows, isDark, themeMode, setThemeMode } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark, insets), [colors, shadows, isDark, insets]);
 
-// ── Animated Pulse for Live Dot ─────────────────────────────────────────────
-const PulseDot = () => {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.6, duration: 700, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
-  return (
-    <View style={styles.pulseDotWrap}>
-      <Animated.View style={[styles.pulseDotOuter, { transform: [{ scale: pulseAnim }] }]} />
-      <View style={styles.pulseDotInner} />
-    </View>
-  );
-};
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout Confirmation',
+      'Are you sure you want to log out of your account?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            closeSidebar();
+            try {
+              await dispatch(logout()).unwrap();
+            } catch (e) {
+              dispatch(logoutLocal());
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ── Animated Pulse for Live Dot ─────────────────────────────────────────────
+  const PulseDot = () => {
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.6, duration: 700, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+        ])
+      ).start();
+    }, []);
+    return (
+      <View style={styles.pulseDotWrap}>
+        <Animated.View style={[styles.pulseDotOuter, { transform: [{ scale: pulseAnim }] }]} />
+        <View style={styles.pulseDotInner} />
+      </View>
+    );
+  };
 
 
   const dispatch = useDispatch();
@@ -103,7 +125,7 @@ const PulseDot = () => {
   const scrollX = useRef(new Animated.Value(0)).current;
 
   const authGuard = (cb) => (!isAuthenticated ? navigation.navigate('AuthModal', { screen: 'Login' }) : cb());
-  
+
   const displayCity = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
   const favourites = user?.favourites?.map(f => typeof f === 'string' ? f : f._id || f) || [];
 
@@ -219,7 +241,7 @@ const PulseDot = () => {
         dispatch(fetchTurfs(tp));
       }
       await Promise.allSettled([fetchPlatformSettings(), livePromise]);
-    } catch (e) {}
+    } catch (e) { }
     setRefreshing(false);
   };
 
@@ -269,13 +291,13 @@ const PulseDot = () => {
       else if (city) { params.city = city; }
       const res = await api.get('/players', { params });
       if (res.data.data) setNearPlayers(res.data.data.filter(p => (p.userId?._id || p.userId) !== user?._id));
-    } catch (_) {}
+    } catch (_) { }
   };
   const fetchPlatformSettings = async () => {
-    try { const r = await api.get('/admin/public-settings'); if (r.data.data) setPlatformSettings(r.data.data); } catch (_) {}
+    try { const r = await api.get('/admin/public-settings'); if (r.data.data) setPlatformSettings(r.data.data); } catch (_) { }
   };
   const fetchDashboardStats = async () => {
-    try { const r = await api.get('/users/dashboard-stats'); if (r.data.data) setDashboardStats(r.data.data); } catch (_) {}
+    try { const r = await api.get('/users/dashboard-stats'); if (r.data.data) setDashboardStats(r.data.data); } catch (_) { }
   };
 
   const headerBg = scrollY.interpolate({ inputRange: [0, 90], outputRange: isDark ? ['rgba(0,0,0,0)', 'rgba(0,0,0,0.98)'] : ['rgba(255,255,255,0)', 'rgba(255,255,255,0.98)'], extrapolate: 'clamp' });
@@ -301,7 +323,7 @@ const PulseDot = () => {
       return (
         <PlayerProfileCard
           {...item}
-          onPress={() => {}}
+          onPress={() => { }}
         />
       );
     }
@@ -350,7 +372,6 @@ const PulseDot = () => {
                           : <Icon name="account" size={28} color="#000" />
                       }
                     </LinearGradient>
-                    <View style={styles.sidebarOnline} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sidebarName} numberOfLines={1}>{user?.name || 'Cricketer'}</Text>
@@ -364,21 +385,6 @@ const PulseDot = () => {
                   <TouchableOpacity onPress={closeSidebar} style={styles.sidebarCloseBtn}>
                     <Icon name="close" size={17} color={colors.textSecondary} />
                   </TouchableOpacity>
-                </View>
-
-                {/* ── Mini Stats ── */}
-                <View style={styles.sidebarStats}>
-                  {[
-                    { k: 'bookings', l: 'Bookings', ic: 'calendar-check', c: Colors.primary },
-                    { k: 'matches', l: 'Matches', ic: 'cricket', c: '#2196F3' },
-                    { k: 'turfsNear', l: 'Near Me', ic: 'map-marker-radius', c: '#FF8F00' },
-                  ].map((s, i) => (
-                    <View key={i} style={[styles.sidebarStatCell, i < 2 && { borderRightWidth: 1, borderRightColor: colors.borderLight }]}>
-                      <Icon name={s.ic} size={14} color={s.c} />
-                      <Text style={[styles.sidebarStatVal, { color: s.c }]}>{dashboardStats[s.k] > 99 ? '99+' : dashboardStats[s.k] || 0}</Text>
-                      <Text style={styles.sidebarStatLbl}>{s.l}</Text>
-                    </View>
-                  ))}
                 </View>
               </SafeAreaView>
 
@@ -400,13 +406,58 @@ const PulseDot = () => {
                     ))}
                   </View>
                 ))}
-                <View style={{ height: 24 }} />
+                <View style={{ height: 16 }} />
               </ScrollView>
 
-              {/* <View style={styles.sidebarFooter}>
-                <Icon name="leaf" size={12} color={Colors.primary} />
-                <Text style={styles.sidebarFooterTxt}>ScoreVerse v1.0</Text>
-              </View> */}
+              {/* ── Sidebar Footer (Theme & Logout) ── */}
+              <SafeAreaView edges={['bottom']} style={styles.sidebarFooterWrap}>
+                {/* Theme Mode Selector */}
+                <View style={styles.themeRow}>
+                  <View style={styles.themeInfo}>
+                    <Icon name={isDark ? "weather-night" : "weather-sunny"} size={16} color={Colors.primary} />
+                    <Text style={styles.themeTitle}>App Appearance</Text>
+                  </View>
+                  <View style={styles.themeSelector}>
+                    {[
+                      { key: 'light', label: 'Light' },
+                      { key: 'dark', label: 'Dark' },
+                      { key: 'system', label: 'System' },
+                    ].map((mode) => (
+                      <TouchableOpacity
+                        key={mode.key}
+                        style={[
+                          styles.themeOptionBtn,
+                          themeMode === mode.key && styles.themeOptionBtnActive
+                        ]}
+                        onPress={() => setThemeMode(mode.key)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[
+                          styles.themeOptionTxt,
+                          themeMode === mode.key && styles.themeOptionTxtActive
+                        ]}>
+                          {mode.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Logout Button */}
+                {isAuthenticated && (
+                  <TouchableOpacity
+                    style={styles.logoutBtn}
+                    onPress={handleLogout}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.logoutIconWrap}>
+                      <Icon name="logout" size={16} color={Colors.error || '#F44336'} />
+                    </View>
+                    <Text style={styles.logoutTxt}>Logout</Text>
+                    <Icon name="chevron-right" size={14} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+              </SafeAreaView>
             </LinearGradient>
           </Animated.View>
         </Modal>
@@ -457,26 +508,6 @@ const PulseDot = () => {
         }
       >
 
-        {/* ── TOP SEARCH & LOCATION BAR ── */}
-        <View style={styles.topSearchSection}>
-          <TouchableOpacity
-            style={styles.searchBarCard}
-            onPress={() => navigation.navigate('Search')}
-            activeOpacity={0.88}
-          >
-            <View style={styles.searchBarLeft}>
-              <View style={styles.searchIconBubble}>
-                <Icon name="magnify" size={18} color={Colors.primary} />
-              </View>
-              <Text style={styles.searchBarPlaceholder}>Search turfs, matches, tournaments...</Text>
-            </View>
-            <View style={styles.locationChip}>
-              <Icon name="map-marker" size={12} color={isDark ? Colors.primary : '#8A6D00'} />
-              <Text style={styles.locationChipText} numberOfLines={1}>{displayCity ? displayCity.trim() : 'Location'}</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
         <AppUpdateBanner />
 
         {/* ── SECTION 1: CRICKET HUB ── */}
@@ -512,65 +543,40 @@ const PulseDot = () => {
           </View>
         </View>
 
-        {/* ── SECTION 2: TOP RATED GROUNDS ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHead}>
-            <View style={styles.sectionTitleRow}>
-              <View style={styles.sectionBadge}>
-                <Icon name="trophy-outline" size={16} color={Colors.primary} />
+        {/* ── LIVE MATCHES BANNER (Displayed below Cricket Hub, displaying live count only) ── */}
+        {liveMatches?.length > 0 && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } })}
+              activeOpacity={0.88}
+            >
+              <View style={styles.liveBanner}>
+                <View style={styles.liveBannerAccent} />
+                <LinearGradient
+                  colors={isDark ? ['rgba(255,204,0,0.08)', 'transparent'] : ['#FFFDF0', '#FFFFFF']}
+                  style={StyleSheet.absoluteFill}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                />
+                <View style={{ flex: 1, gap: 4 }}>
+                  <View style={styles.livePill}>
+                    <PulseDot />
+                    <Text style={styles.livePillTxt}>LIVE ({liveMatches.length})</Text>
+                  </View>
+                  <Text style={styles.liveBannerTitle}>
+                    {liveMatches.length === 1 ? '1 Live Match in Progress' : `${liveMatches.length} Live Matches in Progress`}
+                  </Text>
+                  <Text style={styles.liveBannerSub}>Tap to watch live matches</Text>
+                </View>
+                <View style={styles.liveArrow}>
+                  <Icon name="arrow-right" size={18} color={Colors.primary} />
+                </View>
               </View>
-              <View>
-                <Text style={styles.sectionTitle}>Top Rated Grounds</Text>
-                <Text style={styles.sectionSub}>
-                  {displayCity ? `Highest rated turfs in ${displayCity.trim()}` : 'Highest rated near you'}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.seeAll} onPress={() => navigation.navigate('Search')}>
-              <Text style={styles.seeAllTxt}>See All</Text>
-              <Icon name="chevron-right" size={14} color={isDark ? Colors.primary : colors.primaryDark} />
             </TouchableOpacity>
           </View>
+        )}
 
-          {isLoading ? (
-            <SkeletonPlaceholder backgroundColor={isDark ? colors.backgroundElevated : colors.surfaceVariant} highlightColor={colors.surfaceVariant}>
-              <View style={{ flexDirection: 'row', gap: 14 }}>
-                {[1, 2].map(k => <View key={k} style={{ width: PREMIUM_CARD_W, height: PREMIUM_CARD_H, borderRadius: 24 }} />)}
-              </View>
-            </SkeletonPlaceholder>
-          ) : !turfs || turfs.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <View style={styles.emptyIconBubble}>
-                <Icon name="map-marker-off-outline" size={22} color={isDark ? Colors.primary : colors.primaryDark} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.emptyTitle}>No Turfs in {displayCity ? displayCity.trim() : 'Your Area'}</Text>
-                <Text style={styles.emptySub}>
-                  Browse all available turfs and grounds across other cities.
-                </Text>
-                <TouchableOpacity
-                  style={styles.emptyActionBtn}
-                  onPress={() => navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'turfs' } })}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.emptyActionText}>Explore Turfs</Text>
-                  {/* <Icon name="arrow-right" size={12} color={isDark ? Colors.primary : colors.primaryDark} /> */}
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <View style={{ marginHorizontal: -16 }}>
-              <PremiumTurfCarousel 
-                data={turfs} 
-                onTurfPress={(id) => navigation.navigate('TurfDetail', { id })} 
-                onFavoriteToggle={handleToggleFavorite} 
-                favourites={favourites} 
-              />
-            </View>
-          )}
-        </View>
-
-        {/* ── SECTION 3: BOOK A TURF ── */}
+        {/* ── SECTION 2: BOOK A TURF ── */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <View style={styles.sectionTitleRow}>
@@ -582,37 +588,57 @@ const PulseDot = () => {
                 <Text style={styles.sectionSub}>{displayCity ? `Top picks in ${displayCity.trim()}` : 'Best turfs near you'}</Text>
               </View>
             </View>
+            <TouchableOpacity
+              style={styles.seeAll}
+              onPress={() => navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'turfs' } })}
+            >
+              <Text style={styles.seeAllTxt}>Browse</Text>
+              <Icon name="chevron-right" size={14} color={isDark ? Colors.primary : colors.primaryDark} />
+            </TouchableOpacity>
           </View>
 
-          {/* Hero CTA card */}
+          {/* Premium Book a Turf Card */}
           <TouchableOpacity
             onPress={() => navigation.navigate('Search', { screen: 'SearchMain', params: { tab: 'turfs' } })}
             activeOpacity={0.88}
             style={styles.bookHeroWrap}
           >
             <LinearGradient
-              colors={isDark ? ['#050505', '#0A0A0A', '#0F0F0F'] : [colors.surface, colors.surfaceVariant, colors.surface]}
+              colors={isDark ? ['#0D0D00', '#141400', '#1A1A00'] : ['#FFFDE7', '#FFF8CC', '#FFFDE7']}
               style={styles.bookHero}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
               <View style={styles.bookHeroAccent} />
-              <View style={{ flex: 1, gap: 8 }}>
-                <Text style={styles.bookHeroTitle}>Find & Reserve{'\n'}Your Turf Now</Text>
+              <View style={{ flex: 1, gap: 10 }}>
+                <View style={styles.bookHeroTagRow}>
+                  <View style={styles.bookHeroTag}>
+                    <Icon name="map-marker-outline" size={10} color={Colors.primary} />
+                    <Text style={styles.bookHeroTagTxt}>{displayCity ? displayCity.trim() : 'Near You'}</Text>
+                  </View>
+                </View>
+                <Text style={styles.bookHeroTitle}>Find & Reserve{'\n'}Your Perfect Turf</Text>
+                <View style={styles.bookHeroFeatureRow}>
+                  {['Cricket', 'Football', 'Badminton'].map((sport, i) => (
+                    <View key={i} style={styles.bookHeroFeaturePill}>
+                      <Text style={styles.bookHeroFeatureTxt}>{sport}</Text>
+                    </View>
+                  ))}
+                </View>
                 <View style={styles.bookHeroCTA}>
                   <Text style={styles.bookHeroCTATxt}>Browse Turfs</Text>
-                  <Icon name="arrow-right" size={13} color={Colors.primary} />
+                  <Icon name="arrow-right" size={14} color={Colors.primary} />
                 </View>
               </View>
               <View style={styles.bookHeroIconCol}>
-                <View style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: isDark ? 'rgba(255,204,0,0.1)' : '#FFF9D6', justifyContent: 'center', alignItems: 'center' }}>
-                  <Icon name="calendar-search" size={32} color={Colors.primary} />
-                  <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: colors.surface, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: colors.border }}>
-                     <Icon name="map-marker-radius" size={12} color={Colors.primary} />
-                  </View>
-                  <View style={{ position: 'absolute', bottom: -2, left: -2, backgroundColor: colors.surface, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: colors.border }}>
-                     <Icon name="soccer" size={12} color={Colors.primary} />
-                  </View>
+                <View style={styles.bookHeroIconMain}>
+                  <Icon name="map-search-outline" size={34} color={Colors.primary} />
+                </View>
+                <View style={styles.bookHeroIconBadge1}>
+                  <Icon name="cricket" size={12} color={Colors.primary} />
+                </View>
+                <View style={styles.bookHeroIconBadge2}>
+                  <Icon name="star" size={10} color={Colors.primary} />
                 </View>
               </View>
             </LinearGradient>
@@ -634,6 +660,7 @@ const PulseDot = () => {
             ))}
           </View>
         </View>
+
 
         {/* ── SECTION 4: PLAYERS NEAR YOU ── */}
         {isAuthenticated && (
@@ -697,45 +724,7 @@ const PulseDot = () => {
           </View>
         )}
 
-        {/* ── LIVE MATCHES BANNER (Displayed only when nearby/network has live matches) ── */}
-        {liveMatches?.length > 0 && (
-          <View style={styles.section}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } })}
-              activeOpacity={0.88}
-            >
-              <View style={styles.liveBanner}>
-                {/* Red left accent */}
-                <View style={styles.liveBannerAccent} />
-                <LinearGradient
-                  colors={['rgba(255,204,0,0.07)', 'transparent']}
-                  style={StyleSheet.absoluteFill}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                />
-                <View style={{ flex: 1, gap: 6 }}>
-                  <View style={styles.livePill}>
-                    <PulseDot />
-                    <Text style={styles.livePillTxt}>LIVE ({liveMatches.length})</Text>
-                  </View>
-                  <Text style={styles.liveBannerTitle}>
-                    {liveMatches.length === 1 && liveMatches[0]?.teamA?.name && liveMatches[0]?.teamB?.name
-                      ? `${liveMatches[0].teamA.name} vs ${liveMatches[0].teamB.name}`
-                      : 'Watch Live Matches'}
-                  </Text>
-                  <Text style={styles.liveBannerSub}>
-                    {liveMatches.length === 1
-                      ? 'Live match in progress — Tap to watch'
-                      : `${liveMatches.length} live matches running in your area & network`}
-                  </Text>
-                </View>
-                <View style={styles.liveArrow}>
-                  <Icon name="arrow-right" size={20} color={Colors.primary} />
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
-        )}
+
 
         {/* ── EXPLORE CTA ── */}
         {/* <View style={styles.section}>
@@ -763,7 +752,7 @@ const PulseDot = () => {
 /* ─── Styles ────────────────────────────────────────────────────────────────── */
 const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { paddingBottom: 120 },
+  scrollContent: { paddingTop: (insets?.top || 20) + 60, paddingBottom: 120 },
 
   // Glow orb (decorative, no performance impact on RN)
   glowOrb: { position: 'absolute', borderRadius: 999 },
@@ -820,6 +809,82 @@ const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
   sidebarFooter: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 22, paddingTop: 12, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.07)' : colors.border, marginHorizontal: 18 },
   sidebarFooterTxt: { fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.regular },
 
+  /* Sidebar Footer (Theme & Logout) */
+  sidebarFooterWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
+    gap: 12,
+    backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.02)',
+  },
+  themeRow: {
+    gap: 8,
+  },
+  themeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  themeTitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textPrimary,
+  },
+  themeSelector: {
+    flexDirection: 'row',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.surfaceVariant,
+    borderRadius: 12,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
+  },
+  themeOptionBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+  },
+  themeOptionBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  themeOptionTxt: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  themeOptionTxtActive: {
+    color: '#000000',
+    fontFamily: Typography.fontFamily.bold,
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: isDark ? 'rgba(244,67,54,0.1)' : '#FFF0F0',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(244,67,54,0.25)' : '#FFCDD2',
+  },
+  logoutIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: isDark ? 'rgba(244,67,54,0.15)' : '#FFEBEE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutTxt: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.error || '#F44336',
+  },
+
   /* ──── Header ──── */
   header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : colors.border, backgroundColor: isDark ? 'transparent' : colors.background },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 10 },
@@ -854,7 +919,7 @@ const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
   statVal: { fontSize: 18, fontFamily: Typography.fontFamily.extraBold },
   statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, textAlign: 'center' },
 
-  
+
   /* ── Top Search Section ── */
   topSearchSection: {
     paddingTop: (insets?.top || 20) + 74,
@@ -919,6 +984,7 @@ const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
   section: {
     paddingHorizontal: 16,
     marginBottom: 28,
+    marginTop: 10,
   },
   sectionHead: {
     flexDirection: "row",
@@ -973,13 +1039,22 @@ const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
   cricketCardLabel: { flex: 1, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, color: colors.textPrimary },
 
   /* Book a Turf */
-  bookHeroWrap: { overflow: "hidden", marginBottom: 12, borderRadius: 20, borderWidth: 1, borderColor: colors.border, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: isDark ? 0.3 : 0.08, shadowRadius: 8, elevation: 4 },
-  bookHero: { flexDirection: "row", alignItems: "center", padding: 18, gap: 12 },
-  bookHeroAccent: { position: "absolute", top: 0, left: 0, right: 0, height: 2, backgroundColor: Colors.primary, opacity: 0.5 },
-  bookHeroTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, lineHeight: 24 },
-  bookHeroCTA: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 },
-  bookHeroCTATxt: { color: isDark ? Colors.primary : colors.primaryDark, fontSize: 12, fontFamily: Typography.fontFamily.semiBold },
-  bookHeroIconCol: {},
+  bookHeroWrap: { overflow: "hidden", marginBottom: 12, borderRadius: 20, borderWidth: 1.5, borderColor: isDark ? 'rgba(255,204,0,0.2)' : 'rgba(255,204,0,0.35)', shadowColor: "#FFCC00", shadowOffset: { width: 0, height: 4 }, shadowOpacity: isDark ? 0.2 : 0.12, shadowRadius: 12, elevation: 5 },
+  bookHero: { flexDirection: "row", alignItems: "center", padding: 20, gap: 12, minHeight: 155 },
+  bookHeroAccent: { position: "absolute", top: 0, left: 0, right: 0, height: 3, backgroundColor: Colors.primary, opacity: 0.85 },
+  bookHeroTagRow: { flexDirection: 'row' },
+  bookHeroTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(255,204,0,0.25)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 30 },
+  bookHeroTagTxt: { fontSize: 10, fontFamily: Typography.fontFamily.semiBold, color: isDark ? Colors.primary : '#7A6200' },
+  bookHeroTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, lineHeight: 26 },
+  bookHeroFeatureRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  bookHeroFeaturePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1, borderColor: isDark ? 'rgba(255,204,0,0.25)' : 'rgba(255,200,0,0.35)', backgroundColor: isDark ? 'rgba(255,204,0,0.06)' : 'rgba(255,200,0,0.08)' },
+  bookHeroFeatureTxt: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: isDark ? 'rgba(255,204,0,0.8)' : '#7A6200' },
+  bookHeroCTA: { flexDirection: "row", alignItems: "center", gap: 5 },
+  bookHeroCTATxt: { color: isDark ? Colors.primary : colors.primaryDark, fontSize: 13, fontFamily: Typography.fontFamily.bold },
+  bookHeroIconCol: { alignItems: 'center', justifyContent: 'center', position: 'relative', width: 74, height: 74 },
+  bookHeroIconMain: { width: 74, height: 74, borderRadius: 37, backgroundColor: isDark ? 'rgba(255,204,0,0.12)' : '#FFF3AA', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(255,204,0,0.5)' },
+  bookHeroIconBadge1: { position: 'absolute', top: -4, right: -4, backgroundColor: isDark ? colors.surface : '#FFFDE7', borderRadius: 14, padding: 5, borderWidth: 1.5, borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(255,204,0,0.5)' },
+  bookHeroIconBadge2: { position: 'absolute', bottom: -4, left: -4, backgroundColor: isDark ? colors.surface : '#FFFDE7', borderRadius: 12, padding: 4, borderWidth: 1.5, borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(255,204,0,0.5)' },
 
   /* Quick action chips */
   chipRow: { flexDirection: "row", gap: 10, width: "100%" },

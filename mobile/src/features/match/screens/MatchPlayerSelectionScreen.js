@@ -699,7 +699,7 @@ const MatchPlayerSelectionScreen = () => {
                         // Check if dismissed
                         const fow = liveState?.match?.innings?.[currentInnings - 1]?.fallOfWickets || [];
                         const isDismissed = fow.some(f => String(f.batsman) === String(p._id) || String(f.batsman?._id) === String(p._id));
-                        
+
                         // Optimistic check: if they have batted but are no longer active striker or non-striker
                         let isNoLongerActive = false;
                         if (currentScorecard) {
@@ -1125,6 +1125,10 @@ const MatchPlayerSelectionScreen = () => {
                     });
                   })()}
                   keyExtractor={item => String(item._id || item.userId?._id || Math.random())}
+                  initialNumToRender={10}
+                  maxToRenderPerBatch={10}
+                  windowSize={5}
+                  removeClippedSubviews={Platform.OS === 'android'}
                   contentContainerStyle={{ padding: 16, gap: 10 }}
                   showsVerticalScrollIndicator={false}
                   ListEmptyComponent={() => (
@@ -1261,7 +1265,7 @@ const MatchPlayerSelectionScreen = () => {
 };
 
 const createStyles = (colors, shadows, isDark) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1, backgroundColor: colors.background, overflow: 'hidden' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -1286,7 +1290,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 1,
   },
-  content: { padding: Spacing.base, paddingBottom: Spacing.xl },
+  content: { padding: Spacing.base, paddingBottom: Spacing.xl, flexGrow: 1, justifyContent: 'space-between' },
   subtitle: {
     fontSize: 14,
     color: colors.textSecondary,
@@ -1834,7 +1838,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   settingsModalBtnTextAdd: { color: colors.background || '#000000', fontFamily: Typography.fontFamily.bold },
 
   bottomSheetOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  bottomSheet: { backgroundColor: colors.backgroundModal, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl },
+  bottomSheet: { backgroundColor: colors.backgroundModal, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl, maxHeight: '85%' },
   bsHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.lg },
   bsTitle: { color: '#FFF', fontSize: 20, fontFamily: Typography.fontFamily.bold },
   bsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

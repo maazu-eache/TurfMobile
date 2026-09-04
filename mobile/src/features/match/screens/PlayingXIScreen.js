@@ -17,7 +17,7 @@ const DummyScreen = ({ navigation, route }) => {
 };
 
 const createStyles = (colors, shadows, isDark) => StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background, overflow: "hidden" },
   text: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 24 }
 });
 

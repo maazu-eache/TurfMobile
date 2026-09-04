@@ -57,7 +57,7 @@ const SquadSelectionScreen = () => {
   const [wk, setWk] = useState(
     initialWk && typeof initialWk === 'object' ? String(initialWk._id) : (initialWk ? String(initialWk) : null)
   );
-  
+
   // Add Player Modal State
   const [isAddPlayerModalVisible, setAddPlayerModalVisible] = useState(false);
   const [mobileNumber, setMobileNumber] = useState('');
@@ -115,7 +115,7 @@ const SquadSelectionScreen = () => {
     try {
       // Re-fetch the team from the backend to get any newly registered players
       const fetchedTeam = await dispatch(fetchTeamById(team._id)).unwrap();
-      
+
       // Update roster and apply sorting immediately
       let latestRoster = fetchedTeam?.players || roster;
       const newRoster = [...latestRoster].sort((a, b) => {
@@ -186,20 +186,20 @@ const SquadSelectionScreen = () => {
     if (!playerName.trim()) {
       return showCustomAlert('Error', 'Please provide a player name');
     }
-    
+
     // Check if already in pending list
     const isAlreadyPending = pendingPlayers.some(p => p.mobile === mobileNumber.trim());
     if (isAlreadyPending) {
-       return showCustomAlert('Error', 'This player is already in the pending list');
+      return showCustomAlert('Error', 'This player is already in the pending list');
     }
-    
+
     setPendingPlayers(prev => [...prev, {
       mobile: mobileNumber.trim(),
       name: playerName.trim(),
       photo: null,
       isRegistered: false
     }]);
-    
+
     setMobileNumber('');
     setPlayerName('');
     setLookupResult(null);
@@ -207,11 +207,11 @@ const SquadSelectionScreen = () => {
 
   const handleBulkSubmit = async () => {
     if (pendingPlayers.length === 0) return;
-    
+
     setIsBulkAdding(true);
     let successCount = 0;
     let skippedPlayers = [];
-    
+
     try {
       for (const player of pendingPlayers) {
         try {
@@ -232,17 +232,17 @@ const SquadSelectionScreen = () => {
           }
         }
       }
-      
+
       let alertMsg = `Successfully added ${successCount} player(s) to the team.`;
       if (skippedPlayers.length > 0) {
         alertMsg += `\n\nSkipped: ${skippedPlayers.join(', ')} (Already in team).`;
       }
       showCustomAlert('Done', alertMsg);
-      
+
       setPendingPlayers([]);
       setAddPlayerModalVisible(false);
       await onRefresh();
-      
+
       dispatch(fetchMyTeams());
       dispatch(fetchOpponentTeams());
     } finally {
@@ -259,7 +259,7 @@ const SquadSelectionScreen = () => {
         const validSquad = lastSquad.filter(id => !opposingXI.includes(id));
         setSelectedXI(validSquad);
         if (validSquad.length > 0 && !validSquad.includes(captain)) {
-           setCaptain(validSquad[0]);
+          setCaptain(validSquad[0]);
         }
         if (lastSquad.length !== validSquad.length) {
           showCustomAlert('Notice', 'Some players from the last squad were excluded because they are in the opposing team.');
@@ -310,15 +310,15 @@ const SquadSelectionScreen = () => {
           <Icon name="user-plus" size={16} color={colors.primary} />
           <Text style={styles.actionButtonText}>Add Player</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.actionButton} onPress={handleSameSquad} disabled={isFetchingLastSquad}>
           {isFetchingLastSquad ? (
-             <ActivityIndicator size="small" color={colors.primary} />
+            <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-             <>
-               <Icon name="users" size={16} color={colors.primary} />
-               <Text style={styles.actionButtonText}>Same Squad</Text>
-             </>
+            <>
+              <Icon name="users" size={16} color={colors.primary} />
+              <Text style={styles.actionButtonText}>Same Squad</Text>
+            </>
           )}
         </TouchableOpacity>
       </View>
@@ -326,6 +326,10 @@ const SquadSelectionScreen = () => {
       <FlatList
         data={roster}
         keyExtractor={(item) => item.player?._id || Math.random().toString()}
+        initialNumToRender={12}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === 'android'}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
@@ -342,7 +346,7 @@ const SquadSelectionScreen = () => {
           const pid = String(p._id);
           const isSelected = selectedXI.includes(pid);
           const isCaptain = captain === pid;
-          
+
           return (
             <TouchableOpacity style={styles.playerItemRow} onPress={() => togglePlayerXI(p._id)}>
               <View style={styles.playerAvatar}>
@@ -359,14 +363,14 @@ const SquadSelectionScreen = () => {
 
               {isSelected && (
                 <View style={styles.badgesContainer}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.roleBadge, isCaptain && styles.roleBadgeActive]}
                     onPress={() => setCaptain(p._id)}
                   >
                     <Text style={[styles.roleBadgeText, isCaptain && styles.roleBadgeTextActive]}>C</Text>
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     style={[styles.roleBadge, wk === p._id && styles.roleBadgeActive]}
                     onPress={() => setWk(p._id)}
                   >
@@ -394,7 +398,7 @@ const SquadSelectionScreen = () => {
           <View style={styles.addPlayerModalContent}>
             <Text style={styles.modalTitle}>Add Player</Text>
             <Text style={styles.modalSubtitle}>Search by mobile number. If unregistered, provide a name to create a temporary player.</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Mobile Number (e.g., 9876543210)"
@@ -403,7 +407,7 @@ const SquadSelectionScreen = () => {
               value={mobileNumber}
               onChangeText={setMobileNumber}
             />
-            
+
             {isLookingUp ? (
               <View style={styles.lookupContainer}>
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -419,7 +423,7 @@ const SquadSelectionScreen = () => {
                   onChangeText={setPlayerName}
                   onSubmitEditing={handleQueuePlayer}
                 />
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={{ backgroundColor: colors.primary, padding: 14, borderRadius: 8, marginLeft: 10, justifyContent: 'center', alignItems: 'center' }}
                   onPress={handleQueuePlayer}
                 >
@@ -429,36 +433,36 @@ const SquadSelectionScreen = () => {
             ) : null}
 
             {pendingPlayers.length > 0 && (
-               <View style={{ marginTop: 20, width: '100%' }}>
-                  <Text style={{ color: colors.textSecondary, marginBottom: 8, fontFamily: Typography.fontFamily.semiBold }}>Pending List ({pendingPlayers.length})</Text>
-                  <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ maxHeight: 160 }} showsVerticalScrollIndicator={false}>
-                     {pendingPlayers.map((p, idx) => (
-                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: colors.borderLight }}>
-                           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                             {p.photo ? (
-                               <Image source={{ uri: getImageUrl(p.photo) }} style={{ width: 32, height: 32, borderRadius: 16, marginRight: 10 }} />
-                             ) : (
-                               <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
-                                 <Text style={{ color: colors.primary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>{p.name.charAt(0).toUpperCase()}</Text>
-                               </View>
-                             )}
-                             <View>
-                               <Text style={{ color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium }}>{p.name}</Text>
-                               <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{p.mobile}</Text>
-                             </View>
-                           </View>
-                           <TouchableOpacity onPress={() => setPendingPlayers(prev => prev.filter((_, i) => i !== idx))} style={{ padding: 4 }}>
-                             <Icon name="x" size={20} color={colors.error} />
-                           </TouchableOpacity>
+              <View style={{ marginTop: 20, width: '100%' }}>
+                <Text style={{ color: colors.textSecondary, marginBottom: 8, fontFamily: Typography.fontFamily.semiBold }}>Pending List ({pendingPlayers.length})</Text>
+                <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ maxHeight: 160 }} showsVerticalScrollIndicator={false}>
+                  {pendingPlayers.map((p, idx) => (
+                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: colors.borderLight }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        {p.photo ? (
+                          <Image source={{ uri: getImageUrl(p.photo) }} style={{ width: 32, height: 32, borderRadius: 16, marginRight: 10 }} />
+                        ) : (
+                          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primaryAlpha20, justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                            <Text style={{ color: colors.primary, fontSize: 12, fontFamily: Typography.fontFamily.bold }}>{p.name.charAt(0).toUpperCase()}</Text>
+                          </View>
+                        )}
+                        <View>
+                          <Text style={{ color: colors.textPrimary, fontSize: 14, fontFamily: Typography.fontFamily.medium }}>{p.name}</Text>
+                          <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{p.mobile}</Text>
                         </View>
-                     ))}
-                  </KeyboardAwareScrollView>
-               </View>
+                      </View>
+                      <TouchableOpacity onPress={() => setPendingPlayers(prev => prev.filter((_, i) => i !== idx))} style={{ padding: 4 }}>
+                        <Icon name="x" size={20} color={colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </KeyboardAwareScrollView>
+              </View>
             )}
 
             <View style={[styles.modalButtons, { marginTop: 24 }]}>
-              <TouchableOpacity 
-                style={styles.modalCancelButton} 
+              <TouchableOpacity
+                style={styles.modalCancelButton}
                 onPress={() => {
                   setAddPlayerModalVisible(false);
                   setPendingPlayers([]);
@@ -469,8 +473,8 @@ const SquadSelectionScreen = () => {
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalAddButton, { opacity: pendingPlayers.length === 0 ? 0.5 : 1 }]} 
+              <TouchableOpacity
+                style={[styles.modalAddButton, { opacity: pendingPlayers.length === 0 ? 0.5 : 1 }]}
                 onPress={handleBulkSubmit}
                 disabled={isBulkAdding || pendingPlayers.length === 0}
               >
@@ -497,6 +501,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',

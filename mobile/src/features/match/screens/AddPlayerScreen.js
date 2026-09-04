@@ -252,7 +252,7 @@ const AddPlayerScreen = ({ route, navigation }) => {
 };
 
 const createStyles = (colors, shadows, isDark) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.background, overflow: 'hidden' },
   scrollView: { flex: 1 },
   header: { 
     flexDirection: 'row', 
@@ -265,7 +265,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   backBtn: { padding: 4 },
   headerTitle: { fontFamily: Typography.fontFamily.semiBold, fontSize: 18, color: colors.textPrimary },
-  content: { padding: Spacing.base },
+  content: { padding: Spacing.base, flexGrow: 1 },
   label: { 
     fontFamily: Typography.fontFamily.bold, 
     fontSize: 12, 

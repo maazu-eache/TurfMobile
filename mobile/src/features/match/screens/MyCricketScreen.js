@@ -366,12 +366,34 @@ const MyCricketScreen = ({ route }) => {
   const myMatchesRef = useRef([]);
 
   useEffect(() => {
-    if (route?.params?.tab) {
-      setActiveTopTab(route.params.tab);
+    if (isFocused) {
+      const targetTab = route?.params?.tab || 'Matches';
+      if (route?.params?.tab) {
+        navigation.setParams({ tab: undefined });
+      }
+      setActiveTopTab(targetTab);
       setActiveSubTab('My');
-      navigation.setParams({ tab: undefined });
+      setSearchQuery('');
+      
+      const targetIndex = Math.max(0, TOP_TABS.indexOf(targetTab));
+      const doScroll = () => {
+        scrollViewRef.current?.scrollTo({ x: targetIndex * SCREEN_WIDTH, animated: false });
+      };
+      
+      doScroll();
+      const timer1 = setTimeout(doScroll, 50);
+      const timer2 = setTimeout(doScroll, 150);
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
+    } else {
+      setActiveTopTab('Matches');
+      setActiveSubTab('My');
+      setSearchQuery('');
+      scrollViewRef.current?.scrollTo({ x: 0, animated: false });
     }
-  }, [route?.params?.tab, navigation]);
+  }, [isFocused, route?.params?.tab, navigation]);
   const insets = useSafeAreaInsets();
 
   const { myMatches, matches, isLoading: matchLoading } = useSelector(state => state.match);
@@ -488,18 +510,24 @@ const MyCricketScreen = ({ route }) => {
     if (tab === 'Teams') setActiveSubTab('My');
     if (tab === 'Tournaments') setActiveSubTab('My');
 
-    if (scrollToTab && scrollViewRef.current) {
+    if (scrollToTab) {
       const index = TOP_TABS.indexOf(tab);
-      scrollViewRef.current.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
+      if (index !== -1) {
+        setTimeout(() => {
+          scrollViewRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
+        }, 50);
+      }
     }
   };
 
   const handleScroll = (e) => {
+    if (!isFocused) return;
     const x = e.nativeEvent.contentOffset.x;
     const index = Math.round(x / SCREEN_WIDTH);
     const newTab = TOP_TABS[index];
     if (newTab && newTab !== activeTopTab) {
-      handleTopTabChange(newTab, false);
+      setActiveTopTab(newTab);
+      setActiveSubTab('My');
     }
   };
 
@@ -612,11 +640,16 @@ const MyCricketScreen = ({ route }) => {
 
     const firstTeam = teamABattedFirst ? item.teamA : item.teamB;
     const firstScore = teamABattedFirst ? item.teamAScore : item.teamBScore;
-    const isFirstWinner = isCompleted && (item.result?.winner === firstTeam?._id || item.result?.winner?._id === firstTeam?._id);
 
     const secondTeam = teamABattedFirst ? item.teamB : item.teamA;
     const secondScore = teamABattedFirst ? item.teamBScore : item.teamAScore;
-    const isSecondWinner = isCompleted && (item.result?.winner === secondTeam?._id || item.result?.winner?._id === secondTeam?._id);
+
+    const winnerId = String(item.result?.winner?._id || item.result?.winner || '').trim();
+    const firstTeamId = String(firstTeam?._id || firstTeam || '').trim();
+    const secondTeamId = String(secondTeam?._id || secondTeam || '').trim();
+
+    const isFirstWinner = isCompleted && !!winnerId && winnerId === firstTeamId;
+    const isSecondWinner = isCompleted && !!winnerId && winnerId === secondTeamId;
 
     return (
       <TouchableOpacity style={styles.cardContainer} activeOpacity={0.9} onPress={() => navigation.navigate('MatchSummary', { matchId: item._id })}>
@@ -631,7 +664,7 @@ const MyCricketScreen = ({ route }) => {
           </View>
         </View>
         
-        <Text style={styles.cardSubText}>{item.stage ? `${item.stage} | ` : ''}{item.format === 'test' ? 'Test' : item.format === 't20' ? 'T20' : item.format === 'odi' ? 'ODI' : item.format || 'Custom'} | {moment(item.scheduledAt || item.createdAt).format('DD MMM YYYY, h:mm a')} | {item.overs} Ov.</Text>
+        <Text style={styles.cardSubText}>{item.stage ? `${item.stage} | ` : ''}{item.format === 'test' ? 'Test' : item.format === 't20' ? 'T20' : item.format === 'odi' ? 'ODI' : item.format || 'Custom'} | {moment(item.createdAt).format('DD MMM YYYY, h:mm a')} | {item.overs} Ov.</Text>
         
         <View style={styles.teamScoreRow}>
           <View style={styles.matchTeamInfo}>
@@ -648,9 +681,27 @@ const MyCricketScreen = ({ route }) => {
                 </Text>
               </View>
             )}
-            <Text style={[styles.teamNameText, isFirstWinner && { color: isDark ? colors.primary : colors.textPrimary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{firstTeam?.name}</Text>
+            <Text
+              style={[
+                styles.teamNameText,
+                isFirstWinner && {
+                  fontFamily: Typography.fontFamily.bold,
+                  color: isDark ? colors.primary : '#B37B00',
+                },
+                !isFirstWinner && isCompleted && { color: colors.textSecondary, opacity: 0.75 }
+              ]}
+              numberOfLines={1}
+            >
+              {firstTeam?.name}
+            </Text>
+            {isFirstWinner && (
+              <View style={{ backgroundColor: isDark ? 'rgba(255,204,0,0.18)' : 'rgba(230,184,0,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}>
+                <Icon name="trophy-variant" size={12} color={isDark ? colors.primary : '#B37B00'} />
+                <Text style={{ fontSize: 10, fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : '#B37B00', marginLeft: 2 }}>W</Text>
+              </View>
+            )}
           </View>
-          <Text style={styles.scoreText}>
+          <Text style={[styles.scoreText, isFirstWinner && { color: isDark ? colors.primary : '#B37B00', fontFamily: Typography.fontFamily.bold }]}>
             {firstScore?.runs || 0}/{firstScore?.wickets || 0} <Text style={styles.overText}>({firstScore?.overs || '0.0'} Ov)</Text>
           </Text>
         </View>
@@ -669,9 +720,27 @@ const MyCricketScreen = ({ route }) => {
                 </Text>
               </View>
             )}
-            <Text style={[styles.teamNameText, isSecondWinner && { color: isDark ? colors.primary : colors.textPrimary, fontFamily: Typography.fontFamily.bold }]} numberOfLines={1}>{secondTeam?.name}</Text>
+            <Text
+              style={[
+                styles.teamNameText,
+                isSecondWinner && {
+                  fontFamily: Typography.fontFamily.bold,
+                  color: isDark ? colors.primary : '#B37B00',
+                },
+                !isSecondWinner && isCompleted && { color: colors.textSecondary, opacity: 0.75 }
+              ]}
+              numberOfLines={1}
+            >
+              {secondTeam?.name}
+            </Text>
+            {isSecondWinner && (
+              <View style={{ backgroundColor: isDark ? 'rgba(255,204,0,0.18)' : 'rgba(230,184,0,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}>
+                <Icon name="trophy-variant" size={12} color={isDark ? colors.primary : '#B37B00'} />
+                <Text style={{ fontSize: 10, fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : '#B37B00', marginLeft: 2 }}>W</Text>
+              </View>
+            )}
           </View>
-          <Text style={styles.scoreText}>
+          <Text style={[styles.scoreText, isSecondWinner && { color: isDark ? colors.primary : '#B37B00', fontFamily: Typography.fontFamily.bold }]}>
             {secondScore?.runs || 0}/{secondScore?.wickets || 0} <Text style={styles.overText}>({secondScore?.overs || '0.0'} Ov)</Text>
           </Text>
         </View>
@@ -836,6 +905,19 @@ const MyCricketScreen = ({ route }) => {
 
   const renderMatchesTab = () => {
     const isListLoading = matchLoading && !refreshing;
+    const matchList = (myMatches && myMatches.length > 0) ? myMatches : (matches || []);
+    const sortedMatches = [...matchList].sort((a, b) => {
+      const liveStatuses = ['in_progress', 'toss_done', 'innings_break', 'super_over'];
+      const aLive = liveStatuses.includes(a.status);
+      const bLive = liveStatuses.includes(b.status);
+      if (aLive && !bLive) return -1;
+      if (!aLive && bLive) return 1;
+
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+
     return (
       <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
         <View style={styles.actionHeader}>
@@ -851,7 +933,7 @@ const MyCricketScreen = ({ route }) => {
           </View>
         ) : (
           <FlatList
-            data={myMatches}
+            data={sortedMatches}
             keyExtractor={i => i._id}
             renderItem={renderMatchCard}
             contentContainerStyle={styles.listContainer}
@@ -866,6 +948,19 @@ const MyCricketScreen = ({ route }) => {
 
   const renderTournamentsTab = () => {
     const isListLoading = tournamentLoading && !refreshing;
+    const sortedTournaments = [...(tournaments || [])]
+      .filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      .sort((a, b) => {
+        const aLive = ['ongoing', 'live', 'registration_open'].includes(a.status);
+        const bLive = ['ongoing', 'live', 'registration_open'].includes(b.status);
+        if (aLive && !bLive) return -1;
+        if (!aLive && bLive) return 1;
+
+        const dateA = new Date(a.startDate || a.createdAt || 0).getTime();
+        const dateB = new Date(b.startDate || b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+
     return (
       <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
         <View style={styles.actionHeader}>
@@ -891,7 +986,7 @@ const MyCricketScreen = ({ route }) => {
           </View>
         ) : (
           <FlatList
-            data={tournaments.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))}
+            data={sortedTournaments}
             keyExtractor={i => i._id}
             renderItem={renderTournamentCard}
             contentContainerStyle={styles.listContainer}

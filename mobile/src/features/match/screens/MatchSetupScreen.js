@@ -29,15 +29,51 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 import { getImageUrl } from '../../../api/axios';
 import api from '../../../api/axios';
 
-const IMG_TENNIS  = require('../../../../Tennis.jpeg');
+const IMG_TENNIS = require('../../../../Tennis.jpeg');
 const IMG_LEATHER = require('../../../../Leather.jpeg');
-const IMG_OTHER   = require('../../../../Others.jpeg');
+const IMG_OTHER = require('../../../../Others.jpeg');
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const MATCH_FORMATS = ['LIMITED OVERS', 'BOX CRICKET', 'PAIR CRICKET'];
 const PITCH_TYPES = ['ROUGH', 'CEMENT', 'TURF', 'ASTROTURF', 'MATTING'];
 const GROUND_TYPES = ['Open Ground', 'Indoor', 'Box Cricket', 'Other'];
+
+const getValidFormat = (fmt) => {
+  if (!fmt) return 'LIMITED OVERS';
+  const u = String(fmt).toUpperCase();
+  if (MATCH_FORMATS.includes(u)) return u;
+  return 'LIMITED OVERS';
+};
+
+const TeamLogoDisplay = ({ team, style, initialSize = 28, colors }) => {
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [team?._id, team?.logo]);
+
+  const logoUrl = team?.logo ? getImageUrl(team.logo) : null;
+  const initial = (team?.name || 'T').trim().charAt(0).toUpperCase();
+
+  if (logoUrl && !imgError) {
+    return (
+      <Image
+        source={{ uri: logoUrl }}
+        style={style}
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  return (
+    <View style={[style, { backgroundColor: colors?.primaryAlpha20 || 'rgba(255, 204, 0, 0.2)', alignItems: 'center', justifyContent: 'center' }]}>
+      <Text style={{ fontSize: initialSize, fontFamily: Typography.fontFamily.bold, color: colors?.primary || '#FFCC00' }}>
+        {initial}
+      </Text>
+    </View>
+  );
+};
 
 const MatchSetupScreen = ({ navigation, route }) => {
   const { colors, shadows, isDark } = useTheme();
@@ -65,7 +101,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
   const [wkB, setWkB] = useState(null);
 
   // Match setup details matching CricHeroes fields
-  const [format, setFormat] = useState(tournamentDetails?.format || 'LIMITED OVERS');
+  const [format, setFormat] = useState(() => getValidFormat(tournamentDetails?.format));
   const [overs, setOvers] = useState(tournamentDetails?.overs ? tournamentDetails.overs.toString() : '5');
   const [wickets, setWickets] = useState(tournamentDetails?.playersPerTeam ? (tournamentDetails.playersPerTeam - 1).toString() : '10');
   const [bowlerQuota, setBowlerQuota] = useState(tournamentDetails?.bowlerQuota ? tournamentDetails.bowlerQuota.toString() : '1');
@@ -76,7 +112,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
     const d = new Date();
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + d.toTimeString().substring(0, 5);
   });
-  
+
   const [ballType, setBallType] = useState(tournamentDetails?.ballType || 'Tennis');
   const [wagonWheel, setWagonWheel] = useState(true);
   const [pitchType, setPitchType] = useState(tournamentDetails?.pitchType || 'TURF');
@@ -89,9 +125,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
   // Auto-fill match details if editing existing match
   useEffect(() => {
     if (matchData) {
-      if (matchData.format) {
-        setFormat(MATCH_FORMATS.includes(matchData.format.toUpperCase()) ? matchData.format.toUpperCase() : 'LIMITED OVERS');
-      }
+      setFormat(getValidFormat(matchData.format));
       if (matchData.overs) setOvers(matchData.overs.toString());
       if (matchData.wickets) setWickets(matchData.wickets.toString());
       if (matchData.bowlerQuota) setBowlerQuota(matchData.bowlerQuota.toString());
@@ -146,14 +180,14 @@ const MatchSetupScreen = ({ navigation, route }) => {
   const openXIModal = (teamTag) => {
     if (teamTag === 'A' && !teamA) return showCustomAlert('Info', 'Select Team A first');
     if (teamTag === 'B' && !teamB) return showCustomAlert('Info', 'Select Team B first');
-    
+
     const team = teamTag === 'A' ? teamA : teamB;
     const roster = teamTag === 'A' ? teamA.players : teamB.players;
     const selectedXI = teamTag === 'A' ? playingXIA : playingXIB;
     const captain = teamTag === 'A' ? captainA : captainB;
     const wk = teamTag === 'A' ? wkA : wkB;
     const opposingXI = teamTag === 'A' ? playingXIB : playingXIA;
-    
+
     navigation.navigate('SquadSelection', {
       team,
       roster,
@@ -209,7 +243,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
           ground,
           scheduledAt: tempDate.toISOString()
         });
-        dispatch(clearLiveState()); 
+        dispatch(clearLiveState());
         if (isEditing) {
           navigation.goBack();
         } else if (actionType === 'toss') {
@@ -264,23 +298,43 @@ const MatchSetupScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleStartMatch = async () => {
-    if (!isAuthenticated) return navigation.navigate('AuthModal', { screen: 'Login' });
-    if (!teamA || !teamB) return showCustomAlert('Error', 'Please select both teams');
-    if (!overs || parseInt(overs, 10) <= 0) return showCustomAlert('Error', 'Valid overs required');
-    if (!wickets || parseInt(wickets, 10) <= 0) return showCustomAlert('Error', 'Valid wickets required');
-    if (!city?.trim() || !ground?.trim() || !groundType?.trim() || !pitchType?.trim()) {
-      return showCustomAlert('Error', 'City, Ground Name, Ground Type, and Pitch Type are required.');
+  const validateMatchInputs = () => {
+    const missing = [];
+    if (!teamA) missing.push('Team A');
+    if (!teamB) missing.push('Team B');
+    if (!format) missing.push('Match Type');
+    if (!overs || isNaN(parseInt(overs, 10)) || parseInt(overs, 10) <= 0) missing.push('No. of Overs');
+    if (!wickets || isNaN(parseInt(wickets, 10)) || parseInt(wickets, 10) <= 0) missing.push('Wickets');
+    if (!city?.trim()) missing.push('City / Town');
+    if (!ground?.trim()) missing.push('Ground Name');
+    if (!groundType?.trim()) missing.push('Ground Type');
+    if (!pitchType?.trim()) missing.push('Pitch Type');
+
+    if (missing.length > 0) {
+      showCustomAlert(
+        'Required Fields Missing',
+        `Please select/fill the required fields:\n• ${missing.join('\n• ')}`
+      );
+      return false;
     }
 
     if (teamA._id === teamB._id) {
-      return showCustomAlert('Error', 'Team A and Team B cannot be the same team.');
+      showCustomAlert('Error', 'Team A and Team B cannot be the same team.');
+      return false;
     }
 
     const commonPlayers = playingXIA.filter(id => playingXIB.includes(id));
     if (commonPlayers.length > 0) {
-      return showCustomAlert('Validation Error', 'A player cannot be in both teams\' playing XI.');
+      showCustomAlert('Validation Error', 'A player cannot be in both teams\' playing XI.');
+      return false;
     }
+
+    return true;
+  };
+
+  const handleStartMatch = async () => {
+    if (!isAuthenticated) return navigation.navigate('AuthModal', { screen: 'Login' });
+    if (!validateMatchInputs()) return;
 
     // Require OTP if creating a new individual match (not tournament, not existing match)
     if (!tournamentId && !existingMatchId) {
@@ -288,27 +342,13 @@ const MatchSetupScreen = ({ navigation, route }) => {
       setOtpModalVisible(true);
       return;
     }
-    
+
     executeMatchSetup('toss');
   };
 
   const handleScheduleMatch = async () => {
     if (!isAuthenticated) return navigation.navigate('AuthModal', { screen: 'Login' });
-    if (!teamA || !teamB) return showCustomAlert('Error', 'Please select both teams');
-    if (!overs || parseInt(overs, 10) <= 0) return showCustomAlert('Error', 'Valid overs required');
-    if (!wickets || parseInt(wickets, 10) <= 0) return showCustomAlert('Error', 'Valid wickets required');
-    if (!city?.trim() || !ground?.trim() || !groundType?.trim() || !pitchType?.trim()) {
-      return showCustomAlert('Error', 'City, Ground Name, Ground Type, and Pitch Type are required.');
-    }
-
-    if (teamA._id === teamB._id) {
-      return showCustomAlert('Error', 'Team A and Team B cannot be the same team.');
-    }
-
-    const commonPlayers = playingXIA.filter(id => playingXIB.includes(id));
-    if (commonPlayers.length > 0) {
-      return showCustomAlert('Validation Error', 'A player cannot be in both teams\' playing XI.');
-    }
+    if (!validateMatchInputs()) return;
 
     // Require OTP if creating a new individual match
     if (!tournamentId && !existingMatchId) {
@@ -389,9 +429,9 @@ const MatchSetupScreen = ({ navigation, route }) => {
   );
 
   const BALL_OPTIONS = [
-    { label: 'Tennis',  value: 'Tennis',  img: IMG_TENNIS  },
+    { label: 'Tennis', value: 'Tennis', img: IMG_TENNIS },
     { label: 'Leather', value: 'Leather', img: IMG_LEATHER },
-    { label: 'Other',   value: 'Other',   img: IMG_OTHER   },
+    { label: 'Other', value: 'Other', img: IMG_OTHER },
   ];
 
   const renderBallOption = ({ label, value, img }) => {
@@ -436,144 +476,136 @@ const MatchSetupScreen = ({ navigation, route }) => {
       <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {(!existingMatchId || (matchData?.status === 'scheduled' && !isEditing)) && (
           <View style={styles.matchupContainer}>
-          <View style={styles.teamsRow}>
-            <View style={styles.teamCol}>
-              <TouchableOpacity
-                style={[styles.teamCircleSlot, teamA && styles.teamCircleSlotSelected]}
-                onPress={() => {
-                  if (existingMatchId) return showCustomAlert('Info', 'Teams cannot be changed for scheduled matches');
-                  navigation.navigate('MatchTeamSelection', {
-                    selectingFor: 'A',
-                    teamA,
-                    teamB,
-                    tournamentDetails,
-                    matchStage,
-                    activeTab: tournamentDetails ? 'Tournament' : 'My Teams',
-                    onSelectTeam: (team) => {
-                      // Clear previous squad data for this team
-                      setPlayingXIA([]);
-                      setCaptainA(null);
-                      setWkA(null);
-                      setTeamA(team);
+            <View style={styles.teamsRow}>
+              <View style={styles.teamCol}>
+                <TouchableOpacity
+                  style={[styles.teamCircleSlot, teamA && styles.teamCircleSlotSelected]}
+                  onPress={() => {
+                    if (existingMatchId) return showCustomAlert('Info', 'Teams cannot be changed for scheduled matches');
+                    navigation.navigate('MatchTeamSelection', {
+                      selectingFor: 'A',
+                      teamA,
+                      teamB,
+                      tournamentDetails,
+                      matchStage,
+                      activeTab: tournamentDetails ? 'Tournament' : 'My Teams',
+                      onSelectTeam: (team) => {
+                        // Clear previous squad data for this team
+                        setPlayingXIA([]);
+                        setCaptainA(null);
+                        setWkA(null);
+                        setTeamA(team);
 
-                      // Automatically jump to Squad Selection after returning from Team Selection
-                      setTimeout(() => {
-                        navigation.navigate('SquadSelection', {
-                          team,
-                          roster: team.players || [],
-                          selectedXI: [],
-                          captain: null,
-                          wk: null,
-                          selectingFor: 'A',
-                          opposingXI: playingXIB,
-                          matchId: existingMatchId,
-                          tournamentId,
-                          onDone: (updatedXI, updatedCaptain, updatedWk, tTag) => {
-                            if (tTag === 'A') {
-                              setTeamA(team);
-                              setPlayingXIA(updatedXI);
-                              setCaptainA(updatedCaptain);
-                              setWkA(updatedWk);
+                        // Automatically jump to Squad Selection after returning from Team Selection
+                        setTimeout(() => {
+                          navigation.navigate('SquadSelection', {
+                            team,
+                            roster: team.players || [],
+                            selectedXI: [],
+                            captain: null,
+                            wk: null,
+                            selectingFor: 'A',
+                            opposingXI: playingXIB,
+                            matchId: existingMatchId,
+                            tournamentId,
+                            onDone: (updatedXI, updatedCaptain, updatedWk, tTag) => {
+                              if (tTag === 'A') {
+                                setTeamA(team);
+                                setPlayingXIA(updatedXI);
+                                setCaptainA(updatedCaptain);
+                                setWkA(updatedWk);
+                              }
                             }
-                          }
-                        });
-                      }, 300);
-                    }
-                  });
-                }}
-              >
-                {teamA ? (
-                  teamA.logo ? (
-                    <Image source={{ uri: getImageUrl(teamA.logo) }} style={styles.teamLogoImg} />
+                          });
+                        }, 300);
+                      }
+                    });
+                  }}
+                >
+                  {teamA ? (
+                    <TeamLogoDisplay team={teamA} style={styles.teamLogoImg} initialSize={32} colors={colors} />
                   ) : (
-                    <Image source={require('../../../../SportVerse.png')} style={styles.teamLogoImg} resizeMode="contain" />
-                  )
-                ) : (
-                  <Icon name="plus" size={32} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-              <Text style={styles.teamSelectionName} numberOfLines={1}>
-                {teamA ? teamA.name : 'Select Team A'}
-              </Text>
-              {teamA && (
-                <TouchableOpacity style={styles.squadBadge} onPress={() => openXIModal('A')}>
-                  <Text style={styles.squadBadgeText}>Squad ({playingXIA.length})</Text>
+                    <Icon name="plus" size={32} color={colors.primary} />
+                  )}
                 </TouchableOpacity>
-              )}
-            </View>
+                <Text style={styles.teamSelectionName} numberOfLines={1}>
+                  {teamA ? teamA.name : 'Select Team A'}
+                </Text>
+                {teamA && (
+                  <TouchableOpacity style={styles.squadBadge} onPress={() => openXIModal('A')}>
+                    <Text style={styles.squadBadgeText}>Squad ({playingXIA.length})</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
-            <View style={styles.vsBadgeContainer}>
-              <View style={styles.vsCircle}>
-                <Text style={styles.vsCircleText}>VS</Text>
+              <View style={styles.vsBadgeContainer}>
+                <View style={styles.vsCircle}>
+                  <Text style={styles.vsCircleText}>VS</Text>
+                </View>
+              </View>
+
+              <View style={styles.teamCol}>
+                <TouchableOpacity
+                  style={[styles.teamCircleSlot, teamB && styles.teamCircleSlotSelected]}
+                  onPress={() => {
+                    if (existingMatchId) return showCustomAlert('Info', 'Teams cannot be changed for scheduled matches');
+                    navigation.navigate('MatchTeamSelection', {
+                      selectingFor: 'B',
+                      teamA,
+                      teamB,
+                      tournamentDetails,
+                      matchStage,
+                      activeTab: tournamentDetails ? 'Tournament' : 'Opponents',
+                      onSelectTeam: (team) => {
+                        // Clear previous squad data for this team
+                        setPlayingXIB([]);
+                        setCaptainB(null);
+                        setWkB(null);
+                        setTeamB(team);
+
+                        // Automatically jump to Squad Selection after returning from Team Selection
+                        setTimeout(() => {
+                          navigation.navigate('SquadSelection', {
+                            team,
+                            roster: team.players || [],
+                            selectedXI: [],
+                            captain: null,
+                            wk: null,
+                            selectingFor: 'B',
+                            opposingXI: playingXIA,
+                            matchId: existingMatchId,
+                            tournamentId,
+                            onDone: (updatedXI, updatedCaptain, updatedWk, tTag) => {
+                              if (tTag === 'B') {
+                                setTeamB(team);
+                                setPlayingXIB(updatedXI);
+                                setCaptainB(updatedCaptain);
+                                setWkB(updatedWk);
+                              }
+                            }
+                          });
+                        }, 300);
+                      }
+                    });
+                  }}
+                >
+                  {teamB ? (
+                    <TeamLogoDisplay team={teamB} style={styles.teamLogoImg} initialSize={32} colors={colors} />
+                  ) : (
+                    <Icon name="plus" size={32} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+                <Text style={styles.teamSelectionName} numberOfLines={1}>
+                  {teamB ? teamB.name : 'Select Team B'}
+                </Text>
+                {teamB && (
+                  <TouchableOpacity style={styles.squadBadge} onPress={() => openXIModal('B')}>
+                    <Text style={styles.squadBadgeText}>Squad ({playingXIB.length})</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
-
-            <View style={styles.teamCol}>
-              <TouchableOpacity
-                style={[styles.teamCircleSlot, teamB && styles.teamCircleSlotSelected]}
-                onPress={() => {
-                  if (existingMatchId) return showCustomAlert('Info', 'Teams cannot be changed for scheduled matches');
-                  navigation.navigate('MatchTeamSelection', {
-                    selectingFor: 'B',
-                    teamA,
-                    teamB,
-                    tournamentDetails,
-                    matchStage,
-                    activeTab: tournamentDetails ? 'Tournament' : 'Opponents',
-                    onSelectTeam: (team) => {
-                      // Clear previous squad data for this team
-                      setPlayingXIB([]);
-                      setCaptainB(null);
-                      setWkB(null);
-                      setTeamB(team);
-
-                      // Automatically jump to Squad Selection after returning from Team Selection
-                      setTimeout(() => {
-                        navigation.navigate('SquadSelection', {
-                          team,
-                          roster: team.players || [],
-                          selectedXI: [],
-                          captain: null,
-                          wk: null,
-                          selectingFor: 'B',
-                          opposingXI: playingXIA,
-                          matchId: existingMatchId,
-                          tournamentId,
-                          onDone: (updatedXI, updatedCaptain, updatedWk, tTag) => {
-                            if (tTag === 'B') {
-                              setTeamB(team);
-                              setPlayingXIB(updatedXI);
-                              setCaptainB(updatedCaptain);
-                              setWkB(updatedWk);
-                            }
-                          }
-                        });
-                      }, 300);
-                    }
-                  });
-                }}
-              >
-                {teamB ? (
-                  teamB.logo ? (
-                    <Image source={{ uri: getImageUrl(teamB.logo) }} style={styles.teamLogoImg} />
-                  ) : (
-                    <Image source={require('../../../../SportVerse.png')} style={styles.teamLogoImg} resizeMode="contain" />
-                  )
-                ) : (
-                  <Icon name="plus" size={32} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-              <Text style={styles.teamSelectionName} numberOfLines={1}>
-                {teamB ? teamB.name : 'Select Team B'}
-              </Text>
-              {teamB && (
-                <TouchableOpacity style={styles.squadBadge} onPress={() => openXIModal('B')}>
-                  <Text style={styles.squadBadgeText}>Squad ({playingXIB.length})</Text>
-                </TouchableOpacity>
-              )}
-            </View>
           </View>
-        </View>
         )}
 
         <View style={styles.formContainer}>
@@ -725,7 +757,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
             {!otpSent ? (
               <>
                 <Text style={styles.modalSubtitle}>Select a registered player to receive an OTP.</Text>
-                
+
                 <View style={{ maxHeight: 350, marginBottom: Spacing.md }}>
                   <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
                     {/* Team A Players */}
@@ -790,8 +822,8 @@ const MatchSetupScreen = ({ navigation, route }) => {
                       ...(teamA?.players || []),
                       ...(teamB?.players || [])
                     ].filter(p => p && p.player && p.player.isClaimed && p.player._id !== user?._id).length === 0 && (
-                      <Text style={{ color: colors.textSecondary, textAlign: 'center', marginVertical: 10 }}>No registered players found in these teams to send an OTP to.</Text>
-                    )}
+                        <Text style={{ color: colors.textSecondary, textAlign: 'center', marginVertical: 10 }}>No registered players found in these teams to send an OTP to.</Text>
+                      )}
                   </ScrollView>
                 </View>
 
@@ -805,7 +837,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
             ) : (
               <>
                 <Text style={styles.modalSubtitle}>Enter the 6-digit OTP sent to the player.</Text>
-                
+
                 <TextInput
                   style={[styles.input, { textAlign: 'center', fontSize: 20, letterSpacing: 4, color: '#fff' }]}
                   placeholder="------"
@@ -858,7 +890,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.base,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: colors.border,
   },
   teamsRow: {
     flexDirection: 'row',
@@ -878,9 +910,9 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#F3F4F6',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.18)',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
@@ -914,13 +946,13 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   squadBadgeText: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
-    color: colors.background || '#000000',
+    color: colors.textOnPrimary || '#000000',
   },
   vsCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
@@ -944,7 +976,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     marginBottom: 6,
   },
   underlineInput: {
-    borderBottomWidth: 1,
+    borderBottomWidth: 1.5,
     borderBottomColor: colors.border,
     color: colors.textPrimary,
     fontSize: 15,
@@ -965,12 +997,12 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F0F2F5',
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.border,
   },
   chipSelected: {
-    backgroundColor: colors.primaryAlpha10,
+    backgroundColor: isDark ? colors.primaryAlpha10 : 'rgba(255, 204, 0, 0.18)',
     borderColor: colors.primary,
     borderWidth: 1.5,
   },
@@ -980,7 +1012,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     fontFamily: Typography.fontFamily.medium,
   },
   chipTextSelected: {
-    color: colors.primary,
+    color: isDark ? colors.primary : '#A37B00',
     fontFamily: Typography.fontFamily.bold,
   },
   ballsRow: {
@@ -1072,13 +1104,15 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   scheduleBtn: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E5E7EB',
     paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: colors.borderLight,
   },
   scheduleBtnText: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
   },

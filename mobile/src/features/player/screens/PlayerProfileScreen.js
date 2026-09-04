@@ -1166,7 +1166,7 @@ const PlayerProfileScreen = ({ navigation }) => {
                 { icon: 'hand-back-right', color: colors.primary, val: field.catches ?? 0, label: 'Catches' },
                 { icon: 'run-fast', color: colors.primary, val: field.runOuts ?? 0, label: 'Run Outs' },
                 { icon: 'target', color: colors.primary, val: field.stumpings ?? 0, label: 'Stumpings' },
-                { icon: 'shield-star', color: colors.primary, val: (field.catches ?? 0) + (field.runOuts ?? 0) + (field.stumpings ?? 0), label: 'Total' },
+                { icon: 'shield', color: colors.primary, val: field.caughtBehind ?? field.caughtBehinds ?? 0, label: 'Caught Behind' },
               ].map(f => (
                 <View key={f.label} style={styles.fieldingBox}>
                   <MCIcon name={f.icon} size={20} color={f.color} />

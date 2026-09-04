@@ -202,7 +202,15 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
     const isAdded = registeredTeams.some(rt => rt.team?._id === item._id || rt.team === item._id);
     return (
       <View style={styles.teamCard}>
-        <Image source={{ uri: item.logo ? getImageUrl(item.logo) : 'https://via.placeholder.com/50' }} style={styles.teamLogo} />
+        {item.logo ? (
+          <Image source={{ uri: getImageUrl(item.logo) }} style={styles.teamLogo} />
+        ) : (
+          <View style={[styles.teamLogo, { backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.12)', justifyContent: 'center', alignItems: 'center', borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(230,184,0,0.4)' }]}>
+            <Text style={{ color: isDark ? colors.primary : '#8B6E00', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+              {(item.name || 'T').trim().charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
         <View style={{ flex: 1 }}>
           <Text style={styles.teamNameText}>{item.name}</Text>
           <Text style={styles.teamSub}>{item.city || 'No City'} | Capt: {item.captain?.name || 'N/A'}</Text>

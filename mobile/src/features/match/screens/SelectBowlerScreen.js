@@ -15,7 +15,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { matchId } = route.params;
   const dispatch = useDispatch();
-  
+
   const { liveState } = useSelector((state) => state.match);
   const match = liveState?.match;
   const score = liveState?.score;
@@ -84,14 +84,14 @@ const SelectBowlerScreen = ({ route, navigation }) => {
 
   const bowlersOrder = useMemo(() => {
     if (!commentary || commentary.length === 0) return [];
-    
+
     // Filter commentary to only include balls of the current innings
     const currentInningsBalls = commentary.filter(ball => {
       const ballInningsId = String(ball.innings?._id || ball.innings || '');
       const currentInningsId = String(match?.innings?.[match?.currentInnings - 1]?._id || match?.innings?.[match?.currentInnings - 1] || '');
       return ballInningsId && currentInningsId && ballInningsId === currentInningsId;
     });
-    
+
     // Map overNumber -> bowlerId
     const overBowlersMap = {};
     currentInningsBalls.forEach(ball => {
@@ -105,7 +105,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
     const sortedOvers = Object.keys(overBowlersMap)
       .map(Number)
       .sort((a, b) => a - b);
-      
+
     return sortedOvers.map(oNum => overBowlersMap[oNum]);
   }, [commentary, match?.innings, match?.currentInnings]);
 
@@ -116,8 +116,8 @@ const SelectBowlerScreen = ({ route, navigation }) => {
     // bowlersOrder is: [bowler_over_1, bowler_over_2, ..., bowler_over_N]
     // The previous bowler is bowler_over_N.
     // The bowler we want to prioritize is bowler_over_N-1.
-    const priorityBowlerId = (bowlersOrder.length >= 2) 
-      ? String(bowlersOrder[bowlersOrder.length - 2]) 
+    const priorityBowlerId = (bowlersOrder.length >= 2)
+      ? String(bowlersOrder[bowlersOrder.length - 2])
       : '';
 
     return [...filteredXI].sort((a, b) => {
@@ -178,15 +178,15 @@ const SelectBowlerScreen = ({ route, navigation }) => {
     try {
       const bowlTeamId = isTeamABatting ? match.teamB._id : match.teamA._id;
       const batTeamId = isTeamABatting ? match.teamA._id : match.teamB._id;
-      
+
       const [bowlRes, batRes] = await Promise.all([
         api.get(`/teams/${bowlTeamId}`),
         api.get(`/teams/${batTeamId}`)
       ]);
-      
+
       const bowlPlayers = bowlRes.data.data.players.map(p => p.player);
       const batPlayers = batRes.data.data.players.map(p => p.player);
-      
+
       setFullSquad(bowlPlayers.filter(Boolean));
       setFullOppositionSquad(batPlayers.filter(Boolean));
     } catch (e) {
@@ -219,12 +219,12 @@ const SelectBowlerScreen = ({ route, navigation }) => {
     try {
       const teamA_Squad = isTeamABatting ? oppositionSquad.map(p => p._id || p) : editingSquad.map(p => p._id || p);
       const teamB_Squad = isTeamABatting ? editingSquad.map(p => p._id || p) : oppositionSquad.map(p => p._id || p);
-      
+
       await api.post(`/matches/${matchId}/playing-xi`, {
         teamA: teamA_Squad,
         teamB: teamB_Squad
       });
-      
+
       const res = await api.get(`/matches/${matchId}/live`);
       dispatch(setLiveState(res.data.data));
       setShowEditSquadModal(false);
@@ -297,6 +297,10 @@ const SelectBowlerScreen = ({ route, navigation }) => {
         <FlatList
           data={sortedSquad}
           keyExtractor={item => item._id}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS === 'android'}
           renderItem={({ item }) => {
             const currentScorecard = scorecards.find(sc => sc.inningsNumber === match?.currentInnings);
             let isQuotaCompleted = false;
@@ -394,7 +398,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
           ListEmptyComponent={<Text style={styles.emptyText}>No players in squad.</Text>}
         />
       )}
-      
+
       <Modal visible={showEditSquadModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <SafeAreaView style={styles.modalContentFull} edges={['top', 'bottom']}>
@@ -406,7 +410,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
             </View>
             <Text style={styles.instructionText}>Check the players you want in the playing XI. Pull down to refresh.</Text>
 
-            <ScrollView 
+            <ScrollView
               style={styles.modalList}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshModal} colors={[colors.primary]} tintColor={colors.primary} />}
             >
@@ -441,7 +445,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                   const _aTeam = String(match?.teamA?._id || match?.teamA || '');
                   const isTeamABattingLocal = _bTeam === _aTeam;
                   const teamId = isTeamABattingLocal ? match?.teamB?._id : match?.teamA?._id;
-                  
+
                   navigation.navigate('AddPlayer', {
                     teamId,
                     matchId,
@@ -458,10 +462,10 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                           teamA: teamA_Squad,
                           teamB: teamB_Squad
                         });
-                        
+
                         const res = await api.get(`/matches/${matchId}/live`);
                         dispatch(setLiveState(res.data.data));
-                        
+
                         setFullSquad(prev => {
                           const exists = prev.some(p => p._id === newPlayer._id);
                           return exists ? prev : [...prev, newPlayer];
@@ -470,7 +474,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                           const exists = prev.some(p => p._id === newPlayer._id);
                           return exists ? prev : [...prev, newPlayer];
                         });
-                        
+
                         loadFullRosterData();
                         setShowEditSquadModal(true);
                       } catch (e) {
@@ -740,7 +744,9 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   modalContentFull: {
     backgroundColor: colors.surface,
     padding: Spacing.base,
-    height: '100%',
+    maxHeight: '92%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   modalHeader: {
     flexDirection: 'row',

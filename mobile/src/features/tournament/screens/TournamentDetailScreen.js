@@ -46,10 +46,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const lockAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (openRegisterModal) {
+    if (openRegisterModal || route.params?.action === 'join-team') {
       setShowRegisterModal(true);
+      if (route.params?.action === 'join-team') {
+        navigation.setParams({ action: undefined, openRegisterModal: undefined });
+      }
     }
-  }, [openRegisterModal]);
+  }, [openRegisterModal, route.params?.action, navigation]);
 
   useEffect(() => {
     Animated.loop(
@@ -79,7 +82,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [knockoutPreviewTeams, setKnockoutPreviewTeams] = useState([]);
   const [shareData, setShareData] = useState(null);
   const [showTeamShareModal, setShowTeamShareModal] = useState(false);
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(Boolean(openRegisterModal || route.params?.action === 'join-team'));
   const [auctionDetails, setAuctionDetails] = useState(null);
 
   const [isAuctionRegistered, setIsAuctionRegistered] = useState(false);
@@ -115,13 +118,6 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [collapsedGroups, setCollapsedGroups] = useState({});
 
   const matchesRef = useRef([]);
-
-  useEffect(() => {
-    if (route.params?.action === 'join-team') {
-      setShowRegisterModal(true);
-      navigation.setParams({ action: undefined });
-    }
-  }, [route.params?.action, navigation]);
 
   useEffect(() => {
     matchesRef.current = tournament?.matches || [];
@@ -940,10 +936,18 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 activeOpacity={0.75}
               >
                 <Text style={styles.teamRankText}>#{index + 1}</Text>
-                <Image
-                  source={{ uri: item.team.logo ? getImageUrl(item.team.logo) : 'https://via.placeholder.com/50' }}
-                  style={styles.teamLogo}
-                />
+                {item.team.logo ? (
+                  <Image
+                    source={{ uri: getImageUrl(item.team.logo) }}
+                    style={styles.teamLogo}
+                  />
+                ) : (
+                  <View style={[styles.teamLogo, { backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.12)', justifyContent: 'center', alignItems: 'center', borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(230,184,0,0.4)' }]}>
+                    <Text style={{ color: isDark ? colors.primary : '#8B6E00', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                      {(item.team.name || 'T').trim().charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
                 <View style={{ flex: 1 }}>
                   <Text style={styles.teamName}>{item.team.name}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: 4 }}>
@@ -972,15 +976,17 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
   const renderMatches = () => {
     const isTournamentCompleted = tournament.status === 'completed';
+    const liveStatuses = ['toss_done', 'in_progress', 'innings_break', 'super_over'];
     let filteredMatches = [];
     if (matchSubTab === 'Upcoming') {
       filteredMatches = (tournament.matches?.filter(m => m.status === 'scheduled') || [])
-        .sort((a, b) => new Date(a.scheduledAt || a.createdAt) - new Date(b.scheduledAt || b.createdAt));
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     } else if (matchSubTab === 'Live') {
-      filteredMatches = tournament.matches?.filter(m => ['toss_done', 'in_progress', 'innings_break', 'super_over'].includes(m.status)) || [];
+      filteredMatches = (tournament.matches?.filter(m => liveStatuses.includes(m.status)) || [])
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     } else if (matchSubTab === 'Past') {
       filteredMatches = (tournament.matches?.filter(m => ['completed', 'abandoned', 'no_result'].includes(m.status)) || [])
-        .sort((a, b) => new Date(b.completedAt || b.updatedAt) - new Date(a.completedAt || a.updatedAt));
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     }
 
     if (selectedTeamFilter) {
@@ -1037,11 +1043,11 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           <Text style={{ fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>Fixtures & Schedule</Text>
           {tournament.matches && tournament.matches.some(m => m.status === 'scheduled') ? (
             <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingHorizontal: 12, borderRadius: 14, backgroundColor: 'rgba(154,188,47,0.15)' }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingHorizontal: 12, borderRadius: 14, backgroundColor: isDark ? 'rgba(154,188,47,0.15)' : 'rgba(230,184,0,0.15)' }}
               onPress={() => setShowTeamShareModal(true)}
             >
-              <Icon name="share-2" size={13} color={colors.primary} style={{ marginRight: 4 }} />
-              <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share Schedule</Text>
+              <Icon name="share-2" size={13} color={isDark ? colors.primary : '#8B6E00'} style={{ marginRight: 4 }} />
+              <Text style={{ color: isDark ? colors.primary : '#8B6E00', fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>Share Schedule</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -1059,7 +1065,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   <Text style={[styles.matchSubTabText, matchSubTab === tab && styles.matchSubTabTextActive]}>{tab}</Text>
                   {tab === 'Live' && liveCount > 0 && (
                     <View style={[styles.liveCountBadge, matchSubTab === 'Live' && styles.liveCountBadgeActive, { marginLeft: 5 }]}>
-                      <Text style={[styles.liveCountText, matchSubTab === 'Live' && { color: '#000000' }]}>{liveCount}</Text>
+                      <Text style={[styles.liveCountText, matchSubTab === 'Live' && { color: isDark ? '#000000' : '#FFFFFF' }]}>{liveCount}</Text>
                     </View>
                   )}
                 </View>
@@ -1070,16 +1076,16 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
         {/* Tournament completed banner for non-Past tabs */}
         {isTournamentCompleted && matchSubTab !== 'Past' ? (
-          <View style={{ marginHorizontal: Spacing.md, marginBottom: 16, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 204, 0, 0.4)' }}>
-            <LinearGradient colors={['rgba(255, 204, 0, 0.15)', colors.backgroundCard, colors.backgroundElevated]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, alignItems: 'center' }}>
-              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255, 204, 0, 0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 10, borderWidth: 1, borderColor: 'rgba(255, 204, 0, 0.3)' }}>
-                <MCIcon name="trophy" size={28} color={colors.primary} style={{ textShadowColor: 'rgba(255,204,0,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 }} />
+          <View style={{ marginHorizontal: Spacing.md, marginBottom: 16, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: isDark ? 'rgba(255, 204, 0, 0.4)' : 'rgba(255, 204, 0, 0.6)' }}>
+            <LinearGradient colors={isDark ? ['rgba(255, 204, 0, 0.15)', colors.backgroundCard, colors.backgroundElevated] : ['#FFFDF0', '#FFF8D6', '#FFFDF0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, alignItems: 'center' }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255, 204, 0, 0.18)', alignItems: 'center', justifyContent: 'center', marginBottom: 10, borderWidth: 1, borderColor: 'rgba(255, 204, 0, 0.4)' }}>
+                <MCIcon name="trophy" size={28} color={isDark ? colors.primary : '#B38F00'} />
               </View>
-              <Text style={{ color: '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 18, marginBottom: 4, letterSpacing: 0.5 }}>Tournament Completed!</Text>
+              <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18, marginBottom: 4, letterSpacing: 0.5 }}>Tournament Completed!</Text>
 
               {tournament.winner?.name && (
                 <View style={{ width: '100%', alignItems: 'center', marginTop: 12, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border }}>
-                  <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 3, marginBottom: 8 }}>C h a m p i o n</Text>
+                  <Text style={{ color: isDark ? colors.primary : '#997A00', fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 3, marginBottom: 8 }}>C h a m p i o n</Text>
                   <TouchableOpacity
                     onPress={() => navigation.navigate('TeamDetail', { id: tournament.winner._id || tournament.winner })}
                     style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, ...shadows.sm, shadowColor: colors.primary }}
@@ -1093,7 +1099,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               {tournament.runnerUp?.name && (
                 <TouchableOpacity
                   onPress={() => navigation.navigate('TeamDetail', { id: tournament.runnerUp._id || tournament.runnerUp })}
-                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', marginTop: 10 }}
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colors.border, marginTop: 10 }}
                   activeOpacity={0.8}
                 >
                   <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12 }}>🥈 Runner-up: {tournament.runnerUp.name}</Text>
@@ -1102,10 +1108,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               )}
 
               <TouchableOpacity
-                style={{ marginTop: 16, paddingVertical: 10, paddingHorizontal: 24, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}
+                style={{ marginTop: 16, paddingVertical: 10, paddingHorizontal: 24, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', borderRadius: 24, borderWidth: 1, borderColor: colors.border }}
                 onPress={() => setMatchSubTab('Past')}
               >
-                <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>View All Results</Text>
+                <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>View All Results</Text>
               </TouchableOpacity>
             </LinearGradient>
           </View>
@@ -1134,11 +1140,14 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
               const firstTeam = teamABattedFirst ? item.teamA : item.teamB;
               const firstScore = teamABattedFirst ? item.teamAScore : item.teamBScore;
-              const isFirstWinner = isCompleted && (item.result?.winner === firstTeam?._id || item.result?.winner?._id === firstTeam?._id);
-
               const secondTeam = teamABattedFirst ? item.teamB : item.teamA;
               const secondScore = teamABattedFirst ? item.teamBScore : item.teamAScore;
-              const isSecondWinner = isCompleted && (item.result?.winner === secondTeam?._id || item.result?.winner?._id === secondTeam?._id);
+              const winnerId = String(item.result?.winner?._id || item.result?.winner || '').trim();
+              const firstId = String(firstTeam?._id || firstTeam || '').trim();
+              const secondId = String(secondTeam?._id || secondTeam || '').trim();
+
+              const isFirstWinner = isCompleted && !!winnerId && winnerId === firstId;
+              const isSecondWinner = isCompleted && !!winnerId && winnerId === secondId;
 
               const accentColor = isLive ? colors.error : isCompleted ? colors.primary : colors.border;
               return (
@@ -1147,7 +1156,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <View style={{ flex: 1, marginRight: 8 }}>
                       {item.stage ? <Text style={styles.stagePill}>{item.stage}</Text> : null}
                       <Text style={styles.cardSubText} numberOfLines={1}>
-                        {item.format?.toUpperCase() || 'Custom'}  •  {moment(item.scheduledAt || item.createdAt).format('DD MMM, hh:mm A')}  •  {item.overs} Ov
+                        {item.format?.toUpperCase() || 'Custom'}  •  {moment(item.createdAt).format('DD MMM, hh:mm A')}  •  {item.overs} Ov
                       </Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1190,9 +1199,15 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                             </Text>
                           </View>
                         )}
-                        <Text style={[styles.teamNameText, isFirstWinner && styles.winnerTeamText, { flex: 1 }]} numberOfLines={1}>{firstTeam?.name || 'TBD'}</Text>
+                        <Text style={[styles.teamNameText, isFirstWinner && { fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : '#B37B00' }, !isFirstWinner && isCompleted && { color: colors.textSecondary, opacity: 0.75 }]} numberOfLines={1}>{firstTeam?.name || 'TBD'}</Text>
+                        {isFirstWinner && (
+                          <View style={{ backgroundColor: isDark ? 'rgba(255,204,0,0.18)' : 'rgba(230,184,0,0.15)', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 8, flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}>
+                            <MCIcon name="trophy-variant" size={11} color={isDark ? colors.primary : '#B37B00'} />
+                            <Text style={{ fontSize: 9, fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : '#B37B00', marginLeft: 2 }}>W</Text>
+                          </View>
+                        )}
                       </View>
-                      <Text style={[styles.scoreText, isFirstWinner && { color: colors.primary }]}>
+                      <Text style={[styles.scoreText, isFirstWinner && { color: isDark ? colors.primary : '#B37B00', fontFamily: Typography.fontFamily.bold }]}>
                         {firstScore?.runs || 0}/{firstScore?.wickets || 0} <Text style={styles.overText}>({firstScore?.overs || '0.0'})</Text>
                       </Text>
                     </View>
@@ -1212,9 +1227,15 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                             </Text>
                           </View>
                         )}
-                        <Text style={[styles.teamNameText, isSecondWinner && styles.winnerTeamText, { flex: 1 }]} numberOfLines={1}>{secondTeam?.name || 'TBD'}</Text>
+                        <Text style={[styles.teamNameText, isSecondWinner && { fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : '#B37B00' }, !isSecondWinner && isCompleted && { color: colors.textSecondary, opacity: 0.75 }]} numberOfLines={1}>{secondTeam?.name || 'TBD'}</Text>
+                        {isSecondWinner && (
+                          <View style={{ backgroundColor: isDark ? 'rgba(255,204,0,0.18)' : 'rgba(230,184,0,0.15)', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 8, flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}>
+                            <MCIcon name="trophy-variant" size={11} color={isDark ? colors.primary : '#B37B00'} />
+                            <Text style={{ fontSize: 9, fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : '#B37B00', marginLeft: 2 }}>W</Text>
+                          </View>
+                        )}
                       </View>
-                      <Text style={[styles.scoreText, isSecondWinner && { color: colors.primary }]}>
+                      <Text style={[styles.scoreText, isSecondWinner && { color: isDark ? colors.primary : '#B37B00', fontFamily: Typography.fontFamily.bold }]}>
                         {secondScore?.runs || 0}/{secondScore?.wickets || 0} <Text style={styles.overText}>({secondScore?.overs || '0.0'})</Text>
                       </Text>
                     </View>
@@ -1956,7 +1977,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 </View>
                 {isOrganizer ? (
                   <View style={styles.organizerChip}>
-                    <Icon name="shield" size={11} color="#ffffff" />
+                    <Icon name="shield" size={11} color={isDark ? "#ffffff" : "#000000"} />
                     <Text style={styles.organizerChipText}>Organizer</Text>
                   </View>
                 ) : (
@@ -2156,7 +2177,15 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               ListEmptyComponent={<Text style={styles.emptyText}>You do not have any teams. Create one first!</Text>}
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.teamCard} onPress={() => handleRegisterTeam(item._id)} disabled={actionLoading}>
-                  <Image source={{ uri: item.logo ? getImageUrl(item.logo) : 'https://via.placeholder.com/50' }} style={styles.teamLogo} />
+                  {item.logo ? (
+                    <Image source={{ uri: getImageUrl(item.logo) }} style={styles.teamLogo} />
+                  ) : (
+                    <View style={[styles.teamLogo, { backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.12)', justifyContent: 'center', alignItems: 'center', borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(230,184,0,0.4)' }]}>
+                      <Text style={{ color: isDark ? colors.primary : '#8B6E00', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                        {(item.name || 'T').trim().charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.teamName}>{item.name}</Text>
                     <Text style={styles.teamSub}>{item.city}</Text>
@@ -2765,14 +2794,14 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center', alignItems: 'center', marginLeft: 10,
   },
-  headerTitle: { fontSize: 18, fontWeight: '900', fontFamily: Typography.fontFamily.bold, color: '#ffffff', marginBottom: 2, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
-  headerMetaText: { fontSize: 13, color: '#ffffff', fontFamily: Typography.fontFamily.medium, opacity: 0.9 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  headerTitle: { fontSize: 18, fontWeight: '900', fontFamily: Typography.fontFamily.bold, color: isDark ? '#ffffff' : '#000000', marginBottom: 2, textShadowColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  headerMetaText: { fontSize: 13, color: isDark ? '#ffffff' : '#000000', fontFamily: Typography.fontFamily.medium, opacity: 0.9 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   statusDot: { width: 7, height: 7, borderRadius: 3.5 },
   statusLabel: { fontSize: 12, color: '#ffffff', fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.2 },
 
   headerBadgeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 12 },
-  organizerChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.4)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  organizerChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.45)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   organizerChipText: { fontSize: 11, color: '#ffffff', fontFamily: Typography.fontFamily.semiBold },
 
   /* Full Width Follow Button */
@@ -2805,19 +2834,19 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   tabsWrapper: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   tabsScroll: { paddingHorizontal: 4 },
   tabBtn: { paddingVertical: 13, paddingHorizontal: 16, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
-  tabBtnActive: { borderBottomColor: colors.primary },
+  tabBtnActive: { borderBottomColor: isDark ? colors.primary : '#E6B800' },
   tabText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, letterSpacing: 0.2 },
-  tabTextActive: { color: isDark ? colors.primary : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  tabTextActive: { color: isDark ? colors.primary : '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
 
   /* ---- MATCH SUB TABS ---- */
   matchSubTabs: { flexDirection: 'row', marginHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 12, marginTop: 8 },
   matchSubTab: { flex: 1, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  matchSubTabActive: { borderBottomColor: colors.primary },
+  matchSubTabActive: { borderBottomColor: isDark ? colors.primary : '#E6B800' },
   matchSubTabText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 },
-  matchSubTabTextActive: { color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  matchSubTabTextActive: { color: isDark ? colors.primary : '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
   liveCountBadge: { backgroundColor: colors.error, borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
-  liveCountBadgeActive: { backgroundColor: '#000000' },
-  liveCountText: { fontSize: 9, color: colors.white, fontFamily: Typography.fontFamily.bold },
+  liveCountBadgeActive: { backgroundColor: isDark ? colors.primary : '#000000' },
+  liveCountText: { fontSize: 9, color: isDark ? '#000000' : '#FFFFFF', fontFamily: Typography.fontFamily.bold },
 
   /* ---- GENERAL ---- */
   tabContent: { padding: Spacing.md },

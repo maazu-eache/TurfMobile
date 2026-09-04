@@ -151,7 +151,7 @@ const ImageCropperModal = ({ visible, imageUri, onCrop, onClose }) => {
           </TouchableOpacity>
           <View style={{ alignItems: 'center' }}>
             <Text style={styles.headerTitle}>Move & Scale</Text>
-            <Text style={styles.headerSubtitle}>Fit photo inside the circle</Text>
+            <Text style={styles.headerSubtitle}>Fit photo inside the box</Text>
           </View>
           <TouchableOpacity onPress={handleCrop} style={styles.doneBtn} activeOpacity={0.8}>
             <Text style={styles.doneBtnText}>Done</Text>
@@ -187,8 +187,8 @@ const ImageCropperModal = ({ visible, imageUri, onCrop, onClose }) => {
               </Animated.View>
             </View>
 
-            {/* Circular Guide Mask Overlay positioned exactly on top */}
-            <View pointerEvents="none" style={styles.circleBorder}>
+            {/* Box Guide Mask Overlay positioned exactly on top */}
+            <View pointerEvents="none" style={styles.boxBorder}>
               <View style={styles.gridLineH1} />
               <View style={styles.gridLineH2} />
               <View style={styles.gridLineV1} />
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
   viewport: {
     width: CROP_SIZE,
     height: CROP_SIZE,
-    borderRadius: CROP_SIZE / 2,
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#111',
     justifyContent: 'center',
@@ -301,13 +301,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  circleBorder: {
+  boxBorder: {
     position: 'absolute',
     top: 0,
     left: 0,
     width: CROP_SIZE,
     height: CROP_SIZE,
-    borderRadius: CROP_SIZE / 2,
+    borderRadius: 16,
     borderWidth: 2,
     borderColor: Colors.primary || '#FFD400',
     overflow: 'hidden',

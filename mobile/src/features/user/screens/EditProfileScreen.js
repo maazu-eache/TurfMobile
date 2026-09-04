@@ -8,6 +8,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { updateUser } from '../../auth/authSlice';
+import { fetchMyPlayer } from '../../player/playerSlice';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import ImageCropperModal from '../../../components/ImageCropperModal';
 
@@ -66,6 +67,7 @@ const EditProfileScreen = ({ navigation }) => {
 
       if (res.data.success) {
         dispatch(updateUser(res.data.data));
+        dispatch(fetchMyPlayer()); // Sync photo to PlayerProfile & PlayerDetail screens
         showCustomAlert('Success', 'Profile updated successfully!');
         navigation.goBack();
       }

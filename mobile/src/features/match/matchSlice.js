@@ -61,7 +61,11 @@ export const createMatch = createAsyncThunk('match/create', async (data, { rejec
     const res = await api.post('/matches', data);
     return res.data.data;
   } catch (err) {
-    return rejectWithValue(err.response?.data?.message);
+    if (err.response?.data?.errors && Array.isArray(err.response.data.errors) && err.response.data.errors.length > 0) {
+      const details = err.response.data.errors.map(e => e.message || `${e.field} is required`).join('\n• ');
+      return rejectWithValue(`Please select/fill the required fields:\n• ${details}`);
+    }
+    return rejectWithValue(err.response?.data?.message || 'Match setup failed');
   }
 });
 
