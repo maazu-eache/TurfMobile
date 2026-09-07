@@ -51,9 +51,16 @@ const getCurrentTimeGroup = () => {
   if (hour >= 0 && hour < 6) return 'early_morning';
   if (hour >= 6 && hour < 12) return 'morning';
   if (hour >= 12 && hour < 16) return 'afternoon';
-  if (hour >= 16 && hour < 20) return 'evening';
   return 'night';
 };
+
+const TIME_GROUPS = [
+  { key: 'early_morning', label: 'Early Morning', icon: 'weather-sunset-up', desc: '12:00 AM - 06:00 AM' },
+  { key: 'morning', label: 'Morning', icon: 'weather-sunny', desc: '06:00 AM - 12:00 PM' },
+  { key: 'afternoon', label: 'Afternoon', icon: 'weather-sunny', desc: '12:00 PM - 04:00 PM' },
+  { key: 'evening', label: 'Evening', icon: 'weather-sunset-down', desc: '04:00 PM - 08:00 PM' },
+  { key: 'night', label: 'Night', icon: 'weather-night', desc: '08:00 PM - 11:59 PM' }
+];
 
 const TIME_OPTIONS = [];
 for (let h = 0; h < 24; h++) {
@@ -352,6 +359,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
 
   const totalSelectedPrice = selectedSlots.reduce((acc, s) => acc + (s.discountPrice !== undefined && s.discountPrice !== null ? s.discountPrice : s.price), 0);
 
+
   // Group slots by time blocks
   const groupedSlots = {
     early_morning: processedSlots.filter(s => getTimeGroup(s.startTime) === 'early_morning'),
@@ -447,12 +455,9 @@ const SlotPickerScreen = ({ route, navigation }) => {
         <View style={{ width: 36 }} />
       </View>
 
-      <Animated.ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-        style={{ opacity: fadeAnim }}
-      >
-        {/* ── Date Picker Horizontal List ── */}
+      {/* ── Fixed Sticky Top Bar: Date Picker & Time Navigation Chips ── */}
+      <View style={styles.stickyHeaderSection}>
+        {/* Date Selector */}
         <View style={styles.datePickerContainer}>
           <ScrollView
             horizontal
@@ -487,6 +492,45 @@ const SlotPickerScreen = ({ route, navigation }) => {
             {dates.map(renderDateItem)}
           </ScrollView>
         </View>
+
+        {/* Time Navigation Bar */}
+        <View style={styles.timeNavContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.timeNavScroll}
+          >
+            {TIME_GROUPS.map((g) => {
+              const isActive = expandedGroup === g.key;
+              const count = (groupedSlots[g.key] || []).filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).length;
+              return (
+                <TouchableOpacity
+                  key={g.key}
+                  style={[styles.timeNavChip, isActive && styles.timeNavChipActive]}
+                  onPress={() => setExpandedGroup(isActive ? null : g.key)}
+                  activeOpacity={0.8}
+                >
+                  <Icon name={g.icon} size={13} color={isActive ? '#000' : '#FFD400'} style={{ marginRight: 5 }} />
+                  <Text style={[styles.timeNavText, isActive && styles.timeNavTextActive]}>
+                    {g.label}
+                  </Text>
+                  {count > 0 && (
+                    <View style={[styles.timeNavBadge, isActive && styles.timeNavBadgeActive]}>
+                      <Text style={[styles.timeNavBadgeText, isActive && styles.timeNavBadgeTextActive]}>{count}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        style={{ opacity: fadeAnim }}
+      >
 
         {/* ── Availability Summary Card ── */}
         <View style={styles.summaryCard}>
@@ -609,13 +653,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
 
         {/* ── Expandable Time Groups ── */}
         <View style={styles.groupsContainer}>
-          {[
-            { key: 'early_morning', label: 'Early Morning', icon: 'weather-sunset-up', desc: '12:00 AM - 06:00 AM' },
-            { key: 'morning', label: 'Morning', icon: 'weather-sunny', desc: '06:00 AM - 12:00 PM' },
-            { key: 'afternoon', label: 'Afternoon', icon: 'weather-sunny', desc: '12:00 PM - 04:00 PM' },
-            { key: 'evening', label: 'Evening', icon: 'weather-sunset-down', desc: '04:00 PM - 08:00 PM' },
-            { key: 'night', label: 'Night', icon: 'weather-night', desc: '08:00 PM - 11:59 PM' }
-          ].map((group) => {
+          {TIME_GROUPS.map((group) => {
             const isExpanded = expandedGroup === group.key;
             const slotList = groupedSlots[group.key] || [];
             return (
@@ -664,12 +702,9 @@ const SlotPickerScreen = ({ route, navigation }) => {
       {/* ── Bottom Booking Card ── */}
       <View style={[styles.bottomBookingCard, { bottom: Math.max(safeBottom, 12) }]}>
         <View style={styles.bookingLeft}>
-          <Text style={styles.selectedCountLabel}>
-            {selectedIntervalMode === '60'
-              ? `${selectedSlots.length / 2} Hour${selectedSlots.length / 2 === 1 ? '' : 's'}`
-              : `${selectedSlots.length} Slot${selectedSlots.length === 1 ? '' : 's'}`
-            } Selected
-          </Text>
+          {/* <Text style={styles.selectedCountLabel}>
+            {selectedSlots.length} {selectedSlots.length === 1 ? 'SLOT' : 'SLOTS'} SELECTED
+          </Text> */}
           <Text style={styles.selectedPrice}>₹{totalSelectedPrice}</Text>
         </View>
         <TouchableOpacity
@@ -855,9 +890,6 @@ const SlotPickerScreen = ({ route, navigation }) => {
               {/* Modal Footer with Book Now Button */}
               <View style={styles.fsModalFooter}>
                 <View style={styles.fsFooterSummaryRow}>
-                  <Text style={styles.fsFooterLabel}>
-                    {selectedSlots.length} slot{selectedSlots.length === 1 ? '' : 's'} selected
-                  </Text>
                   <Text style={styles.fsFooterPriceLabel}>
                     Total: <Text style={{ color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold }}>₹{totalSelectedPrice}</Text>
                   </Text>
@@ -1193,11 +1225,73 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   headerTitle: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
 
+  /* ── Sticky Top Header Section ── */
+  stickyHeaderSection: {
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: 10,
+    zIndex: 9,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.3 : 0.05,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  timeNavContainer: {
+    marginTop: 2,
+  },
+  timeNavScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  timeNavChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  timeNavChipActive: {
+    backgroundColor: '#FFD400',
+    borderColor: '#FFD400',
+  },
+  timeNavText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textPrimary,
+  },
+  timeNavTextActive: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
+  },
+  timeNavBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+    backgroundColor: isDark ? 'rgba(255,212,0,0.15)' : 'rgba(0,0,0,0.06)',
+  },
+  timeNavBadgeActive: {
+    backgroundColor: '#000',
+  },
+  timeNavBadgeText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFD400',
+  },
+  timeNavBadgeTextActive: {
+    color: '#FFD400',
+  },
+
   /* ── Horizontal Date Selector ── */
   datePickerContainer: {
-    marginTop: 10,
+    marginTop: 6,
     paddingTop: 4,
-    paddingBottom: 12,
+    paddingBottom: 8,
     backgroundColor: colors.background,
   },
   dateScroll: { paddingHorizontal: 16, gap: 10 },
@@ -1297,22 +1391,22 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     borderRadius: 6,
   },
   popularText: { color: '#000', fontSize: 8, fontFamily: Typography.fontFamily.bold },
-  groupContent: { padding: 14, backgroundColor: colors.surface },
+  groupContent: { paddingHorizontal: 10, paddingVertical: 12, backgroundColor: colors.surface },
   noSlotsText: { color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 12 },
 
   /* ── Slot Grid & Cards ── */
   slotsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
     justifyContent: 'flex-start',
   },
   slotCard: {
-    width: Math.floor((SCREEN_WIDTH - 76) / 3),
-    minHeight: 60,
+    width: Math.floor((SCREEN_WIDTH - 70) / 3),
+    minHeight: 58,
     borderRadius: 12,
     paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -1637,7 +1731,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   fsFooterSummaryRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
   },
@@ -1650,6 +1744,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
     color: colors.textPrimary,
+    textAlign: 'center',
   },
   fsBookNowBtn: {
     height: 44,

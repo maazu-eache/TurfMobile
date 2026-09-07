@@ -3,8 +3,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
   ActivityIndicator, Modal, TextInput, Animated, StatusBar,
-  Platform, KeyboardAvoidingView, PermissionsAndroid, NativeModules
+  Platform, KeyboardAvoidingView, PermissionsAndroid, NativeModules, Dimensions
 } from 'react-native';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Svg, { Circle } from 'react-native-svg';
@@ -2672,13 +2674,13 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
   groupLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
   groupDesc: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary, marginTop: 1 },
   groupHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  groupContent: { padding: 14, backgroundColor: colors.surface },
+  groupContent: { paddingHorizontal: 10, paddingVertical: 12, backgroundColor: colors.surface },
   noSlotsText: { color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 20 },
 
   /* ── Slot Grid & Cards ── */
-  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' },
+  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-start' },
   slotCard: {
-    width: '31.3%', minHeight: 60, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+    width: Math.floor((SCREEN_WIDTH - 70) / 3), minHeight: 58, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 2, alignItems: 'center', justifyContent: 'center', marginBottom: 8,
     borderWidth: 1, position: 'relative',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2,
   },
