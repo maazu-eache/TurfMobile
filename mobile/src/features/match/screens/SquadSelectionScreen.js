@@ -15,7 +15,7 @@ import {
   RefreshControl,
   ScrollView
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/Feather';
@@ -27,6 +27,8 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 
 const SquadSelectionScreen = () => {
   const { colors, shadows, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const navigation = useNavigation();
   const route = useRoute();
@@ -275,9 +277,12 @@ const SquadSelectionScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: safeTop }]}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Icon name="arrow-left" size={24} color={colors.textPrimary} />
+        </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle} numberOfLines={1}>
             Playing Squad ({team?.name})
@@ -491,7 +496,7 @@ const SquadSelectionScreen = () => {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -506,19 +511,19 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    paddingBottom: 15,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
   },
   backButton: {
-    padding: 5,
+    padding: 4,
   },
   headerTitleContainer: {
     flex: 1,
-    marginLeft: 15,
+    marginLeft: 10,
   },
   headerTitle: {
     fontFamily: Typography.fontFamily.bold,

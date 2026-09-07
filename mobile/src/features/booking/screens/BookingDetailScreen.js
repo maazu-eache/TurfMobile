@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, SafeAreaView, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { Colors, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -11,6 +12,8 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 
 
 const BookingDetailScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const { bookingId } = route.params;
   const dispatch = useDispatch();
   const [showPolicyModal, setShowPolicyModal] = useState(false);
@@ -98,11 +101,11 @@ const BookingDetailScreen = ({ navigation, route }) => {
           <Image source={{ uri: imageUrl }} style={styles.headerImage} />
           <View style={styles.overlay} />
           
-          <SafeAreaView style={styles.headerButtons}>
+          <View style={[styles.headerButtons, { top: safeTop + 8 }]}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
               <Icon name="chevron-left" size={28} color="#FFF" />
             </TouchableOpacity>
-          </SafeAreaView>
+          </View>
 
           <View style={styles.headerContent}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) }]}>

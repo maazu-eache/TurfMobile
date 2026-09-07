@@ -9,16 +9,20 @@ import {
   Animated,
   Image,
   Dimensions,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Spacing, Typography } from '../../../theme/theme';
+import { Colors, Spacing, Typography, useTheme } from '../../../theme/theme';
 import auctionService from '../../../services/auctionService';
 import { getImageUrl } from '../../../api/axios';
 
 const { width } = Dimensions.get('window');
 
 const AuctionLivePublicScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { auctionId } = route.params || {};
@@ -143,19 +147,19 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: safeTop, paddingBottom: Math.max(safeBottom, 8) }]}>
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Connecting to live auction...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <View style={[styles.container, { paddingBottom: Math.max(safeBottom, 8) }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: safeTop + 6 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -440,7 +444,7 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
         )}
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

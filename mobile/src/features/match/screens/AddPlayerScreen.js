@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api from '../../../api/axios';
@@ -9,6 +9,8 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 
 const AddPlayerScreen = ({ route, navigation }) => {
   const { colors, shadows, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { teamId, onPlayerAdded, onClose, roster = [], oppositionRoster = [], squad = [] } = route.params || {};
 
@@ -118,7 +120,7 @@ const AddPlayerScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: safeTop }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="chevron-left" size={28} color={colors.textPrimary} />
@@ -247,7 +249,7 @@ const AddPlayerScreen = ({ route, navigation }) => {
           )}
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 

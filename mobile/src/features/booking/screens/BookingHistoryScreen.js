@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView, Dimensions, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView, Dimensions, StatusBar, Platform } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useDispatch, useSelector } from 'react-redux';
@@ -8,7 +8,7 @@ import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/them
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { formatISTDateFull, formatISTTime } from '../../../utils/dateFormatter';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.surface },
@@ -104,6 +104,8 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
 
 const BookingHistoryScreen = ({ navigation }) => {
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
 
@@ -219,7 +221,7 @@ const BookingHistoryScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <View style={[styles.safeArea, { paddingTop: safeTop }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
       <View style={styles.container}>
         {/* Header */}
@@ -288,7 +290,7 @@ const BookingHistoryScreen = ({ navigation }) => {
           )}
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 

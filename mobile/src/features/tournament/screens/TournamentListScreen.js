@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Image, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api from '../../../api/axios';
@@ -10,6 +10,9 @@ import LocationAutocomplete from '../../../components/LocationAutocomplete';
 const TABS = ['Upcoming', 'Ongoing', 'Completed', 'My Tournaments'];
 
 const TournamentListScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [activeTab, setActiveTab] = useState('Upcoming');
@@ -86,7 +89,7 @@ const TournamentListScreen = ({ navigation }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: safeTop, paddingBottom: Math.max(safeBottom, 8) }]}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Tournaments</Text>
@@ -142,7 +145,7 @@ const TournamentListScreen = ({ navigation }) => {
       >
         <Icon name="plus" size={24} color={colors.textOnPrimary} />
       </TouchableOpacity>
-    </SafeAreaView>
+    </View>
   );
 };
 

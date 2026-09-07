@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -39,6 +39,7 @@ const slides = [
 const OnboardingScreen = () => {
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  console.log('📱 [OnboardingScreen] RENDERING...');
 
 /* ─── Animated pagination dots ─────────────────────────── */
 const Pagination = ({ data, scrollX, colors }) => (
@@ -70,6 +71,11 @@ const Pagination = ({ data, scrollX, colors }) => (
   }).current;
   const viewConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
 
+  useEffect(() => {
+    console.log('📱 [OnboardingScreen] MOUNTED');
+    return () => console.log('📱 [OnboardingScreen] UNMOUNTED');
+  }, []);
+
   const handleNext = () => {
     if (currentIndex < slides.length - 1) {
       slidesRef.current.scrollToIndex({ index: currentIndex + 1 });
@@ -78,22 +84,25 @@ const Pagination = ({ data, scrollX, colors }) => (
     }
   };
 
-  const renderItem = ({ item }) => (
-    <View style={styles.slide}>
-      {/* Icon */}
-      <View style={styles.iconBlock}>
-        <View style={styles.iconCircle}>
-          <Icon name={item.icon} size={52} color={colors.primary} />
+  const renderItem = ({ item, index }) => {
+    console.log('📱 [OnboardingScreen] renderItem index:', index, 'title:', item.title);
+    return (
+      <View style={styles.slide}>
+        {/* Icon */}
+        <View style={styles.iconBlock}>
+          <View style={styles.iconCircle}>
+            <Icon name={item.icon} size={52} color={colors.primary} />
+          </View>
+        </View>
+
+        {/* Text */}
+        <View style={styles.textBlock}>
+          <Text style={styles.title}>{item.title}</Text>
+          <Text style={styles.description}>{item.description}</Text>
         </View>
       </View>
-
-      {/* Text */}
-      <View style={styles.textBlock}>
-        <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.description}>{item.description}</Text>
-      </View>
-    </View>
-  );
+    );
+  };
 
   const isLast = currentIndex === slides.length - 1;
 

@@ -2,9 +2,9 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Animated, Dimensions, TextInput,
-  StatusBar, FlatList,
+  StatusBar, FlatList, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -31,6 +31,9 @@ const computeLiveNRR = (pt, battingFirst, score, maxOvers) => {
 };
 
 const QualificationCalculatorScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
 
@@ -402,11 +405,11 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
   const canCalculate = selectedTeamId && selectedOpponentId && firstInningsScore && parseInt(firstInningsScore) > 0 && oversInput && parseFloat(oversInput) > 0;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+    <View style={[styles.safe, { paddingBottom: Math.max(safeBottom, 8) }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: safeTop + 6 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Icon name="arrow-left" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -718,7 +721,7 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
 
         <View style={{ height: 60 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

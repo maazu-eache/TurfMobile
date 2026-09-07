@@ -10,10 +10,11 @@ import {
   Image,
   Dimensions,
   ScrollView,
+  Platform,
 } from 'react-native';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -25,7 +26,10 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const TossScreen = ({ route, navigation }) => {
   const { colors, shadows, isDark } = useTheme();
-  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, safeBottom), [colors, shadows, isDark, safeBottom]);
   const { matchId } = route.params;
   
   const [match, setMatch] = useState(null);
@@ -109,14 +113,14 @@ const TossScreen = ({ route, navigation }) => {
 
   if (loading || !match) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingTop: safeTop }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <View style={[styles.safe, { paddingTop: safeTop }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -314,11 +318,11 @@ const TossScreen = ({ route, navigation }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
-const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+const createStyles = (colors, shadows, isDark, safeBottom = 0) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, backgroundColor: colors.background },
   header: {
@@ -591,6 +595,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     marginTop: 'auto',
     paddingTop: Spacing.base,
     paddingHorizontal: Spacing.base,
+    paddingBottom: Math.max(safeBottom, Spacing.base),
   },
   startBtn: {
     borderRadius: BorderRadius.md,

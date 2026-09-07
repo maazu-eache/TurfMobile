@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Dimensions, Alert, Modal, TextInput, Image, ImageBackground, FlatList, BackHandler, Share, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Dimensions, Alert, Modal, TextInput, Image, ImageBackground, FlatList, BackHandler, Share, ActivityIndicator, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -80,7 +80,10 @@ const globalAlwaysSkipWagonWheel = {};
 
 const LiveScorerScreen = ({ navigation, route }) => {
   const { colors, shadows, isDark } = useTheme();
-  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, safeTop, safeBottom), [colors, shadows, isDark, safeTop, safeBottom]);
   const matchIdRaw = route.params?.matchId || route.params?.id || route.params?.match?._id || route.params?.match;
   const cleanMatchId = socketService.cleanId(matchIdRaw);
   const matchId = cleanMatchId;
@@ -1735,7 +1738,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <View style={[styles.container, { paddingTop: safeTop }]}>
       {isScoring && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }]}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -2688,97 +2691,199 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
       {/* Settings Modal (Right Sidebar) */}
       {showSettingsModal ? (
-        <Modal visible={true} transparent animationType="fade">
+        <Modal visible={true} transparent animationType="fade" onRequestClose={() => setShowSettingsModal(false)}>
           <TouchableOpacity
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', flexDirection: 'row', justifyContent: 'flex-end' }}
+            style={styles.sidebarBackdrop}
             activeOpacity={1}
             onPress={() => setShowSettingsModal(false)}
           >
             <TouchableOpacity
               activeOpacity={1}
-              style={{ width: '75%', backgroundColor: colors.background, height: '100%', padding: 20, paddingTop: 60, elevation: 5, shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 5 }}
+              style={styles.sidebarSheet}
             >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ fontSize: 20, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Match Settings</Text>
-                <TouchableOpacity onPress={() => setShowSettingsModal(false)}><Icon name="close" size={24} color={colors.textSecondary} /></TouchableOpacity>
-              </View>
-              <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                <View style={{ gap: 12 }}>
-                  <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('view_scoreboard')}>
-                    <Icon name="clipboard-text-outline" size={20} color={colors.primary} style={{ marginRight: 12 }} />
-                    <Text style={[styles.bsBtnText, { color: colors.primary }]}>View Full Scorecard</Text>
-                  </TouchableOpacity>
-
-                  {isCreator && isMatchActive ? (
-                    <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('toggle_single_wicket')}>
-                      <Icon name="account-outline" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
-                      <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>{match?.isSingleWicketBatting ? 'Disable' : 'Enable'} Single Wicket Batting</Text>
-                    </TouchableOpacity>
-                  ) : null}
-
-                  <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-
-                  {(isCreator || isScorer) && isMatchActive ? (
-                    <>
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('add_penalty_runs')}>
-                        <Icon name="plus-circle-outline" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
-                        <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Add Penalty Runs</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('retired_hurt')}>
-                        <Icon name="medical-bag" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
-                        <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Retired Hurt</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_innings')}>
-                        <Icon name="flag-outline" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
-                        <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Declare Innings</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('end_innings')}>
-                        <Icon name="stop-circle-outline" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
-                        <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>End Innings Manually</Text>
-                      </TouchableOpacity>
-
-                      {/* ── Between / 2nd Innings Settings ─────────────── */}
-                      {liveState?.inningsNumber >= 2 && (
-                        <>
-                          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-                          <Text style={{ fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 4, paddingHorizontal: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>2nd Innings Settings</Text>
-
-                          <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('revise_overs')}>
-                            <Icon name="weather-lightning-rainy" size={20} color='#29B6F6' style={{ marginRight: 12 }} />
-                            <View style={{ flex: 1 }}>
-                              <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Revised Target (Rain / DLS)</Text>
-                              <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }}>Reduce overs & set new target</Text>
-                            </View>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_dls')}>
-                            <Icon name="scale-balance" size={20} color={colors.info} style={{ marginRight: 12 }} />
-                            <View style={{ flex: 1 }}>
-                              <Text style={[styles.bsBtnText, { color: colors.info }]}>Declare Winner via DLS</Text>
-                              <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }}>End match now using DLS method</Text>
-                            </View>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16, borderWidth: 1, borderColor: `${colors.error}40` }]} onPress={() => handleSettingsAction('abandon')}>
-                            <Icon name="cancel" size={20} color={colors.error} style={{ marginRight: 12 }} />
-                            <View style={{ flex: 1 }}>
-                              <Text style={[styles.bsBtnText, { color: colors.error }]}>Abandon Match</Text>
-                              <Text style={{ fontSize: 10, color: `${colors.error}99`, marginTop: 1 }}>Irreversible — match will be void</Text>
-                            </View>
-                          </TouchableOpacity>
-                        </>
-                      )}
-
-                      {/* Abandon always accessible in 1st innings too */}
-                      {liveState?.inningsNumber < 2 && (
-                        <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('abandon')}>
-                          <Icon name="cancel" size={20} color={colors.error} style={{ marginRight: 12 }} />
-                          <Text style={[styles.bsBtnText, { color: colors.error }]}>Abandon Match</Text>
-                        </TouchableOpacity>
-                      )}
-                    </>
-                  ) : null}
+              {/* Sidebar Header */}
+              <View style={styles.sidebarHeader}>
+                <View style={styles.sidebarHeaderLeft}>
+                  <View style={styles.sidebarHeaderIconBadge}>
+                    <Icon name="cog" size={20} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.sidebarHeaderTitle}>Match Controls</Text>
+                    <Text style={styles.sidebarHeaderSub}>Innings {liveState?.inningsNumber || 1} Settings</Text>
+                  </View>
                 </View>
+                <TouchableOpacity
+                  style={styles.sidebarCloseBtn}
+                  onPress={() => setShowSettingsModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="close" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.sidebarHairline} />
+
+              <KeyboardAwareScrollView
+                enableOnAndroid={true}
+                extraScrollHeight={20}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: Math.max(safeBottom, 20) }}
+              >
+                {/* QUICK ACTIONS SECTION */}
+                <Text style={styles.sidebarSectionTitle}>Quick Actions</Text>
+
+                <TouchableOpacity
+                  style={styles.sidebarCard}
+                  activeOpacity={0.7}
+                  onPress={() => handleSettingsAction('view_scoreboard')}
+                >
+                  <View style={[styles.sidebarCardIconBox, { backgroundColor: `${colors.primary}20` }]}>
+                    <Icon name="clipboard-text-outline" size={20} color={colors.primary} />
+                  </View>
+                  <View style={styles.sidebarCardBody}>
+                    <Text style={styles.sidebarCardTitle}>View Full Scorecard</Text>
+                    <Text style={styles.sidebarCardDesc}>Detailed breakdown of match stats</Text>
+                  </View>
+                  <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                </TouchableOpacity>
+
+                {isCreator && isMatchActive ? (
+                  <TouchableOpacity
+                    style={styles.sidebarCard}
+                    activeOpacity={0.7}
+                    onPress={() => handleSettingsAction('toggle_single_wicket')}
+                  >
+                    <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(59, 130, 246, 0.12)' }]}>
+                      <Icon name="account-outline" size={20} color="#3B82F6" />
+                    </View>
+                    <View style={styles.sidebarCardBody}>
+                      <Text style={styles.sidebarCardTitle}>Single Wicket Batting</Text>
+                      <Text style={styles.sidebarCardDesc}>{match?.isSingleWicketBatting ? 'Enabled (Tap to disable)' : 'Disabled (Tap to enable)'}</Text>
+                    </View>
+                    <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                ) : null}
+
+                {(isCreator || isScorer) && isMatchActive ? (
+                  <>
+                    <Text style={[styles.sidebarSectionTitle, { marginTop: 16 }]}>Innings Controls</Text>
+
+                    <TouchableOpacity
+                      style={styles.sidebarCard}
+                      activeOpacity={0.7}
+                      onPress={() => handleSettingsAction('add_penalty_runs')}
+                    >
+                      <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+                        <Icon name="plus-circle-outline" size={20} color="#10B981" />
+                      </View>
+                      <View style={styles.sidebarCardBody}>
+                        <Text style={styles.sidebarCardTitle}>Add Penalty Runs</Text>
+                        <Text style={styles.sidebarCardDesc}>Award extra runs to either team</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.sidebarCard}
+                      activeOpacity={0.7}
+                      onPress={() => handleSettingsAction('retired_hurt')}
+                    >
+                      <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(244, 63, 94, 0.12)' }]}>
+                        <Icon name="medical-bag" size={20} color="#F43F5E" />
+                      </View>
+                      <View style={styles.sidebarCardBody}>
+                        <Text style={styles.sidebarCardTitle}>Retired Hurt</Text>
+                        <Text style={styles.sidebarCardDesc}>Mark current batter as retired</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.sidebarCard}
+                      activeOpacity={0.7}
+                      onPress={() => handleSettingsAction('declare_innings')}
+                    >
+                      <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(249, 115, 22, 0.12)' }]}>
+                        <Icon name="flag-outline" size={20} color="#F97316" />
+                      </View>
+                      <View style={styles.sidebarCardBody}>
+                        <Text style={styles.sidebarCardTitle}>Declare Innings</Text>
+                        <Text style={styles.sidebarCardDesc}>Conclude current batting innings</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.sidebarCard}
+                      activeOpacity={0.7}
+                      onPress={() => handleSettingsAction('end_innings')}
+                    >
+                      <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(100, 116, 139, 0.12)' }]}>
+                        <Icon name="stop-circle-outline" size={20} color="#64748B" />
+                      </View>
+                      <View style={styles.sidebarCardBody}>
+                        <Text style={styles.sidebarCardTitle}>End Innings Manually</Text>
+                        <Text style={styles.sidebarCardDesc}>Advance to next innings</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    {/* 2nd Innings Settings */}
+                    {liveState?.inningsNumber >= 2 && (
+                      <>
+                        <Text style={[styles.sidebarSectionTitle, { marginTop: 16 }]}>2nd Innings Rain / Rules</Text>
+
+                        <TouchableOpacity
+                          style={styles.sidebarCard}
+                          activeOpacity={0.7}
+                          onPress={() => handleSettingsAction('revise_overs')}
+                        >
+                          <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(14, 165, 233, 0.12)' }]}>
+                            <Icon name="weather-lightning-rainy" size={20} color="#0EA5E9" />
+                          </View>
+                          <View style={styles.sidebarCardBody}>
+                            <Text style={styles.sidebarCardTitle}>Revised Target (Rain / DLS)</Text>
+                            <Text style={styles.sidebarCardDesc}>Reduce overs & recalculate target</Text>
+                          </View>
+                          <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.sidebarCard}
+                          activeOpacity={0.7}
+                          onPress={() => handleSettingsAction('declare_dls')}
+                        >
+                          <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
+                            <Icon name="scale-balance" size={20} color="#8B5CF6" />
+                          </View>
+                          <View style={styles.sidebarCardBody}>
+                            <Text style={styles.sidebarCardTitle}>Declare Winner via DLS</Text>
+                            <Text style={styles.sidebarCardDesc}>End match using DLS method</Text>
+                          </View>
+                          <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                        </TouchableOpacity>
+                      </>
+                    )}
+
+                    {/* Abandon Match */}
+                    <Text style={[styles.sidebarSectionTitle, { marginTop: 20 }]}>Danger Zone</Text>
+                    <TouchableOpacity
+                      style={styles.sidebarDangerCard}
+                      activeOpacity={0.7}
+                      onPress={() => handleSettingsAction('abandon')}
+                    >
+                      <View style={styles.sidebarDangerIconBox}>
+                        <Icon name="cancel" size={20} color={colors.error} />
+                      </View>
+                      <View style={styles.sidebarCardBody}>
+                        <Text style={styles.sidebarDangerTitle}>Abandon Match</Text>
+                        <Text style={styles.sidebarDangerDesc}>Irreversible — match will be void</Text>
+                      </View>
+                      <Icon name="alert-circle-outline" size={18} color={colors.error} />
+                    </TouchableOpacity>
+                  </>
+                ) : null}
               </KeyboardAwareScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
@@ -3164,12 +3269,11 @@ const LiveScorerScreen = ({ navigation, route }) => {
       >
         <MatchSummaryPoster liveState={liveState} />
       </SharePreviewModal>
-
-    </SafeAreaView>
+    </View>
   );
 };
 
-const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => StyleSheet.create({
   playerChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -3949,6 +4053,142 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   bsBtn: { width: '48%', height: 50, backgroundColor: colors.surfaceVariant, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   bsBtnDanger: { backgroundColor: isDark ? 'rgba(244,67,54,0.18)' : 'rgba(244,67,54,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(244,67,54,0.35)' : 'rgba(244,67,54,0.2)' },
   bsBtnText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.medium },
+
+  // ── Modern Right Sidebar Drawer ──
+  sidebarBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  sidebarSheet: {
+    width: '84%',
+    maxWidth: 360,
+    backgroundColor: colors.surface,
+    height: '100%',
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
+    paddingTop: Math.max(safeTop, 20) + 12,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: -6, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sidebarHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sidebarHeaderIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: `${colors.primary}20`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sidebarHeaderTitle: {
+    fontSize: 18,
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  sidebarHeaderSub: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: 1,
+  },
+  sidebarCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sidebarHairline: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 14,
+  },
+  sidebarSectionTitle: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    fontFamily: Typography.fontFamily.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
+  sidebarCard: {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+    borderRadius: BorderRadius.md || 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 10,
+  },
+  sidebarCardIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sidebarCardBody: {
+    flex: 1,
+    paddingHorizontal: 12,
+  },
+  sidebarCardTitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textPrimary,
+  },
+  sidebarCardDesc: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  sidebarDangerCard: {
+    backgroundColor: 'rgba(239, 68, 68, 0.06)',
+    borderRadius: BorderRadius.md || 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+    marginBottom: 10,
+  },
+  sidebarDangerIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sidebarDangerTitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.error,
+  },
+  sidebarDangerDesc: {
+    fontSize: 11,
+    color: 'rgba(239, 68, 68, 0.75)',
+    marginTop: 2,
+  },
 
   // action button shared
   actionBtnPrimary: {

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, searchGlobalTeams } from '../../team/teamSlice';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -21,6 +21,8 @@ import AddTeamModal from '../../tournament/components/AddTeamModal';
 
 const MatchTeamSelectionScreen = ({ navigation, route }) => {
   const { colors, shadows, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const dispatch = useDispatch();
   const { selectingFor, teamA, teamB, tournamentDetails, activeTab: initialActiveTab, onSelectTeam, matchStage } = route.params;
@@ -151,7 +153,7 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={[styles.safe, { paddingTop: safeTop }]}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Icon name="arrow-left" size={24} color={colors.textPrimary} />
@@ -269,7 +271,7 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
           }}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Image, BackHandler, Modal, ScrollView, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Image, BackHandler, Modal, ScrollView, RefreshControl, Platform } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Typography, BorderRadius, Spacing, useTheme } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
@@ -12,7 +12,10 @@ import socketService from '../../../services/socketService';
 
 const SelectBowlerScreen = ({ route, navigation }) => {
   const { colors, shadows, isDark } = useTheme();
-  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, safeTop, safeBottom), [colors, shadows, isDark, safeTop, safeBottom]);
   const { matchId } = route.params;
   const dispatch = useDispatch();
 
@@ -270,7 +273,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: safeTop }]}>
       {submitting && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }]}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -401,7 +404,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
 
       <Modal visible={showEditSquadModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <SafeAreaView style={styles.modalContentFull} edges={['top', 'bottom']}>
+          <View style={styles.modalContentFull}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Playing XI (Bowlers)</Text>
               <TouchableOpacity onPress={() => setShowEditSquadModal(false)}>
@@ -492,7 +495,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                 {isSavingSquad ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Squad</Text>}
               </TouchableOpacity>
             </View>
-          </SafeAreaView>
+          </View>
         </View>
       </Modal>
 
@@ -527,11 +530,11 @@ const SelectBowlerScreen = ({ route, navigation }) => {
           <Text style={styles.editBtnText}>Edit Squad / Add Player</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
-const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -675,7 +678,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   footer: {
     padding: Spacing.md,
-    paddingBottom: Spacing.md,
+    paddingBottom: Math.max(safeBottom, Spacing.md),
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
@@ -743,10 +746,10 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   modalContentFull: {
     backgroundColor: colors.surface,
-    padding: Spacing.base,
-    maxHeight: '92%',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    paddingHorizontal: Spacing.base,
+    paddingTop: safeTop + 8,
+    paddingBottom: Math.max(safeBottom, 16),
+    flex: 1,
   },
   modalHeader: {
     flexDirection: 'row',

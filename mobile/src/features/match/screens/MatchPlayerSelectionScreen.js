@@ -12,9 +12,10 @@ import {
   Image,
   Alert,
   FlatList,
-  RefreshControl
+  RefreshControl,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -26,7 +27,10 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 
 const MatchPlayerSelectionScreen = () => {
   const { colors, shadows, isDark } = useTheme();
-  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, safeTop, safeBottom), [colors, shadows, isDark, safeTop, safeBottom]);
   const route = useRoute();
   const navigation = useNavigation();
   const dispatch = useDispatch();
@@ -457,9 +461,9 @@ const MatchPlayerSelectionScreen = () => {
 
   if (!liveState || !liveState.match) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { paddingTop: safeTop }]}>
         <ActivityIndicator size="large" color={colors.primary} />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -528,7 +532,7 @@ const MatchPlayerSelectionScreen = () => {
   const isMatchActive = !['completed', 'abandoned'].includes(liveState?.match?.status);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={[styles.safe, { paddingTop: safeTop }]}>
       {submitting && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }]}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -557,29 +561,62 @@ const MatchPlayerSelectionScreen = () => {
 
         {/* Target Banner for 2nd Innings */}
         {liveState?.inningsNumber === 2 && liveState?.target ? (
-          <View style={styles.targetBanner}>
-            <View style={styles.targetCol}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Icon name="target" size={14} color="#EF5350" style={{ marginRight: 4 }} />
-                <Text style={[styles.targetLabel, { marginBottom: 0 }]}>Target</Text>
+          <View style={styles.targetCard}>
+            {/* Header sub-row: Match situation pill & context */}
+            <View style={styles.targetCardHeader}>
+              <View style={styles.targetBadgeLive}>
+                <View style={styles.targetLiveDot} />
+                <Text style={styles.targetBadgeText}>2ND INNINGS CHASE</Text>
               </View>
-              <Text style={styles.targetValue}>{liveState.target}</Text>
+              {liveState?.isDlsTarget ? (
+                <View style={styles.targetDlsBadge}>
+                  <Icon name="weather-lightning-rainy" size={12} color="#0284C7" style={{ marginRight: 4 }} />
+                  <Text style={styles.targetDlsText}>DLS REVISED</Text>
+                </View>
+              ) : (
+                <Text style={styles.targetTeamChaseText} numberOfLines={1}>
+                  {batTeam?.name ? `${batTeam.name} Chase` : 'Chase Equation'}
+                </Text>
+              )}
             </View>
-            <View style={styles.targetDivider} />
-            <View style={styles.targetCol}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Icon name="flash" size={14} color="#FFCA28" style={{ marginRight: 4 }} />
-                <Text style={[styles.targetLabel, { marginBottom: 0 }]}>RRR</Text>
+
+            {/* Metrics Row */}
+            <View style={styles.targetMetricsRow}>
+              {/* Target */}
+              <View style={styles.targetMetricCol}>
+                <View style={[styles.targetIconPill, { backgroundColor: 'rgba(239, 68, 68, 0.08)' }]}>
+                  <Icon name="target" size={12} color="#EF4444" style={{ marginRight: 4 }} />
+                  <Text style={[styles.targetMetricLabel, { color: '#EF4444' }]}>TARGET</Text>
+                </View>
+                <Text style={styles.targetBigNum}>{liveState.target}</Text>
               </View>
-              <Text style={styles.targetValue}>{liveState.requiredRunRate || '0.00'}</Text>
-            </View>
-            <View style={styles.targetDivider} />
-            <View style={styles.targetCol}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Icon name="cricket" size={14} color="#FF7043" style={{ marginRight: 4 }} />
-                <Text style={[styles.targetLabel, { marginBottom: 0 }]}>Need</Text>
+
+              <View style={styles.targetMetricDivider} />
+
+              {/* RRR */}
+              <View style={styles.targetMetricCol}>
+                <View style={[styles.targetIconPill, { backgroundColor: 'rgba(245, 158, 11, 0.08)' }]}>
+                  <Icon name="flash" size={12} color="#F59E0B" style={{ marginRight: 4 }} />
+                  <Text style={[styles.targetMetricLabel, { color: '#F59E0B' }]}>REQ. RATE</Text>
+                </View>
+                <Text style={styles.targetBigNum}>{liveState.requiredRunRate || '0.00'}</Text>
               </View>
-              <Text style={[styles.targetValue, { fontSize: 16 }]}>{liveState.toWin} off {liveState.ballsRemaining}b</Text>
+
+              <View style={styles.targetMetricDivider} />
+
+              {/* Need */}
+              <View style={[styles.targetMetricCol, { flex: 1.3 }]}>
+                <View style={[styles.targetIconPill, { backgroundColor: 'rgba(59, 130, 246, 0.08)' }]}>
+                  <Icon name="flag-checkered" size={12} color="#3B82F6" style={{ marginRight: 4 }} />
+                  <Text style={[styles.targetMetricLabel, { color: '#3B82F6' }]}>EQUATION</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 1 }}>
+                  <Text style={[styles.targetBigNum, { color: '#2563EB' }]}>{liveState.toWin}</Text>
+                  <Text style={styles.targetEquationSub}> off </Text>
+                  <Text style={styles.targetBigNum}>{liveState.ballsRemaining}</Text>
+                  <Text style={styles.targetEquationSub}>b</Text>
+                </View>
+              </View>
             </View>
           </View>
         ) : (
@@ -651,7 +688,7 @@ const MatchPlayerSelectionScreen = () => {
       {showSquadModal ? (
         <Modal visible={true} animationType="slide" transparent>
           <View style={styles.modalOverlay}>
-            <SafeAreaView style={styles.modalContent} edges={['top', 'bottom']}>
+            <View style={styles.modalContent}>
               <View style={styles.pullHandle} />
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select from Squad</Text>
@@ -796,7 +833,7 @@ const MatchPlayerSelectionScreen = () => {
                 <Icon name="pencil" size={20} color={colors.primary} />
                 <Text style={styles.editSquadBtnText}>Edit Squad / Add Player</Text>
               </TouchableOpacity>
-            </SafeAreaView>
+            </View>
           </View>
         </Modal>
       ) : null}
@@ -805,7 +842,7 @@ const MatchPlayerSelectionScreen = () => {
       {showEditSquadModal ? (
         <Modal visible={true} animationType="slide" transparent>
           <View style={styles.modalOverlay}>
-            <SafeAreaView style={styles.modalContentFull} edges={['top', 'bottom']}>
+            <View style={styles.modalContentFull}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Edit Playing XI</Text>
                 <TouchableOpacity onPress={() => setShowEditSquadModal(false)}>
@@ -933,7 +970,7 @@ const MatchPlayerSelectionScreen = () => {
                   {isSavingSquad ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Squad</Text>}
                 </TouchableOpacity>
               </View>
-            </SafeAreaView>
+            </View>
           </View>
         </Modal>
       ) : null}
@@ -942,65 +979,123 @@ const MatchPlayerSelectionScreen = () => {
 
       {/* Settings Modal (Right Sidebar) */}
       {showSettingsModal ? (
-        <Modal visible={true} transparent animationType="fade">
+        <Modal visible={true} transparent animationType="fade" onRequestClose={() => setShowSettingsModal(false)}>
           <TouchableOpacity
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', flexDirection: 'row', justifyContent: 'flex-end' }}
+            style={styles.sidebarBackdrop}
             activeOpacity={1}
             onPress={() => setShowSettingsModal(false)}
           >
             <TouchableOpacity
               activeOpacity={1}
-              style={{ width: '75%', backgroundColor: colors.background, height: '100%', padding: 20, paddingTop: 60, elevation: 5, shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 5 }}
+              style={styles.sidebarSheet}
             >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ fontSize: 20, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Match Settings</Text>
-                <TouchableOpacity onPress={() => setShowSettingsModal(false)}><Icon name="close" size={24} color={colors.textSecondary} /></TouchableOpacity>
-              </View>
-              <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                <View style={{ gap: 12 }}>
-                  {isCreator && isMatchActive ? (
-                    <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('add_scorer')}>
-                      <Icon name="account-plus-outline" size={20} color={colors.textPrimary} style={{ marginRight: 12 }} />
-                      <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Add / Change Scorer</Text>
-                    </TouchableOpacity>
-                  ) : null}
-
-                  {/* ── Between / 2nd Innings Settings ─────────────── */}
-                  {liveState?.inningsNumber >= 2 && (
-                    <>
-                      <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-                      <Text style={{ fontSize: 11, color: colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 4, paddingHorizontal: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>2nd Innings Settings</Text>
-
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('revise_overs')}>
-                        <Icon name="weather-lightning-rainy" size={20} color='#29B6F6' style={{ marginRight: 12 }} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.bsBtnText, { color: colors.textPrimary }]}>Revised Target (Rain / DLS)</Text>
-                          <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }}>Reduce overs & set new target</Text>
-                        </View>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity style={[styles.bsBtn, { width: '100%', height: 50, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }]} onPress={() => handleSettingsAction('declare_dls')}>
-                        <Icon name="scale-balance" size={20} color={colors.info} style={{ marginRight: 12 }} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.bsBtnText, { color: colors.info }]}>Declare Winner via DLS</Text>
-                          <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 1 }}>End match now using DLS method</Text>
-                        </View>
-                      </TouchableOpacity>
-                    </>
-                  )}
-
-                  <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-
-                  {isCreator && isMatchActive ? (
-                    <TouchableOpacity style={[styles.bsBtn, styles.bsBtnDanger, { width: '100%', height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16, borderWidth: 1, borderColor: `${colors.error}40` }]} onPress={() => handleSettingsAction('abandon')}>
-                      <Icon name="cancel" size={20} color={colors.error} style={{ marginRight: 12 }} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.bsBtnText, { color: colors.error }]}>Abandon Match</Text>
-                        <Text style={{ fontSize: 10, color: `${colors.error}99`, marginTop: 1 }}>Irreversible — match will be void</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ) : null}
+              {/* Sidebar Header */}
+              <View style={styles.sidebarHeader}>
+                <View style={styles.sidebarHeaderLeft}>
+                  <View style={styles.sidebarHeaderIconBadge}>
+                    <Icon name="cog" size={20} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.sidebarHeaderTitle}>Match Controls</Text>
+                    <Text style={styles.sidebarHeaderSub}>Innings {liveState?.inningsNumber || 1} Settings</Text>
+                  </View>
                 </View>
+                <TouchableOpacity
+                  style={styles.sidebarCloseBtn}
+                  onPress={() => setShowSettingsModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="close" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.sidebarHairline} />
+
+              <KeyboardAwareScrollView
+                enableOnAndroid={true}
+                extraScrollHeight={20}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: Math.max(safeBottom, 20) }}
+              >
+                {/* MATCH MANAGEMENT SECTION */}
+                <Text style={styles.sidebarSectionTitle}>Match Management</Text>
+
+                {isCreator && isMatchActive ? (
+                  <TouchableOpacity
+                    style={styles.sidebarCard}
+                    activeOpacity={0.7}
+                    onPress={() => handleSettingsAction('add_scorer')}
+                  >
+                    <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(59, 130, 246, 0.12)' }]}>
+                      <Icon name="account-plus-outline" size={20} color="#3B82F6" />
+                    </View>
+                    <View style={styles.sidebarCardBody}>
+                      <Text style={styles.sidebarCardTitle}>Add / Change Scorer</Text>
+                      <Text style={styles.sidebarCardDesc}>Delegate match scoring permissions</Text>
+                    </View>
+                    <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                ) : null}
+
+                {/* 2ND INNINGS SETTINGS */}
+                {liveState?.inningsNumber >= 2 && (
+                  <>
+                    <Text style={[styles.sidebarSectionTitle, { marginTop: 16 }]}>2nd Innings Rain / Rules</Text>
+
+                    <TouchableOpacity
+                      style={styles.sidebarCard}
+                      activeOpacity={0.7}
+                      onPress={() => handleSettingsAction('revise_overs')}
+                    >
+                      <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(14, 165, 233, 0.12)' }]}>
+                        <Icon name="weather-lightning-rainy" size={20} color="#0EA5E9" />
+                      </View>
+                      <View style={styles.sidebarCardBody}>
+                        <Text style={styles.sidebarCardTitle}>Revised Target (Rain / DLS)</Text>
+                        <Text style={styles.sidebarCardDesc}>Reduce total overs & recalculate target</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.sidebarCard}
+                      activeOpacity={0.7}
+                      onPress={() => handleSettingsAction('declare_dls')}
+                    >
+                      <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
+                        <Icon name="scale-balance" size={20} color="#8B5CF6" />
+                      </View>
+                      <View style={styles.sidebarCardBody}>
+                        <Text style={styles.sidebarCardTitle}>Declare Winner via DLS</Text>
+                        <Text style={styles.sidebarCardDesc}>Conclude match using official DLS method</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </>
+                )}
+
+                {/* CRITICAL ACTIONS SECTION */}
+                {isCreator && isMatchActive ? (
+                  <>
+                    <Text style={[styles.sidebarSectionTitle, { marginTop: 20 }]}>Danger Zone</Text>
+
+                    <TouchableOpacity
+                      style={styles.sidebarDangerCard}
+                      activeOpacity={0.7}
+                      onPress={() => handleSettingsAction('abandon')}
+                    >
+                      <View style={styles.sidebarDangerIconBox}>
+                        <Icon name="cancel" size={20} color={colors.error} />
+                      </View>
+                      <View style={styles.sidebarCardBody}>
+                        <Text style={styles.sidebarDangerTitle}>Abandon Match</Text>
+                        <Text style={styles.sidebarDangerDesc}>Irreversible — match will be void</Text>
+                      </View>
+                      <Icon name="alert-circle-outline" size={18} color={colors.error} />
+                    </TouchableOpacity>
+                  </>
+                ) : null}
               </KeyboardAwareScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
@@ -1260,11 +1355,11 @@ const MatchPlayerSelectionScreen = () => {
           </View>
         </Modal>
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 };
 
-const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background, overflow: 'hidden' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   header: {
@@ -1290,7 +1385,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 1,
   },
-  content: { padding: Spacing.base, paddingBottom: Spacing.xl, flexGrow: 1, justifyContent: 'space-between' },
+  content: { padding: Spacing.base, paddingBottom: Spacing.xl, flexGrow: 1 },
   subtitle: {
     fontSize: 14,
     color: colors.textSecondary,
@@ -1490,7 +1585,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   footer: {
     padding: Spacing.base,
-    paddingBottom: Spacing.md,
+    paddingBottom: Math.max(safeBottom, Spacing.base),
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
     backgroundColor: colors.surface,
@@ -1516,13 +1611,17 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   modalContent: {
     backgroundColor: colors.surface,
-    padding: Spacing.base,
-    height: '100%',
+    paddingHorizontal: Spacing.base,
+    paddingTop: safeTop + 8,
+    paddingBottom: Math.max(safeBottom, 16),
+    flex: 1,
   },
   modalContentFull: {
     backgroundColor: colors.surface,
-    padding: Spacing.base,
-    height: '100%',
+    paddingHorizontal: Spacing.base,
+    paddingTop: safeTop + 8,
+    paddingBottom: Math.max(safeBottom, 16),
+    flex: 1,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1604,7 +1703,8 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: colors.primaryAlpha20,
-    marginTop: Spacing.base,
+    marginTop: Spacing.sm,
+    marginBottom: Math.max(safeBottom, 12),
   },
   editSquadBtnText: {
     marginLeft: 8,
@@ -1682,37 +1782,242 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     right: 15,
     top: 15,
   },
-  targetBanner: {
+  targetCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
+    shadowOpacity: isDark ? 0.25 : 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  targetCardHeader: {
     flexDirection: 'row',
-    backgroundColor: colors.primaryAlpha20,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.primaryAlpha20,
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
   },
-  targetCol: {
+  targetBadgeLive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    gap: 5,
+  },
+  targetLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#EF4444',
+  },
+  targetBadgeText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#EF4444',
+    letterSpacing: 0.8,
+  },
+  targetTeamChaseText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textSecondary,
+  },
+  targetDlsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(2, 132, 199, 0.1)',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  targetDlsText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#0284C7',
+    letterSpacing: 0.5,
+  },
+  targetMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  targetMetricCol: {
     flex: 1,
     alignItems: 'center',
   },
-  targetDivider: {
-    width: 1,
-    height: '100%',
-    backgroundColor: colors.primaryAlpha20,
-  },
-  targetLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
+  targetIconPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 6,
     marginBottom: 4,
-    textTransform: 'uppercase',
+  },
+  targetMetricLabel: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
     letterSpacing: 0.5,
   },
-  targetValue: {
-    fontSize: 20,
-    color: colors.primary,
+  targetBigNum: {
+    fontSize: 22,
     fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  targetEquationSub: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+    paddingHorizontal: 1,
+  },
+  targetMetricDivider: {
+    width: 1,
+    height: 38,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+  },
+
+  // ── Sidebar Styles ──
+  sidebarBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  sidebarSheet: {
+    width: '84%',
+    maxWidth: 360,
+    backgroundColor: colors.surface,
+    height: '100%',
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
+    paddingTop: Math.max(safeTop, 20) + 12,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: -6, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sidebarHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sidebarHeaderIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: `${colors.primary}20`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sidebarHeaderTitle: {
+    fontSize: 18,
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  sidebarHeaderSub: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: 1,
+  },
+  sidebarCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sidebarHairline: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 14,
+  },
+  sidebarSectionTitle: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    fontFamily: Typography.fontFamily.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
+  sidebarCard: {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+    borderRadius: BorderRadius.md || 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 10,
+  },
+  sidebarCardIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sidebarCardBody: {
+    flex: 1,
+    paddingHorizontal: 12,
+  },
+  sidebarCardTitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textPrimary,
+  },
+  sidebarCardDesc: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  sidebarDangerCard: {
+    backgroundColor: 'rgba(239, 68, 68, 0.06)',
+    borderRadius: BorderRadius.md || 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+    marginBottom: 10,
+  },
+  sidebarDangerIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sidebarDangerTitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.error,
+  },
+  sidebarDangerDesc: {
+    fontSize: 11,
+    color: 'rgba(239, 68, 68, 0.75)',
+    marginTop: 2,
   },
   selectionContainerCard: {
     backgroundColor: colors.surface,

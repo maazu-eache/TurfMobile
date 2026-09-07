@@ -121,6 +121,14 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     bottom: 0,
     zIndex: 1,
   },
+  topGuardGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    zIndex: 2,
+  },
   heroOverlayContent: {
     position: 'absolute',
     bottom: 16,
@@ -879,6 +887,7 @@ const PlayerProfileScreen = ({ navigation }) => {
   const { styles, colors, shadows, isDark } = useProfileStyles();
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const { user } = useSelector(state => state.auth);
   const matchHistory = useSelector(state => state.player.matchHistory || []);
   const { myProfile, isLoading } = useSelector(state => state.player);
@@ -1559,10 +1568,10 @@ const PlayerProfileScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* Floating nav bar over banner */}
-      <View style={[styles.navBarAbsolute, { paddingTop: insets.top || 10 }]} pointerEvents="box-none">
+      <View style={[styles.navBarAbsolute, { paddingTop: safeTop }]} pointerEvents="box-none">
         <View style={styles.navBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} activeOpacity={0.8}>
             <Icon name="arrow-back" size={22} color="#FFFFFF" />
@@ -1593,6 +1602,14 @@ const PlayerProfileScreen = ({ navigation }) => {
               <Text style={styles.heroBgFallbackLetter}>{form.name?.[0]?.toUpperCase() || 'P'}</Text>
             </View>
           )}
+
+          {/* Top dark guard — keeps status bar text readable over any photo */}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.60)', 'rgba(0,0,0,0.20)', 'transparent']}
+            locations={[0, 0.4, 1]}
+            style={styles.topGuardGradient}
+            pointerEvents="none"
+          />
 
           {/* Gradient + overlay content sits on top via zIndex */}
           <LinearGradient

@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { fetchMyMatches } from '../matchSlice';
@@ -15,6 +16,8 @@ const TABS = [
 
 const LiveMatchesScreen = () => {
   const { colors, shadows, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [activeTab, setActiveTab] = useState('live');
   const dispatch = useDispatch();
@@ -111,7 +114,7 @@ const LiveMatchesScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: safeTop }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Matches</Text>
       </View>
@@ -145,7 +148,7 @@ const LiveMatchesScreen = () => {
           )
         }
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

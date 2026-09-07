@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Image, Modal, FlatList, Platform, ToastAndroid, Dimensions,
-  RefreshControl, TextInput, KeyboardAvoidingView
+  RefreshControl, TextInput, KeyboardAvoidingView, StatusBar
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,6 +67,7 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   const { id } = route.params || {};
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
 
   const { viewedPlayer, myProfile, achievements, availableBallTypes, matchHistory, isLoading } =
     useSelector(state => state.player);
@@ -303,10 +304,10 @@ const PlayerDetailScreen = ({ navigation, route }) => {
   };
 
   if (localLoading) {
-    return (<SafeAreaView style={styles.centeredState}><ActivityIndicator size="large" color={colors.primary} /><Text style={styles.loadingText}>Loading profile…</Text></SafeAreaView>);
+    return (<View style={[styles.centeredState, { paddingTop: safeTop }]}><ActivityIndicator size="large" color={colors.primary} /><Text style={styles.loadingText}>Loading profile…</Text></View>);
   }
   if (!viewedPlayer || viewedPlayer._id !== id) {
-    return (<SafeAreaView style={styles.centeredState}><Icon name="alert-circle-outline" size={52} color={colors.error} /><Text style={styles.errorText}>Player profile not found</Text><TouchableOpacity style={styles.goBackBtn} onPress={() => navigation.goBack()}><Text style={styles.goBackBtnText}>Go Back</Text></TouchableOpacity></SafeAreaView>);
+    return (<View style={[styles.centeredState, { paddingTop: safeTop }]}><Icon name="alert-circle-outline" size={52} color={colors.error} /><Text style={styles.errorText}>Player profile not found</Text><TouchableOpacity style={styles.goBackBtn} onPress={() => navigation.goBack()}><Text style={styles.goBackBtnText}>Go Back</Text></TouchableOpacity></View>);
   }
 
   const viewedPlayerUserId = viewedPlayer.userId?._id || viewedPlayer.userId;
@@ -604,8 +605,9 @@ const PlayerDetailScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       {/* Transparent back nav overlaid on banner */}
-      <View style={[styles.navBarAbsolute, { paddingTop: insets.top }]} pointerEvents="box-none">
+      <View style={[styles.navBarAbsolute, { paddingTop: safeTop }]} pointerEvents="box-none">
         <View style={styles.navBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Icon name="arrow-back" size={22} color="#FFFFFF" />
@@ -646,6 +648,14 @@ const PlayerDetailScreen = ({ navigation, route }) => {
               resizeMode="cover"
             />
           )}
+
+          {/* Top dark guard — keeps status bar readable over any image */}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.60)', 'rgba(0,0,0,0.20)', 'transparent']}
+            locations={[0, 0.4, 1]}
+            style={styles.topGuardGradient}
+            pointerEvents="none"
+          />
 
           {/* Gradient + overlay content sits on top via zIndex */}
           <LinearGradient
@@ -1088,6 +1098,14 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 1,
+  },
+  topGuardGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    zIndex: 2,
   },
   heroOverlayContent: {
     position: 'absolute',

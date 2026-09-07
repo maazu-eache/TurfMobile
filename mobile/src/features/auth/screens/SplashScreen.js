@@ -10,12 +10,16 @@ const { width, height } = Dimensions.get('window');
 const SplashScreen = ({ navigation, onFinished }) => {
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  const videoRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
+  console.log('🎬 [SplashScreen] RENDERING... isAuthenticated:', isAuthenticated, 'user:', user?._id);
+
   useEffect(() => {
+    console.log('🎬 [SplashScreen] Mounted -> Starting animation & 3.5s safety timer');
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
       Animated.spring(scaleAnim, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
@@ -23,7 +27,6 @@ const SplashScreen = ({ navigation, onFinished }) => {
     ]).start();
   }, []);
 
-  const videoRef = useRef(null);
 
   return (
     <View style={styles.backgroundImage}>
@@ -33,8 +36,19 @@ const SplashScreen = ({ navigation, onFinished }) => {
         style={StyleSheet.absoluteFill}
         resizeMode="cover"
         repeat={false}
+        paused={false}
         muted={false}
-        onEnd={onFinished}
+        ignoreSilentSwitch="ignore"
+        playInBackground={false}
+        playWhenInactive={false}
+        onEnd={() => {
+          console.log('🎬 [SplashScreen] Video finished');
+          onFinished?.();
+        }}
+        onError={(err) => {
+          console.log('🎬 [SplashScreen] Video error / fallback to screen:', err);
+          onFinished?.();
+        }}
       />
     </View>
   );

@@ -4,7 +4,7 @@ import {
   ScrollView, Image, ActivityIndicator, TextInput, Modal,
   Animated, ToastAndroid, Platform, RefreshControl, StatusBar
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, toggleFollowTeam, joinTeam } from '../teamSlice';
@@ -21,6 +21,8 @@ const SECTION_TABS = [
 
 const TeamListScreen = ({ navigation }) => {
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
 
@@ -158,7 +160,7 @@ const TeamListScreen = ({ navigation }) => {
   const currentLoading = activeSection === 'my' ? isLoading : activeSection === 'opponents' ? opponentsLoading : followingLoading;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={[styles.safe, { paddingTop: safeTop }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
       {/* ── Header ── */}
       <View style={styles.header}>
@@ -265,7 +267,7 @@ const TeamListScreen = ({ navigation }) => {
         />
       )}
 
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -37,24 +37,30 @@ const TABS = [
 ];
 
 // ── Small info row ──────────────────────────────────────────────────
-const InfoRow = ({ icon, label, value, valueColor }) => (
-  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 }}>
-    <Icon name={icon} size={13} color="rgba(255,255,255,0.4)" />
-    <Text style={{ fontSize: 11, fontFamily: 'Outfit-Medium', color: 'rgba(255,255,255,0.6)' }}>{label}</Text>
-    <Text style={[{ fontSize: 11, fontFamily: 'Outfit-Bold', color: '#FFF', marginLeft: 'auto' }, valueColor && { color: valueColor }]}>{value}</Text>
-  </View>
-);
+const InfoRow = ({ icon, label, value, valueColor }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 }}>
+      <Icon name={icon} size={13} color={colors.textTertiary} />
+      <Text style={{ fontSize: 11, fontFamily: 'Outfit-Medium', color: colors.textSecondary }}>{label}</Text>
+      <Text style={[{ fontSize: 11, fontFamily: 'Outfit-Bold', color: colors.textPrimary, marginLeft: 'auto' }, valueColor && { color: valueColor }]}>{value}</Text>
+    </View>
+  );
+};
 
 // ── Empty state ────────────────────────────────────────────────────
-const EmptyState = ({ icon, message }) => (
-  <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 60, paddingBottom: 40, gap: 10 }}>
-    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.04)', justifyContent: 'center', alignItems: 'center' }}>
-      <Icon name={icon} size={32} color="rgba(255,255,255,0.3)" />
+const EmptyState = ({ icon, message }) => {
+  const { colors, isDark } = useTheme();
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 60, paddingBottom: 40, gap: 10 }}>
+      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', justifyContent: 'center', alignItems: 'center' }}>
+        <Icon name={icon} size={32} color={colors.textTertiary} />
+      </View>
+      <Text style={{ fontSize: 16, fontFamily: 'Outfit-Bold', color: colors.textPrimary }}>No Data Available</Text>
+      <Text style={{ fontSize: 12, fontFamily: 'Outfit-Regular', color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 32 }}>{message}</Text>
     </View>
-    <Text style={{ fontSize: 16, fontFamily: 'Outfit-Bold', color: '#FFF' }}>Nothing here</Text>
-    <Text style={{ fontSize: 12, fontFamily: 'Outfit-Regular', color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>{message}</Text>
-  </View>
-);
+  );
+};
 
 const FinanceView = () => {
   const { colors, isDark, shadows } = useTheme();

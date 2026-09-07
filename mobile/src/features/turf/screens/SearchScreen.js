@@ -1,5 +1,6 @@
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../../theme/ThemeContext';
 import {
   View,
@@ -18,7 +19,7 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -146,6 +147,7 @@ const SortChip = ({ label, icon, active, onPress }) => (
 
 
   const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const dispatch = useDispatch();
   const user = useSelector((s) => s.auth?.user);
   const favourites = user?.favourites?.map(f => typeof f === 'string' ? f : f._id || f) || [];
@@ -182,6 +184,12 @@ const SortChip = ({ label, icon, active, onPress }) => (
   const [locLoading, setLocLoading] = useState(false);
   const locTimeoutRef = useRef(null);
   const locInputRef = useRef(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
+    }, [isDark])
+  );
 
   useEffect(() => {
     if (!myProfile && user) dispatch(fetchMyPlayer());
@@ -749,8 +757,8 @@ const SortChip = ({ label, icon, active, onPress }) => (
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+    <View style={[styles.safe, { paddingTop: safeTop }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       {/* ── HEADER ── */}
       <View style={styles.header}>
@@ -1096,7 +1104,7 @@ const SortChip = ({ label, icon, active, onPress }) => (
           </View>
         </Animated.View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -15,8 +15,9 @@ import {
   StatusBar,
   Share,
   Linking,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -92,6 +93,9 @@ const getMinPrice = (pricing) => {
 // Removed hardcoded CARD_HEIGHTS to use dynamic measurement for a flawless Apple Wallet stack
 
 const TurfDetailScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 34 : 0);
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { id } = route.params;
@@ -671,7 +675,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
       </Animated.ScrollView>
 
       {/* ── Fixed Top bar (Floating Glass Header) ── */}
-      <SafeAreaView style={styles.floatingTopBar} edges={['top']} pointerEvents="box-none">
+      <View style={[styles.floatingTopBar, { paddingTop: safeTop + 8 }]} pointerEvents="box-none">
         <View style={styles.topBarInner}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.floatingIconBtn}>
             <Icon name="arrow-left" size={20} color="#FFF" />
@@ -708,7 +712,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
-      </SafeAreaView>
+      </View>
       
       <SharePreviewModal
         visible={shareModalVisible}
@@ -720,7 +724,7 @@ const TurfDetailScreen = ({ route, navigation }) => {
       </SharePreviewModal>
 
       {/* ── Floating Sticky Bottom Booking Card ── */}
-      <View style={styles.bottomStickyBar}>
+      <View style={[styles.bottomStickyBar, { bottom: safeBottom + 14 }]}>
         <View style={styles.bottomPriceBlock}>
           <Text style={styles.bottomPriceLabel}>Starting from</Text>
           <View style={styles.bottomPriceRow}>

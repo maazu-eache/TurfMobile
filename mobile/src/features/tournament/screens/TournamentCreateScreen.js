@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Modal, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useSelector } from 'react-redux';
@@ -23,6 +23,9 @@ const WICKETS_OPTIONS = ['10', '11', '15', '20'];
 
 const TournamentCreateScreen = ({ navigation }) => {
   const { colors, shadows, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
 
 const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
@@ -362,7 +365,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
   const bowlerQuota = form.overs && !isNaN(parseInt(form.overs)) ? Math.ceil(parseInt(form.overs) / 5) : 0;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: safeTop, paddingBottom: Math.max(safeBottom, 12) }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => step === 0 ? navigation.goBack() : setStep(0)}>
           <Icon name="arrow-left" size={24} color={colors.textPrimary} />
@@ -635,7 +638,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 

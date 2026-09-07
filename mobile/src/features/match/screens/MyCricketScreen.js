@@ -367,6 +367,7 @@ const MyCricketScreen = ({ route }) => {
 
   useEffect(() => {
     if (isFocused) {
+      StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
       const targetTab = route?.params?.tab || 'Matches';
       if (route?.params?.tab) {
         navigation.setParams({ tab: undefined });
@@ -395,6 +396,7 @@ const MyCricketScreen = ({ route }) => {
     }
   }, [isFocused, route?.params?.tab, navigation]);
   const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
 
   const { myMatches, matches, isLoading: matchLoading } = useSelector(state => state.match);
   const { myTeams, opponentTeams, followingTeams, isLoading: teamLoading, opponentsLoading, followingLoading } = useSelector(state => state.team);
@@ -601,7 +603,7 @@ const MyCricketScreen = ({ route }) => {
   }, [activeTopTab, activeSubTab, dispatch]);
 
   const renderTopTabBar = () => (
-    <View style={{ paddingTop: insets.top, backgroundColor: colors.surface }}>
+    <View style={{ paddingTop: safeTop, backgroundColor: colors.surface }}>
       <View style={styles.topTabBar}>
         {TOP_TABS.map(tab => (
           <TouchableOpacity key={tab} onPress={() => handleTopTabChange(tab)} style={[styles.topTabBtn, activeTopTab === tab && styles.topTabBtnActive]} activeOpacity={0.8}>

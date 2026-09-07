@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl, Share, TextInput, BackHandler, Pressable, Linking } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Modal, FlatList, Dimensions, Image, ImageBackground, StatusBar, Animated as RNAnimated, Easing, Alert, RefreshControl, Share, TextInput, BackHandler, Pressable, Linking, Platform } from 'react-native';
+import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -216,6 +216,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const [activeAudioUrl, setActiveAudioUrl] = useState(null);
 
+  const safeTtsStop = useCallback(() => {
+    if (Platform.OS !== 'ios') {
+      try {
+        Tts.stop();
+      } catch (e) { }
+    }
+  }, []);
+
   // Initialize TTS configuration and cleanup on unmount
   useEffect(() => {
     Tts.setDefaultLanguage('en-IN').catch(() => {
@@ -228,22 +236,22 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       console.error("Failed to fetch voices:", err);
     });
     return () => {
-      Tts.stop();
+      safeTtsStop();
     };
-  }, []);
+  }, [safeTtsStop]);
 
   const handleVoiceSpeak = useCallback(async (ball) => {
     if (!ball.commentary) return;
 
     if (ball.audioUrl) {
       console.log("🎙️ Streaming commentary from Cloudinary URL:", ball.audioUrl);
-      Tts.stop();
+      safeTtsStop();
       setActiveAudioUrl(ball.audioUrl);
       return;
     }
 
     try {
-      Tts.stop();
+      safeTtsStop();
       setActiveAudioUrl(null); // Stop any playing network audio
 
       const isShastri = /Shastri/i.test(ball.commentary);
@@ -259,13 +267,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       if (isShastri) {
         // Shastri: Look for 'ene' (male Google TTS voice) or 'ahp' (male) or fallback to first en-IN
         voiceToUse = enInVoices.find(v => v.id.includes('ene')) || enInVoices.find(v => v.id.includes('ahp')) || enInVoices[0];
-        Tts.setDefaultPitch(1.0); // Use natural pitch to avoid robotic distortion
-        Tts.setDefaultRate(0.5);  // Standard conversational rate
+        Tts.setDefaultPitch(1.0).catch(() => {}); // Use natural pitch to avoid robotic distortion
+        Tts.setDefaultRate(0.5).catch(() => {});  // Standard conversational rate
       } else {
         // Bhogle: Look for 'ene' or another en-IN voice
         voiceToUse = enInVoices.find(v => v.id.includes('ene')) || enInVoices[0];
-        Tts.setDefaultPitch(1.0); // Use natural pitch to avoid robotic distortion
-        Tts.setDefaultRate(0.5);  // Standard conversational rate
+        Tts.setDefaultPitch(1.0).catch(() => {}); // Use natural pitch to avoid robotic distortion
+        Tts.setDefaultRate(0.5).catch(() => {});  // Standard conversational rate
       }
 
       if (voiceToUse) {
@@ -305,6 +313,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     return () => { isMounted = false; };
   }, [cleanMatchId, currentUser?._id]);
   const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
   const reduxLiveState = useSelector((state) => state.match.liveState);
   const [matchData, setMatchData] = useState(null);
   const matchDataRef = useRef(null);
@@ -986,7 +996,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   if (matchNotFound) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { paddingTop: safeTop }]}>
         <Text style={styles.errorText}>Match data not found</Text>
         <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('My Cricket', { screen: 'MyCricketMain' })} style={{ marginTop: 20 }}>
           <Text style={{ color: colors.primary }}>Go Back</Text>
@@ -998,7 +1008,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   if (!isCurrentMatchLoaded || !liveState?.match) {
     socketService.remoteLog('MatchSummaryScreen', `Loading condition met: isCurrentMatchLoaded=${isCurrentMatchLoaded}, cleanMatchId=${cleanMatchId}, liveStateMatchId=${liveState?.match?._id || liveState?.matchId}`);
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, paddingTop: safeTop }]}>
         <ActivityIndicator size="large" color={colors.primary} style={{ marginBottom: 16 }} />
         <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 18 }}>
           Loading Match Summary...
@@ -5351,19 +5361,19 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
+    <View style={styles.container}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.primaryDark} />
 
       {/* ── Modern Header ── */}
       <LinearGradient
         colors={colors.primaryGradient || ['#FFCC00', '#E6B800']}
-        style={[styles.headerPrimary, { paddingTop: insets.top + 4 }]}
+        style={[styles.headerPrimary, { paddingTop: safeTop + 4 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       >
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.headerBackBtn} onPress={handleBackPress} activeOpacity={0.7}>
-            <Icon name="arrow-left" size={20} color="#fff" />
+            <Icon name="arrow-left" size={20} color="#111827" />
           </TouchableOpacity>
 
           <View style={styles.headerCenter}>
@@ -5403,14 +5413,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             {isActiveScorer && match.status !== 'completed' && match.status !== 'abandoned' && match.status !== 'no_result' && (
               <TouchableOpacity style={{ padding: 8 }} onPress={() => setShowSettingsModal(true)}>
-                <Icon name="cog" size={20} color="#fff" />
+                <Icon name="cog" size={20} color="#111827" />
               </TouchableOpacity>
             )}
             <TouchableOpacity style={{ padding: 8 }} onPress={() => navigation.navigate('CreateTicketScreen', { matchId: match._id, category: 'Match Dispute' })}>
-              <Icon name="alert-circle-outline" size={20} color="#ffffff" />
+              <Icon name="alert-circle-outline" size={20} color="#111827" />
             </TouchableOpacity>
             <TouchableOpacity style={{ padding: 8 }} onPress={handleShare}>
-              <Icon name="share-variant" size={20} color="#fff" />
+              <Icon name="share-variant" size={20} color="#111827" />
             </TouchableOpacity>
           </View>
         </View>
@@ -5465,7 +5475,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       {isActiveScorer && match.status !== 'completed' && match.status !== 'abandoned' && match.status !== 'no_result' && (
         <View style={{
           position: 'absolute',
-          bottom: insets.bottom + 16,
+          bottom: Math.max(safeBottom, 16),
           left: 16,
           right: 16,
           backgroundColor: isDark ? 'rgba(28, 28, 30, 0.95)' : colors.surface,
@@ -6149,7 +6159,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         />
       )}
 
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -6173,7 +6183,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.22)',
+    backgroundColor: 'rgba(0,0,0,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -6193,12 +6203,12 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   headerTeamVs: {
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
-    color: '#FFFFFF',
+    color: '#111827',
     letterSpacing: 0.3,
   },
   headerVsText: {
     fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(17,24,39,0.75)',
     fontSize: 11,
     marginTop: 1,
   },

@@ -1,8 +1,8 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, Image, StatusBar } from 'react-native';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSelector } from 'react-redux';
 import { useTheme } from '../theme/theme';
@@ -78,7 +78,7 @@ import PlayerDetailScreen from '../features/player/screens/PlayerDetailScreen';
 import GlobalLeaderboardScreen from '../features/player/screens/GlobalLeaderboardScreen';
 
 const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
 const tabIcons = {
   Home: 'home',
@@ -210,6 +210,7 @@ const CustomTabBar = ({ state, descriptors, navigation, insets }) => {
         const onPress = () => {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
           if (!isFocused && !event.defaultPrevented) {
+            StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
             navigation.navigate(route.name);
           }
         };
@@ -275,7 +276,7 @@ const tabStyles = StyleSheet.create({
 
 
 const HomeStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator detachInactiveScreens={false} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="HomeMain" component={HomeScreen} />
     <Stack.Screen name="TurfDetail" component={TurfDetailScreen} />
     <Stack.Screen name="TurfMap" component={TurfMapScreen} />
@@ -299,7 +300,7 @@ const HomeStack = () => (
 );
 
 const SearchStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator detachInactiveScreens={false} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="SearchMain" component={SearchScreen} />
     <Stack.Screen name="TurfDetail" component={TurfDetailScreen} />
     <Stack.Screen name="TurfMap" component={TurfMapScreen} />
@@ -318,7 +319,7 @@ const SearchStack = () => (
 );
 
 const BookingStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator detachInactiveScreens={false} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="BookingHistory" component={BookingHistoryScreen} />
     <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
 
@@ -331,7 +332,7 @@ const BookingStack = () => (
 );
 
 const MatchStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator detachInactiveScreens={false} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="MyCricketMain" component={MyCricketScreen} />
     <Stack.Screen name="MatchSetup" component={MatchSetupScreen} />
     <Stack.Screen name="MatchTeamSelection" component={MatchTeamSelectionScreen} />
@@ -370,7 +371,7 @@ const MatchStack = () => (
 );
 
 const ProfileStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator detachInactiveScreens={false} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ProfileMain" component={ProfileScreen} />
     <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
     <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} />
@@ -400,6 +401,10 @@ const ProfileStack = () => (
     <Stack.Screen name="BookingConfirm" component={BookingConfirmScreen} />
 
     <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
+    <Stack.Screen name="TournamentList" component={TournamentListScreen} />
+    <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
+    <Stack.Screen name="QualificationCalculator" component={QualificationCalculatorScreen} />
+    <Stack.Screen name="MatchSetup" component={MatchSetupScreen} />
     <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
     <Stack.Screen name="Spectator" component={SpectatorScreen} />
@@ -409,6 +414,7 @@ const ProfileStack = () => (
 const CustomerNavigator = ({ navigation }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);
   const insets = useSafeAreaInsets();
+  console.log('🛍️ [CustomerNavigator] RENDERING... isAuthenticated:', isAuthenticated);
 
   const authGuard = (e) => {
     if (!isAuthenticated) {

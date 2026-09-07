@@ -12,9 +12,10 @@ import {
   TextInput,
   Image,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -30,6 +31,9 @@ const BOWLING_STYLES = ['Right Arm Medium', 'Right Arm Fast', 'Left Arm Medium',
 
 const AuctionCreateSetsScreen = ({ route, navigation }) => {
   const { colors, shadows, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { auctionId: routeAuctionId, tournamentId, isReadOnly, showFinanceForOrganizer } = route.params || {};
   const [targetAuctionId, setTargetAuctionId] = useState(routeAuctionId);
@@ -276,9 +280,9 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <View style={[styles.container, { paddingBottom: Math.max(safeBottom, 8) }]}>
       {/* Compact Top Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: safeTop + 6 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4 }}>
           <Icon name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -866,7 +870,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -32,6 +32,9 @@ class NotificationService {
 
   async getFCMToken() {
     try {
+      if (Platform.OS === 'ios') {
+        await messaging().registerDeviceForRemoteMessages();
+      }
       const fcmToken = await messaging().getToken();
       if (fcmToken) {
         console.log('FCM Token:', fcmToken);
@@ -39,7 +42,7 @@ class NotificationService {
         return fcmToken;
       }
     } catch (error) {
-      console.log('Error getting FCM token', error);
+      console.log('ℹ️ [FCM] Notification token registration info:', error?.message || error);
     }
     return null;
   }
@@ -109,7 +112,13 @@ class NotificationService {
   }
 
   async getInitialNotification() {
-    return await messaging().getInitialNotification();
+    try {
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 800));
+      const notifPromise = messaging().getInitialNotification();
+      return await Promise.race([notifPromise, timeoutPromise]);
+    } catch (e) {
+      return null;
+    }
   }
 
   onNotificationOpenedApp(callback) {

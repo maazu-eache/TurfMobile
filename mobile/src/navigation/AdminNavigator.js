@@ -1,5 +1,5 @@
 import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator } from '@react-navigation/stack';
 
 import AdminDashboardScreen from '../features/admin/screens/AdminDashboardScreen';
 import UserManagerScreen from '../features/admin/screens/UserManagerScreen';
@@ -11,10 +11,10 @@ import CouponManagerScreen from '../features/admin/screens/CouponManagerScreen';
 import AdminSettlementsScreen from '../features/admin/screens/AdminSettlementsScreen';
 import NotificationsScreen from '../features/notification/screens/NotificationsScreen';
 
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
 const AdminNavigator = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator detachInactiveScreens={false} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
     <Stack.Screen name="UserManager" component={UserManagerScreen} />
     <Stack.Screen name="TurfApproval" component={TurfApprovalScreen} />

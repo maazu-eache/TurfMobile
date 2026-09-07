@@ -12,6 +12,7 @@ import {
   Animated,
   StatusBar,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +34,8 @@ const BookingConfirmScreen = ({ route, navigation }) => {
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 34 : 0);
   const paymentProcessed = useRef(false);
 
   useEffect(() => {
@@ -204,7 +207,7 @@ const BookingConfirmScreen = ({ route, navigation }) => {
       {showConfetti && <ConfettiCannon count={200} origin={{x: -10, y: 0}} fallSpeed={3000} fadeOut />}
       
       {/* ── Floating Header ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+      <View style={[styles.header, { paddingTop: safeTop + 14 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Icon name="arrow-left" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -351,7 +354,7 @@ const BookingConfirmScreen = ({ route, navigation }) => {
         </Animated.View>
 
         {/* ── 5. Secure Booking Card ── */}
-        <Animated.View style={[styles.walletCard, styles.walletCardOverlap, getCardStyle(4), { marginBottom: 120 }]}>
+        <Animated.View style={[styles.walletCard, styles.walletCardOverlap, getCardStyle(4), { marginBottom: 140 }]}>
           <View style={styles.secureFeaturesGrid}>
             <View style={styles.secureItem}>
               <Icon name="shield-check" size={14} color="#2ED573" />
@@ -374,7 +377,7 @@ const BookingConfirmScreen = ({ route, navigation }) => {
       </KeyboardAwareScrollView>
 
       {/* ── Floating Sticky Bottom Payment Panel ── */}
-      <View style={styles.floatingPaymentPanel}>
+      <View style={[styles.floatingPaymentPanel, { bottom: safeBottom + 14 }]}>
         <View style={styles.paymentLeft}>
           <Text style={styles.paymentTotalLabel}>Total Amount</Text>
           <Text style={styles.paymentTotalVal}>₹{total}</Text>

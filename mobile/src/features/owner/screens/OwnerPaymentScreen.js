@@ -31,7 +31,7 @@ const OwnerPaymentScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       <LinearGradient colors={colors.primaryGradient || ['#FFCC00', '#E6B800']} style={styles.header}>
         <View style={styles.iconContainer}>

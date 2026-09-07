@@ -9,10 +9,11 @@ import {
   Switch,
   Image,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { Colors, Typography, Spacing, Shadows, BorderRadius, useTheme } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -30,6 +31,8 @@ const GROUND_TYPES = ['Open Ground', 'Indoor', 'Box Cricket', 'Other'];
 
 const MatchEditScreen = ({ navigation, route }) => {
   const { colors, shadows, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const dispatch = useDispatch();
   const { matchData, matchId } = route.params || {};
@@ -170,7 +173,7 @@ const MatchEditScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <View style={[styles.safe, { paddingTop: safeTop }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="chevron-left" size={28} color={colors.textPrimary} />
@@ -302,7 +305,7 @@ const MatchEditScreen = ({ navigation, route }) => {
           )}
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 

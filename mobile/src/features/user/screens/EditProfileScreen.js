@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, ActivityIndicator, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useSelector, useDispatch } from 'react-redux';
@@ -15,6 +15,8 @@ import ImageCropperModal from '../../../components/ImageCropperModal';
 const EditProfileScreen = ({ navigation }) => {
   const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const { colors, shadows, isDark } = useTheme();
 
   const [name, setName] = useState(user?.name || '');
@@ -33,8 +35,8 @@ const EditProfileScreen = ({ navigation }) => {
 
     if (result.assets && result.assets.length > 0) {
       const selected = result.assets[0];
-      if (selected.fileSize && selected.fileSize > 3 * 1024 * 1024) {
-        showCustomAlert('File Too Large', 'Please select an image smaller than 3MB.');
+      if (selected.fileSize && selected.fileSize > 10 * 1024 * 1024) {
+        showCustomAlert('File Too Large', 'Please select an image smaller than 10MB.');
         return;
       }
       setTempImageUri(selected.uri);
@@ -80,7 +82,7 @@ const EditProfileScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: safeTop }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
           <Icon name="arrow-left" size={24} color={colors.textPrimary} />
@@ -173,7 +175,7 @@ const EditProfileScreen = ({ navigation }) => {
           setCropModalVisible(false);
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

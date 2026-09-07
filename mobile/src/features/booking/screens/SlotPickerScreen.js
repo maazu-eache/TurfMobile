@@ -66,6 +66,8 @@ const SlotPickerScreen = ({ route, navigation }) => {
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 34 : 0);
   const { turf, isRescheduling, reschedulingBookingId, oldTotalPrice } = route.params;
   const dispatch = useDispatch();
   const { slots, isLoading } = useSelector((state) => state.slot);
@@ -399,24 +401,34 @@ const SlotPickerScreen = ({ route, navigation }) => {
         activeOpacity={0.8}
       >
         {isBooked ? (
-          <Icon name="lock-outline" size={14} color="rgba(255,255,255,0.25)" style={styles.slotStateIcon} />
+          <Icon name="lock-outline" size={11} color={colors.textDisabled} style={styles.slotStateIcon} />
         ) : isPartiallyBooked ? (
           <View style={styles.slotPartialDot} />
         ) : past ? (
-          <Icon name="clock-alert-outline" size={14} color="rgba(255,255,255,0.15)" style={styles.slotStateIcon} />
+          <Icon name="clock-alert-outline" size={11} color={colors.textDisabled} style={styles.slotStateIcon} />
         ) : isSelected ? (
-          <Icon name="check-circle" size={14} color="#FFF" style={styles.slotStateIcon} />
+          <Icon name="check-circle" size={12} color={isDark ? '#FFD400' : '#8A6D00'} style={styles.slotStateIcon} />
         ) : null}
-        <Text style={[styles.slotTime, textStyle, past && { textDecorationLine: 'line-through' }]}>
+        <Text
+          style={[styles.slotTime, textStyle, past && { textDecorationLine: 'line-through' }]}
+          numberOfLines={2}
+          adjustsFontSizeToFit
+        >
           {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
         </Text>
         {slot.discountPrice !== undefined && slot.discountPrice !== null ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <Text style={[styles.slotPrice, textStyle, { textDecorationLine: 'line-through', opacity: 0.6, fontSize: 9 }]}>₹{slot.price}</Text>
-            <Text style={[styles.slotPrice, textStyle, { color: '#2ed573', fontWeight: 'bold' }]}>₹{slot.discountPrice}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
+            <Text style={[styles.slotPrice, textStyle, { textDecorationLine: 'line-through', opacity: 0.5, fontSize: 9 }]}>
+              ₹{slot.price}
+            </Text>
+            <Text style={[styles.slotPrice, { color: '#2ED573', fontWeight: 'bold' }]}>
+              ₹{slot.discountPrice}
+            </Text>
           </View>
         ) : (
-          <Text style={[styles.slotPrice, textStyle]}>₹{slot.price}</Text>
+          <Text style={[styles.slotPrice, textStyle, isSelected && { color: isDark ? '#FFD400' : '#8A6D00' }]}>
+            ₹{slot.price}
+          </Text>
         )}
       </TouchableOpacity>
     );
@@ -427,7 +439,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
       
       {/* ── Floating 3D Header ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 18 }]}>
+      <View style={[styles.header, { paddingTop: safeTop + 14 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Icon name="arrow-left" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -623,8 +635,8 @@ const SlotPickerScreen = ({ route, navigation }) => {
                   <View style={styles.groupHeaderRight}>
                     <Icon
                       name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                      size={18}
-                      color="rgba(255,255,255,0.4)"
+                      size={20}
+                      color={colors.textSecondary}
                     />
                   </View>
                 </TouchableOpacity>
@@ -650,7 +662,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
       </Animated.ScrollView>
 
       {/* ── Bottom Booking Card ── */}
-      <View style={styles.bottomBookingCard}>
+      <View style={[styles.bottomBookingCard, { bottom: Math.max(safeBottom, 12) }]}>
         <View style={styles.bookingLeft}>
           <Text style={styles.selectedCountLabel}>
             {selectedIntervalMode === '60'
@@ -1159,89 +1171,86 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   center: { justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: Typography.fontSize.sm },
-  scroll: { paddingBottom: 160 },
+  scroll: { paddingBottom: 180 },
 
-  /* ── Floating 3D Header ── */
+  /* ── Header ── */
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingBottom: 16,
+    paddingHorizontal: 16, paddingBottom: 14,
     backgroundColor: colors.surface,
     borderBottomWidth: 1, borderColor: colors.border,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.3 : 0.05, shadowRadius: 4,
+    elevation: 4,
     zIndex: 10,
   },
   headerBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: isDark ? '#171717' : colors.surfaceVariant,
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: isDark ? '#1E1E1E' : colors.surfaceVariant,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: colors.border,
   },
-  headerTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  headerTitle: { fontSize: 17, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
 
   /* ── Horizontal Date Selector ── */
   datePickerContainer: {
-    marginTop: 14,
-    paddingTop: 8,
-    paddingBottom: 14,
+    marginTop: 10,
+    paddingTop: 4,
+    paddingBottom: 12,
     backgroundColor: colors.background,
   },
-  dateScroll: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
+  dateScroll: { paddingHorizontal: 16, gap: 10 },
   calendarBtn: {
-    width: 64, height: 86, borderRadius: 20,
+    width: 62, height: 78, borderRadius: 16,
     backgroundColor: colors.surface,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed',
+    borderWidth: 1.5, borderColor: '#FFD400', borderStyle: 'dashed',
   },
-  calendarBtnText: { fontSize: 10, color: '#FFD400', fontFamily: Typography.fontFamily.bold, marginTop: 4 },
+  calendarBtnText: { fontSize: 11, color: '#FFD400', fontFamily: Typography.fontFamily.bold, marginTop: 4 },
   dateBox: {
-    width: 64, height: 86, borderRadius: 20,
+    width: 62, height: 78, borderRadius: 16,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 6,
-    elevation: 4,
   },
   dateBoxInactive: {
     backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.border,
-    borderBottomWidth: 3, borderBottomColor: colors.borderLight, // extrusion
-    transform: [{ perspective: 1000 }, { rotateX: '6deg' }, { rotateY: '-4deg' }],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.3 : 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   dateBoxSelected: {
-    backgroundColor: isDark ? '#171717' : colors.surfaceVariant,
-    borderWidth: 1, borderColor: '#FFD400',
-    borderBottomWidth: 4, borderBottomColor: '#BCA100', // yellow extrusion
-    transform: [{ scale: 1.02 }],
+    backgroundColor: isDark ? '#2A2400' : '#FFF9D6',
+    borderWidth: 1.5, borderColor: '#FFD400',
     shadowColor: '#FFD400',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25, shadowRadius: 10,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, shadowRadius: 6,
+    elevation: 4,
   },
-  dateDay: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase' },
-  dateNum: { fontSize: 20, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginVertical: 1 },
-  dateMonth: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold },
-  dateTextSelected: { color: '#FFD400' },
+  dateDay: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', marginBottom: 2 },
+  dateNum: { fontSize: 18, color: colors.textPrimary, fontFamily: Typography.fontFamily.extraBold },
+  dateMonth: { fontSize: 10, color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, marginTop: 2 },
+  dateTextSelected: { color: isDark ? '#FFD400' : '#8A6D00' },
 
   /* ── Availability Summary Card ── */
   summaryCard: {
     marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 16,
-    borderRadius: 22,
+    marginTop: 4,
+    marginBottom: 14,
+    borderRadius: 20,
     backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.border,
     padding: 16,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3, shadowRadius: 10,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.3 : 0.05, shadowRadius: 6,
+    elevation: 3,
   },
   summaryLeft: { flex: 1 },
-  summaryTitle: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 12 },
+  summaryTitle: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginBottom: 10 },
   statsRow: { flexDirection: 'row', gap: 18 },
   statBlock: { flexDirection: 'column' },
   statLabel: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, textTransform: 'uppercase' },
@@ -1255,20 +1264,21 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   progressSubText: { fontSize: 7, fontFamily: Typography.fontFamily.bold, color: '#FFD400', textTransform: 'uppercase', marginTop: -2 },
 
   /* ── Expandable Time Groups ── */
-  groupsContainer: { marginHorizontal: 16, marginTop: 6, gap: 14 },
+  groupsContainer: { marginHorizontal: 16, marginTop: 4, gap: 12 },
   groupTile: {
     backgroundColor: colors.surface,
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1, borderColor: colors.border,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8,
-    elevation: 5,
-    marginBottom: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.3 : 0.05, shadowRadius: 6,
+    elevation: 3,
+    marginBottom: 2,
   },
   groupHeader: {
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: colors.surface,
   },
@@ -1277,8 +1287,8 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     backgroundColor: isDark ? '#171717' : colors.surfaceVariant,
   },
   groupHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
-  groupLabel: { fontSize: 14, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
-  groupDesc: { fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginTop: 1 },
+  groupLabel: { fontSize: 15, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+  groupDesc: { fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary, marginTop: 2 },
   groupHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   popularBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
@@ -1288,81 +1298,104 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   popularText: { color: '#000', fontSize: 8, fontFamily: Typography.fontFamily.bold },
   groupContent: { padding: 14, backgroundColor: colors.surface },
-  noSlotsText: { color: colors.textSecondary, fontSize: 11, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 10 },
+  noSlotsText: { color: colors.textSecondary, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 12 },
 
-  /* ── Slot Grid & 3D Mini Cards ── */
-  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: '2.5%', justifyContent: 'flex-start' },
-  slotCard: {
-    width: '31.6%',
-    borderRadius: 18,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 6,
-    elevation: 4,
-    position: 'relative',
-    transform: [{ perspective: 1000 }, { rotateX: '6deg' }],
+  /* ── Slot Grid & Cards ── */
+  slotsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'flex-start',
   },
-  slotStateIcon: { position: 'absolute', top: 4, right: 6 },
-  slotTime: { fontSize: 9, fontFamily: Typography.fontFamily.bold, marginBottom: 2 },
-  slotPrice: { fontSize: 10, fontFamily: Typography.fontFamily.medium },
+  slotCard: {
+    width: Math.floor((SCREEN_WIDTH - 76) / 3),
+    minHeight: 60,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    position: 'relative',
+    borderWidth: 1,
+  },
+  slotStateIcon: { position: 'absolute', top: 4, right: 4 },
+  slotTime: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    textAlign: 'center',
+    marginBottom: 3,
+    lineHeight: 13,
+  },
+  slotPrice: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.extraBold,
+    textAlign: 'center',
+  },
 
   // Slot States Styles
   slotCardAvailable: {
-    backgroundColor: colors.surface,
-    borderWidth: 1, borderColor: '#FFD400',
-    borderBottomWidth: 3, borderBottomColor: '#6A5600', // yellow extrusion
+    backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+    borderColor: isDark ? '#333333' : '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: isDark ? 0.3 : 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
   slotTextAvailable: { color: colors.textPrimary },
   slotCardSelected: {
-    backgroundColor: isDark ? '#171717' : '#FFF9D6',
-    borderWidth: 2, borderColor: isDark ? '#FFD400' : colors.primaryDark,
-    borderBottomWidth: 4, borderBottomColor: '#BCA100',
-    transform: [{ scale: 1.05 }, { translateY: -4 }, { perspective: 1000 }, { rotateX: '6deg' }],
+    backgroundColor: isDark ? '#2B2300' : '#FFF9D6',
+    borderColor: '#FFD400',
+    borderWidth: 1.5,
     shadowColor: '#FFD400',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3, shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 5,
   },
   slotTextSelected: { color: isDark ? '#FFD400' : '#8A6D00' },
   slotCardBooked: {
-    backgroundColor: colors.surface,
-    borderWidth: 1, borderColor: colors.border,
-    borderBottomWidth: 1,
-    opacity: 0.45,
+    backgroundColor: isDark ? '#141414' : '#F8FAFC',
+    borderColor: isDark ? '#262626' : '#E2E8F0',
+    opacity: 0.5,
   },
   slotTextBooked: { color: colors.textDisabled },
   slotCardPast: {
-    backgroundColor: isDark ? '#0A0A0A' : colors.surfaceVariant,
-    borderWidth: 1, borderColor: colors.border,
-    borderBottomWidth: 1,
-    opacity: isDark ? 0.3 : 0.6,
+    backgroundColor: isDark ? '#0F0F0F' : '#F1F5F9',
+    borderColor: isDark ? '#1E1E1E' : '#E2E8F0',
+    opacity: 0.4,
   },
   slotTextPast: { color: colors.textTertiary },
 
   /* ── Bottom Summary Booking Card ── */
   bottomBookingCard: {
-    position: 'absolute', bottom: 16, left: 16, right: 16,
-    height: 72, borderRadius: 36,
-    backgroundColor: isDark ? 'rgba(22,22,22,0.95)' : colors.surface,
-    borderWidth: 1, borderColor: colors.border,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 24,
+    position: 'absolute',
+    bottom: 12,
+    left: 16, right: 16,
+    height: 68,
+    borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(24, 24, 24, 0.96)' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5, shadowRadius: 15,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: isDark ? 0.4 : 0.1,
+    shadowRadius: 10,
+    elevation: 8,
     zIndex: 100,
   },
   bookingLeft: { flexDirection: 'column' },
-  selectedCountLabel: { color: colors.textTertiary, fontSize: 9, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase' },
-  selectedPrice: { color: colors.textPrimary, fontSize: 20, fontFamily: Typography.fontFamily.bold, marginTop: 1 },
-  continueBtn: { borderRadius: 20, overflow: 'hidden', shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 },
-  continueBtnDisabled: { opacity: 0.4, shadowOpacity: 0 },
-  continueBtnGrad: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 20 },
-  continueBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  selectedCountLabel: { color: colors.textTertiary, fontSize: 10, fontFamily: Typography.fontFamily.bold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  selectedPrice: { color: colors.textPrimary, fontSize: 20, fontFamily: Typography.fontFamily.extraBold, marginTop: 1 },
+  continueBtn: { borderRadius: 14, overflow: 'hidden', shadowColor: '#FFD400', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 4 },
+  continueBtnDisabled: { opacity: 0.45, shadowOpacity: 0 },
+  continueBtnGrad: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 20 },
+  continueBtnText: { color: '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
   /* ── Bulk Booking Modal & Base Modals ── */
   modalOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },

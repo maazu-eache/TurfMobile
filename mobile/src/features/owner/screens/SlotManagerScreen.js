@@ -278,8 +278,8 @@ const SlotManagerScreen = ({ navigation, route }) => {
     Tts.setDefaultLanguage('en-IN').catch(() => {
       Tts.setDefaultLanguage('en-US').catch(() => {});
     });
-    Tts.setDefaultRate(0.46);
-    Tts.setDefaultPitch(0.85);
+    Tts.setDefaultRate(0.46).catch(() => {});
+    Tts.setDefaultPitch(0.85).catch(() => {});
 
     // Query and set system male voice
     Tts.voices().then(voices => {
@@ -1084,7 +1084,7 @@ const SlotManagerScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
       
       {/* ── Floating 3D Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 18 }]}>
@@ -2623,14 +2623,11 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
   dateBoxInactive: {
     backgroundColor: colors.surfaceVariant,
     borderWidth: 1, borderColor: colors.border,
-    borderBottomWidth: 3, borderBottomColor: colors.border,
   },
   dateBoxSelected: {
-    backgroundColor: isDark ? colors.surfaceVariant : '#FFFFFF',
+    backgroundColor: isDark ? colors.surfaceVariant : '#FFF9D6',
     borderWidth: 1.5, borderColor: isDark ? '#FFD400' : colors.primaryDark,
-    borderBottomWidth: 4, borderBottomColor: isDark ? '#BCA100' : colors.primaryDark,
-    transform: [{ scale: 1.05 }],
-    shadowColor: isDark ? '#FFD400' : colors.primaryDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
+    shadowColor: isDark ? '#FFD400' : colors.primaryDark, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 5,
   },
   dateDay: { fontSize: 10, color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, textTransform: 'uppercase' },
   dateNum: { fontSize: 20, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, marginVertical: 1 },
@@ -2678,24 +2675,23 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
   groupContent: { padding: 14, backgroundColor: colors.surface },
   noSlotsText: { color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.medium, textAlign: 'center', marginVertical: 20 },
 
-  /* ── Slot Grid & 3D Mini Cards ── */
-  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: '2.5%', justifyContent: 'flex-start' },
+  /* ── Slot Grid & Cards ── */
+  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' },
   slotCard: {
-    width: '31.6%', borderRadius: 18, paddingVertical: 12, alignItems: 'center', marginBottom: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4, position: 'relative',
-    transform: [{ perspective: 1000 }, { rotateX: '6deg' }],
+    width: '31.3%', minHeight: 60, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+    borderWidth: 1, position: 'relative',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2,
   },
-  slotStateIcon: { position: 'absolute', top: 4, right: 6 },
-  slotTime: { fontSize: 9, fontFamily: Typography.fontFamily.bold, marginBottom: 2 },
-  slotPrice: { fontSize: 10, fontFamily: Typography.fontFamily.medium },
+  slotStateIcon: { position: 'absolute', top: 4, right: 4 },
+  slotTime: { fontSize: 10, fontFamily: Typography.fontFamily.bold, marginBottom: 3, textAlign: 'center', lineHeight: 13 },
+  slotPrice: { fontSize: 12, fontFamily: Typography.fontFamily.extraBold, textAlign: 'center' },
 
-  slotCardAvailable: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderBottomWidth: 3, borderBottomColor: colors.border },
+  slotCardAvailable: { backgroundColor: colors.surface, borderColor: colors.border },
   slotTextAvailable: { color: colors.textPrimary },
   
   slotCardSelected: {
-    backgroundColor: isDark ? colors.surfaceVariant : '#FFF9DB', borderWidth: 1.5, borderColor: isDark ? '#FFD400' : colors.primaryDark, borderBottomWidth: 4, borderBottomColor: isDark ? '#BCA100' : colors.primaryDark,
-    transform: [{ scale: 1.05 }, { translateY: -4 }, { perspective: 1000 }, { rotateX: '6deg' }],
-    shadowColor: isDark ? '#FFD400' : colors.primaryDark, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+    backgroundColor: isDark ? colors.surfaceVariant : '#FFF9DB', borderWidth: 1.5, borderColor: isDark ? '#FFD400' : colors.primaryDark,
+    shadowColor: isDark ? '#FFD400' : colors.primaryDark, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 5,
   },
   slotTextSelected: { color: isDark ? '#FFD400' : colors.primaryDark },
   

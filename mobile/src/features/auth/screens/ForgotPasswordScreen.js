@@ -21,6 +21,8 @@ const ForgotPasswordScreen = ({ navigation }) => {
   const [focusedInput, setFocusedInput] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
 
+  console.log('🔒 [ForgotPasswordScreen] RENDERING... phase:', phase);
+
   const dispatch = useDispatch();
   const { isLoading, error } = useSelector((state) => state.auth);
   const insets = useSafeAreaInsets();

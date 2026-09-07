@@ -44,6 +44,13 @@ const LoginScreen = ({ navigation }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [registerRole, setRegisterRole] = useState('customer'); // 'customer' or 'owner'
 
+  console.log('🔑 [LoginScreen] RENDERING... isLogin mode:', isLogin);
+
+  useEffect(() => {
+    console.log('🔑 [LoginScreen] MOUNTED');
+    return () => console.log('🔑 [LoginScreen] UNMOUNTED');
+  }, []);
+
   const navigateByRole = (loggedInUser) => {
     const roles = loggedInUser?.roles || (loggedInUser?.role ? [loggedInUser.role] : []);
     if (roles.includes('admin') || loggedInUser?.role === 'admin') {
@@ -169,7 +176,9 @@ const LoginScreen = ({ navigation }) => {
     }
     try {
       setGoogleLoading(true);
-      await GoogleSignin.hasPlayServices();
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices();
+      }
       try {
         // Force account picker by signing out first
         await GoogleSignin.signOut();

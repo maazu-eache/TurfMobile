@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, FlatList, Share, Modal, TextInput, RefreshControl, StatusBar, ToastAndroid, Platform, Alert, Animated, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import moment from 'moment';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
-import LinearGradient from 'react-native-linear-gradient';
+import LinearGradient from '../../../components/SolidGradient';
 import api, { getImageUrl, BASE_URL } from '../../../api/axios';
 import { useSelector } from 'react-redux';
 import socketService from '../../../services/socketService';
@@ -32,7 +32,9 @@ const TABS = [
 
 const TournamentDetailScreen = ({ route, navigation }) => {
   const { colors, shadows, isDark } = useTheme();
-  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, safeTop), [colors, shadows, isDark, safeTop]);
   const auctionStyles = useMemo(() => createAuctionStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { tournamentId, initialTab, openRegisterModal } = route.params || {};
   const [tournament, setTournament] = useState(null);
@@ -580,11 +582,11 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
   if (loading || !tournament) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', paddingTop: safeTop }]}>
         <MCIcon name="cricket" size={48} color={colors.primary} style={{ marginBottom: 16, opacity: 0.6 }} />
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={{ color: colors.textSecondary, marginTop: 12, fontFamily: Typography.fontFamily.medium, fontSize: 14 }}>Loading tournament...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -1922,8 +1924,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const isFollowing = tournament.followers?.includes(user?._id);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
+    <View style={styles.container}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.primaryDark} />
       {/* Modern Header: Yellow Gradient with Logo + Title */}
       <LinearGradient
         colors={colors.primaryGradient || ['#FFCC00', '#E6B800']}
@@ -2661,7 +2663,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -2742,11 +2744,11 @@ const createAuctionStyles = (colors, shadows, isDark) => StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: Spacing.md },
 });
 
-const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+const createStyles = (colors, shadows, isDark, safeTop = 44) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
   /* ---- BANNER + HEADER ---- */
-  bannerWrapper: { position: 'relative', height: 135, justifyContent: 'flex-end', paddingBottom: 10 },
+  bannerWrapper: { position: 'relative', height: 135 + safeTop, justifyContent: 'flex-end', paddingBottom: 10 },
   headerInfoContentContainer: {
     paddingHorizontal: 16,
   },
@@ -2778,7 +2780,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   headerTopBar: {
     position: 'absolute', top: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, zIndex: 10
+    paddingHorizontal: 14, paddingTop: safeTop + 4, paddingBottom: 8, zIndex: 10
   },
   /* Title area positioned perfectly over the gradient */
   headerBottom: {

@@ -11,8 +11,9 @@ import {
   TextInput,
   Animated,
   Modal,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, Typography, useTheme } from '../../../theme/theme';
 import auctionService from '../../../services/auctionService';
@@ -20,6 +21,9 @@ import { getImageUrl } from '../../../api/axios';
 
 const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
   const { colors, shadows, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { auctionId } = route.params || {};
 
@@ -367,7 +371,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
   });
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+    <View style={[styles.container, { paddingBottom: Math.max(safeBottom, 8) }]}>
       
       <Modal
         visible={customAlert.visible}
@@ -428,7 +432,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
       </Modal>
 
       {/* ── Header ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: safeTop + 6 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -1033,7 +1037,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
           )}
         </ScrollView>
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 };
 

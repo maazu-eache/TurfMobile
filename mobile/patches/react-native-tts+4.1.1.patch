@@ -3,11 +3,97 @@ index dbbe046..9d70cdf 100644
 --- a/node_modules/react-native-tts/android/build.gradle
 +++ b/node_modules/react-native-tts/android/build.gradle
 @@ -4,7 +4,7 @@ def safeExtGet(prop, fallback) {
- 
+
  buildscript {
      repositories {
 -        jcenter()
 +        mavenCentral()
      }
- 
+
      dependencies {
+diff --git a/node_modules/react-native-tts/index.js b/node_modules/react-native-tts/index.js
+index 728ed29..9364bd5 100644
+--- a/node_modules/react-native-tts/index.js
++++ b/node_modules/react-native-tts/index.js
+@@ -47,9 +47,23 @@ class Tts extends NativeEventEmitter {
+   }
+
+   setDefaultRate(rate, skipTransform) {
++    if (Platform.OS === 'ios') {
++      try {
++        return TextToSpeech.setDefaultRate(rate, !!skipTransform).catch(() => Promise.resolve(true));
++      } catch (e) {
++        return Promise.resolve(true);
++      }
++    }
+     return TextToSpeech.setDefaultRate(rate, !!skipTransform);
+   }
+
+   setDefaultPitch(pitch) {
++    if (Platform.OS === 'ios') {
++      try {
++        return TextToSpeech.setDefaultPitch(pitch).catch(() => Promise.resolve(true));
++      } catch (e) {
++        return Promise.resolve(true);
++      }
++    }
+     return TextToSpeech.setDefaultPitch(pitch);
+   }
+diff --git a/node_modules/react-native-tts/ios/TextToSpeech/TextToSpeech.m b/node_modules/react-native-tts/ios/TextToSpeech/TextToSpeech.m
+index dc92d33..a4dfc87 100644
+--- a/node_modules/react-native-tts/ios/TextToSpeech/TextToSpeech.m
++++ b/node_modules/react-native-tts/ios/TextToSpeech/TextToSpeech.m
+@@ -94,11 +94,11 @@ RCT_EXPORT_METHOD(speak:(NSString *)text
+     resolve([NSNumber numberWithUnsignedLong:utterance.hash]);
+ }
+
+-RCT_EXPORT_METHOD(stop:(BOOL *)onWordBoundary resolve:(RCTPromiseResolveBlock)resolve reject:(__unused RCTPromiseRejectBlock)reject)
++RCT_EXPORT_METHOD(stop:(NSNumber *)onWordBoundary resolve:(RCTPromiseResolveBlock)resolve reject:(__unused RCTPromiseRejectBlock)reject)
+ {
+     AVSpeechBoundary boundary;
+
+-    if(onWordBoundary != NULL && onWordBoundary) {
++    if(onWordBoundary != nil && [onWordBoundary boolValue]) {
+         boundary = AVSpeechBoundaryWord;
+     } else {
+         boundary = AVSpeechBoundaryImmediate;
+@@ -108,11 +108,11 @@ RCT_EXPORT_METHOD(stop:(BOOL *)onWordBoundary resolve:(RCTPromiseResolveBlock)r
+     resolve([NSNumber numberWithBool:stopped]);
+ }
+
+-RCT_EXPORT_METHOD(pause:(BOOL *)onWordBoundary resolve:(RCTPromiseResolveBlock)resolve reject:(__unused RCTPromiseRejectBlock)reject)
++RCT_EXPORT_METHOD(pause:(NSNumber *)onWordBoundary resolve:(RCTPromiseResolveBlock)resolve reject:(__unused RCTPromiseRejectBlock)reject)
+ {
+     AVSpeechBoundary boundary;
+
+-    if(onWordBoundary != NULL && onWordBoundary) {
++    if(onWordBoundary != nil && [onWordBoundary boolValue]) {
+         boundary = AVSpeechBoundaryWord;
+     } else {
+         boundary = AVSpeechBoundaryImmediate;
+@@ -130,13 +130,13 @@ RCT_EXPORT_METHOD(resume:(RCTPromiseResolveBlock)resolve reject:(__unused RCTPr
+ }
+
+
+-RCT_EXPORT_METHOD(setDucking:(BOOL)ducking
++RCT_EXPORT_METHOD(setDucking:(NSNumber *)ducking
+                   resolve:(RCTPromiseResolveBlock)resolve
+                   reject:(__unused RCTPromiseRejectBlock)reject)
+ {
+-    _ducking = ducking;
++    _ducking = ducking != nil ? [ducking boolValue] : false;
+
+-    if(ducking) {
++    if(_ducking) {
+         AVAudioSession *session = [AVAudioSession sharedInstance];
+         [session setCategory:AVAudioSessionCategoryPlayback
+                  withOptions:AVAudioSessionCategoryOptionDuckOthers
+@@ -175,7 +175,7 @@ RCT_EXPORT_METHOD(setDefaultVoice:(NSString *)identifier
+ }
+
+ RCT_EXPORT_METHOD(setDefaultRate:(float)rate
+-                  skipTransform:(BOOL)skipTransform // not used, compatibility with Android native module signature
++                  skipTransform:(NSNumber *)skipTransform // not used, compatibility with Android native module signature
+                   resolve:(RCTPromiseResolveBlock)resolve
+                   reject:(RCTPromiseRejectBlock)reject)
+ {

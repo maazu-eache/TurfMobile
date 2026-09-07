@@ -129,8 +129,8 @@ const ImageCropperModal = ({ visible, imageUri, onCrop, onClose }) => {
     if (!viewShotRef.current) return;
     try {
       const uri = await captureRef(viewShotRef.current, {
-        format: 'jpeg',
-        quality: 0.95,
+        format: 'jpg',
+        quality: 0.8,
         width: 600,
         height: 600,
       });

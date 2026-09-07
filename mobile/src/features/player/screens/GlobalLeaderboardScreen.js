@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Image, Modal, Animated, Dimensions, ScrollView,
+  Image, Modal, Animated, Dimensions, ScrollView, Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -440,6 +440,8 @@ const SkeletonRow = () => {
   const dispatch   = useDispatch();
   const navigation = useNavigation();
   const insets     = useSafeAreaInsets();
+  const safeTop    = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 34 : 0);
   const { globalLeaderboard, isLoading } = useSelector(s => s.player);
   const { myProfile }                    = useSelector(s => s.player);
   const myRank = globalLeaderboard.myRank;
@@ -583,9 +585,9 @@ const SkeletonRow = () => {
       <Particle delay={400}  x={width * 0.3} size={3}  duration={4100} />
       <Particle delay={900}  x={width * 0.7} size={4}  duration={3500} />
 
-      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+      <View style={{ flex: 1 }}>
         {/* ── Header ── */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: safeTop + 6 }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
             <Icon name="arrow-left" size={20} color={S.white} />
           </TouchableOpacity>
@@ -648,7 +650,7 @@ const SkeletonRow = () => {
             data={rest}
             keyExtractor={i => i._id}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[styles.listContent, myRank && { paddingBottom: 90 + insets.bottom + 24 }]}
+            contentContainerStyle={[styles.listContent, myRank && { paddingBottom: 90 + safeBottom + 24 }]}
             ListHeaderComponent={renderHeader}
             onScrollToIndexFailed={info => {
               // Fallback: scroll to approximate offset
@@ -675,14 +677,14 @@ const SkeletonRow = () => {
             )}
           />
         )}
-      </SafeAreaView>
+      </View>
 
       {/* ── My Rank Fixed Bottom Bar ── */}
       {myRank && selectedCity && !isLoading && (
         <Animated.View
           style={[
             styles.myRankBar,
-            { paddingBottom: insets.bottom + 12 },
+            { paddingBottom: safeBottom + 12 },
             { opacity: myRankBarAnim, transform: [{ translateY: myRankBarAnim.interpolate({ inputRange: [0, 1], outputRange: [80, 0] }) }] },
           ]}
         >

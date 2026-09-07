@@ -313,7 +313,13 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, gap: 10,
     ...(isDark ? {} : shadows.sm),
   },
-  playerRowMe: { borderColor: colors.primaryAlpha30, backgroundColor: colors.primaryAlpha10 },
+  playerRowMe: {
+    borderColor: colors.primary,
+    backgroundColor: isDark ? 'rgba(255,204,0,0.12)' : 'rgba(255,204,0,0.18)',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+    ...(isDark ? {} : { elevation: 3, shadowColor: 'rgba(255,204,0,0.4)', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 6 }),
+  },
   playerAvatarWrap: { position: 'relative' },
   playerAvatar: { width: 48, height: 48, borderRadius: 24 },
   playerAvatarFb: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primaryAlpha10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primaryAlpha30 },
@@ -332,8 +338,21 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   playerDetailsWrap: { flex: 1, gap: 3 },
   playerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   playerName: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 13, flexShrink: 1 },
-  playerNameMe: { color: colors.primary },
-  youBadge: { color: colors.primary, fontFamily: Typography.fontFamily.medium, fontSize: 11 },
+  playerNameMe: { color: isDark ? colors.primary : '#B8860B' },
+  youBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginLeft: 4,
+    alignSelf: 'center',
+  },
+  youBadgeText: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 8,
+    letterSpacing: 0.5,
+  },
 
   playerTagRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   playerRoleTag: {
@@ -919,6 +938,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const { id } = route.params || {};
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
   const { styles, stS, colors, shadows, isDark } = useTeamStyles();
 
   const { selectedTeam, teamStats, isLoading, statsLoading } = useSelector(s => s.team);
@@ -1245,10 +1265,14 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
               <View style={styles.playerDetailsWrap}>
                 <View style={styles.playerNameRow}>
-                  <Text style={[styles.playerName, isMe && styles.playerNameMe]} numberOfLines={1}>
+                  <Text style={[styles.playerName, isMe && styles.playerNameMe]} numberOfLines={1} ellipsizeMode="tail">
                     {p.name}
-                    {isMe ? <Text style={styles.youBadge}> • You</Text> : ''}
                   </Text>
+                  {isMe && (
+                    <View style={styles.youBadge}>
+                      <Text style={styles.youBadgeText}>YOU</Text>
+                    </View>
+                  )}
                 </View>
 
                 <View style={styles.playerTagRow}>
@@ -2386,11 +2410,11 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
   if (isLoading && !selectedTeam) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={[styles.safe, { paddingTop: safeTop }]}>
         <View style={styles.loadingFull}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -2398,7 +2422,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const winPct = team?.stats?.matches > 0 ? ((team.stats.wins / team.stats.matches) * 100).toFixed(0) : '—';
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={[styles.safe, { paddingTop: safeTop }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
 
       {/* ── TEAM HEADER ── */}
@@ -2771,7 +2795,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
         </KeyboardAvoidingView>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 };
 

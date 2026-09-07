@@ -2,10 +2,10 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useTheme } from '../../../theme/ThemeContext';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, FlatList, Animated, Dimensions, Modal, TouchableWithoutFeedback, RefreshControl, Alert
+  Image, FlatList, Animated, Dimensions, Modal, TouchableWithoutFeedback, RefreshControl, Alert, Platform, StatusBar
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -64,8 +64,17 @@ const CRICKET_ACTIONS = [
 
 const HomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 20 : 0);
   const { colors, shadows, isDark, themeMode, setThemeMode } = useTheme();
-  const styles = useMemo(() => createStyles(colors, shadows, isDark, insets), [colors, shadows, isDark, insets]);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, safeTop, safeBottom), [colors, shadows, isDark, safeTop, safeBottom]);
+
+  console.log('🏠 [HomeScreen] RENDERING...');
+
+  useEffect(() => {
+    console.log('🏠 [HomeScreen] MOUNTED');
+    return () => console.log('🏠 [HomeScreen] UNMOUNTED');
+  }, []);
 
   const handleLogout = () => {
     Alert.alert(
@@ -203,6 +212,7 @@ const HomeScreen = ({ navigation }) => {
 
   useFocusEffect(
     React.useCallback(() => {
+      StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
       const city = myProfile?.locationObj?.name || myProfile?.city || myProfile?.location || user?.city || '';
       const lat = myProfile?.locationObj?.latitude || user?.latitude;
       const lng = myProfile?.locationObj?.longitude || user?.longitude;
@@ -350,6 +360,7 @@ const HomeScreen = ({ navigation }) => {
   /* ─── Main JSX ──────────────────────────────────────────────────────────── */
   return (
     <View style={styles.root}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
       {/* ════ SIDEBAR ════════════════════════════════════════════════════════ */}
       {sidebarOpen && (
@@ -360,7 +371,7 @@ const HomeScreen = ({ navigation }) => {
 
           <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
             <LinearGradient colors={isDark ? ['#000000', '#0A0A0A', '#000000'] : [colors.surface, colors.background, colors.surface]} style={styles.sidebarBody}>
-              <SafeAreaView edges={['top']}>
+              <View style={{ paddingTop: safeTop }}>
                 {/* ── Profile ── */}
                 <View style={styles.sidebarProfile}>
                   <View>
@@ -386,7 +397,7 @@ const HomeScreen = ({ navigation }) => {
                     <Icon name="close" size={17} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
-              </SafeAreaView>
+              </View>
 
               <View style={styles.sidebarDivider} />
 
@@ -410,7 +421,7 @@ const HomeScreen = ({ navigation }) => {
               </ScrollView>
 
               {/* ── Sidebar Footer (Theme & Logout) ── */}
-              <SafeAreaView edges={['bottom']} style={styles.sidebarFooterWrap}>
+              <View style={[styles.sidebarFooterWrap, { paddingBottom: safeBottom + 12 }]}>
                 {/* Theme Mode Selector */}
                 <View style={styles.themeRow}>
                   <View style={styles.themeInfo}>
@@ -457,7 +468,7 @@ const HomeScreen = ({ navigation }) => {
                     <Icon name="chevron-right" size={14} color={colors.textTertiary} />
                   </TouchableOpacity>
                 )}
-              </SafeAreaView>
+              </View>
             </LinearGradient>
           </Animated.View>
         </Modal>
@@ -465,31 +476,29 @@ const HomeScreen = ({ navigation }) => {
 
       {/* ════ FLOATING HEADER ════════════════════════════════════════════════ */}
       <Animated.View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: headerBorder }]}>
-        <SafeAreaView edges={['top']}>
-          <View style={styles.headerRow}>
-            <TouchableOpacity onPress={openSidebar} style={styles.menuBtn} activeOpacity={0.7}>
-              <Icon name="menu" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={openSidebar} style={styles.menuBtn} activeOpacity={0.7}>
+            <Icon name="menu" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
 
-            <View style={{ flex: 1, paddingLeft: 4 }}>
-              <Text style={styles.headerGreeting} numberOfLines={1} ellipsizeMode="tail">Hey, {user?.name?.split(' ')[0] || 'Cricketer'}</Text>
-            </View>
-
-            <View style={styles.headerActions}>
-              <NotificationBell onPress={() => authGuard(() => navigation.navigate('Notifications'))} />
-              <TouchableOpacity onPress={() => authGuard(() => navigation.navigate('Profile'))} activeOpacity={0.85}>
-                <LinearGradient colors={Colors.gradients?.primary || ['#FFCC00', '#E6B800']} style={styles.headerAvatar}>
-                  {(myProfile?.photo || user?.photo)
-                    ? <Image source={{ uri: getImageUrl(myProfile?.photo || user?.photo) || 'https://via.placeholder.com/150' }} style={StyleSheet.absoluteFill} borderRadius={19} />
-                    : user?.name
-                      ? <Text style={styles.headerAvatarTxt}>{user.name.charAt(0).toUpperCase()}</Text>
-                      : <Icon name="account" size={20} color="#000" />
-                  }
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+          <View style={{ flex: 1, paddingLeft: 4 }}>
+            <Text style={styles.headerGreeting} numberOfLines={1} ellipsizeMode="tail">Hey, {user?.name?.split(' ')[0] || 'Cricketer'}</Text>
           </View>
-        </SafeAreaView>
+
+          <View style={styles.headerActions}>
+            <NotificationBell onPress={() => authGuard(() => navigation.navigate('Notifications'))} />
+            <TouchableOpacity onPress={() => authGuard(() => navigation.navigate('Profile'))} activeOpacity={0.85}>
+              <LinearGradient colors={Colors.gradients?.primary || ['#FFCC00', '#E6B800']} style={styles.headerAvatar}>
+                {(myProfile?.photo || user?.photo)
+                  ? <Image source={{ uri: getImageUrl(myProfile?.photo || user?.photo) || 'https://via.placeholder.com/150' }} style={StyleSheet.absoluteFill} borderRadius={19} />
+                  : user?.name
+                    ? <Text style={styles.headerAvatarTxt}>{user.name.charAt(0).toUpperCase()}</Text>
+                    : <Icon name="account" size={20} color="#000" />
+                }
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Animated.View>
 
       {/* ════ MAIN CONTENT ══════════════════════════════════════════════════ */}
@@ -543,36 +552,92 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* ── LIVE MATCHES BANNER (Displayed below Cricket Hub, displaying live count only) ── */}
+        {/* ── LIVE MATCHES — Compact horizontal cards ── */}
         {liveMatches?.length > 0 && (
-          <View style={styles.section}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } })}
-              activeOpacity={0.88}
-            >
-              <View style={styles.liveBanner}>
-                <View style={styles.liveBannerAccent} />
-                <LinearGradient
-                  colors={isDark ? ['rgba(255,204,0,0.08)', 'transparent'] : ['#FFFDF0', '#FFFFFF']}
-                  style={StyleSheet.absoluteFill}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                />
-                <View style={{ flex: 1, gap: 4 }}>
-                  <View style={styles.livePill}>
-                    <PulseDot />
-                    <Text style={styles.livePillTxt}>LIVE ({liveMatches.length})</Text>
-                  </View>
-                  <Text style={styles.liveBannerTitle}>
-                    {liveMatches.length === 1 ? '1 Live Match in Progress' : `${liveMatches.length} Live Matches in Progress`}
-                  </Text>
-                  <Text style={styles.liveBannerSub}>Tap to watch live matches</Text>
-                </View>
-                <View style={styles.liveArrow}>
-                  <Icon name="arrow-right" size={18} color={Colors.primary} />
-                </View>
+          <View style={styles.liveMatchSection}>
+            <View style={styles.liveMatchHeader}>
+              <View style={styles.livePill}>
+                <PulseDot />
+                <Text style={styles.livePillTxt}>LIVE ({liveMatches.length})</Text>
               </View>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } })}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.liveMatchSeeAll}>See All ›</Text>
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={liveMatches.slice(0, 10)}
+              keyExtractor={item => String(item._id || item.id)}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.liveMatchList}
+              style={{ marginHorizontal: -16 }}
+              snapToInterval={SW * 0.60 + 10}
+              decelerationRate="fast"
+              renderItem={({ item }) => {
+                const teamA = item.teamA?.name || 'Team A';
+                const teamB = item.teamB?.name || 'Team B';
+                const teamAImg = item.teamA?.logo ? getImageUrl(item.teamA.logo) : null;
+                const teamBImg = item.teamB?.logo ? getImageUrl(item.teamB.logo) : null;
+                const headerLabel = item.tournament?.name || item.format || 'Friendly';
+                return (
+                  <TouchableOpacity
+                    style={styles.liveMatchCard}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('My Cricket', { screen: 'Spectator', params: { matchId: item._id || item.id } })}
+                  >
+                    {/* Gold header strip with match type / tournament name */}
+                    <View style={styles.liveCardHeader}>
+                      <Text style={styles.liveCardHeaderTxt} numberOfLines={1}>{headerLabel}</Text>
+                      <View style={styles.liveCardLiveDot} />
+                    </View>
+
+                    {/* Teams */}
+                    <View style={styles.liveTeamsBlock}>
+                      {/* Team A */}
+                      <View style={styles.liveTeamRow}>
+                        <View style={styles.liveAvatarCircle}>
+                          {teamAImg
+                            ? <Image source={{ uri: teamAImg }} style={styles.liveAvatarImg} />
+                            : <Text style={styles.liveAvatarLetter}>{teamA[0]?.toUpperCase() || '?'}</Text>
+                          }
+                        </View>
+                        <Text style={styles.liveTeamName} numberOfLines={1}>{teamA}</Text>
+                      </View>
+
+                      {/* vs */}
+                      <View style={styles.liveVsRow}>
+                        <View style={styles.liveVsDash} />
+                        <Text style={styles.liveVsText}>vs</Text>
+                        <View style={styles.liveVsDash} />
+                      </View>
+
+                      {/* Team B */}
+                      <View style={styles.liveTeamRow}>
+                        <View style={styles.liveAvatarCircle}>
+                          {teamBImg
+                            ? <Image source={{ uri: teamBImg }} style={styles.liveAvatarImg} />
+                            : <Text style={styles.liveAvatarLetter}>{teamB[0]?.toUpperCase() || '?'}</Text>
+                          }
+                        </View>
+                        <Text style={styles.liveTeamName} numberOfLines={1}>{teamB}</Text>
+                      </View>
+                    </View>
+
+                    {/* Watch chip */}
+                    <View style={styles.liveCardFooter}>
+                      <View style={styles.liveWatchChip}>
+                        <Icon name="eye-outline" size={10} color="#000" />
+                        <Text style={styles.liveWatchChipTxt}>Watch Live</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+            />
           </View>
         )}
 
@@ -750,9 +815,9 @@ const HomeScreen = ({ navigation }) => {
 };
 
 /* ─── Styles ────────────────────────────────────────────────────────────────── */
-const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
+const createStyles = (colors, shadows, isDark, safeTop, safeBottom) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { paddingTop: (insets?.top || 20) + 60, paddingBottom: 120 },
+  scrollContent: { paddingTop: safeTop + 58, paddingBottom: 120 },
 
   // Glow orb (decorative, no performance impact on RN)
   glowOrb: { position: 'absolute', borderRadius: 999 },
@@ -886,7 +951,17 @@ const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
   },
 
   /* ──── Header ──── */
-  header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : colors.border, backgroundColor: isDark ? 'transparent' : colors.background },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    paddingTop: safeTop,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : colors.border,
+    backgroundColor: isDark ? 'transparent' : colors.background,
+  },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 10 },
   menuBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   headerGreeting: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
@@ -922,7 +997,7 @@ const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
 
   /* ── Top Search Section ── */
   topSearchSection: {
-    paddingTop: (insets?.top || 20) + 74,
+    paddingTop: safeTop + 74,
     paddingHorizontal: 16,
     marginBottom: 20,
   },
@@ -1117,7 +1192,7 @@ const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
     color: "#000000",
   },
 
-  /* Live Banner */
+  /* Live Banner (legacy, kept for reference) */
   liveBanner: { borderRadius: 18, padding: 18, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)', backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant, overflow: 'hidden', gap: 12 },
   liveBannerAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: Colors.primary },
   livePill: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(255,204,0,0.12)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,204,0,0.22)' },
@@ -1125,6 +1200,67 @@ const createStyles = (colors, shadows, isDark, insets) => StyleSheet.create({
   liveBannerTitle: { fontSize: 16, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
   liveBannerSub: { fontSize: 11, color: colors.textSecondary },
   liveArrow: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,204,0,0.09)', borderWidth: 1, borderColor: 'rgba(255,204,0,0.18)' },
+
+  /* ─── COMPACT LIVE MATCH CARDS ─── */
+  liveMatchSection: { paddingHorizontal: 16, marginBottom: 22, marginTop: 10 },
+  liveMatchHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  liveMatchSeeAll: { fontSize: 12, color: Colors.primary, fontFamily: Typography.fontFamily.semiBold },
+  liveMatchList: { paddingLeft: 16, paddingRight: 16, gap: 10 },
+
+  liveMatchCard: {
+    width: SW * 0.60,
+    borderRadius: 14,
+    backgroundColor: isDark ? colors.backgroundElevated : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,204,0,0.18)' : 'rgba(255,204,0,0.35)',
+    overflow: 'hidden',
+    ...(isDark ? {} : { shadowColor: '#FFCC00', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 3 }),
+  },
+
+  /* Gold header */
+  liveCardHeader: {
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  liveCardHeaderTxt: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#000',
+    letterSpacing: 0.3,
+    flex: 1,
+  },
+  liveCardLiveDot: {
+    width: 7, height: 7, borderRadius: 4,
+    backgroundColor: '#EF4444',
+    marginLeft: 6,
+  },
+
+  /* Teams block */
+  liveTeamsBlock: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4 },
+  liveTeamRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  liveAvatarCircle: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: isDark ? 'rgba(255,204,0,0.10)' : 'rgba(255,204,0,0.12)',
+    borderWidth: 1.5, borderColor: 'rgba(255,204,0,0.40)',
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+  },
+  liveAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  liveAvatarLetter: { fontSize: 11, fontFamily: Typography.fontFamily.bold, color: Colors.primary },
+  liveTeamName: { flex: 1, fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
+
+  /* vs separator */
+  liveVsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 1 },
+  liveVsDash: { flex: 1, height: 1, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)' },
+  liveVsText: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, letterSpacing: 1 },
+
+  /* Card footer */
+  liveCardFooter: { paddingHorizontal: 12, paddingBottom: 10, paddingTop: 6, alignItems: 'flex-end' },
+  liveWatchChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  liveWatchChipTxt: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: '#000' },
 
   /* Premium Turf Cards Stack */
   premiumCardContainer: {

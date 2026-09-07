@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
-import { StatusBar, Linking } from 'react-native';
+import { StatusBar, Linking, View, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { PaperProvider } from 'react-native-paper';
 import messaging from '@react-native-firebase/messaging';
 
@@ -26,35 +26,39 @@ const linking = {
   ],
 
   async getInitialURL() {
-    const url = await Linking.getInitialURL();
-    console.log('🔗 [Linking] Cold-start URL from Linking.getInitialURL():', url);
+    try {
+      const url = await Linking.getInitialURL();
+      console.log('🔗 [Linking] Cold-start URL from Linking.getInitialURL():', url);
 
-    if (url) {
-      return url;
-    }
+      if (url) {
+        return url;
+      }
 
-    const message = await NotificationService.getInitialNotification();
-    console.log('🔔 [Linking] Cold-start notification payload:', message?.data);
+      const message = await NotificationService.getInitialNotification();
+      console.log('🔔 [Linking] Cold-start notification payload:', message?.data);
 
-    if (message?.data) {
-      if (message.data.url) {
-        return message.data.url;
+      if (message?.data) {
+        if (message.data.url) {
+          return message.data.url;
+        }
+        if (message.data.matchId) {
+          return `https://www.scoreverse.in/match/${message.data.matchId}`;
+        }
+        if (message.data.playerId) {
+          return `https://www.scoreverse.in/player/${message.data.playerId}`;
+        }
+        if (message.data.turfId) {
+          return `https://www.scoreverse.in/turf/${message.data.turfId}`;
+        }
+        if (message.data.tournamentId) {
+          return `https://www.scoreverse.in/tournament/${message.data.tournamentId}`;
+        }
+        if (message.data.type) {
+          return `https://www.scoreverse.in/notifications`;
+        }
       }
-      if (message.data.matchId) {
-        return `https://www.scoreverse.in/match/${message.data.matchId}`;
-      }
-      if (message.data.playerId) {
-        return `https://www.scoreverse.in/player/${message.data.playerId}`;
-      }
-      if (message.data.turfId) {
-        return `https://www.scoreverse.in/turf/${message.data.turfId}`;
-      }
-      if (message.data.tournamentId) {
-        return `https://www.scoreverse.in/tournament/${message.data.tournamentId}`;
-      }
-      if (message.data.type) {
-        return `https://www.scoreverse.in/notifications`;
-      }
+    } catch (e) {
+      console.log('Linking getInitialURL error:', e);
     }
 
     return null;
@@ -128,8 +132,39 @@ const linking = {
   },
 };
 
+class ErrorBoundary extends React.Component {
+  state = { hasError: false, error: null, errorInfo: null };
+  static getDerivedStateFromError(error) {
+    console.error('💥 [ErrorBoundary] getDerivedStateFromError:', error);
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('💥 [ErrorBoundary] CAUGHT ERROR:', error, errorInfo);
+  }
+  render() {
+    console.log('🛡️ [ErrorBoundary] RENDERING children, hasError:', this.state.hasError);
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#1A0000', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Text style={{ color: '#FF5555', fontSize: 20, fontWeight: 'bold', marginBottom: 12 }}>Rendering Error</Text>
+          <Text style={{ color: '#FFFFFF', fontSize: 14, textAlign: 'center' }}>{this.state.error?.toString()}</Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const ThemedAppContent = () => {
-  const { theme, isDark } = useTheme();
+  console.log('🚀 [App] ThemedAppContent STARTING...');
+  const themeContext = useTheme();
+  console.log('🚀 [App] useTheme() returned:', !!themeContext);
+  const { theme, isDark } = themeContext;
+  console.log('🚀 [App] ThemedAppContent RENDERING... isDark:', isDark);
+
+  useEffect(() => {
+    StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
+  }, [isDark]);
 
   return (
     <PaperProvider theme={theme}>
@@ -138,14 +173,16 @@ const ThemedAppContent = () => {
         ref={navigationRef}
         theme={theme}
         onReady={() => {
+          StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
           const currentRoute = navigationRef.getCurrentRoute();
           const rootState = navigationRef.getRootState();
-          console.log('🧭 [Navigation] NavigationContainer is READY.');
+          console.log('🧭 [Navigation] NavigationContainer is READY!');
           console.log('🧭 [Navigation] Current Active Route:', currentRoute?.name);
           console.log('🧭 [Navigation] Current Active Params:', JSON.stringify(currentRoute?.params));
           console.log('🧭 [Navigation] Full Resolved State Tree:', JSON.stringify(rootState));
         }}
         onStateChange={(state) => {
+          StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
           const currentRoute = navigationRef.getCurrentRoute();
           console.log('🧭 [Navigation] Navigation state changed -> Active Route:', currentRoute?.name, 'Params:', JSON.stringify(currentRoute?.params));
         }}
@@ -163,43 +200,53 @@ const ThemedAppContent = () => {
 };
 
 const App = () => {
+  const [rehydrated, setRehydrated] = React.useState(persistor.getState().bootstrapped);
+
+  console.log('⚡ [App] ROOT APP COMPONENT RENDERING... persistor bootstrapped:', persistor.getState().bootstrapped, 'local rehydrated:', rehydrated);
+
   useEffect(() => {
+    const checkBootstrapped = () => {
+      const state = persistor.getState();
+      console.log('💾 [Persistor State Update]:', state);
+      if (state.bootstrapped) {
+        setRehydrated(true);
+      }
+    };
+
+    const unsubscribe = persistor.subscribe(checkBootstrapped);
+    checkBootstrapped();
+
+    // Safety timeout: force rehydration after 1.5s so screen is NEVER stuck blank
+    const safetyTimer = setTimeout(() => {
+      console.log('⏰ [Safety Timeout] Forcing rehydrated=true to unblock render');
+      setRehydrated(true);
+    }, 1500);
+
     try {
       NotificationService.requestUserPermission();
-
-      // Handle FCM foreground messages
-      const unsubscribe = NotificationService.listenToForegroundMessages();
-
+      const unsubNotify = NotificationService.listenToForegroundMessages();
       return () => {
         unsubscribe?.();
+        clearTimeout(safetyTimer);
+        unsubNotify?.();
       };
     } catch (err) {
       console.log('App initialization error:', err.message);
+      return () => {
+        unsubscribe?.();
+        clearTimeout(safetyTimer);
+      };
     }
   }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>
-        <PersistGate
-          loading={null}
-          persistor={persistor}
-          onBeforeLift={() => {
-            const auth = store.getState().auth;
-            console.log('💾 [PersistGate] Redux Persist rehydration complete:', {
-              isAuthenticated: auth?.isAuthenticated,
-              isGuest: auth?.isGuest,
-              userId: auth?.user?._id,
-              roles: auth?.user?.roles || auth?.user?.role,
-            });
-          }}
-        >
-          <SafeAreaProvider>
-            <ThemeProvider>
-              <ThemedAppContent />
-            </ThemeProvider>
-          </SafeAreaProvider>
-        </PersistGate>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ flex: 1 }}>
+          <ThemeProvider>
+            <ThemedAppContent />
+          </ThemeProvider>
+        </SafeAreaProvider>
       </Provider>
     </GestureHandlerRootView>
   );

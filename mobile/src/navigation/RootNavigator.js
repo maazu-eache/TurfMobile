@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
 import { logoutLocal, setGuestMode } from '../features/auth/authSlice';
 import { showCustomAlert } from '../components/CustomAlert';
@@ -16,27 +16,35 @@ import SplashScreen from '../features/auth/screens/SplashScreen';
 import NotificationService from '../services/NotificationService';
 import { useTheme } from '../theme/theme';
 
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
-let hasShownInitialSplash = false;
+// Session-scoped flag — survives re-renders but resets on full app restart only
+let _splashHasPlayed = false;
 
 const RootNavigator = () => {
   const dispatch = useDispatch();
   const { isAuthenticated, isGuest, user, currentRole } = useSelector((state) => state.auth);
   const { colors } = useTheme();
-  const [showSplash, setShowSplash] = React.useState(!hasShownInitialSplash);
+
+  // Use a ref so this never resets when the component re-renders or remounts due to navKey change
+  const splashPlayedRef = React.useRef(_splashHasPlayed);
+  const [showSplash, setShowSplash] = React.useState(!_splashHasPlayed);
 
   const bgColor = colors?.background || '#0D0D0D';
 
+  const handleSplashFinished = React.useCallback(() => {
+    _splashHasPlayed = true;
+    splashPlayedRef.current = true;
+    setShowSplash(false);
+  }, []);
+
   React.useEffect(() => {
-    if (!hasShownInitialSplash) {
-      const timer = setTimeout(() => {
-        hasShownInitialSplash = true;
-        setShowSplash(false);
-      }, 7000);
+    if (!splashPlayedRef.current) {
+      // Safety fallback: only fires if video stalls/errors — 30s gives full video time
+      const timer = setTimeout(handleSplashFinished, 8000);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [handleSplashFinished]);
 
   React.useEffect(() => {
     if (isAuthenticated && user?._id) {
@@ -105,39 +113,49 @@ const RootNavigator = () => {
     ? (isAdmin ? 'admin-stack' : (isOwner ? 'owner-stack' : 'customer-stack'))
     : (isGuest ? 'guest-stack' : 'auth-stack');
 
+  console.log('🧭 [RootNavigator] RENDERING...', {
+    isAuthenticated,
+    isGuest,
+    roles,
+    isAdmin,
+    isOwner,
+    navKey,
+    showSplash,
+  });
+
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
-      <Stack.Navigator 
-        key={navKey} 
-        screenOptions={{ 
-          headerShown: false,
-          contentStyle: { backgroundColor: bgColor },
-          animation: 'fade',
-        }}
-      >
-        {isAuthenticated ? (
-          getMainNavigator()
-        ) : isGuest ? (
-          <>
-            <Stack.Screen name="Customer" component={CustomerNavigator} />
-            <Stack.Screen
-              name="AuthModal"
-              component={AuthNavigator}
-              options={{ presentation: 'fullScreenModal' }}
-            />
-          </>
-        ) : (
-          <>
-            <Stack.Screen name="Auth" component={AuthNavigator} />
-            <Stack.Screen name="Customer" component={CustomerNavigator} />
-          </>
-        )}
-      </Stack.Navigator>
-
-      {showSplash && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <SplashScreen onFinished={() => setShowSplash(false)} />
-        </View>
+      {showSplash ? (
+        /* Show ONLY the splash — navigator is not mounted yet, no dashboard flash */
+        <SplashScreen onFinished={handleSplashFinished} />
+      ) : (
+        <Stack.Navigator
+          key={navKey}
+          detachInactiveScreens={false}
+          screenOptions={{
+            headerShown: false,
+            cardStyle: { backgroundColor: bgColor },
+            cardStyleInterpolator: CardStyleInterpolators.forFadeFromBottomAndroid,
+          }}
+        >
+          {isAuthenticated ? (
+            getMainNavigator()
+          ) : isGuest ? (
+            <>
+              <Stack.Screen name="Customer" component={CustomerNavigator} />
+              <Stack.Screen
+                name="AuthModal"
+                component={AuthNavigator}
+                options={{ presentation: 'fullScreenModal' }}
+              />
+            </>
+          ) : (
+            <>
+              <Stack.Screen name="Auth" component={AuthNavigator} />
+              <Stack.Screen name="Customer" component={CustomerNavigator} />
+            </>
+          )}
+        </Stack.Navigator>
       )}
     </View>
   );

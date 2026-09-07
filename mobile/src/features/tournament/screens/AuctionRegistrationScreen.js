@@ -12,7 +12,7 @@ import {
   Platform,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import moment from 'moment';
@@ -43,6 +43,9 @@ const BOWLING_STYLES = [
 ];
 
 const AuctionRegistrationScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { tournamentId } = route.params || {};
@@ -215,10 +218,10 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
 
   if (loading && !auction) {
     return (
-      <SafeAreaView style={styles.loadingScreen}>
+      <View style={[styles.loadingScreen, { paddingTop: safeTop, paddingBottom: Math.max(safeBottom, 8) }]}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading auction details...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -227,9 +230,9 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
   const baseFee = entryFee - platformFee;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <View style={[styles.container, { paddingBottom: Math.max(safeBottom, 8) }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: safeTop + 6 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Icon name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -754,7 +757,7 @@ const AuctionRegistrationScreen = ({ route, navigation }) => {
           setCropModalVisible(false);
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

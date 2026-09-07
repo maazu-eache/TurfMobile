@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, TouchableOpacity, Text, StyleSheet, Image } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../theme/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,10 +33,10 @@ import TicketListScreen from '../features/support/screens/TicketListScreen';
 import CreateTicketScreen from '../features/support/screens/CreateTicketScreen';
 
 const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
 const DashboardStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator detachInactiveScreens={false} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="OwnerDashboard" component={OwnerDashboardScreen} />
     <Stack.Screen name="TurfRegistration" component={TurfRegistrationScreen} />
     <Stack.Screen name="TurfList" component={TurfListScreen} />
@@ -56,7 +56,7 @@ const DashboardStack = () => (
 );
 
 const OwnerBookingsStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator detachInactiveScreens={false} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="OwnerBookingsMain" component={OwnerBookingsScreen} />
     <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
     <Stack.Screen name="TicketListScreen" component={TicketListScreen} />
@@ -64,13 +64,13 @@ const OwnerBookingsStack = () => (
 );
 
 const AnalyticsStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator detachInactiveScreens={false} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Analytics" component={OwnerAnalyticsScreen} />
   </Stack.Navigator>
 );
 
 const ProfileStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator detachInactiveScreens={false} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ProfileMain" component={ProfileScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />

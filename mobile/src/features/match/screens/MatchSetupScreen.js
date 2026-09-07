@@ -20,7 +20,7 @@ import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useDispatch, useSelector } from 'react-redux';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createMatch, clearLiveState } from '../matchSlice';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, createTeam } from '../../team/teamSlice';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -77,7 +77,10 @@ const TeamLogoDisplay = ({ team, style, initialSize = 28, colors }) => {
 
 const MatchSetupScreen = ({ navigation, route }) => {
   const { colors, shadows, isDark } = useTheme();
-  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark, safeBottom), [colors, shadows, isDark, safeBottom]);
   const dispatch = useDispatch();
   const { isLoading: isMatchLoading } = useSelector((state) => state.match);
   const { myTeams, opponentTeams, followingTeams, isLoading: isTeamLoading } = useSelector((state) => state.team);
@@ -462,7 +465,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <View style={[styles.safe, { paddingTop: safeTop }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="chevron-left" size={28} color={colors.textPrimary} />
@@ -763,8 +766,8 @@ const MatchSetupScreen = ({ navigation, route }) => {
                     {/* Team A Players */}
                     {teamA && (teamA.players || []).filter(p => p && p.player && p.player.isClaimed && p.player._id !== user?._id).length > 0 && (
                       <View style={{ marginBottom: Spacing.md }}>
-                        <View style={{ backgroundColor: colors.borderLight, padding: 8, borderRadius: 6, marginBottom: 8 }}>
-                          <Text style={{ color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{teamA.name}</Text>
+                        <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F0F2F5', padding: 8, borderRadius: 6, marginBottom: 8 }}>
+                          <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{teamA.name}</Text>
                         </View>
                         {(teamA.players || []).filter(p => p && p.player && p.player.isClaimed && p.player._id !== user?._id).map((p, index) => {
                           const photoUrl = p.player.photo || p.player.userId?.photo;
@@ -778,7 +781,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
                               {photoUrl ? (
                                 <Image source={{ uri: getImageUrl(photoUrl) }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }} />
                               ) : (
-                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, marginRight: 12, alignItems: 'center', justifyContent: 'center' }}>
+                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F0F2F5', marginRight: 12, alignItems: 'center', justifyContent: 'center' }}>
                                   <Icon name="account" size={20} color={colors.textSecondary} />
                                 </View>
                               )}
@@ -792,8 +795,8 @@ const MatchSetupScreen = ({ navigation, route }) => {
                     {/* Team B Players */}
                     {teamB && (teamB.players || []).filter(p => p && p.player && p.player.isClaimed && p.player._id !== user?._id).length > 0 && (
                       <View style={{ marginBottom: Spacing.md }}>
-                        <View style={{ backgroundColor: colors.borderLight, padding: 8, borderRadius: 6, marginBottom: 8 }}>
-                          <Text style={{ color: '#fff', fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{teamB.name}</Text>
+                        <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F0F2F5', padding: 8, borderRadius: 6, marginBottom: 8 }}>
+                          <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{teamB.name}</Text>
                         </View>
                         {(teamB.players || []).filter(p => p && p.player && p.player.isClaimed && p.player._id !== user?._id).map((p, index) => {
                           const photoUrl = p.player.photo || p.player.userId?.photo;
@@ -807,7 +810,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
                               {photoUrl ? (
                                 <Image source={{ uri: getImageUrl(photoUrl) }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }} />
                               ) : (
-                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, marginRight: 12, alignItems: 'center', justifyContent: 'center' }}>
+                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F0F2F5', marginRight: 12, alignItems: 'center', justifyContent: 'center' }}>
                                   <Icon name="account" size={20} color={colors.textSecondary} />
                                 </View>
                               )}
@@ -828,7 +831,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
                 </View>
 
                 <TouchableOpacity style={styles.sendOtpBtn} onPress={sendOTP} disabled={otpLoading}>
-                  {otpLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.sendOtpBtnText}>Send OTP</Text>}
+                  {otpLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.sendOtpBtnText}>Send OTP</Text>}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cancelBtn} onPress={() => { setOtpModalVisible(false); setVerificationPlayerId(null); }}>
                   <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -839,7 +842,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
                 <Text style={styles.modalSubtitle}>Enter the 6-digit OTP sent to the player.</Text>
 
                 <TextInput
-                  style={[styles.input, { textAlign: 'center', fontSize: 20, letterSpacing: 4, color: '#fff' }]}
+                  style={[styles.underlineInput, { textAlign: 'center', fontSize: 22, letterSpacing: 6, color: colors.textPrimary, marginVertical: Spacing.md }]}
                   placeholder="------"
                   placeholderTextColor={colors.textTertiary}
                   value={otpCode}
@@ -849,7 +852,7 @@ const MatchSetupScreen = ({ navigation, route }) => {
                 />
 
                 <TouchableOpacity style={styles.sendOtpBtn} onPress={verifyOTP} disabled={otpLoading}>
-                  {otpLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.sendOtpBtnText}>Verify Match</Text>}
+                  {otpLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.sendOtpBtnText}>Verify Match</Text>}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cancelBtn} onPress={() => { setOtpModalVisible(false); setOtpSent(false); setOtpCode(''); setVerificationPlayerId(null); }}>
                   <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -860,11 +863,11 @@ const MatchSetupScreen = ({ navigation, route }) => {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 };
 
-const createStyles = (colors, shadows, isDark) => StyleSheet.create({
+const createStyles = (colors, shadows, isDark, safeBottom = 0) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -883,7 +886,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     color: colors.textPrimary,
   },
   content: {
-    paddingBottom: 60,
+    paddingBottom: 80,
   },
   matchupContainer: {
     backgroundColor: colors.surface,
@@ -1098,33 +1101,42 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   stickyBottomBar: {
     flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingTop: 12,
+    paddingBottom: Math.max(safeBottom, 16),
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
-    backgroundColor: colors.background,
+    gap: 12,
+    ...shadows.sm,
   },
   scheduleBtn: {
     flex: 1,
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E5E7EB',
-    paddingVertical: 15,
+    height: 48,
+    borderRadius: BorderRadius.md,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#F3F4F6',
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRightWidth: 1,
-    borderRightColor: colors.borderLight,
   },
   scheduleBtnText: {
     color: colors.textPrimary,
     fontSize: 15,
-    fontFamily: Typography.fontFamily.bold,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   nextBtn: {
-    flex: 1.2,
+    flex: 1,
+    height: 48,
+    borderRadius: BorderRadius.md,
     backgroundColor: colors.primary,
-    paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadows.sm,
   },
   nextBtnText: {
-    color: colors.background || '#000000',
+    color: colors.textOnPrimary || '#000000',
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
   },
@@ -1142,7 +1154,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
-    color: '#fff',
+    color: colors.textPrimary,
     marginBottom: Spacing.sm,
     textAlign: 'center',
   },
@@ -1161,9 +1173,9 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     borderBottomColor: colors.borderLight,
   },
   playerSelectName: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: Typography.fontFamily.medium,
-    color: '#fff',
+    color: colors.textPrimary,
     flex: 1,
   },
   sendOtpBtn: {
@@ -1174,7 +1186,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     marginTop: Spacing.lg,
   },
   sendOtpBtnText: {
-    color: colors.background,
+    color: colors.textOnPrimary || '#000000',
     fontFamily: Typography.fontFamily.bold,
     fontSize: 16,
   },
