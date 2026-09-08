@@ -14,10 +14,12 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, searchGlobalTeams } from '../../team/teamSlice';
+import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, searchGlobalTeams, fetchTeamById } from '../../team/teamSlice';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { getImageUrl } from '../../../api/axios';
 import AddTeamModal from '../../tournament/components/AddTeamModal';
+import TeamQRScannerModal from '../../team/components/TeamQRScannerModal';
+import { showCustomAlert } from '../../../components/CustomAlert';
 
 const MatchTeamSelectionScreen = ({ navigation, route }) => {
   const { colors, shadows, isDark } = useTheme();
@@ -32,6 +34,8 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
   const [activeTeamTab, setActiveTeamTab] = useState(initialActiveTab || 'My Teams');
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -152,6 +156,23 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
     navigation.goBack();
   };
 
+  const handleScannedTeamId = async (scannedId) => {
+    setQrLoading(true);
+    try {
+      const res = await dispatch(fetchTeamById(scannedId)).unwrap();
+      setQrLoading(false);
+      if (res) {
+        handleSelectTeam(res);
+        showCustomAlert('Team Selected', `${res.name} selected successfully!`);
+      } else {
+        showCustomAlert('Team Not Found', 'Could not find team for the scanned QR code.');
+      }
+    } catch (err) {
+      setQrLoading(false);
+      showCustomAlert('Team Not Found', err?.message || 'Could not find team for the scanned QR code.');
+    }
+  };
+
   return (
     <View style={[styles.safe, { paddingTop: safeTop }]}>
       <View style={styles.header}>
@@ -186,15 +207,25 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
               </View>
             )}
 
-            <View style={styles.searchBarWrapper}>
-              <Icon name="magnify" size={20} color={colors.textTertiary} style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchBarInput}
-                placeholder={activeTeamTab === 'Search' ? "Search by name, city, captain mobile..." : "Search teams..."}
-                placeholderTextColor={colors.textTertiary}
-                value={teamSearchQuery}
-                onChangeText={setTeamSearchQuery}
-              />
+            <View style={styles.searchRow}>
+              <View style={styles.searchBarWrapper}>
+                <Icon name="magnify" size={20} color={colors.textTertiary} style={styles.searchIcon} />
+                <TextInput
+                  style={styles.searchBarInput}
+                  placeholder={activeTeamTab === 'Search' ? "Search by name, city, captain mobile..." : "Search teams..."}
+                  placeholderTextColor={colors.textTertiary}
+                  value={teamSearchQuery}
+                  onChangeText={setTeamSearchQuery}
+                />
+              </View>
+              <TouchableOpacity
+                style={styles.qrScanBtn}
+                onPress={() => setShowQrScanner(true)}
+                activeOpacity={0.85}
+              >
+                <Icon name="qrcode-scan" size={18} color={colors.primary} style={{ marginRight: 6 }} />
+                <Text style={styles.qrScanBtnText}>Scan QR</Text>
+              </TouchableOpacity>
             </View>
 
             {!tournamentDetails ? (
@@ -271,6 +302,12 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
           }}
         />
       )}
+
+      <TeamQRScannerModal
+        visible={showQrScanner}
+        onClose={() => setShowQrScanner(false)}
+        onScannedTeamId={handleScannedTeamId}
+      />
     </View>
   );
 };
@@ -310,6 +347,39 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    gap: 10,
+  },
+  searchBarWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? '#161616' : '#F5F7FA',
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.base,
+    height: 48,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  qrScanBtn: {
+    height: 48,
+    paddingHorizontal: 14,
+    borderRadius: BorderRadius.md,
+    backgroundColor: isDark ? 'rgba(255, 204, 0, 0.12)' : 'rgba(255, 204, 0, 0.18)',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrScanBtnText: {
+    color: colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+  },
   tabBtn: {
     flex: 1,
     paddingVertical: 10,
@@ -327,17 +397,6 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   tabBtnTextActive: {
     color: colors.textOnPrimary || '#000000',
     fontFamily: Typography.fontFamily.bold,
-  },
-  searchBarWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: isDark ? '#161616' : '#F5F7FA',
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.base,
-    height: 48,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   searchIcon: {
     marginRight: Spacing.sm,

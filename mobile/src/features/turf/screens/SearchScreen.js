@@ -22,6 +22,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+const TOURNAMENT_FALLBACK = require('../../../assets/images/TournamentFallBack.png');
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchTurfs, setSearchQuery } from '../../turf/turfSlice';
 import { fetchRankings, fetchMyPlayer } from '../../player/playerSlice';
@@ -678,12 +679,11 @@ const SortChip = ({ label, icon, active, onPress }) => (
     return (
       <TouchableOpacity style={styles.tCard} onPress={() => navigation.navigate('TournamentDetail', { tournamentId: item._id })} activeOpacity={0.92}>
         <View style={styles.tBannerWrap}>
-          {item.banner
-            ? <Image source={{ uri: getImageUrl(item.banner) }} style={styles.tBanner} />
-            : <LinearGradient colors={['#0D2136', '#000000']} style={styles.tBannerFallback}>
-              <Icon name="trophy" size={44} color={colors.primaryAlpha30} />
-            </LinearGradient>
-          }
+          <Image
+            source={item.banner ? { uri: getImageUrl(item.banner) } : TOURNAMENT_FALLBACK}
+            style={styles.tBanner}
+            resizeMode="cover"
+          />
           {/* Status pill — solid filled badge */}
           <View style={[styles.tStatusPill, { backgroundColor: statusColor, borderColor: statusColor, paddingHorizontal: 10, paddingVertical: 5 }]}>
             <Text style={[styles.tStatusText, { color: statusColor === '#FFCC00' ? '#000000' : '#FFFFFF', fontFamily: Typography.fontFamily.bold, fontSize: 10 }]}>

@@ -8,6 +8,7 @@ import { useSelector } from 'react-redux';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 
 const TABS = ['Upcoming', 'Ongoing', 'Completed', 'My Tournaments'];
+const TOURNAMENT_FALLBACK = require('../../../assets/images/TournamentFallBack.png');
 
 const TournamentListScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -61,7 +62,7 @@ const TournamentListScreen = ({ navigation }) => {
       onPress={() => navigation.navigate('TournamentDetail', { tournamentId: item._id })}
     >
       <Image 
-        source={{ uri: item.banner ? item.banner.replace('localhost', '192.168.1.5') : 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=600&auto=format&fit=crop' }} 
+        source={item.banner ? { uri: item.banner.replace('localhost', '192.168.1.5') } : TOURNAMENT_FALLBACK} 
         style={styles.cardBanner} 
         blurRadius={item.banner ? 0 : 3}
       />

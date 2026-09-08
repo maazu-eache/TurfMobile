@@ -25,6 +25,8 @@ import TournamentStatistics from '../components/TournamentStatistics';
 import SharePreviewModal from '../components/SharePreviewModal';
 import { TournamentSummaryPoster, FixturePoster, PointsTablePoster, LeaderboardPoster, FullSchedulePoster, RegistrationPoster, TeamInvitePoster } from '../components/PosterTemplates';
 
+const TOURNAMENT_FALLBACK = require('../../../assets/images/TournamentFallBack.png');
+
 const TABS = [
   'Overview', 'Matches', 'Auction', 'Teams', 'Points Table',
   'Leaderboard', 'Statistics'
@@ -446,10 +448,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     try {
       setCalculatingQualifications(true);
       await api.post(`/tournaments/${tournamentId}/calculate-qualifications`);
-      Alert.alert('Success', 'Qualifications calculated successfully');
+      showCustomAlert('Success', 'Qualifications calculated successfully');
       fetchDashboard();
     } catch (e) {
-      Alert.alert('Error', e.response?.data?.message || 'Failed to calculate qualifications');
+      showCustomAlert('Error', e.response?.data?.message || 'Failed to calculate qualifications');
     } finally {
       setCalculatingQualifications(false);
     }
@@ -471,7 +473,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
   const handleCalculateScenario = async () => {
     if (!scenarioData.teamId || !scenarioData.opponentId || !scenarioData.firstInningsScore || !scenarioData.targetRank) {
-      Alert.alert('Error', 'Please fill all fields');
+      showCustomAlert('Error', 'Please fill all fields');
       return;
     }
     try {
@@ -479,7 +481,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       const res = await api.post(`/tournaments/${tournamentId}/scenario-calculator`, scenarioData);
       setScenarioResult(res.data);
     } catch (e) {
-      Alert.alert('Error', e.response?.data?.message || 'Failed to calculate scenario');
+      showCustomAlert('Error', e.response?.data?.message || 'Failed to calculate scenario');
     } finally {
       setScenarioLoading(false);
     }
@@ -1187,7 +1189,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
                   <View style={styles.vsContainer}>
                     <View style={styles.teamScoreRow}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 }}>
                         {firstTeam?.logo ? (
                           <Image
                             source={{ uri: getImageUrl(firstTeam.logo) }}
@@ -1203,7 +1205,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                         )}
                         <Text style={[styles.teamNameText, isFirstWinner && { fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : '#B37B00' }, !isFirstWinner && isCompleted && { color: colors.textSecondary, opacity: 0.75 }]} numberOfLines={1}>{firstTeam?.name || 'TBD'}</Text>
                         {isFirstWinner && (
-                          <View style={{ backgroundColor: isDark ? 'rgba(255,204,0,0.18)' : 'rgba(230,184,0,0.15)', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 8, flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}>
+                          <View style={{ backgroundColor: isDark ? 'rgba(255,204,0,0.18)' : 'rgba(230,184,0,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, flexDirection: 'row', alignItems: 'center', marginLeft: 8, marginRight: 8 }}>
                             <MCIcon name="trophy-variant" size={11} color={isDark ? colors.primary : '#B37B00'} />
                             <Text style={{ fontSize: 9, fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : '#B37B00', marginLeft: 2 }}>W</Text>
                           </View>
@@ -1215,7 +1217,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     </View>
                     <View style={styles.vsDivider} />
                     <View style={styles.teamScoreRow}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 }}>
                         {secondTeam?.logo ? (
                           <Image
                             source={{ uri: getImageUrl(secondTeam.logo) }}
@@ -1231,7 +1233,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                         )}
                         <Text style={[styles.teamNameText, isSecondWinner && { fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : '#B37B00' }, !isSecondWinner && isCompleted && { color: colors.textSecondary, opacity: 0.75 }]} numberOfLines={1}>{secondTeam?.name || 'TBD'}</Text>
                         {isSecondWinner && (
-                          <View style={{ backgroundColor: isDark ? 'rgba(255,204,0,0.18)' : 'rgba(230,184,0,0.15)', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 8, flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}>
+                          <View style={{ backgroundColor: isDark ? 'rgba(255,204,0,0.18)' : 'rgba(230,184,0,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, flexDirection: 'row', alignItems: 'center', marginLeft: 8, marginRight: 8 }}>
                             <MCIcon name="trophy-variant" size={11} color={isDark ? colors.primary : '#B37B00'} />
                             <Text style={{ fontSize: 9, fontFamily: Typography.fontFamily.bold, color: isDark ? colors.primary : '#B37B00', marginLeft: 2 }}>W</Text>
                           </View>
@@ -1924,8 +1926,8 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const isFollowing = tournament.followers?.includes(user?._id);
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.primaryDark} />
+    <View style={[styles.container, { paddingTop: safeTop }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent={false} />
       {/* Modern Header: Yellow Gradient with Logo + Title */}
       <LinearGradient
         colors={colors.primaryGradient || ['#FFCC00', '#E6B800']}
@@ -1950,11 +1952,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           )}
         </View>
-
         <View style={styles.headerInfoContentContainer}>
           <View style={styles.logoAndTitleRow}>
             <Image
-              source={{ uri: tournament.banner ? getImageUrl(tournament.banner) : 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=600&auto=format&fit=crop' }}
+              source={tournament.banner ? { uri: getImageUrl(tournament.banner) } : TOURNAMENT_FALLBACK}
               style={styles.headerLogo}
               resizeMode="cover"
             />
@@ -2748,7 +2749,7 @@ const createStyles = (colors, shadows, isDark, safeTop = 44) => StyleSheet.creat
   container: { flex: 1, backgroundColor: colors.background },
 
   /* ---- BANNER + HEADER ---- */
-  bannerWrapper: { position: 'relative', height: 135 + safeTop, justifyContent: 'flex-end', paddingBottom: 10 },
+  bannerWrapper: { position: 'relative', height: 135, justifyContent: 'flex-end', paddingBottom: 10 },
   headerInfoContentContainer: {
     paddingHorizontal: 16,
   },
@@ -2780,7 +2781,7 @@ const createStyles = (colors, shadows, isDark, safeTop = 44) => StyleSheet.creat
   headerTopBar: {
     position: 'absolute', top: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingTop: safeTop + 4, paddingBottom: 8, zIndex: 10
+    paddingHorizontal: 14, paddingTop: 8, paddingBottom: 8, zIndex: 10
   },
   /* Title area positioned perfectly over the gradient */
   headerBottom: {

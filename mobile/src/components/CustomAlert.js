@@ -101,7 +101,7 @@ const CustomAlert = forwardRef((props, ref) => {
   if (!visible) return null;
 
   return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={() => setVisible(false)}>
+    <Modal transparent statusBarTranslucent animationType="fade" visible={visible} onRequestClose={() => setVisible(false)}>
       <View style={styles.overlay}>
         <View style={styles.alertBox}>
           <Text style={styles.title}>{title}</Text>

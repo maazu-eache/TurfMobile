@@ -19,6 +19,7 @@ import PlayerProfileCard from '../../../components/PlayerProfileCard';
 import AppUpdateBanner from '../../../components/common/AppUpdateBanner';
 import { toggleUserFavourite, setUserFavouriteStatus, logout, logoutLocal } from '../../auth/authSlice';
 import { PremiumTurfCarousel } from '../components/PremiumTurfCarousel';
+import { showCustomAlert } from '../../../components/CustomAlert';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const SIDEBAR_WIDTH = SW * 0.80;
@@ -77,25 +78,28 @@ const HomeScreen = ({ navigation }) => {
   }, []);
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout Confirmation',
-      'Are you sure you want to log out of your account?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            closeSidebar();
-            try {
-              await dispatch(logout()).unwrap();
-            } catch (e) {
-              dispatch(logoutLocal());
-            }
-          },
-        },
-      ]
-    );
+    closeSidebar(() => {
+      setTimeout(() => {
+        showCustomAlert(
+          'Logout Confirmation',
+          'Are you sure you want to log out of your account?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Logout',
+              style: 'destructive',
+              onPress: async () => {
+                try {
+                  await dispatch(logout()).unwrap();
+                } catch (e) {
+                  dispatch(logoutLocal());
+                }
+              },
+            },
+          ]
+        );
+      }, 100);
+    });
   };
 
   // ── Animated Pulse for Live Dot ─────────────────────────────────────────────
@@ -262,11 +266,14 @@ const HomeScreen = ({ navigation }) => {
       Animated.timing(overlayAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
     ]).start();
   };
-  const closeSidebar = () => {
+  const closeSidebar = (cb) => {
     Animated.parallel([
       Animated.timing(sidebarAnim, { toValue: -SIDEBAR_WIDTH, duration: 210, useNativeDriver: true }),
       Animated.timing(overlayAnim, { toValue: 0, duration: 210, useNativeDriver: true }),
-    ]).start(() => setSidebarOpen(false));
+    ]).start(() => {
+      setSidebarOpen(false);
+      if (typeof cb === 'function') cb();
+    });
   };
   const handleSidebarNav = (item) => {
     closeSidebar();
@@ -300,7 +307,20 @@ const HomeScreen = ({ navigation }) => {
       if (lat && lng) { params.lat = lat; params.lng = lng; }
       else if (city) { params.city = city; }
       const res = await api.get('/players', { params });
-      if (res.data.data) setNearPlayers(res.data.data.filter(p => (p.userId?._id || p.userId) !== user?._id));
+      if (res.data.data) {
+        const filtered = res.data.data.filter(p => (p.userId?._id || p.userId) !== user?._id);
+        filtered.sort((a, b) => {
+          const matchesA = a.career?.matches ?? a.matches ?? 0;
+          const matchesB = b.career?.matches ?? b.matches ?? 0;
+          if (matchesB !== matchesA) {
+            return matchesB - matchesA;
+          }
+          const runsA = a.career?.batting?.runs ?? a.batting?.runs ?? a.runs ?? 0;
+          const runsB = b.career?.batting?.runs ?? b.batting?.runs ?? b.runs ?? 0;
+          return runsB - runsA;
+        });
+        setNearPlayers(filtered);
+      }
     } catch (_) { }
   };
   const fetchPlatformSettings = async () => {
@@ -361,118 +381,6 @@ const HomeScreen = ({ navigation }) => {
   return (
     <View style={styles.root}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
-
-      {/* ════ SIDEBAR ════════════════════════════════════════════════════════ */}
-      {sidebarOpen && (
-        <Modal transparent visible animationType="none">
-          <TouchableWithoutFeedback onPress={closeSidebar}>
-            <Animated.View style={[StyleSheet.absoluteFill, styles.sidebarOverlay, { opacity: overlayAnim }]} />
-          </TouchableWithoutFeedback>
-
-          <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
-            <LinearGradient colors={isDark ? ['#000000', '#0A0A0A', '#000000'] : [colors.surface, colors.background, colors.surface]} style={styles.sidebarBody}>
-              <View style={{ paddingTop: safeTop }}>
-                {/* ── Profile ── */}
-                <View style={styles.sidebarProfile}>
-                  <View>
-                    <LinearGradient colors={Colors.gradients?.primary || ['#FFCC00', '#E6B800']} style={styles.sidebarAvatar}>
-                      {(myProfile?.photo || user?.photo)
-                        ? <Image source={{ uri: getImageUrl(myProfile?.photo || user?.photo) || 'https://via.placeholder.com/150' }} style={StyleSheet.absoluteFill} borderRadius={28} />
-                        : user?.name
-                          ? <Text style={styles.sidebarAvatarTxt}>{user.name.charAt(0).toUpperCase()}</Text>
-                          : <Icon name="account" size={28} color="#000" />
-                      }
-                    </LinearGradient>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.sidebarName} numberOfLines={1}>{user?.name || 'Cricketer'}</Text>
-                    <View style={styles.sidebarCityRow}>
-                      <Icon name="map-marker-outline" size={11} color={Colors.primary} />
-                      <Text style={styles.sidebarCityTxt} numberOfLines={1}>
-                        {myProfile?.locationObj?.name || myProfile?.city || user?.city || 'Set your location'}
-                      </Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity onPress={closeSidebar} style={styles.sidebarCloseBtn}>
-                    <Icon name="close" size={17} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.sidebarDivider} />
-
-              {/* ── Nav Sections ── */}
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                {SIDEBAR_SECTIONS.map((section, si) => (
-                  <View key={si} style={styles.sidebarSection}>
-                    <Text style={styles.sidebarSectionTitle}>{section.title.toUpperCase()}</Text>
-                    {section.items.map((item, ii) => (
-                      <TouchableOpacity key={ii} style={styles.sidebarItem} onPress={() => handleSidebarNav(item)} activeOpacity={0.7}>
-                        <View style={styles.sidebarItemIcon}>
-                          <Icon name={item.icon} size={16} color={Colors.primary} />
-                        </View>
-                        <Text style={styles.sidebarItemLabel}>{item.label}</Text>
-                        <Icon name="chevron-right" size={14} color={colors.textTertiary} />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ))}
-                <View style={{ height: 16 }} />
-              </ScrollView>
-
-              {/* ── Sidebar Footer (Theme & Logout) ── */}
-              <View style={[styles.sidebarFooterWrap, { paddingBottom: safeBottom + 12 }]}>
-                {/* Theme Mode Selector */}
-                <View style={styles.themeRow}>
-                  <View style={styles.themeInfo}>
-                    <Icon name={isDark ? "weather-night" : "weather-sunny"} size={16} color={Colors.primary} />
-                    <Text style={styles.themeTitle}>App Appearance</Text>
-                  </View>
-                  <View style={styles.themeSelector}>
-                    {[
-                      { key: 'light', label: 'Light' },
-                      { key: 'dark', label: 'Dark' },
-                      { key: 'system', label: 'System' },
-                    ].map((mode) => (
-                      <TouchableOpacity
-                        key={mode.key}
-                        style={[
-                          styles.themeOptionBtn,
-                          themeMode === mode.key && styles.themeOptionBtnActive
-                        ]}
-                        onPress={() => setThemeMode(mode.key)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[
-                          styles.themeOptionTxt,
-                          themeMode === mode.key && styles.themeOptionTxtActive
-                        ]}>
-                          {mode.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Logout Button */}
-                {isAuthenticated && (
-                  <TouchableOpacity
-                    style={styles.logoutBtn}
-                    onPress={handleLogout}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.logoutIconWrap}>
-                      <Icon name="logout" size={16} color={Colors.error || '#F44336'} />
-                    </View>
-                    <Text style={styles.logoutTxt}>Logout</Text>
-                    <Icon name="chevron-right" size={14} color={colors.textTertiary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </LinearGradient>
-          </Animated.View>
-        </Modal>
-      )}
 
       {/* ════ FLOATING HEADER ════════════════════════════════════════════════ */}
       <Animated.View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: headerBorder }]}>
@@ -810,6 +718,118 @@ const HomeScreen = ({ navigation }) => {
         </View> */}
 
       </Animated.ScrollView>
+
+      {/* ════ SIDEBAR ════════════════════════════════════════════════════════ */}
+      {sidebarOpen && (
+        <Modal transparent visible animationType="none">
+          <TouchableWithoutFeedback onPress={closeSidebar}>
+            <Animated.View style={[StyleSheet.absoluteFill, styles.sidebarOverlay, { opacity: overlayAnim }]} />
+          </TouchableWithoutFeedback>
+
+          <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
+            <LinearGradient colors={isDark ? ['#000000', '#0A0A0A', '#000000'] : [colors.surface, colors.background, colors.surface]} style={styles.sidebarBody}>
+              <View style={{ paddingTop: safeTop }}>
+                {/* ── Profile ── */}
+                <View style={styles.sidebarProfile}>
+                  <View>
+                    <LinearGradient colors={Colors.gradients?.primary || ['#FFCC00', '#E6B800']} style={styles.sidebarAvatar}>
+                      {(myProfile?.photo || user?.photo)
+                        ? <Image source={{ uri: getImageUrl(myProfile?.photo || user?.photo) || 'https://via.placeholder.com/150' }} style={StyleSheet.absoluteFill} borderRadius={28} />
+                        : user?.name
+                          ? <Text style={styles.sidebarAvatarTxt}>{user.name.charAt(0).toUpperCase()}</Text>
+                          : <Icon name="account" size={28} color="#000" />
+                      }
+                    </LinearGradient>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sidebarName} numberOfLines={1}>{user?.name || 'Cricketer'}</Text>
+                    <View style={styles.sidebarCityRow}>
+                      <Icon name="map-marker-outline" size={11} color={Colors.primary} />
+                      <Text style={styles.sidebarCityTxt} numberOfLines={1}>
+                        {myProfile?.locationObj?.name || myProfile?.city || user?.city || 'Set your location'}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={closeSidebar} style={styles.sidebarCloseBtn}>
+                    <Icon name="close" size={17} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.sidebarDivider} />
+
+              {/* ── Nav Sections ── */}
+              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                {SIDEBAR_SECTIONS.map((section, si) => (
+                  <View key={si} style={styles.sidebarSection}>
+                    <Text style={styles.sidebarSectionTitle}>{section.title.toUpperCase()}</Text>
+                    {section.items.map((item, ii) => (
+                      <TouchableOpacity key={ii} style={styles.sidebarItem} onPress={() => handleSidebarNav(item)} activeOpacity={0.7}>
+                        <View style={styles.sidebarItemIcon}>
+                          <Icon name={item.icon} size={16} color={Colors.primary} />
+                        </View>
+                        <Text style={styles.sidebarItemLabel}>{item.label}</Text>
+                        <Icon name="chevron-right" size={14} color={colors.textTertiary} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ))}
+                <View style={{ height: 16 }} />
+              </ScrollView>
+
+              {/* ── Sidebar Footer (Theme & Logout) ── */}
+              <View style={[styles.sidebarFooterWrap, { paddingBottom: safeBottom + 12 }]}>
+                {/* Theme Mode Selector */}
+                <View style={styles.themeRow}>
+                  <View style={styles.themeInfo}>
+                    <Icon name={isDark ? "weather-night" : "weather-sunny"} size={16} color={Colors.primary} />
+                    <Text style={styles.themeTitle}>App Appearance</Text>
+                  </View>
+                  <View style={styles.themeSelector}>
+                    {[
+                      { key: 'light', label: 'Light' },
+                      { key: 'dark', label: 'Dark' },
+                      { key: 'system', label: 'System' },
+                    ].map((mode) => (
+                      <TouchableOpacity
+                        key={mode.key}
+                        style={[
+                          styles.themeOptionBtn,
+                          themeMode === mode.key && styles.themeOptionBtnActive
+                        ]}
+                        onPress={() => setThemeMode(mode.key)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[
+                          styles.themeOptionTxt,
+                          themeMode === mode.key && styles.themeOptionTxtActive
+                        ]}>
+                          {mode.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Logout Button */}
+                {isAuthenticated && (
+                  <TouchableOpacity
+                    style={styles.logoutBtn}
+                    onPress={handleLogout}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.logoutIconWrap}>
+                      <Icon name="logout" size={16} color={Colors.error || '#F44336'} />
+                    </View>
+                    <Text style={styles.logoutTxt}>Logout</Text>
+                    <Icon name="chevron-right" size={14} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </LinearGradient>
+          </Animated.View>
+        </Modal>
+      )}
     </View>
   );
 };

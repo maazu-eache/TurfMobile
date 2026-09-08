@@ -5361,13 +5361,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.primaryDark} />
+    <View style={[styles.container, { paddingTop: safeTop }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent={false} />
 
       {/* ── Modern Header ── */}
       <LinearGradient
         colors={colors.primaryGradient || ['#FFCC00', '#E6B800']}
-        style={[styles.headerPrimary, { paddingTop: safeTop + 4 }]}
+        style={styles.headerPrimary}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       >

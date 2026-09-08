@@ -8,6 +8,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../api/axios';
 import { Colors, Typography } from '../../../theme/theme';
 import { useTheme } from '../../../theme/ThemeContext';
+import { showCustomAlert } from '../../../components/CustomAlert';
 
 // Full currency — used in list cards, modals
 const formatCurrency = (val) => `\u20b9${(val || 0).toLocaleString('en-IN')}`;
@@ -122,7 +123,7 @@ const FinanceView = () => {
   };
 
   const handleProcessRefund = (id, amount, userName) => {
-    Alert.alert(
+    showCustomAlert(
       'Process Refund',
       `Are you sure you want to refund ${formatCurrency(amount)} to ${userName || 'this user'}? This will trigger a Razorpay refund.`,
       [
@@ -135,7 +136,7 @@ const FinanceView = () => {
               await api.post(`/admin/refunds/${id}/process`);
               fetchData();
             } catch (err) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to process refund');
+              showCustomAlert('Error', err?.response?.data?.message || 'Failed to process refund');
             } finally {
               setProcessingId(null);
             }
@@ -147,7 +148,7 @@ const FinanceView = () => {
 
   const handleProcessWithdrawal = (id, amount, name, status) => {
     const action = status === 'processed' ? 'approve' : 'reject';
-    Alert.alert(
+    showCustomAlert(
       `${action === 'approve' ? 'Approve' : 'Reject'} Withdrawal`,
       `Are you sure you want to ${action} the withdrawal of ${formatCurrency(amount)} for ${name}?`,
       [
@@ -161,7 +162,7 @@ const FinanceView = () => {
               await api.put(`/admin/settlements/${id}/process`, { status, transactionRef: `ADMIN_FINANCE_${Date.now()}` });
               fetchData();
             } catch (err) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to update withdrawal');
+              showCustomAlert('Error', err?.response?.data?.message || 'Failed to update withdrawal');
             } finally {
               setProcessingId(null);
             }

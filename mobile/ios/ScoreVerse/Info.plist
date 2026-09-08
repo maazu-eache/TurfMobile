@@ -67,6 +67,8 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>ScoreVerse needs access to your camera to scan Team QR codes during match creation.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Voice Booking Assistant uses the microphone to take slot bookings by voice.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

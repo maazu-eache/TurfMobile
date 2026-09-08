@@ -6,6 +6,9 @@ import {
   Dimensions, Modal, TextInput, ToastAndroid, Platform, RefreshControl,
   KeyboardAvoidingView, StatusBar
 } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
+import { captureRef } from 'react-native-view-shot';
+import Share from 'react-native-share';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -16,6 +19,8 @@ import {
   addPlayerToTeam, updatePlayerRole, deleteTeam,
   updateTeam, leaveTeam, removePlayerFromTeam, clearSelectedTeam,
 } from '../teamSlice';
+import SharePreviewModal from '../../tournament/components/SharePreviewModal';
+import { TeamQRPoster } from '../../tournament/components/PosterTemplates';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { getImageUrl } from '../../../api/axios';
@@ -541,7 +546,117 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   loadingTab: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
 
   // Modals
-  modalOverlay: { flex: 1, backgroundColor: colors.blackAlpha50, justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: colors.blackAlpha50, justifyContent: 'center', alignItems: 'center' },
+  qrModalCard: {
+    width: '88%',
+    maxWidth: 360,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+    alignSelf: 'center',
+  },
+  qrCloseBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    padding: 6,
+    zIndex: 10,
+  },
+  qrHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  qrLogoWrap: {
+    marginBottom: 10,
+  },
+  qrLogo: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: colors.primaryAlpha30,
+  },
+  qrLogoFb: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primaryAlpha30,
+  },
+  qrTeamTitle: {
+    fontSize: 20,
+    fontFamily: Typography.fontFamily.bold,
+    textAlign: 'center',
+  },
+  qrCodeBox: {
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  qrCodeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  qrCodeText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  qrInstructionText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.regular,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 8,
+    lineHeight: 16,
+  },
+  shareQrBtn: {
+    width: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  shareQrGradient: {
+    height: 48,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareQrText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  posterShareBtn: {
+    width: '100%',
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  posterShareText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+  },
   modalSheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
@@ -978,6 +1093,47 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState('inappropriate_name');
   const [reportDetails, setReportDetails] = useState('');
+
+  // QR Modal State
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [showPosterShareModal, setShowPosterShareModal] = useState(false);
+  const [isCapturingQr, setIsCapturingQr] = useState(false);
+  const qrCardRef = useRef(null);
+
+  const handleShareTeamQr = async () => {
+    try {
+      setIsCapturingQr(true);
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      let imageUri = null;
+      if (qrCardRef.current) {
+        imageUri = await captureRef(qrCardRef.current, {
+          format: 'png',
+          quality: 1,
+          result: 'tmpfile',
+        });
+      }
+
+      setIsCapturingQr(false);
+
+      const teamName = selectedTeam?.name || 'Team';
+      const teamCode = selectedTeam?._id || '';
+
+      const shareOptions = {
+        title: `${teamName} QR Code`,
+        message: `🏆 Check out ${teamName} on ScoreVerse!\nTeam Code: ${teamCode}\nScan this QR code during match creation to add our team!`,
+      };
+
+      if (imageUri) {
+        shareOptions.url = imageUri;
+      }
+
+      await Share.open(shareOptions);
+    } catch (error) {
+      setIsCapturingQr(false);
+      console.log('Error sharing team QR image:', error);
+    }
+  };
   const [reportLoading, setReportLoading] = useState(false);
 
   const handleReportTeam = async () => {
@@ -2433,6 +2589,11 @@ const TeamDetailScreen = ({ navigation, route }) => {
             <Icon name="arrow-left" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.navActions}>
+            {(isMeMember || isCreator) && (
+              <TouchableOpacity style={styles.navBtn} onPress={() => setShowQrModal(true)} activeOpacity={0.7}>
+                <Icon name="qrcode-scan" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            )}
             {isMeMember && (
               <TouchableOpacity style={styles.navBtn} onPress={handleLeaveTeam} activeOpacity={0.7}>
                 <Icon name="logout" size={20} color={colors.error} />
@@ -2794,6 +2955,97 @@ const TeamDetailScreen = ({ navigation, route }) => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ── TEAM QR CODE MODAL ── */}
+      <Modal visible={showQrModal} animationType="fade" transparent onRequestClose={() => setShowQrModal(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowQrModal(false)} />
+          <View ref={qrCardRef} style={[styles.qrModalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <TouchableOpacity onPress={() => setShowQrModal(false)} style={styles.qrCloseBtn} activeOpacity={0.7}>
+              <Icon name="close" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <View style={styles.qrHeader}>
+              <View style={styles.qrLogoWrap}>
+                {selectedTeam?.logo ? (
+                  <Image source={{ uri: getImageUrl(selectedTeam.logo) }} style={styles.qrLogo} />
+                ) : (
+                  <View style={[styles.qrLogoFb, { backgroundColor: colors.primaryAlpha10 }]}>
+                    <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 20 }}>
+                      {(selectedTeam?.name || 'T').trim().charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.qrTeamTitle, { color: colors.textPrimary }]} numberOfLines={1}>{selectedTeam?.name || 'Team'}</Text>
+              {selectedTeam?.city ? (
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>
+                  📍 {selectedTeam.city}{selectedTeam.state ? `, ${selectedTeam.state}` : ''}
+                </Text>
+              ) : null}
+            </View>
+
+            <View style={styles.qrCodeBox}>
+              <QRCode
+                value={`SCOREVERSE_TEAM:${selectedTeam?._id || ''}`}
+                size={180}
+                color="#000000"
+                backgroundColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={[styles.qrCodeBadge, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]}>
+              <Icon name="shield-account-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={[styles.qrCodeText, { color: colors.textSecondary }]} numberOfLines={1}>
+                TEAM CODE: <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{selectedTeam?._id || ''}</Text>
+              </Text>
+            </View>
+
+            <Text style={[styles.qrInstructionText, { color: colors.textTertiary }]}>
+              Scan this QR code during match creation to quickly select {selectedTeam?.name || 'this team'}.
+            </Text>
+
+            <View style={{ width: '100%', gap: 10 }}>
+              <TouchableOpacity style={styles.shareQrBtn} onPress={handleShareTeamQr} disabled={isCapturingQr} activeOpacity={0.8}>
+                <LinearGradient colors={[colors.primary, colors.primaryDark || colors.primary]} style={styles.shareQrGradient}>
+                  {isCapturingQr ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <>
+                      <Icon name="share-variant" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                      <Text style={styles.shareQrText}>Share Team QR</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.posterShareBtn, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]}
+                onPress={() => {
+                  setShowQrModal(false);
+                  setShowPosterShareModal(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Icon name="palette-outline" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+                <Text style={[styles.posterShareText, { color: colors.textPrimary }]}>Poster Themes & Share</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Team Poster Share Modal */}
+      {showPosterShareModal && selectedTeam && (
+        <SharePreviewModal
+          visible={showPosterShareModal}
+          onClose={() => setShowPosterShareModal(false)}
+          title={`${selectedTeam.name} QR Card`}
+          shareUrl={`https://scoreverse.in/team/${selectedTeam._id}`}
+        >
+          <TeamQRPoster team={selectedTeam} />
+        </SharePreviewModal>
+      )}
 
     </View>
   );

@@ -7,9 +7,8 @@ import LinearGradient from "react-native-linear-gradient";
 import QRCode from "react-native-qrcode-svg";
 
 const SPORTVERSE_LOGO = require("../../../../SportVerse.png");
-const STADIUM_BG = {
-  uri: "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=1200&auto=format&fit=crop&q=80",
-};
+const TOURNAMENT_FALLBACK = require("../../../assets/images/TournamentFallBack.png");
+const STADIUM_BG = require("../../../../share.png");
 const getSource = (url) => (url ? { uri: getImageUrl(url) } : SPORTVERSE_LOGO);
 
 // ---------------------------------------------------------------------------
@@ -340,11 +339,7 @@ export const TournamentSummaryPoster = ({ tournament, theme }) => {
       <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
         <PosterChrome t={t} />
         <Image
-          source={{
-            uri: tournament?.banner
-              ? getImageUrl(tournament.banner)
-              : "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop",
-          }}
+          source={tournament?.banner ? { uri: getImageUrl(tournament.banner) } : TOURNAMENT_FALLBACK}
           style={styles.posterBanner}
           resizeMode="cover"
         />
@@ -434,11 +429,7 @@ export const RegistrationPoster = ({ tournament, theme }) => {
       <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
         <PosterChrome t={t} />
         <Image
-          source={{
-            uri: tournament?.banner
-              ? getImageUrl(tournament.banner)
-              : "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop",
-          }}
+          source={tournament?.banner ? { uri: getImageUrl(tournament.banner) } : TOURNAMENT_FALLBACK}
           style={styles.posterBanner}
           resizeMode="cover"
         />
@@ -453,10 +444,10 @@ export const RegistrationPoster = ({ tournament, theme }) => {
             {tournament?.name}
           </Text>
           <LinearGradient
-            colors={[t.accentColor + "22", t.accentColor + "08"]}
+            colors={[t.accentColor + "38", t.accentColor + "18"]}
             style={[styles.pillBadge, { borderColor: t.accentColor, marginTop: 14 }]}
           >
-            <Text style={[styles.pillBadgeText, { color: t.accentColor }]}>
+            <Text style={[styles.pillBadgeText, { color: t.accentColor, textShadowColor: '#000000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }]}>
               {isAuction ? "⚡ AUCTION REGISTRATIONS OPEN" : "⚡ REGISTRATIONS OPEN"}
             </Text>
           </LinearGradient>
@@ -479,11 +470,7 @@ export const TeamInvitePoster = ({ tournament, theme }) => {
       <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
         <PosterChrome t={t} />
         <Image
-          source={{
-            uri: tournament?.banner
-              ? getImageUrl(tournament.banner)
-              : "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop",
-          }}
+          source={tournament?.banner ? { uri: getImageUrl(tournament.banner) } : TOURNAMENT_FALLBACK}
           style={styles.posterBanner}
           resizeMode="cover"
         />
@@ -1101,3 +1088,109 @@ export const PlayerProfilePoster = ({ player, career, batting, bowling, theme })
     </ImageBackground>
   );
 };
+
+export const TeamQRPoster = ({ team, theme }) => {
+  const t = getThemeStyles(theme);
+  const shareUrl = `https://scoreverse.in/team/${team?._id}`;
+  const qrPayload = `SCOREVERSE_TEAM:${team?._id || ''}`;
+  const winPct = team?.stats?.matches > 0 ? ((team.stats.wins / team.stats.matches) * 100).toFixed(0) : '0';
+
+  return (
+    <ImageBackground source={STADIUM_BG} style={getContainerStyle(t, 420)}>
+      <View style={{ width: "100%", backgroundColor: t.overlayBg, alignItems: 'center', paddingBottom: Spacing.md }}>
+        <PosterChrome t={t} />
+
+        {/* Header Kicker */}
+        <View style={{ marginTop: 14, marginBottom: 8 }}>
+          <Kicker text="OFFICIAL TEAM CARD" color={t.accentColor} />
+        </View>
+
+        {/* Team Logo */}
+        <View style={{ marginVertical: 10, position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{
+            width: 76,
+            height: 76,
+            borderRadius: 38,
+            borderWidth: 2.5,
+            borderColor: t.accentColor,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: t.cardBg,
+            ...cardShadow,
+          }}>
+            {team?.logo ? (
+              <Image source={{ uri: getImageUrl(team.logo) }} style={{ width: 70, height: 70, borderRadius: 35 }} />
+            ) : (
+              <Text style={{ color: t.accentColor, fontFamily: Typography.fontFamily.bold, fontSize: 28 }}>
+                {(team?.name || 'T').trim().charAt(0).toUpperCase()}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Team Title & City */}
+        <Text style={[styles.posterTitle, { color: t.textColor, fontSize: 22, textAlign: 'center', marginHorizontal: 16, textShadowColor: t.accentColor + '55' }]} numberOfLines={1}>
+          {team?.name || 'Cricket Team'}
+        </Text>
+        {team?.city ? (
+          <Text style={{ color: t.secTextColor, fontSize: 12, fontFamily: Typography.fontFamily.medium, marginTop: 4 }}>
+            📍 {team.city}{team.state ? `, ${team.state}` : ''}
+          </Text>
+        ) : null}
+
+        {/* Team Quick Stats */}
+        <View style={{ flexDirection: 'row', gap: 12, marginVertical: 12 }}>
+          <View style={{ alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4, backgroundColor: t.cardBg, borderRadius: 8, borderWidth: 1, borderColor: t.borderColor }}>
+            <Text style={{ color: t.accentColor, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{team?.stats?.matches || 0}</Text>
+            <Text style={{ color: t.secTextColor, fontSize: 9, fontFamily: Typography.fontFamily.regular }}>MATCHES</Text>
+          </View>
+          <View style={{ alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4, backgroundColor: t.cardBg, borderRadius: 8, borderWidth: 1, borderColor: t.borderColor }}>
+            <Text style={{ color: t.accentColor, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{team?.stats?.wins || 0}</Text>
+            <Text style={{ color: t.secTextColor, fontSize: 9, fontFamily: Typography.fontFamily.regular }}>WINS</Text>
+          </View>
+          <View style={{ alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4, backgroundColor: t.cardBg, borderRadius: 8, borderWidth: 1, borderColor: t.borderColor }}>
+            <Text style={{ color: t.accentColor, fontFamily: Typography.fontFamily.bold, fontSize: 13 }}>{winPct}%</Text>
+            <Text style={{ color: t.secTextColor, fontSize: 9, fontFamily: Typography.fontFamily.regular }}>WIN RATE</Text>
+          </View>
+        </View>
+
+        {/* Embedded QR Code Card */}
+        <View style={{
+          padding: 12,
+          backgroundColor: '#FFFFFF',
+          borderRadius: 14,
+          marginVertical: 6,
+          borderWidth: 2,
+          borderColor: t.accentColor,
+          ...cardShadow
+        }}>
+          <QRCode value={qrPayload} size={145} color="#000000" backgroundColor="#FFFFFF" />
+        </View>
+
+        {/* Code Badge & CTA */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: t.accentColor + '18',
+          borderWidth: 1,
+          borderColor: t.accentColor,
+          paddingHorizontal: 10,
+          paddingVertical: 5,
+          borderRadius: 8,
+          marginTop: 8,
+        }}>
+          <Text style={{ color: t.accentColor, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
+            TEAM CODE: {team?._id}
+          </Text>
+        </View>
+
+        <Text style={{ color: t.secTextColor, fontSize: 10, fontFamily: Typography.fontFamily.medium, marginTop: 8, opacity: 0.85 }}>
+          SCAN QR TO SELECT TEAM IN MATCH CREATION
+        </Text>
+
+        <PosterFooter t={t} shareUrl={shareUrl} />
+      </View>
+    </ImageBackground>
+  );
+};
+
