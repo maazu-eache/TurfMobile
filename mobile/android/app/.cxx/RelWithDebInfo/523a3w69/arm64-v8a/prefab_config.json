@@ -3,6 +3,7 @@
   "prefabPath": "/Users/apple/.gradle/caches/modules-2/files-2.1/com.google.prefab/cli/2.1.0/aa32fec809c44fa531f01dcfb739b5b3304d3050/cli-2.1.0-all.jar",
   "packages": [
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-reanimated/android/build/intermediates/prefab_package/release/prefab",
+    "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-vision-camera/android/build/intermediates/prefab_package/release/prefab",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets/android/build/intermediates/prefab_package/release/prefab",
     "/Users/apple/.gradle/caches/9.3.1/transforms/25ce1d28774cbcb2fe14ad81f3c11f40/transformed/jetified-react-android-0.86.0-release/prefab",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets-core/android/build/intermediates/prefab_package/release/prefab",

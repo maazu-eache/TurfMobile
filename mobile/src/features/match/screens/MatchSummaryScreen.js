@@ -355,6 +355,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (index !== -1 && flatListRef.current) {
       flatListRef.current.scrollToIndex({ index, animated: true });
     }
+    if (index !== -1 && headerScrollRef.current) {
+      headerScrollRef.current.scrollTo({ x: Math.max(0, index * 90 - 40), animated: true });
+    }
   };
 
   const onViewableItemsChanged = useRef(({ viewableItems }) => {
@@ -2241,7 +2244,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               <View style={{ flexDirection: 'row', marginTop: 16 }}>
                 <TouchableOpacity
                   style={{ flex: 1, backgroundColor: colors.primaryAlpha20, paddingVertical: 12, borderRadius: 8, alignItems: 'center' }}
-                  onPress={() => setActiveTab('Leaderboard')}
+                  onPress={() => handleTabPress('Leaderboard')}
                 >
                   <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.semiBold, fontSize: 14 }}>Leaderboard</Text>
                 </TouchableOpacity>

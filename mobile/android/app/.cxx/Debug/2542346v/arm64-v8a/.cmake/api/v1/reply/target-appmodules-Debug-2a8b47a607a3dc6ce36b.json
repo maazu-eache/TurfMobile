@@ -198,6 +198,14 @@
 				},
 				{
 					"backtrace" : 4,
+					"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/."
+				},
+				{
+					"backtrace" : 4,
+					"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/react/renderer/components/VisionCameraCodeScanner"
+				},
+				{
+					"backtrace" : 4,
 					"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-async-storage/async-storage/android/build/generated/source/codegen/jni/."
 				},
 				{
@@ -401,6 +409,14 @@
 					"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets-core/android/build/generated/source/codegen/jni/react/renderer/components/RNWorkletsSpec"
 				},
 				{
+					"backtrace" : 4,
+					"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/."
+				},
+				{
+					"backtrace" : 4,
+					"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/react/renderer/components/RNQrGeneratorSpec"
+				},
+				{
 					"backtrace" : 5,
 					"isSystem" : true,
 					"path" : "/Users/apple/.gradle/caches/9.3.1/transforms/ed58bc8a633de13e3e2325d5f38fa465/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/include"
@@ -430,6 +446,10 @@
 	],
 	"dependencies" : 
 	[
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_VisionCameraCodeScanner::@f5025e33e86ded227cb9"
+		},
 		{
 			"backtrace" : 4,
 			"id" : "react_codegen_AsyncStorageSpec::@15af80695a6281ecf900"
@@ -517,6 +537,10 @@
 		{
 			"backtrace" : 4,
 			"id" : "react_codegen_RNWorkletsSpec::@c787b30dd2b0f948dced"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_RNQrGeneratorSpec::@a0423fadad9efeed7006"
 		}
 	],
 	"id" : "appmodules::@6890427a1f51a3e7e1df",
@@ -703,7 +727,19 @@
 				107,
 				108,
 				109,
-				110
+				110,
+				111,
+				112,
+				113,
+				114,
+				115,
+				116,
+				117,
+				118,
+				119,
+				120,
+				121,
+				122
 			]
 		}
 	],
@@ -720,6 +756,42 @@
 			"compileGroupIndex" : 0,
 			"path" : "OnLoad.cpp",
 			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/VisionCameraCodeScanner_autolinked_build/CMakeFiles/react_codegen_VisionCameraCodeScanner.dir/VisionCameraCodeScanner-generated.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/VisionCameraCodeScanner_autolinked_build/CMakeFiles/react_codegen_VisionCameraCodeScanner.dir/react/renderer/components/VisionCameraCodeScanner/ComponentDescriptors.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/VisionCameraCodeScanner_autolinked_build/CMakeFiles/react_codegen_VisionCameraCodeScanner.dir/react/renderer/components/VisionCameraCodeScanner/EventEmitters.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/VisionCameraCodeScanner_autolinked_build/CMakeFiles/react_codegen_VisionCameraCodeScanner.dir/react/renderer/components/VisionCameraCodeScanner/Props.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/VisionCameraCodeScanner_autolinked_build/CMakeFiles/react_codegen_VisionCameraCodeScanner.dir/react/renderer/components/VisionCameraCodeScanner/ShadowNodes.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/VisionCameraCodeScanner_autolinked_build/CMakeFiles/react_codegen_VisionCameraCodeScanner.dir/react/renderer/components/VisionCameraCodeScanner/States.cpp.o",
+			"sourceGroupIndex" : 1
 		},
 		{
 			"backtrace" : 4,
@@ -1373,6 +1445,42 @@
 			"backtrace" : 4,
 			"isGenerated" : true,
 			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNWorkletsSpec_autolinked_build/CMakeFiles/react_codegen_RNWorkletsSpec.dir/react/renderer/components/RNWorkletsSpec/States.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNQrGeneratorSpec_autolinked_build/CMakeFiles/react_codegen_RNQrGeneratorSpec.dir/RNQrGeneratorSpec-generated.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNQrGeneratorSpec_autolinked_build/CMakeFiles/react_codegen_RNQrGeneratorSpec.dir/react/renderer/components/RNQrGeneratorSpec/ComponentDescriptors.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNQrGeneratorSpec_autolinked_build/CMakeFiles/react_codegen_RNQrGeneratorSpec.dir/react/renderer/components/RNQrGeneratorSpec/EventEmitters.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNQrGeneratorSpec_autolinked_build/CMakeFiles/react_codegen_RNQrGeneratorSpec.dir/react/renderer/components/RNQrGeneratorSpec/Props.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNQrGeneratorSpec_autolinked_build/CMakeFiles/react_codegen_RNQrGeneratorSpec.dir/react/renderer/components/RNQrGeneratorSpec/ShadowNodes.cpp.o",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 4,
+			"isGenerated" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNQrGeneratorSpec_autolinked_build/CMakeFiles/react_codegen_RNQrGeneratorSpec.dir/react/renderer/components/RNQrGeneratorSpec/States.cpp.o",
 			"sourceGroupIndex" : 1
 		}
 	],

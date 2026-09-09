@@ -30,30 +30,32 @@ const computeLiveNRR = (pt, battingFirst, score, maxOvers) => {
   }
 };
 
-const QualificationCalculatorScreen = ({ route, navigation }) => {
-  const insets = useSafeAreaInsets();
-  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
-  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
-  const { colors, shadows, isDark } = useTheme();
-  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
+// Helper for dynamic chance percentage color
+const getChanceColor = (prob, colors) => {
+  if (prob >= 75) return '#10B981'; // Green / High chance
+  if (prob >= 40) return '#F59E0B'; // Amber / Medium chance
+  if (prob > 0) return '#F97316';   // Orange / Low chance
+  return '#EF4444';                 // Red / 0% chance
+};
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Sub-components (Moved outside to prevent unmounting re-renders) ───────
 
-const GlassCard = ({ children, style, glowing }) => (
+const GlassCard = ({ children, style, glowing, styles }) => (
   <View style={[styles.glassCard, glowing && styles.glassCardGlow, style]}>
     {children}
   </View>
 );
 
-const StatChip = ({ label, value, accent }) => (
+const StatChip = ({ label, value, accent, styles, colors }) => (
   <View style={[styles.statChip, accent && styles.statChipAccent]}>
     <Text style={styles.statChipLabel}>{label}</Text>
     <Text style={[styles.statChipValue, accent && styles.statChipValueAccent]}>{value}</Text>
   </View>
 );
 
-const CircularProgress = ({ probability, size = 120 }) => {
+const CircularProgress = ({ probability, size = 90, colors }) => {
   const animVal = useRef(new Animated.Value(0)).current;
+  const chanceColor = getChanceColor(probability, colors);
 
   useEffect(() => {
     Animated.timing(animVal, {
@@ -68,42 +70,46 @@ const CircularProgress = ({ probability, size = 120 }) => {
       {/* Background ring */}
       <View style={{
         width: size, height: size, borderRadius: size / 2,
-        borderWidth: 6, borderColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 6, borderColor: 'rgba(255,255,255,0.08)',
         position: 'absolute'
       }} />
-      {/* Progress ring via rotation trick */}
+      {/* Progress ring */}
       <View style={{
         width: size - 4, height: size - 4, borderRadius: (size - 4) / 2,
         borderWidth: 6,
         borderColor: 'transparent',
-        borderTopColor: colors.primary,
+        borderTopColor: chanceColor,
         transform: [{ rotate: `${(probability / 100) * 360}deg` }],
         position: 'absolute',
       }} />
-      <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.extraBold, fontSize: 22 }}>
+      <Text style={{ color: chanceColor, fontFamily: Typography.fontFamily.extraBold, fontSize: 20 }}>
         {probability}%
       </Text>
-      <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 10, textAlign: 'center' }}>
+      <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 10, textAlign: 'center', marginTop: 1 }}>
         Chance
       </Text>
     </View>
   );
 };
 
-const StatusBadge = ({ statusCode, status }) => {
-  const iconName = {
-    Q: 'check-circle', CQ: 'info', TBD: 'help-circle', NRR: 'trending-up', E: 'x-circle'
-  }[statusCode] || 'minus-circle';
+const StatusBadge = ({ statusCode, status, colors, styles }) => {
+  const badgeConfig = {
+    Q: { icon: 'check-circle', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+    CQ: { icon: 'info', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
+    NRR: { icon: 'trending-up', color: '#06B6D4', bg: 'rgba(6,182,212,0.15)' },
+    TBD: { icon: 'help-circle', color: '#EAB308', bg: 'rgba(234,179,8,0.15)' },
+    E: { icon: 'x-circle', color: '#EF4444', bg: 'rgba(239,68,68,0.15)' },
+  }[statusCode] || { icon: 'minus-circle', color: colors.primary, bg: colors.primaryAlpha10 };
 
   return (
-    <View style={styles.statusBadge}>
-      <Icon name={iconName} size={14} color={colors.primary} style={{ marginRight: 6 }} />
-      <Text style={[styles.statusText, { color: colors.textPrimary }]}>{status}</Text>
+    <View style={[styles.statusBadge, { backgroundColor: badgeConfig.bg, borderColor: badgeConfig.color }]}>
+      <Icon name={badgeConfig.icon} size={14} color={badgeConfig.color} style={{ marginRight: 6 }} />
+      <Text style={[styles.statusText, { color: badgeConfig.color }]}>{status}</Text>
     </View>
   );
 };
 
-const DropdownSelector = ({ label, placeholder, options, selectedValue, onSelect, visible, setVisible }) => {
+const DropdownSelector = ({ label, placeholder, options, selectedValue, onSelect, visible, setVisible, styles, colors }) => {
   const selectedOption = options.find(opt => opt.value === selectedValue);
 
   return (
@@ -148,7 +154,7 @@ const DropdownSelector = ({ label, placeholder, options, selectedValue, onSelect
   );
 };
 
-const TeamCard = ({ pt, selected, onPress }) => {
+const TeamCard = ({ pt, selected, onPress, styles, colors }) => {
   const scale = useRef(new Animated.Value(1)).current;
   const team = pt.team || {};
   const logoUri = team.logo ? getImageUrl(team.logo) : null;
@@ -192,7 +198,7 @@ const TeamCard = ({ pt, selected, onPress }) => {
   );
 };
 
-const ScenarioCard = ({ scenario, index, battingFirst }) => {
+const ScenarioCard = ({ scenario, index, battingFirst, styles, colors }) => {
   const difficultyLabel = {
     3: 'Easy',
     2: 'Moderate',
@@ -200,7 +206,7 @@ const ScenarioCard = ({ scenario, index, battingFirst }) => {
   }[scenario.stars] || 'Normal';
 
   return (
-    <GlassCard style={styles.scenarioCardWrap}>
+    <GlassCard style={styles.scenarioCardWrap} styles={styles}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <Text style={[styles.scenarioCardLabel, { color: colors.textPrimary }]}>{scenario.label}</Text>
         <View style={styles.difficultyBadge}>
@@ -259,7 +265,7 @@ const ScenarioCard = ({ scenario, index, battingFirst }) => {
   );
 };
 
-const ProjectedTableRow = ({ row, isSelected, index }) => {
+const ProjectedTableRow = ({ row, isSelected, index, styles, colors }) => {
   const highlight = isSelected;
   return (
     <View style={[styles.projTableRow, highlight && styles.projTableRowHighlight]}>
@@ -278,6 +284,12 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
+const QualificationCalculatorScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
 
   const { tournamentId, pointsTable: initialTable, tournamentOvers } = route.params || {};
 
@@ -293,6 +305,10 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
   const [liveNRR, setLiveNRR] = useState(null);
   const [showTeamDropdown, setShowTeamDropdown] = useState(false);
   const [showOpponentDropdown, setShowOpponentDropdown] = useState(false);
+
+  // Input Refs for tap focus
+  const scoreInputRef = useRef(null);
+  const oversInputRef = useRef(null);
 
   // Animation refs
   const resultsAnim = useRef(new Animated.Value(0)).current;
@@ -464,6 +480,8 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
           }}
           visible={showTeamDropdown}
           setVisible={setShowTeamDropdown}
+          styles={styles}
+          colors={colors}
         />
 
         {/* Section 2: Select Opponent */}
@@ -478,11 +496,13 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
           }}
           visible={showOpponentDropdown}
           setVisible={setShowOpponentDropdown}
+          styles={styles}
+          colors={colors}
         />
 
         {/* Section 3: Target Position */}
         <Text style={styles.sectionTitle}>TARGET POSITION</Text>
-        <GlassCard style={styles.segmentCard}>
+        <GlassCard style={styles.segmentCard} styles={styles}>
           <View style={styles.segmentRow}>
             {targetOptions.map(opt => (
               <TouchableOpacity
@@ -524,43 +544,55 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
             <Text style={styles.sectionTitleGrid}>
               {battingFirst ? 'PROJECTED SCORE' : 'OPPONENT SCORE'}
             </Text>
-            <GlassCard style={styles.gridInputCard}>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.scoreInput}
-                  placeholder={battingFirst ? 'e.g. 180' : 'e.g. 145'}
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="number-pad"
-                  value={firstInningsScore}
-                  onChangeText={v => { setFirstInningsScore(v); setResult(null); }}
-                />
-                <Text style={styles.inputUnit}>runs</Text>
-              </View>
-            </GlassCard>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => scoreInputRef.current?.focus()}
+            >
+              <GlassCard style={styles.gridInputCard} styles={styles}>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    ref={scoreInputRef}
+                    style={styles.scoreInput}
+                    placeholder={battingFirst ? 'e.g. 180' : 'e.g. 145'}
+                    placeholderTextColor={colors.textTertiary}
+                    keyboardType="number-pad"
+                    value={firstInningsScore}
+                    onChangeText={v => { setFirstInningsScore(v); setResult(null); }}
+                  />
+                  <Text style={styles.inputUnit}>runs</Text>
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
           </View>
 
           {/* Match Overs */}
           <View style={{ flex: 1 }}>
             <Text style={styles.sectionTitleGrid}>MATCH OVERS</Text>
-            <GlassCard style={styles.gridInputCard}>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.scoreInput}
-                  placeholder="e.g. 20"
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="decimal-pad"
-                  value={oversInput}
-                  onChangeText={v => { setOversInput(v); setResult(null); }}
-                />
-                <Text style={styles.inputUnit}>overs</Text>
-              </View>
-            </GlassCard>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => oversInputRef.current?.focus()}
+            >
+              <GlassCard style={styles.gridInputCard} styles={styles}>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    ref={oversInputRef}
+                    style={styles.scoreInput}
+                    placeholder="e.g. 20"
+                    placeholderTextColor={colors.textTertiary}
+                    keyboardType="decimal-pad"
+                    value={oversInput}
+                    onChangeText={v => { setOversInput(v); setResult(null); }}
+                  />
+                  <Text style={styles.inputUnit}>overs</Text>
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* Live NRR Preview */}
         {liveNRR && (
-          <GlassCard style={styles.liveNRRCard}>
+          <GlassCard style={styles.liveNRRCard} styles={styles}>
             <Text style={styles.liveNRRTitle}>
               <MCIcon name="chart-line" size={14} color={colors.primary} /> LIVE NRR PREVIEW
             </Text>
@@ -620,12 +652,12 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
 
             {/* Status Badge */}
             <View style={styles.resultHeaderRow}>
-              <StatusBadge statusCode={result.statusCode} status={result.status} />
-              <CircularProgress probability={result.probability || 0} size={90} />
+              <StatusBadge statusCode={result.statusCode} status={result.status} colors={colors} styles={styles} />
+              <CircularProgress probability={result.probability || 0} size={90} colors={colors} />
             </View>
 
             {/* Message */}
-            <GlassCard style={styles.messageCard}>
+            <GlassCard style={styles.messageCard} styles={styles}>
               <MCIcon name="information-outline" size={16} color={colors.primary} />
               <Text style={styles.messageText}>{result.message}</Text>
             </GlassCard>
@@ -633,10 +665,10 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
             {/* Summary Stats */}
             <Text style={styles.sectionTitle}>SUMMARY</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing.base, gap: 8 }}>
-              <StatChip label="Current NRR" value={`${(result.currentNRR || 0) >= 0 ? '+' : ''}${(result.currentNRR || 0).toFixed(3)}`} />
-              <StatChip label="Projected NRR" value={`${(result.projectedNRR || 0) >= 0 ? '+' : ''}${(result.projectedNRR || 0).toFixed(3)}`} accent />
-              <StatChip label="Target Rank" value={`#${result.targetRank}`} />
-              <StatChip label="Probability" value={`${result.probability}%`} accent />
+              <StatChip label="Current NRR" value={`${(result.currentNRR || 0) >= 0 ? '+' : ''}${(result.currentNRR || 0).toFixed(3)}`} styles={styles} colors={colors} />
+              <StatChip label="Projected NRR" value={`${(result.projectedNRR || 0) >= 0 ? '+' : ''}${(result.projectedNRR || 0).toFixed(3)}`} accent styles={styles} colors={colors} />
+              <StatChip label="Target Rank" value={`#${result.targetRank}`} styles={styles} colors={colors} />
+              <StatChip label="Probability" value={`${result.probability}%`} accent styles={styles} colors={colors} />
             </ScrollView>
 
             {/* Scenarios */}
@@ -650,7 +682,7 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{ paddingHorizontal: Spacing.base, gap: 12 }}
                   renderItem={({ item, index }) => (
-                    <ScenarioCard scenario={item} index={index} battingFirst={result.battingFirst} />
+                    <ScenarioCard scenario={item} index={index} battingFirst={result.battingFirst} styles={styles} colors={colors} />
                   )}
                 />
               </>
@@ -662,7 +694,7 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
                 <Text style={styles.sectionTitle}>FIXTURE IMPACT</Text>
                 <View style={{ paddingHorizontal: Spacing.base }}>
                   {result.fixtureImpact.map((fx, i) => (
-                    <GlassCard key={i} style={styles.fixtureCard}>
+                    <GlassCard key={i} style={styles.fixtureCard} styles={styles}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text style={styles.fixtureMatchup}>{fx.teamAName} vs {fx.teamBName}</Text>
                         <View style={[styles.fixtureBadge, { backgroundColor: colors.primaryAlpha10 }]}>
@@ -698,6 +730,8 @@ const ProjectedTableRow = ({ row, isSelected, index }) => {
                       row={row}
                       index={i}
                       isSelected={row.teamId === selectedTeamId}
+                      styles={styles}
+                      colors={colors}
                     />
                   ))}
                 </View>
@@ -841,15 +875,15 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
 
   // Form Grid
   formGridRow: { flexDirection: 'row', gap: 12, marginHorizontal: Spacing.base },
-  gridInputCard: { padding: Spacing.sm },
+  gridInputCard: { paddingHorizontal: Spacing.md, paddingVertical: 8 },
 
   // Input
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   scoreInput: {
     flex: 1, fontFamily: Typography.fontFamily.bold, fontSize: 16,
     color: colors.textPrimary,
-    paddingVertical: 4,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
+    paddingVertical: 6,
+    paddingHorizontal: 0,
   },
   inputUnit: { fontFamily: Typography.fontFamily.medium, fontSize: 12, color: colors.textTertiary },
 

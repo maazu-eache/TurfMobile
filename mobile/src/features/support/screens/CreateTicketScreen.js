@@ -168,6 +168,13 @@ export default function CreateTicketScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const getNumericIdDisplay = (idVal) => {
+    if (!idVal) return '';
+    const str = String(idVal);
+    const numsOnly = str.replace(/[a-zA-Z]/g, '');
+    return numsOnly || str;
+  };
+
   const categories = isOwner
     ? ['Booking Dispute', 'Payment Issue', 'Account Issue', 'General']
     : ['Booking Dispute', 'Payment Issue', 'Account Issue', 'Match Dispute', 'Tournament Dispute', 'General'];
@@ -302,12 +309,11 @@ export default function CreateTicketScreen({ navigation, route }) {
             <>
               <Text style={styles.label}>Booking ID (Optional)</Text>
               <TextInput
-                style={styles.input}
-                placeholder="Enter booking reference if applicable"
+                style={[styles.input, { opacity: 0.75, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceVariant }]}
+                placeholder="Booking reference if applicable"
                 placeholderTextColor={colors.textTertiary}
-                value={bookingId}
-                onChangeText={setBookingId}
-                editable={!initialBookingId}
+                value={getNumericIdDisplay(bookingId)}
+                editable={false}
               />
             </>
           )}
@@ -316,12 +322,11 @@ export default function CreateTicketScreen({ navigation, route }) {
             <>
               <Text style={styles.label}>Match ID (Required)</Text>
               <TextInput
-                style={styles.input}
-                placeholder="Enter match reference ID"
+                style={[styles.input, { opacity: 0.75, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceVariant }]}
+                placeholder="Match reference ID"
                 placeholderTextColor={colors.textTertiary}
-                value={matchId}
-                onChangeText={setMatchId}
-                editable={!initialMatchId}
+                value={getNumericIdDisplay(matchId)}
+                editable={false}
               />
             </>
           )}
@@ -330,12 +335,11 @@ export default function CreateTicketScreen({ navigation, route }) {
             <>
               <Text style={styles.label}>Tournament ID (Required)</Text>
               <TextInput
-                style={styles.input}
-                placeholder="Enter tournament reference ID"
+                style={[styles.input, { opacity: 0.75, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceVariant }]}
+                placeholder="Tournament reference ID"
                 placeholderTextColor={colors.textTertiary}
-                value={tournamentId}
-                onChangeText={setTournamentId}
-                editable={!initialTournamentId}
+                value={getNumericIdDisplay(tournamentId)}
+                editable={false}
               />
             </>
           )}

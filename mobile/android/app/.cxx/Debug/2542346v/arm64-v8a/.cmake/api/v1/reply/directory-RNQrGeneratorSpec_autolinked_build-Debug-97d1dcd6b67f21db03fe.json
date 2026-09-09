@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "RNQrGeneratorSpec_autolinked_build",
+		"source" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni"
+	}
+}

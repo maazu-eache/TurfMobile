@@ -28,7 +28,7 @@ const PlayerNavigator = () => (
     <Stack.Screen name="TeamList" component={TeamListScreen} />
     <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
     <Stack.Screen name="QualificationCalculator" component={QualificationCalculatorScreen} />
-    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
+    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} options={{ gestureEnabled: false }} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
     <Stack.Screen name="Spectator" component={SpectatorScreen} />
     <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />

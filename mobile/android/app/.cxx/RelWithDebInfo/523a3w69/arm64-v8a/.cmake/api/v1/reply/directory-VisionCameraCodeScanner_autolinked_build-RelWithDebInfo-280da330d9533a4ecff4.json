@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "VisionCameraCodeScanner_autolinked_build",
+		"source" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni"
+	}
+}

@@ -399,7 +399,7 @@ export default function SupportAdminView({ navigation, onStatusChanged }) {
                         Teams: {selectedTicket.matchId.teamA?.name || 'A'} vs {selectedTicket.matchId.teamB?.name || 'B'}
                       </Text>
                       <Text style={styles.disputeDetail}>Status: {selectedTicket.matchId.status?.toUpperCase() || 'N/A'}</Text>
-                      <Text style={styles.disputeDetail}>ID: {selectedTicket.matchId._id || selectedTicket.matchId}</Text>
+                      <Text style={styles.disputeDetail}>ID: {String(selectedTicket.matchId._id || selectedTicket.matchId).replace(/[a-zA-Z]/g, '')}</Text>
                       {selectedTicket.matchId.result?.summary && (
                         <Text style={styles.disputeDetail}>Result: {selectedTicket.matchId.result.summary}</Text>
                       )}
@@ -428,7 +428,7 @@ export default function SupportAdminView({ navigation, onStatusChanged }) {
                       {selectedTicket.tournamentId.description && (
                         <Text style={styles.disputeDetail} numberOfLines={2}>Desc: {selectedTicket.tournamentId.description}</Text>
                       )}
-                      <Text style={styles.disputeDetail}>ID: {selectedTicket.tournamentId._id || selectedTicket.tournamentId}</Text>
+                      <Text style={styles.disputeDetail}>ID: {String(selectedTicket.tournamentId._id || selectedTicket.tournamentId).replace(/[a-zA-Z]/g, '')}</Text>
 
                       <TouchableOpacity 
                         style={[styles.deleteBtn, { marginTop: 12 }]} 

@@ -227,6 +227,10 @@
 		},
 		{
 			"isExternal" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/CMakeLists.txt"
+		},
+		{
+			"isExternal" : true,
 			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-async-storage/async-storage/android/build/generated/source/codegen/jni/CMakeLists.txt"
 		},
 		{
@@ -320,6 +324,10 @@
 		{
 			"isExternal" : true,
 			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets-core/android/build/generated/source/codegen/jni/CMakeLists.txt"
+		},
+		{
+			"isExternal" : true,
+			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/CMakeLists.txt"
 		}
 	],
 	"kind" : "cmakeFiles",

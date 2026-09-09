@@ -1,137 +1,166 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Modal,
-  TextInput,
   ActivityIndicator,
-  Platform,
-  KeyboardAvoidingView,
-  PermissionsAndroid,
   Easing,
   Animated,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  useCodeScanner,
+} from 'react-native-vision-camera';
 import { launchImageLibrary } from 'react-native-image-picker';
+import RNQRGenerator from 'rn-qr-generator';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme, Typography } from '../../../theme/theme';
-import LinearGradient from '../../../components/SolidGradient';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
 const TeamQRScannerModal = ({ visible, onClose, onScannedTeamId }) => {
-  const { colors, isDark } = useTheme();
-  const [manualCode, setManualCode] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [mode, setMode] = useState('camera'); // 'camera' | 'manual'
-  const [cameraUnavailable, setCameraUnavailable] = useState(false);
+  const { colors } = useTheme();
+  const [isGalleryDecoding, setIsGalleryDecoding] = useState(false);
   const [scanLineAnim] = useState(new Animated.Value(0));
+  const scannedRef = useRef(false); // prevent double-fire
 
+  // ─── VisionCamera v4 hooks ─────────────────────────────────────────────────
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Request camera permission when modal opens
   useEffect(() => {
-    const checkAndRequestCameraPermission = async () => {
-      try {
-        if (Platform.OS === 'android') {
-          const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.CAMERA,
-            {
-              title: 'Camera Permission Required',
-              message: 'ScoreVerse needs camera access to scan Team QR codes during match creation.',
-              buttonPositive: 'Allow',
-              buttonNegative: 'Cancel',
-            }
+    if (!visible) {
+      scannedRef.current = false;
+      return;
+    }
+    if (!hasPermission) {
+      requestPermission().then((granted) => {
+        if (!granted) {
+          showCustomAlert(
+            'Camera Permission Denied',
+            'Camera access was denied. You can upload a QR image from your gallery or grant Camera permission in Settings.',
           );
-          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-            setCameraUnavailable(true);
-            setMode('manual');
-          } else {
-            setCameraUnavailable(false);
-          }
-        } else if (Platform.OS === 'ios') {
-          const result = await request(PERMISSIONS.IOS.CAMERA);
-          if (result === RESULTS.UNAVAILABLE) {
-            setCameraUnavailable(true);
-            setMode('manual');
-          } else if (result !== RESULTS.GRANTED && result !== RESULTS.LIMITED) {
-            setCameraUnavailable(true);
-            setMode('manual');
-          } else {
-            setCameraUnavailable(false);
-          }
         }
-      } catch (err) {
-        console.log('Error requesting camera permission:', err);
-      }
-    };
+      });
+    }
+  }, [visible, hasPermission, requestPermission]);
 
+  // Scan-line animation (runs while modal is visible)
+  useEffect(() => {
     if (visible) {
-      if (mode === 'camera') {
-        checkAndRequestCameraPermission();
-        scanLineAnim.setValue(0);
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(scanLineAnim, {
-              toValue: 1,
-              duration: 2000,
-              easing: Easing.linear,
-              useNativeDriver: true,
-            }),
-            Animated.timing(scanLineAnim, {
-              toValue: 0,
-              duration: 2000,
-              easing: Easing.linear,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
+      scannedRef.current = false;
+      scanLineAnim.setValue(0);
+      const anim = Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanLineAnim, {
+            toValue: 1,
+            duration: 2000,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scanLineAnim, {
+            toValue: 0,
+            duration: 2000,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      anim.start();
+      return () => anim.stop();
+    }
+  }, [visible, scanLineAnim]);
+
+  // ─── QR code processing ────────────────────────────────────────────────────
+  const handleProcessCode = useCallback(
+    (scannedString) => {
+      if (!scannedString || !scannedString.trim()) return;
+
+      let teamId = scannedString.trim();
+      // Parse SCOREVERSE_TEAM:id format if applicable
+      if (teamId.startsWith('SCOREVERSE_TEAM:')) {
+        teamId = teamId.replace('SCOREVERSE_TEAM:', '').trim();
+      } else if (teamId.includes('/team/')) {
+        const parts = teamId.split('/team/');
+        teamId = parts[parts.length - 1].trim();
       }
-    }
-  }, [visible, mode, scanLineAnim]);
 
-  const handleProcessCode = (scannedString) => {
-    if (!scannedString || !scannedString.trim()) return;
+      if (!teamId) {
+        showCustomAlert('Invalid QR Code', 'The scanned QR code is not a valid Team QR code.');
+        return;
+      }
 
-    let teamId = scannedString.trim();
-    // Parse SCOREVERSE_TEAM:id format if applicable
-    if (teamId.startsWith('SCOREVERSE_TEAM:')) {
-      teamId = teamId.replace('SCOREVERSE_TEAM:', '').trim();
-    } else if (teamId.includes('/team/')) {
-      const parts = teamId.split('/team/');
-      teamId = parts[parts.length - 1].trim();
-    }
+      onScannedTeamId(teamId);
+      onClose();
+    },
+    [onScannedTeamId, onClose],
+  );
 
-    if (!teamId) {
-      showCustomAlert('Invalid QR Code', 'The scanned QR code is not a valid Team QR code.');
-      return;
-    }
+  // ─── Native camera code scanner (VisionCamera v4 built-in) ────────────────
+  const codeScanner = useCodeScanner({
+    codeTypes: ['qr'],
+    onCodeScanned: (codes) => {
+      // Guard: only fire once per modal open
+      if (scannedRef.current) return;
+      const first = codes.find((c) => c.value);
+      if (first?.value) {
+        scannedRef.current = true;
+        handleProcessCode(first.value);
+      }
+    },
+  });
 
-    onScannedTeamId(teamId);
-    onClose();
-  };
-
-  const handleManualSubmit = () => {
-    if (!manualCode.trim()) {
-      showCustomAlert('Enter Team Code', 'Please enter a valid Team Code or ID.');
-      return;
-    }
-    handleProcessCode(manualCode);
-  };
-
+  // ─── Gallery QR decode (rn-qr-generator) ──────────────────────────────────
   const handlePickFromGallery = async () => {
     try {
       const res = await launchImageLibrary({
         mediaType: 'photo',
         selectionLimit: 1,
+        includeBase64: false,
       });
+
       if (res.didCancel) return;
       if (res.errorCode) {
         showCustomAlert('Gallery Error', res.errorMessage || 'Could not open photo gallery.');
         return;
       }
-      setMode('manual');
-      showCustomAlert('Image Selected', 'Please enter or paste the Team Code shown on your QR image.');
+
+      const asset = res.assets?.[0];
+      if (!asset?.uri) return;
+
+      setIsGalleryDecoding(true);
+
+      try {
+        // Use rn-qr-generator to decode QR from image file URI natively
+        const response = await RNQRGenerator.detect({ uri: asset.uri });
+        const { values } = response;
+
+        if (!values || values.length === 0) {
+          throw new Error('no_result');
+        }
+
+        setIsGalleryDecoding(false);
+        // Use the first detected QR value
+        handleProcessCode(values[0]);
+      } catch (err) {
+        setIsGalleryDecoding(false);
+        if (err?.message !== 'no_result') {
+          console.warn('[QRScanner] Gallery decode error:', err?.message);
+        }
+        showCustomAlert(
+          'No QR Code Found',
+          "We couldn't detect a QR code in that image. Please select a clear Team QR image.",
+        );
+      }
     } catch (err) {
+      setIsGalleryDecoding(false);
       console.log('Error launching image library:', err);
     }
   };
@@ -143,6 +172,9 @@ const TeamQRScannerModal = ({ visible, onClose, onScannedTeamId }) => {
     outputRange: [0, 200],
   });
 
+  // Whether the actual Camera component can be rendered
+  const canShowCamera = hasPermission && device != null;
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <SafeAreaView style={styles.overlay}>
@@ -152,127 +184,101 @@ const TeamQRScannerModal = ({ visible, onClose, onScannedTeamId }) => {
             <Icon name="arrow-left" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
-            {mode === 'camera' ? 'Scan Team QR Code' : 'Enter Team Code'}
+            Scan Team QR Code
           </Text>
-          <TouchableOpacity
-            onPress={() => setMode(mode === 'camera' ? 'manual' : 'camera')}
-            style={[styles.modeToggleBtn, { backgroundColor: colors.primaryAlpha10 }]}
-            activeOpacity={0.8}
-          >
-            <Icon name={mode === 'camera' ? 'keyboard' : 'camera'} size={20} color={colors.primary} />
-          </TouchableOpacity>
+          <View style={{ width: 24 }} />
         </View>
 
-        {mode === 'camera' ? (
-          <View style={styles.cameraContainer}>
-            {/* Viewfinder Target Container */}
-            <View style={styles.viewfinderWrap}>
-              <View style={[styles.scannerBox, { borderColor: colors.primary }]}>
-                {/* Corner Accents */}
-                <View style={[styles.cornerTL, { borderColor: colors.primary }]} />
-                <View style={[styles.cornerTR, { borderColor: colors.primary }]} />
-                <View style={[styles.cornerBL, { borderColor: colors.primary }]} />
-                <View style={[styles.cornerBR, { borderColor: colors.primary }]} />
+        <View style={styles.cameraContainer}>
+          {/* Viewfinder / Live Camera */}
+          <View style={styles.viewfinderWrap}>
+            <View style={[styles.scannerBox, { borderColor: colors.primary }]}>
+              {/* Corner Accents — rendered above the camera feed via zIndex */}
+              <View style={[styles.cornerTL, { borderColor: colors.primary }]} />
+              <View style={[styles.cornerTR, { borderColor: colors.primary }]} />
+              <View style={[styles.cornerBL, { borderColor: colors.primary }]} />
+              <View style={[styles.cornerBR, { borderColor: colors.primary }]} />
 
-                {/* Animated Laser Scanning Line */}
-                <Animated.View
-                  style={[
-                    styles.scanLine,
-                    {
-                      backgroundColor: colors.primary,
-                      transform: [{ translateY }],
-                    },
-                  ]}
-                />
-              </View>
-
-              <Text style={styles.viewfinderHint}>
-                Align the Team QR code within the frame to automatically select team
-              </Text>
-            </View>
-
-            {/* Quick Actions Bottom Container */}
-            <View style={[styles.bottomCard, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-              <Text style={[styles.bottomCardTitle, { color: colors.textPrimary }]}>Having trouble scanning?</Text>
-              <Text style={[styles.bottomCardDesc, { color: colors.textSecondary }]}>
-                You can also enter the Team Code or Team ID manually.
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-                <TouchableOpacity
-                  style={[styles.manualSwitchBtn, { flex: 1, backgroundColor: colors.primaryAlpha10, borderColor: colors.primary }]}
-                  onPress={() => setMode('manual')}
-                  activeOpacity={0.8}
-                >
-                  <Icon name="keyboard-outline" size={18} color={colors.primary} style={{ marginRight: 6 }} />
-                  <Text style={[styles.manualSwitchBtnText, { color: colors.primary }]}>Enter Code</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.manualSwitchBtn, { flex: 1, backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}
-                  onPress={handlePickFromGallery}
-                  activeOpacity={0.8}
-                >
-                  <Icon name="image-outline" size={18} color={colors.textPrimary} style={{ marginRight: 6 }} />
-                  <Text style={[styles.manualSwitchBtnText, { color: colors.textPrimary }]}>Upload Photo</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        ) : (
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
-            <View style={[styles.manualContainer, { backgroundColor: colors.background }]}>
-              <View style={[styles.manualCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.iconWrap, { backgroundColor: colors.primaryAlpha10 }]}>
-                  <Icon name="shield-account-outline" size={32} color={colors.primary} />
-                </View>
-
-                <Text style={[styles.manualTitle, { color: colors.textPrimary }]}>Enter Team Code or ID</Text>
-                <Text style={[styles.manualSubtitle, { color: colors.textSecondary }]}>
-                  Found on the Team QR Modal or Team Share Link.
-                </Text>
-
-                <View style={[styles.inputContainer, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]}>
-                  <Icon name="pound" size={20} color={colors.primary} style={{ marginRight: 10 }} />
-                  <TextInput
-                    style={[styles.textInput, { color: colors.textPrimary }]}
-                    placeholder="e.g. 64f8a129b0..."
-                    placeholderTextColor={colors.textTertiary}
-                    value={manualCode}
-                    onChangeText={setManualCode}
-                    autoCapitalize="none"
-                    autoCorrect={false}
+              {canShowCamera ? (
+                <>
+                  {/* ✅ Real camera feed with built-in QR scanning */}
+                  <Camera
+                    style={StyleSheet.absoluteFill}
+                    device={device}
+                    isActive={visible}
+                    codeScanner={codeScanner}
                   />
-                  {manualCode.length > 0 && (
-                    <TouchableOpacity onPress={() => setManualCode('')}>
-                      <Icon name="close-circle" size={18} color={colors.textTertiary} />
-                    </TouchableOpacity>
+                  {/* Animated laser line overlay */}
+                  <Animated.View
+                    style={[
+                      styles.scanLine,
+                      {
+                        backgroundColor: colors.primary,
+                        transform: [{ translateY }],
+                      },
+                    ]}
+                  />
+                </>
+              ) : (
+                /* Placeholder while permission not yet granted / device loading */
+                <View style={styles.cameraPlaceholder}>
+                  {!hasPermission ? (
+                    <>
+                      <Icon name="camera-off" size={40} color={colors.textSecondary} />
+                      <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>
+                        Camera permission required
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.permissionBtn, { backgroundColor: colors.primary }]}
+                        onPress={() => {
+                          requestPermission().then((granted) => {
+                            if (!granted) Linking.openSettings();
+                          });
+                        }}
+                      >
+                        <Text style={styles.permissionBtnText}>Allow Camera</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <ActivityIndicator size="large" color={colors.primary} />
+                      <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>
+                        Starting camera…
+                      </Text>
+                    </>
                   )}
                 </View>
-
-                <TouchableOpacity
-                  style={{ width: '100%' }}
-                  onPress={handleManualSubmit}
-                  disabled={isSubmitting}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient colors={[colors.primary, colors.primaryDark || colors.primary]} style={styles.submitBtn}>
-                    {isSubmitting ? (
-                      <ActivityIndicator color={colors.textOnPrimary} size="small" />
-                    ) : (
-                      <>
-                        <Icon name="check-circle-outline" size={20} color={colors.textOnPrimary} style={{ marginRight: 8 }} />
-                        <Text style={styles.submitBtnText}>Select Team</Text>
-                      </>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
+              )}
             </View>
-          </KeyboardAvoidingView>
-        )}
+
+            <Text style={styles.viewfinderHint}>
+              Align the Team QR code within the frame to automatically select team
+            </Text>
+          </View>
+
+          {/* Quick Actions Bottom Card */}
+          <View style={[styles.bottomCard, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+            <Text style={[styles.bottomCardTitle, { color: colors.textPrimary }]}>Having trouble scanning?</Text>
+            <Text style={[styles.bottomCardDesc, { color: colors.textSecondary }]}>
+              You can also upload a Team QR photo from your gallery.
+            </Text>
+            <TouchableOpacity
+              style={[styles.galleryBtn, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}
+              onPress={handlePickFromGallery}
+              disabled={isGalleryDecoding}
+              activeOpacity={0.8}
+            >
+              {isGalleryDecoding ? (
+                <ActivityIndicator size="small" color={colors.textPrimary} style={{ marginRight: 8 }} />
+              ) : (
+                <Icon name="image-outline" size={20} color={colors.textPrimary} style={{ marginRight: 8 }} />
+              )}
+              <Text style={[styles.galleryBtnText, { color: colors.textPrimary }]}>
+                {isGalleryDecoding ? 'Reading…' : 'Upload Photo'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </SafeAreaView>
     </Modal>
   );
@@ -298,13 +304,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: Typography.fontFamily.bold,
   },
-  modeToggleBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   cameraContainer: {
     flex: 1,
     justifyContent: 'space-between',
@@ -327,11 +326,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
   },
+  cameraPlaceholder: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  placeholderText: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    textAlign: 'center',
+    paddingHorizontal: 16,
+  },
+  permissionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  permissionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
   scanLine: {
     width: '100%',
     height: 3,
     position: 'absolute',
     top: 0,
+    zIndex: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.8,
@@ -347,6 +371,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 4,
     borderLeftWidth: 4,
     borderTopLeftRadius: 12,
+    zIndex: 10,
   },
   cornerTR: {
     position: 'absolute',
@@ -357,6 +382,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 4,
     borderRightWidth: 4,
     borderTopRightRadius: 12,
+    zIndex: 10,
   },
   cornerBL: {
     position: 'absolute',
@@ -367,6 +393,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 4,
     borderLeftWidth: 4,
     borderBottomLeftRadius: 12,
+    zIndex: 10,
   },
   cornerBR: {
     position: 'absolute',
@@ -377,6 +404,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 4,
     borderRightWidth: 4,
     borderBottomRightRadius: 12,
+    zIndex: 10,
   },
   viewfinderHint: {
     color: '#FFFFFF',
@@ -407,76 +435,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  manualSwitchBtn: {
+  galleryBtn: {
     width: '100%',
-    height: 46,
+    height: 48,
     borderRadius: 12,
     borderWidth: 1,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  manualSwitchBtnText: {
+  galleryBtnText: {
     fontSize: 14,
     fontFamily: Typography.fontFamily.semiBold,
-  },
-  manualContainer: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-  },
-  manualCard: {
-    padding: 24,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  iconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  manualTitle: {
-    fontSize: 18,
-    fontFamily: Typography.fontFamily.bold,
-    marginBottom: 6,
-  },
-  manualSubtitle: {
-    fontSize: 13,
-    fontFamily: Typography.fontFamily.regular,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  inputContainer: {
-    width: '100%',
-    height: 52,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    marginBottom: 20,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: Typography.fontFamily.regular,
-  },
-  submitBtn: {
-    width: '100%',
-    height: 50,
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  submitBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontFamily: Typography.fontFamily.bold,
   },
 });
 

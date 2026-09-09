@@ -1,6 +1,9 @@
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/appmodules.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/edit_cache.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/rebuild_cache.dir
+/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/VisionCameraCodeScanner_autolinked_build/CMakeFiles/react_codegen_VisionCameraCodeScanner.dir
+/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/VisionCameraCodeScanner_autolinked_build/CMakeFiles/edit_cache.dir
+/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/VisionCameraCodeScanner_autolinked_build/CMakeFiles/rebuild_cache.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/AsyncStorageSpec_autolinked_build/CMakeFiles/react_codegen_AsyncStorageSpec.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/AsyncStorageSpec_autolinked_build/CMakeFiles/edit_cache.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/AsyncStorageSpec_autolinked_build/CMakeFiles/rebuild_cache.dir
@@ -67,3 +70,6 @@
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNWorkletsSpec_autolinked_build/CMakeFiles/react_codegen_RNWorkletsSpec.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNWorkletsSpec_autolinked_build/CMakeFiles/edit_cache.dir
 /Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNWorkletsSpec_autolinked_build/CMakeFiles/rebuild_cache.dir
+/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNQrGeneratorSpec_autolinked_build/CMakeFiles/react_codegen_RNQrGeneratorSpec.dir
+/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNQrGeneratorSpec_autolinked_build/CMakeFiles/edit_cache.dir
+/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNQrGeneratorSpec_autolinked_build/CMakeFiles/rebuild_cache.dir

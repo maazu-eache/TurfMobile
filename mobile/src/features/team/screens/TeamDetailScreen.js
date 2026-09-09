@@ -1117,11 +1117,10 @@ const TeamDetailScreen = ({ navigation, route }) => {
       setIsCapturingQr(false);
 
       const teamName = selectedTeam?.name || 'Team';
-      const teamCode = selectedTeam?._id || '';
 
       const shareOptions = {
         title: `${teamName} QR Code`,
-        message: `🏆 Check out ${teamName} on ScoreVerse!\nTeam Code: ${teamCode}\nScan this QR code during match creation to add our team!`,
+        message: `🏆 Check out ${teamName} on ScoreVerse!\nScan this QR code during match creation to add our team!`,
       };
 
       if (imageUri) {
@@ -2994,12 +2993,6 @@ const TeamDetailScreen = ({ navigation, route }) => {
               />
             </View>
 
-            <View style={[styles.qrCodeBadge, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]}>
-              <Icon name="shield-account-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
-              <Text style={[styles.qrCodeText, { color: colors.textSecondary }]} numberOfLines={1}>
-                TEAM CODE: <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>{selectedTeam?._id || ''}</Text>
-              </Text>
-            </View>
 
             <Text style={[styles.qrInstructionText, { color: colors.textTertiary }]}>
               Scan this QR code during match creation to quickly select {selectedTeam?.name || 'this team'}.

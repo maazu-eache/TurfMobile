@@ -292,7 +292,7 @@ const HomeStack = () => (
     <Stack.Screen name="TeamDetail" component={TeamDetailScreen} />
     <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
     <Stack.Screen name="QualificationCalculator" component={QualificationCalculatorScreen} />
-    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
+    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} options={{ gestureEnabled: false }} />
     <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
     <Stack.Screen name="Spectator" component={SpectatorScreen} />
@@ -313,7 +313,7 @@ const SearchStack = () => (
     <Stack.Screen name="QualificationCalculator" component={QualificationCalculatorScreen} />
     <Stack.Screen name="CreateTicketScreen" component={CreateTicketScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
-    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
+    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} options={{ gestureEnabled: false }} />
     <Stack.Screen name="Spectator" component={SpectatorScreen} />
   </Stack.Navigator>
 );
@@ -342,7 +342,7 @@ const MatchStack = () => (
     <Stack.Screen name="MatchPlayerSelection" component={MatchPlayerSelectionScreen} />
     <Stack.Screen name="Spectator" component={SpectatorScreen} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
-    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
+    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} options={{ gestureEnabled: false }} />
     <Stack.Screen name="SuperOver" component={SuperOverScreen} />
     <Stack.Screen name="SquadSelection" component={SquadSelectionScreen} />
     <Stack.Screen name="AddPlayer" component={AddPlayerScreen} />
@@ -405,7 +405,7 @@ const ProfileStack = () => (
     <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} />
     <Stack.Screen name="QualificationCalculator" component={QualificationCalculatorScreen} />
     <Stack.Screen name="MatchSetup" component={MatchSetupScreen} />
-    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
+    <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} options={{ gestureEnabled: false }} />
     <Stack.Screen name="Scorecard" component={ScorecardScreen} />
     <Stack.Screen name="Spectator" component={SpectatorScreen} />
   </Stack.Navigator>

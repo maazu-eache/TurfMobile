@@ -1167,22 +1167,7 @@ export const TeamQRPoster = ({ team, theme }) => {
           <QRCode value={qrPayload} size={145} color="#000000" backgroundColor="#FFFFFF" />
         </View>
 
-        {/* Code Badge & CTA */}
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: t.accentColor + '18',
-          borderWidth: 1,
-          borderColor: t.accentColor,
-          paddingHorizontal: 10,
-          paddingVertical: 5,
-          borderRadius: 8,
-          marginTop: 8,
-        }}>
-          <Text style={{ color: t.accentColor, fontSize: 10, fontFamily: Typography.fontFamily.bold }}>
-            TEAM CODE: {team?._id}
-          </Text>
-        </View>
+
 
         <Text style={{ color: t.secTextColor, fontSize: 10, fontFamily: Typography.fontFamily.medium, marginTop: 8, opacity: 0.85 }}>
           SCAN QR TO SELECT TEAM IN MATCH CREATION

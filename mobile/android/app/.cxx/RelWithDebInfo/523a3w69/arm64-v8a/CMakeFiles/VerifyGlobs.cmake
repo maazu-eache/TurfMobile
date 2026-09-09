@@ -12,6 +12,30 @@ if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
   file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/CMakeFiles/cmake.verify_globs")
 endif()
 
+# react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/*.cpp")
+set(OLD_GLOB
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/VisionCameraCodeScanner-generated.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/CMakeFiles/cmake.verify_globs")
+endif()
+
+# react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/react/renderer/components/VisionCameraCodeScanner/*.cpp")
+set(OLD_GLOB
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/react/renderer/components/VisionCameraCodeScanner/ComponentDescriptors.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/react/renderer/components/VisionCameraCodeScanner/EventEmitters.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/react/renderer/components/VisionCameraCodeScanner/Props.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/react/renderer/components/VisionCameraCodeScanner/ShadowNodes.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/react/renderer/components/VisionCameraCodeScanner/States.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/CMakeFiles/cmake.verify_globs")
+endif()
+
 # react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-async-storage/async-storage/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
 file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-async-storage/async-storage/android/build/generated/source/codegen/jni/*.cpp")
 set(OLD_GLOB
@@ -594,6 +618,30 @@ endif()
 file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/*.cpp")
 set(OLD_GLOB
   "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/OnLoad.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/CMakeFiles/cmake.verify_globs")
+endif()
+
+# react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/*.cpp")
+set(OLD_GLOB
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/RNQrGeneratorSpec-generated.cpp"
+  )
+if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
+  message("-- GLOB mismatch!")
+  file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/CMakeFiles/cmake.verify_globs")
+endif()
+
+# react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
+file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/react/renderer/components/RNQrGeneratorSpec/*.cpp")
+set(OLD_GLOB
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/react/renderer/components/RNQrGeneratorSpec/ComponentDescriptors.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/react/renderer/components/RNQrGeneratorSpec/EventEmitters.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/react/renderer/components/RNQrGeneratorSpec/Props.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/react/renderer/components/RNQrGeneratorSpec/ShadowNodes.cpp"
+  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/react/renderer/components/RNQrGeneratorSpec/States.cpp"
   )
 if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
   message("-- GLOB mismatch!")

@@ -1,20 +1,42 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, Modal, TextInput, ScrollView, Dimensions, StatusBar } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { useFocusEffect } from '@react-navigation/native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  Image,
+  Modal,
+  TextInput,
+  ScrollView,
+  Dimensions,
+  StatusBar,
+} from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Typography, Spacing, BorderRadius } from '../../../theme/theme';
+import { Typography } from '../../../theme/theme';
 import { useTheme } from '../../../theme/ThemeContext';
 import api, { getImageUrl } from '../../../api/axios';
 import { formatISTDate, formatISTTime } from '../../../utils/dateFormatter';
 import moment from 'moment';
-import { confirmBookingPayment, rejectBookingPayment, approveCancellation, rejectCancellation, fetchOwnerDashboard } from '../ownerSlice';
+import {
+  confirmBookingPayment,
+  rejectBookingPayment,
+  approveCancellation,
+  rejectCancellation,
+  fetchOwnerDashboard,
+} from '../ownerSlice';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const TABS = ['All', 'Confirmed', 'Completed', 'Cancel Req', 'Cancelled'];
+const TABS = [
+  { id: 'All', label: 'All', icon: 'format-list-bulleted' },
+  { id: 'Confirmed', label: 'Confirmed', icon: 'check-circle' },
+  { id: 'Completed', label: 'Completed', icon: 'checkbox-marked-circle' },
+  { id: 'Cancel Req', label: 'Cancel Req', icon: 'alert-circle' },
+  { id: 'Cancelled', label: 'Cancelled', icon: 'close-circle' },
+];
 
 const OwnerBookingsScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -57,7 +79,6 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const scrollViewRef = useRef(null);
   const topTabsRef = useRef(null);
 
   useEffect(() => {
@@ -74,12 +95,6 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
       }
     }).catch(console.error);
   }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      // Intentionally left blank, relying on standard fetch
-    }, [selectedTurf, page])
-  );
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -118,7 +133,6 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
         setBookings(newBookings);
       } else {
         setBookings(prev => {
-          // Prevent duplicates if backend returns overlapping items
           const existingIds = new Set(prev.map(b => b._id));
           const uniqueNew = newBookings.filter(b => !existingIds.has(b._id));
           return [...prev, ...uniqueNew];
@@ -138,17 +152,17 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchBookings();
+    fetchBookings(1, false);
   };
 
-  const getStatusColor = (status) => {
+  const getStatusConfig = (status) => {
     switch (status) {
-      case 'confirmed': return isDark ? '#FFD400' : colors.primaryDark;
-      case 'pending': return colors.warning;
-      case 'cancellation_requested': return '#FF5722';
-      case 'cancelled': return colors.error;
-      case 'completed': return '#2196F3';
-      default: return colors.textSecondary;
+      case 'confirmed': return { color: colors.primary || '#FFCC00', label: 'CONFIRMED', icon: 'check-circle' };
+      case 'pending': return { color: colors.warning || '#F59E0B', label: 'PENDING', icon: 'clock-outline' };
+      case 'cancellation_requested': return { color: '#FF5722', label: 'CANCEL REQ.', icon: 'alert-circle' };
+      case 'cancelled': return { color: colors.error || '#EF4444', label: 'CANCELLED', icon: 'close-circle' };
+      case 'completed': return { color: '#2196F3', label: 'COMPLETED', icon: 'checkbox-marked-circle' };
+      default: return { color: colors.textSecondary, label: (status || 'UNKNOWN').toUpperCase(), icon: 'information' };
     }
   };
 
@@ -247,131 +261,177 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
   const renderBookingCard = ({ item }) => {
     const slots = item.slotsSnapshot || [];
     const dateStr = slots[0]?.date ? formatISTDate(slots[0].date) : 'N/A';
-    const statusColor = getStatusColor(item.status);
+    const statusCfg = getStatusConfig(item.status);
     
     return (
-      <View style={styles.bookingCard}>
-        <View style={styles.cardHeader}>
-          <View style={styles.userInfo}>
-            {item.user?.photo ? (
-              <Image source={{ uri: getImageUrl(item.user.photo) }} style={styles.userAvatar} />
-            ) : (
-              <View style={styles.userAvatarPlaceholder}>
-                <Icon name="account" size={24} color={colors.textTertiary} />
-              </View>
-            )}
-            <View>
-              <Text style={styles.userName}>{item.user?.name || 'Unknown User'}</Text>
-              <Text style={styles.bookingId}>ID: {item.bookingRef}</Text>
-            </View>
-          </View>
-          <View style={[styles.statusBadge, { borderColor: statusColor, backgroundColor: statusColor + '18' }]}>
-            <Text style={[styles.statusText, { color: statusColor }]}>
-              {item.status === 'cancellation_requested' ? 'CANCEL REQ.' : (item.status?.toUpperCase() || 'UNKNOWN')}
-            </Text>
-          </View>
-        </View>
+      <View style={[styles.bookingCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {/* Accent Bar */}
+        <View style={[styles.cardAccentBar, { backgroundColor: statusCfg.color }]} />
 
-        <View style={styles.cardBody}>
-          <View style={styles.detailRow}>
-            <Icon name="calendar" size={16} color={isDark ? '#FFD400' : colors.primaryDark} />
-            <Text style={styles.detailText}>{dateStr}</Text>
-          </View>
-          
-          <View style={styles.slotsRow}>
-            <Icon name="clock-outline" size={16} color={isDark ? '#FFD400' : colors.primaryDark} style={{marginTop: 2}} />
-            <View style={styles.slotsList}>
-              {slots.map((slot, idx) => (
-                <Text key={idx} style={styles.slotPill}>
-                  {formatISTTime(slot.startTime)} - {formatISTTime(slot.endTime)}
+        <View style={styles.cardContentContainer}>
+          {/* Card Header: User Info & Status */}
+          <View style={styles.cardHeader}>
+            <View style={styles.userInfo}>
+              {item.user?.photo ? (
+                <Image source={{ uri: getImageUrl(item.user.photo) }} style={styles.userAvatar} />
+              ) : (
+                <View style={[styles.userAvatarPlaceholder, { backgroundColor: isDark ? colors.background : colors.surfaceVariant }]}>
+                  <Text style={[styles.avatarInitial, { color: colors.primary }]}>
+                    {item.user?.name?.[0]?.toUpperCase() || 'U'}
+                  </Text>
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.userName, { color: colors.textPrimary }]} numberOfLines={1}>
+                  {item.user?.name || 'Unknown User'}
                 </Text>
-              ))}
+                <Text style={[styles.bookingId, { color: colors.textTertiary }]}>
+                  ID: #{item.bookingRef || 'N/A'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={[styles.statusBadge, { borderColor: `${statusCfg.color}40`, backgroundColor: `${statusCfg.color}15` }]}>
+              <Icon name={statusCfg.icon} size={12} color={statusCfg.color} style={{ marginRight: 4 }} />
+              <Text style={[styles.statusText, { color: statusCfg.color }]}>
+                {statusCfg.label}
+              </Text>
             </View>
           </View>
-        </View>
 
-        <View style={styles.cardFooter}>
-          <View>
-            <Text style={styles.footerLabel}>Total Amount</Text>
-            <Text style={styles.amountText}>₹{item.totalAmount || item.finalAmount}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.footerLabel}>Payment Mode</Text>
-            <Text style={styles.paymentMethod}>
-              {(() => {
-                if (!item.payment) return 'Offline / Walk-in';
-                if (['qr_upi', 'wallet', 'razorpay', 'phonepe'].includes(item.payment.method)) {
-                  if (item.payment.status === 'screenshot_uploaded') return 'Pending Verification';
-                  return 'Online (Paid via App)';
-                }
-                return 'Offline / Pay at Turf';
-              })()}
-            </Text>
-            {item.payment?.status === 'screenshot_uploaded' && item.status !== 'cancellation_requested' && (
-              <TouchableOpacity style={styles.verifyBtn} onPress={() => handleVerify(item)}>
-                <Text style={styles.verifyBtnText}>Verify Screenshot</Text>
-              </TouchableOpacity>
-            )}
-            {item.status === 'cancellation_requested' && (
-              <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-                <TouchableOpacity style={[styles.verifyBtn, { backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.error }]} onPress={() => handleRejectCancel(item)}>
-                  <Text style={[styles.verifyBtnText, { color: colors.error }]}>Reject</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.verifyBtn, { backgroundColor: '#FF5722' }]} 
-                  onPress={() => handleApproveCancel(item)}
-                  disabled={approvingBookingId === item._id}
-                >
-                  {approvingBookingId === item._id ? (
-                    <ActivityIndicator color="#FFF" size="small" />
-                  ) : (
-                    <Text style={[styles.verifyBtnText, { color: '#FFF' }]}>Approve Refund</Text>
-                  )}
-                </TouchableOpacity>
+          {/* Schedule Info Box */}
+          <View style={[styles.scheduleBox, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]}>
+            <View style={styles.detailRow}>
+              <Icon name="calendar-month-outline" size={15} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={[styles.detailText, { color: colors.textPrimary }]}>{dateStr}</Text>
+            </View>
+            
+            <View style={styles.slotsRow}>
+              <Icon name="clock-outline" size={15} color={colors.primary} style={{ marginRight: 6, marginTop: 2 }} />
+              <View style={styles.slotsList}>
+                {slots.map((slot, idx) => (
+                  <View key={idx} style={[styles.slotPill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Text style={[styles.slotPillText, { color: colors.textPrimary }]}>
+                      {formatISTTime(slot.startTime)} – {formatISTTime(slot.endTime)}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            )}
+            </View>
           </View>
+
+          {/* Card Footer: Payment Info & Actions */}
+          <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
+            <View>
+              <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>Total Amount</Text>
+              <Text style={[styles.amountText, { color: colors.primary }]}>₹{item.totalAmount || item.finalAmount}</Text>
+            </View>
+
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>Payment Mode</Text>
+              <Text style={[styles.paymentMethod, { color: colors.textPrimary }]}>
+                {(() => {
+                  if (!item.payment) return 'Offline / Walk-in';
+                  if (['qr_upi', 'wallet', 'razorpay', 'phonepe'].includes(item.payment.method)) {
+                    if (item.payment.status === 'screenshot_uploaded') return 'Pending Verification';
+                    return 'Online (Paid via App)';
+                  }
+                  return 'Offline / Pay at Turf';
+                })()}
+              </Text>
+            </View>
+          </View>
+
+          {/* Action Row */}
+          {item.payment?.status === 'screenshot_uploaded' && item.status !== 'cancellation_requested' && (
+            <TouchableOpacity 
+              style={[styles.verifyBtn, { backgroundColor: colors.primary }]} 
+              onPress={() => handleVerify(item)}
+              activeOpacity={0.8}
+            >
+              <Icon name="file-document-outline" size={15} color="#000" style={{ marginRight: 4 }} />
+              <Text style={styles.verifyBtnText}>Verify Payment Screenshot</Text>
+            </TouchableOpacity>
+          )}
+
+          {item.status === 'cancellation_requested' && (
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <TouchableOpacity 
+                style={[styles.actionBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.error }]} 
+                onPress={() => handleRejectCancel(item)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.actionBtnText, { color: colors.error }]}>Reject Request</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.actionBtn, { flex: 1, backgroundColor: '#FF5722' }]} 
+                onPress={() => handleApproveCancel(item)}
+                disabled={approvingBookingId === item._id}
+                activeOpacity={0.8}
+              >
+                {approvingBookingId === item._id ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={[styles.actionBtnText, { color: '#FFF' }]}>Approve Refund</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity 
+            style={[styles.reportIssueBtn, { borderTopColor: colors.border }]}
+            onPress={() => navigation.navigate('CreateTicketScreen', { bookingId: item.bookingRef })}
+            activeOpacity={0.75}
+          >
+            <Icon name="alert-circle-outline" size={14} color={colors.textSecondary} style={{ marginRight: 4 }} />
+            <Text style={[styles.reportIssueText, { color: colors.textSecondary }]}>Report Issue</Text>
+          </TouchableOpacity>
         </View>
-        
-        <TouchableOpacity 
-          style={styles.reportIssueBtn}
-          onPress={() => navigation.navigate('CreateTicketScreen', { bookingId: item.bookingRef })}
-        >
-          <Text style={styles.reportIssueText}>Report Issue</Text>
-        </TouchableOpacity>
       </View>
     );
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
       
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.headerTitle}>All Bookings</Text>
+      <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>All Bookings</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+            {bookings.length} booking{bookings.length !== 1 ? 's' : ''} shown
+          </Text>
+        </View>
         {turfs.length > 1 ? (
-          <TouchableOpacity style={styles.headerDropdown} onPress={() => setTurfModalVisible(true)}>
-            <Text style={styles.headerDropdownText} numberOfLines={1}>
+          <TouchableOpacity 
+            style={[styles.headerDropdown, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]} 
+            onPress={() => setTurfModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.headerDropdownText, { color: colors.primary }]} numberOfLines={1}>
               {selectedTurf === 'all' ? 'All Turfs' : (turfs.find(t => t._id === selectedTurf)?.name || 'Select Ground')}
             </Text>
-            <Icon name="chevron-down" size={20} color={isDark ? '#FFD400' : colors.primaryDark} style={{marginLeft: 4}} />
+            <Icon name="chevron-down" size={18} color={colors.primary} />
           </TouchableOpacity>
         ) : (
           turfs.length === 1 && (
-            <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark }}>
-              {turfs[0].name}
-            </Text>
+            <View style={[styles.singleTurfBadge, { backgroundColor: colors.primaryAlpha10, borderColor: colors.primary }]}>
+              <Icon name="soccer-field" size={14} color={colors.primary} style={{ marginRight: 4 }} />
+              <Text style={[styles.singleTurfText, { color: colors.primary }]}>
+                {turfs[0].name}
+              </Text>
+            </View>
           )
         )}
       </View>
 
       {/* ── Search and Filter Inputs ────────────────────────────────────── */}
-      <View style={styles.filterContainer}>
-        <View style={styles.searchInputContainer}>
-          <Icon name="magnify" size={20} color={colors.textTertiary} />
+      <View style={[styles.filterContainer, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <View style={[styles.searchInputContainer, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]}>
+          <Icon name="magnify" size={18} color={colors.textTertiary} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.textPrimary }]}
             placeholder="Search Name or ID..."
             placeholderTextColor={colors.textTertiary}
             value={searchQuery}
@@ -384,13 +444,17 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
           )}
         </View>
 
-        <TouchableOpacity style={styles.dateInputContainer} onPress={() => setShowCalendar(true)}>
-          <Icon name="calendar-month" size={20} color={colors.textTertiary} />
-          <Text style={[styles.searchInput, { color: dateFilter ? colors.textPrimary : colors.textTertiary, textAlignVertical: 'center', lineHeight: 20 }]} numberOfLines={1}>
+        <TouchableOpacity 
+          style={[styles.dateInputContainer, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]} 
+          onPress={() => setShowCalendar(true)}
+          activeOpacity={0.8}
+        >
+          <Icon name="calendar-month-outline" size={18} color={colors.primary} />
+          <Text style={[styles.dateInputText, { color: dateFilter ? colors.textPrimary : colors.textTertiary }]} numberOfLines={1}>
             {dateFilter || 'DD/MM/YYYY'}
           </Text>
           {dateFilter.length > 0 && (
-            <TouchableOpacity onPress={() => setDateFilter('')}>
+            <TouchableOpacity onPress={(e) => { e.stopPropagation(); setDateFilter(''); }}>
               <Icon name="close-circle" size={16} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
@@ -398,7 +462,7 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
       </View>
 
       {/* ── Tabs Bar ────────────────────────────────────────────────────── */}
-      <View style={styles.tabsWrapper}>
+      <View style={[styles.tabsWrapper, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <ScrollView 
           ref={topTabsRef}
           horizontal 
@@ -406,18 +470,25 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
           contentContainerStyle={styles.tabsContainer}
         >
           {TABS.map((tab) => {
-            const isActive = statusFilter === tab;
+            const isActive = statusFilter === tab.id;
             return (
               <TouchableOpacity
-                key={tab}
-                style={[styles.tabButton, isActive && styles.tabButtonActive]}
-                onPress={() => setStatusFilter(tab)}
+                key={tab.id}
+                style={[styles.tabButton, isActive && [styles.tabButtonActive, { borderBottomColor: colors.primary }]]}
+                onPress={() => setStatusFilter(tab.id)}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                  {tab}
+                <Icon 
+                  name={tab.icon} 
+                  size={15} 
+                  color={isActive ? colors.primary : colors.textSecondary} 
+                  style={{ marginRight: 5 }} 
+                />
+                <Text style={[styles.tabText, { color: colors.textSecondary }, isActive && [styles.tabTextActive, { color: colors.primary }]]}>
+                  {tab.label}
                 </Text>
-                {tab === 'Cancel Req' && pendingCancellationsCount > 0 && (
-                  <View style={styles.tabBadge}>
+                {tab.id === 'Cancel Req' && pendingCancellationsCount > 0 && (
+                  <View style={[styles.tabBadge, { backgroundColor: colors.error }]}>
                     <Text style={styles.tabBadgeText}>{pendingCancellationsCount}</Text>
                   </View>
                 )}
@@ -448,208 +519,223 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
           onEndReachedThreshold={0.5}
           ListFooterComponent={() => (
             loadingMore ? (
-              <View style={{ paddingVertical: 20 }}>
+              <View style={{ paddingVertical: 16, alignItems: 'center' }}>
                 <ActivityIndicator size="small" color={colors.primary} />
               </View>
             ) : null
           )}
           ListEmptyComponent={
-            <View style={styles.centerContainer}>
-              <Icon name="calendar-remove" size={48} color={colors.textTertiary} />
-              <Text style={styles.emptyText}>No bookings found</Text>
+            <View style={styles.emptyContainer}>
+              <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.surfaceVariant }]}>
+                <Icon name="text-box-remove-outline" size={44} color={colors.primary} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No Bookings Found</Text>
+              <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+                {searchQuery || dateFilter || statusFilter !== 'All'
+                  ? 'Try clearing your filters or search query.'
+                  : 'No bookings have been made yet.'}
+              </Text>
             </View>
           }
         />
       )}
 
-      {/* ── Payment Verification Modal ───────────────────────────────────── */}
-      <Modal visible={verifyModalVisible} transparent animationType="slide">
+      {/* ── Turf Selector Modal ────────────────────────────────────────────── */}
+      <Modal visible={turfModalVisible} transparent animationType="fade" onRequestClose={() => setTurfModalVisible(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setTurfModalVisible(false)}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Select Ground</Text>
+            <TouchableOpacity 
+              style={[styles.turfOption, selectedTurf === 'all' && [styles.turfOptionActive, { backgroundColor: colors.primaryAlpha10 }]]}
+              onPress={() => { setSelectedTurf('all'); setTurfModalVisible(false); }}
+            >
+              <Text style={[styles.turfOptionText, { color: colors.textSecondary }, selectedTurf === 'all' && [styles.turfOptionTextActive, { color: colors.primary }]]}>
+                All Turfs
+              </Text>
+              {selectedTurf === 'all' && <Icon name="check" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+            {turfs.map(t => (
+              <TouchableOpacity 
+                key={t._id}
+                style={[styles.turfOption, selectedTurf === t._id && [styles.turfOptionActive, { backgroundColor: colors.primaryAlpha10 }]]}
+                onPress={() => { setSelectedTurf(t._id); setTurfModalVisible(false); }}
+              >
+                <Text style={[styles.turfOptionText, { color: colors.textSecondary }, selectedTurf === t._id && [styles.turfOptionTextActive, { color: colors.primary }]]}>
+                  {t.name}
+                </Text>
+                {selectedTurf === t._id && <Icon name="check" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Payment Verification Modal ──────────────────────────────────── */}
+      <Modal visible={verifyModalVisible} transparent animationType="slide" onRequestClose={() => setVerifyModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Verify Payment</Text>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Verify Screenshot</Text>
               <TouchableOpacity onPress={() => setVerifyModalVisible(false)}>
-                <Icon name="close" size={24} color={colors.textPrimary} />
+                <Icon name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSubTitle}>Review the payment screenshot before confirming the booking.</Text>
-            
-            <KeyboardAwareScrollView>
-              {verifyingBooking?.payment?.screenshot ? (
+            <Text style={[styles.modalSubTitle, { color: colors.textSecondary }]}>
+              User uploaded a payment screenshot for Ref: #{verifyingBooking?.bookingRef}
+            </Text>
+
+            <ScrollView style={{ maxHeight: 350 }}>
+              {verifyingBooking?.payment?.screenshotUrl ? (
                 <Image 
-                  source={{ uri: getImageUrl(verifyingBooking.payment.screenshot) }} 
-                  style={styles.screenshotImage} 
-                  resizeMode="contain" 
+                  source={{ uri: getImageUrl(verifyingBooking.payment.screenshotUrl) }} 
+                  style={styles.screenshotImage}
+                  resizeMode="contain"
                 />
               ) : (
-                <View style={styles.noScreenshot}>
-                  <Text style={{ color: colors.textTertiary, fontFamily: Typography.fontFamily.medium }}>No screenshot provided</Text>
+                <View style={[styles.noScreenshot, { backgroundColor: colors.surfaceVariant }]}>
+                  <Icon name="image-off-outline" size={40} color={colors.textTertiary} />
+                  <Text style={{ color: colors.textTertiary, marginTop: 8 }}>No screenshot available</Text>
                 </View>
               )}
 
+              <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, marginBottom: 8 }}>
+                Rejection Reason (if rejecting):
+              </Text>
               <TextInput
-                style={styles.rejectInput}
-                placeholder="Reason for rejection (Optional if approving)..."
+                style={[styles.rejectInput, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, color: colors.textPrimary, borderColor: colors.border }]}
+                placeholder="e.g. Invalid UTR, Fake Screenshot..."
                 placeholderTextColor={colors.textTertiary}
                 value={rejectReason}
                 onChangeText={setRejectReason}
               />
+            </ScrollView>
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity 
-                  style={[styles.modalBtn, styles.rejectBtn]} 
-                  onPress={() => submitVerify(false)}
-                  disabled={verifying}
-                >
-                  {verifying ? <ActivityIndicator color={colors.error} /> : <Text style={styles.rejectBtnText}>Reject Payment</Text>}
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={[styles.modalBtn, styles.approveBtn]} 
-                  onPress={() => submitVerify(true)}
-                  disabled={verifying}
-                >
-                  {verifying ? <ActivityIndicator color="#000" /> : <Text style={styles.approveBtnText}>Approve & Confirm</Text>}
-                </TouchableOpacity>
-              </View>
-            </KeyboardAwareScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.rejectBtn, { borderColor: colors.error }]} 
+                onPress={() => submitVerify(false)}
+                disabled={verifying}
+              >
+                <Text style={styles.rejectBtnText}>Reject Payment</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.approveBtn, { backgroundColor: colors.primary }]} 
+                onPress={() => submitVerify(true)}
+                disabled={verifying}
+              >
+                {verifying ? (
+                  <ActivityIndicator color="#000" size="small" />
+                ) : (
+                  <Text style={styles.approveBtnText}>Approve & Confirm</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
 
-      {/* ── Reject Cancellation Modal ────────────────────────────────────── */}
-      <Modal visible={rejectCancelModalVisible} transparent animationType="slide">
+      {/* ── Reject Cancellation Modal ───────────────────────────────────── */}
+      <Modal visible={rejectCancelModalVisible} transparent animationType="slide" onRequestClose={() => setRejectCancelModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reject Cancellation</Text>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Reject Cancellation</Text>
               <TouchableOpacity onPress={() => setRejectCancelModalVisible(false)}>
-                <Icon name="close" size={24} color={colors.textPrimary} />
+                <Icon name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSubTitle}>Provide a reason to the user for rejecting their cancellation request.</Text>
-            
+            <Text style={[styles.modalSubTitle, { color: colors.textSecondary }]}>
+              Please state why you are rejecting the cancellation for Ref: #{actionBooking?.bookingRef}
+            </Text>
+
             <TextInput
-              style={[styles.rejectInput, { minHeight: 80, textAlignVertical: 'top' }]}
-              placeholder="e.g. Ground is ready, cancellation policy expired..."
+              style={[styles.rejectInput, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, color: colors.textPrimary, borderColor: colors.border }]}
+              placeholder="e.g. Request made too close to match time..."
               placeholderTextColor={colors.textTertiary}
               value={rejectCancelReason}
               onChangeText={setRejectCancelReason}
               multiline
+              numberOfLines={3}
             />
 
             <View style={styles.modalActions}>
               <TouchableOpacity 
-                style={[styles.modalBtn, { backgroundColor: colors.surfaceVariant }]} 
+                style={[styles.modalBtn, { backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.border }]} 
                 onPress={() => setRejectCancelModalVisible(false)}
               >
                 <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>Cancel</Text>
               </TouchableOpacity>
-
               <TouchableOpacity 
                 style={[styles.modalBtn, { backgroundColor: colors.error }]} 
                 onPress={submitRejectCancel}
                 disabled={cancelRejecting}
               >
-                {cancelRejecting ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold }}>Reject Request</Text>}
+                {cancelRejecting ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={{ color: '#FFF', fontFamily: Typography.fontFamily.bold }}>Reject Cancellation</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* ── Turf Selection Modal ─────────────────────────────────────────── */}
-      <Modal visible={turfModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Turf</Text>
-              <TouchableOpacity onPress={() => setTurfModalVisible(false)}>
-                <Icon name="close" size={24} color={colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ maxHeight: 300 }}>
-              <TouchableOpacity 
-                style={[styles.turfOption, selectedTurf === 'all' && styles.turfOptionActive]}
-                onPress={() => {
-                  setSelectedTurf('all');
-                  setTurfModalVisible(false);
-                }}
-              >
-                <Text style={[styles.turfOptionText, selectedTurf === 'all' && styles.turfOptionTextActive]}>
-                  All Turfs
-                </Text>
-                {selectedTurf === 'all' && <Icon name="check-circle" size={24} color={isDark ? '#FFD400' : colors.primaryDark} />}
-              </TouchableOpacity>
-              {turfs.map(t => (
-                <TouchableOpacity 
-                  key={t._id} 
-                  style={[styles.turfOption, selectedTurf === t._id && styles.turfOptionActive]}
-                  onPress={() => {
-                    setSelectedTurf(t._id);
-                    setTurfModalVisible(false);
-                  }}
-                >
-                  <Text style={[styles.turfOptionText, selectedTurf === t._id && styles.turfOptionTextActive]}>
-                    {t.name}
-                  </Text>
-                  {selectedTurf === t._id && <Icon name="check-circle" size={24} color={isDark ? '#FFD400' : colors.primaryDark} />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Custom Calendar Modal ────────────────────────────────────────── */}
+      {/* ── Custom Calendar Picker Overlay ──────────────────────────────── */}
       {showCalendar && (
         <View style={styles.calendarOverlay}>
-          <View style={styles.calendarContent}>
+          <View style={[styles.calendarContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.calendarHeader}>
               <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).subtract(1, 'month'))}>
-                <Icon name="chevron-left" size={30} color={colors.textPrimary} />
+                <Icon name="chevron-left" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
-              <Text style={styles.calendarTitle}>{calendarMonth.format('MMMM YYYY')}</Text>
+              <Text style={[styles.calendarTitle, { color: colors.textPrimary }]}>{calendarMonth.format('MMMM YYYY')}</Text>
               <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).add(1, 'month'))}>
-                <Icon name="chevron-right" size={30} color={colors.textPrimary} />
+                <Icon name="chevron-right" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.calendarGrid}>
-              {['S','M','T','W','T','F','S'].map((d, i) => (
-                <Text key={i} style={styles.dayOfWeek}>{d}</Text>
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                <Text key={i} style={[styles.dayOfWeek, { color: colors.textSecondary }]}>{d}</Text>
               ))}
+
               {(() => {
+                const daysInMonth = calendarMonth.daysInMonth();
                 const startDay = moment(calendarMonth).startOf('month').day();
-                const daysInMonth = moment(calendarMonth).daysInMonth();
-                const grid = [];
+                const days = [];
+
                 for (let i = 0; i < startDay; i++) {
-                  grid.push(<View key={`empty-${i}`} style={styles.calDay} />);
+                  days.push(<View key={`empty-${i}`} style={styles.calDay} />);
                 }
+
                 for (let i = 1; i <= daysInMonth; i++) {
-                  const d = moment(calendarMonth).clone().date(i);
-                  const dStr = d.format('DD/MM/YYYY');
-                  const isSel = dateFilter === dStr;
-                  grid.push(
-                    <TouchableOpacity 
-                      key={`day-${i}`} 
-                      style={[styles.calDay, isSel && styles.calDaySel]}
+                  const dayObj = moment(calendarMonth).date(i);
+                  const formattedStr = dayObj.format('DD/MM/YYYY');
+                  const isSelected = dateFilter === formattedStr;
+
+                  days.push(
+                    <TouchableOpacity
+                      key={`day-${i}`}
+                      style={[styles.calDay, isSelected && [styles.calDaySel, { backgroundColor: colors.primary }]]}
                       onPress={() => {
-                        setDateFilter(dStr);
+                        setDateFilter(formattedStr);
                         setShowCalendar(false);
                       }}
-                      activeOpacity={0.7}
                     >
-                      <Text style={[styles.calDayText, isSel && { color: '#000', fontWeight: 'bold' }]}>{i}</Text>
+                      <Text style={[styles.calDayText, { color: colors.textPrimary }, isSelected && { color: '#000', fontFamily: Typography.fontFamily.bold }]}>
+                        {i}
+                      </Text>
                     </TouchableOpacity>
                   );
                 }
-                return grid;
+
+                return days;
               })()}
             </View>
 
-            <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowCalendar(false)}>
-              <Text style={styles.closeModalText}>Close</Text>
+            <TouchableOpacity style={[styles.closeModalBtn, { backgroundColor: colors.surfaceVariant }]} onPress={() => setShowCalendar(false)}>
+              <Text style={[styles.closeModalText, { color: colors.textPrimary }]}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -659,162 +745,188 @@ const OwnerBookingsScreen = ({ navigation, route }) => {
 };
 
 const createStyles = (colors, isDark, shadows) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  filterContainer: { 
-    flexDirection: 'row', gap: 12, padding: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.sm, 
-    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.borderLight 
-  },
+  container: { flex: 1 },
   header: { 
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg,
-    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border
+    paddingHorizontal: 20, paddingBottom: 16,
+    borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 24, fontFamily: Typography.fontFamily.extraBold, color: colors.textPrimary },
+  headerTitle: { fontSize: 22, fontFamily: Typography.fontFamily.bold },
+  headerSubtitle: { fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 },
   headerDropdown: { 
-    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceVariant, 
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, borderWidth: 1, borderColor: colors.border, maxWidth: '55%' 
+    flexDirection: 'row', alignItems: 'center', 
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, maxWidth: '55%' 
   },
-  headerDropdownText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, marginRight: 4, maxWidth: '85%' },
-  
-  turfOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  turfOptionActive: { backgroundColor: colors.primaryAlpha10, borderRadius: BorderRadius.md, borderBottomWidth: 0 },
-  turfOptionText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 16 },
-  turfOptionTextActive: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold },
+  headerDropdownText: { fontSize: 13, fontFamily: Typography.fontFamily.bold, marginRight: 4, maxWidth: '85%' },
+  singleTurfBadge: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1
+  },
+  singleTurfText: { fontSize: 12, fontFamily: Typography.fontFamily.bold },
+
+  filterContainer: { 
+    flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 12, 
+    borderBottomWidth: 1,
+  },
+  searchInputContainer: { 
+    flex: 1, flexDirection: 'row', alignItems: 'center', 
+    borderRadius: 12, paddingHorizontal: 12, height: 44, borderWidth: 1 
+  },
+  dateInputContainer: { 
+    flex: 1, flexDirection: 'row', alignItems: 'center', 
+    borderRadius: 12, paddingHorizontal: 12, height: 44, borderWidth: 1 
+  },
+  searchInput: { flex: 1, fontFamily: Typography.fontFamily.regular, marginLeft: 8, fontSize: 13 },
+  dateInputText: { flex: 1, fontFamily: Typography.fontFamily.medium, marginLeft: 8, fontSize: 13 },
 
   tabsWrapper: {
-    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   tabsContainer: {
     flexDirection: 'row',
+    paddingHorizontal: 8,
   },
   tabButton: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomWidth: 3,
+    borderBottomWidth: 2,
     borderBottomColor: 'transparent',
     flexDirection: 'row',
   },
-  tabButtonActive: {
-    borderBottomColor: isDark ? '#FFD400' : colors.primaryDark,
-  },
+  tabButtonActive: {},
   tabText: {
     fontSize: 13,
-    color: colors.textSecondary,
     fontFamily: Typography.fontFamily.medium,
   },
   tabTextActive: {
-    color: isDark ? '#FFD400' : colors.primaryDark,
     fontFamily: Typography.fontFamily.bold,
   },
   tabBadge: {
-    backgroundColor: colors.error,
     borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    minWidth: 18,
+    height: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 6,
-    paddingHorizontal: 6,
+    marginLeft: 5,
+    paddingHorizontal: 5,
   },
   tabBadgeText: {
     color: '#FFF',
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: Typography.fontFamily.bold,
   },
-  searchInputContainer: { 
-    flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceVariant, 
-    borderRadius: BorderRadius.md, paddingHorizontal: Spacing.sm, height: 42, borderWidth: 1, borderColor: colors.border, marginRight: Spacing.sm 
-  },
-  dateInputContainer: { 
-    flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceVariant, 
-    borderRadius: BorderRadius.md, paddingHorizontal: Spacing.sm, height: 42, borderWidth: 1, borderColor: colors.border 
-  },
-  searchInput: { flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.regular, marginLeft: Spacing.sm, fontSize: 12 },
 
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },
-  emptyText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginTop: Spacing.md, fontSize: 16 },
-
-  listContainer: { padding: Spacing.lg, paddingBottom: 100 },
+  listContainer: { padding: 16, paddingBottom: 100 },
   
   bookingCard: { 
-    backgroundColor: colors.surface, borderRadius: BorderRadius.lg, 
-    borderWidth: 1, borderColor: colors.border, marginBottom: Spacing.lg,
+    borderRadius: 16, 
+    borderWidth: 1, 
+    marginBottom: 16,
     overflow: 'hidden',
-    ...(isDark ? {} : shadows.sm)
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  cardAccentBar: {
+    height: 4,
+    width: '100%',
+  },
+  cardContentContainer: {
+    padding: 16,
   },
   cardHeader: { 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-    padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', 
+    marginBottom: 12,
   },
-  userInfo: { flexDirection: 'row', alignItems: 'center' },
-  userAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: Spacing.md },
-  userAvatarPlaceholder: { width: 40, height: 40, borderRadius: 20, marginRight: Spacing.md, backgroundColor: colors.surfaceVariant, justifyContent: 'center', alignItems: 'center' },
-  userName: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16 },
-  bookingId: { color: colors.textTertiary, fontFamily: Typography.fontFamily.regular, fontSize: 12 },
+  userInfo: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 },
+  userAvatar: { width: 42, height: 42, borderRadius: 21, marginRight: 12 },
+  userAvatarPlaceholder: { width: 42, height: 42, borderRadius: 21, marginRight: 12, justifyContent: 'center', alignItems: 'center' },
+  avatarInitial: { fontSize: 18, fontFamily: Typography.fontFamily.bold },
+  userName: { fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  bookingId: { fontFamily: Typography.fontFamily.regular, fontSize: 12, marginTop: 1 },
   
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
   statusText: { fontSize: 10, fontFamily: Typography.fontFamily.bold },
 
-  cardBody: { padding: Spacing.md },
-  detailRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm },
-  detailText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginLeft: Spacing.sm, fontSize: 14 },
+  scheduleBox: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  detailRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  detailText: { fontFamily: Typography.fontFamily.semiBold, fontSize: 13 },
   
-  slotsRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: Spacing.xs },
-  slotsList: { flexDirection: 'row', flexWrap: 'wrap', marginLeft: Spacing.sm, flex: 1, gap: 6 },
+  slotsRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  slotsList: { flexDirection: 'row', flexWrap: 'wrap', flex: 1, gap: 6 },
   slotPill: { 
-    backgroundColor: colors.surfaceVariant, paddingHorizontal: 8, paddingVertical: 4, 
-    borderRadius: BorderRadius.sm, color: colors.textPrimary, fontFamily: Typography.fontFamily.medium, 
-    fontSize: 12, borderWidth: 1, borderColor: colors.border 
+    paddingHorizontal: 9, paddingVertical: 4, 
+    borderRadius: 8, borderWidth: 1 
+  },
+  slotPillText: {
+    fontSize: 12, fontFamily: Typography.fontFamily.medium,
   },
 
   cardFooter: { 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-    padding: Spacing.md, backgroundColor: colors.surfaceVariant, borderTopWidth: 1, borderTopColor: colors.borderLight 
+    borderTopWidth: 1, paddingTop: 12, marginBottom: 8,
   },
-  footerLabel: { color: colors.textTertiary, fontFamily: Typography.fontFamily.medium, fontSize: 12, marginBottom: 2 },
-  amountText: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 18 },
-  paymentMethod: { color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  footerLabel: { fontFamily: Typography.fontFamily.regular, fontSize: 11, marginBottom: 2 },
+  amountText: { fontFamily: Typography.fontFamily.bold, fontSize: 18 },
+  paymentMethod: { fontFamily: Typography.fontFamily.bold, fontSize: 13 },
   
-  verifyBtn: { backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, marginTop: 8 },
-  verifyBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  verifyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 10, marginTop: 8 },
+  verifyBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+
+  actionBtn: { paddingVertical: 9, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  actionBtnText: { fontSize: 13, fontFamily: Typography.fontFamily.bold },
   
-  reportIssueBtn: { backgroundColor: colors.surface, paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.borderLight },
-  reportIssueText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  reportIssueBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 10, marginTop: 4, borderTopWidth: 1 },
+  reportIssueText: { fontFamily: Typography.fontFamily.semiBold, fontSize: 12 },
   
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: Spacing.xl },
-  modalContent: { backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.xl, maxHeight: '85%', borderWidth: 1, borderColor: colors.border },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
-  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
-  modalSubTitle: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.lg },
-  screenshotImage: { width: '100%', height: 300, borderRadius: BorderRadius.md, backgroundColor: '#000', marginBottom: Spacing.lg },
-  noScreenshot: { width: '100%', height: 200, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surfaceVariant, borderRadius: BorderRadius.md, marginBottom: Spacing.lg },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 20 },
+  modalContent: { borderRadius: 16, padding: 20, maxHeight: '85%', borderWidth: 1 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 20, fontFamily: Typography.fontFamily.bold },
+  modalSubTitle: { fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 16 },
+  screenshotImage: { width: '100%', height: 300, borderRadius: 12, backgroundColor: '#000', marginBottom: 16 },
+  noScreenshot: { width: '100%', height: 200, justifyContent: 'center', alignItems: 'center', borderRadius: 12, marginBottom: 16 },
   rejectInput: { 
-    backgroundColor: colors.surfaceVariant, color: colors.textPrimary, padding: Spacing.md, 
-    borderRadius: BorderRadius.md, fontFamily: Typography.fontFamily.regular, marginBottom: Spacing.xl, 
-    borderWidth: 1, borderColor: colors.border 
+    padding: 12, borderRadius: 10, fontFamily: Typography.fontFamily.regular, 
+    marginBottom: 20, borderWidth: 1, fontSize: 14,
   },
-  modalActions: { flexDirection: 'row', gap: Spacing.md },
-  modalBtn: { flex: 1, padding: Spacing.md, borderRadius: BorderRadius.md, alignItems: 'center' },
-  rejectBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.error },
-  rejectBtnText: { color: colors.error, fontFamily: Typography.fontFamily.bold },
-  approveBtn: { backgroundColor: colors.primary },
-  approveBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold },
+  modalActions: { flexDirection: 'row', gap: 12 },
+  modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  rejectBtn: { backgroundColor: 'transparent', borderWidth: 1 },
+  rejectBtnText: { color: colors.error, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+  approveBtn: {},
+  approveBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 14 },
   
   calendarOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', zIndex: 100 },
-  calendarContent: { width: '85%', backgroundColor: colors.surface, borderRadius: BorderRadius.xl, padding: Spacing.xl, borderWidth: 1, borderColor: colors.border },
-  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
-  calendarTitle: { fontSize: Typography.fontSize.lg, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
+  calendarContent: { width: '88%', borderRadius: 20, padding: 20, borderWidth: 1 },
+  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  calendarTitle: { fontSize: 16, fontFamily: Typography.fontFamily.bold },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  dayOfWeek: { width: '14.28%', textAlign: 'center', color: colors.textSecondary, marginBottom: Spacing.md, fontFamily: Typography.fontFamily.bold },
+  dayOfWeek: { width: '14.28%', textAlign: 'center', marginBottom: 12, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
   calDay: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginBottom: 4, borderRadius: 20 },
-  calDaySel: { backgroundColor: colors.primary },
-  calDayText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.medium },
-  closeModalBtn: { marginTop: Spacing.lg, padding: 12, backgroundColor: colors.surfaceVariant, borderRadius: BorderRadius.md, alignItems: 'center' },
-  closeModalText: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold },
+  calDaySel: {},
+  calDayText: { fontFamily: Typography.fontFamily.medium, fontSize: 13 },
+  closeModalBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  closeModalText: { fontFamily: Typography.fontFamily.bold, fontSize: 14 },
+
+  turfOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 12, borderBottomWidth: 1 },
+  turfOptionActive: { borderRadius: 10 },
+  turfOptionText: { fontFamily: Typography.fontFamily.medium, fontSize: 15 },
+  turfOptionTextActive: { fontFamily: Typography.fontFamily.bold },
+
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 32, marginTop: 40 },
+  emptyIconCircle: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  emptyTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, marginBottom: 6 },
+  emptySub: { fontSize: 13, fontFamily: Typography.fontFamily.regular, textAlign: 'center', lineHeight: 18 },
 });
 
 export default OwnerBookingsScreen;

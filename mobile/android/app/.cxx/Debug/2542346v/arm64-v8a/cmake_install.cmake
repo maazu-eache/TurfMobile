@@ -44,6 +44,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
+  include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/VisionCameraCodeScanner_autolinked_build/cmake_install.cmake")
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/AsyncStorageSpec_autolinked_build/cmake_install.cmake")
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNDateTimePickerCGen_autolinked_build/cmake_install.cmake")
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNCNetInfoSpec_autolinked_build/cmake_install.cmake")
@@ -66,6 +67,7 @@ if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNCWebViewSpec_autolinked_build/cmake_install.cmake")
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/rnworklets_autolinked_build/cmake_install.cmake")
   include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNWorkletsSpec_autolinked_build/cmake_install.cmake")
+  include("/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/RNQrGeneratorSpec_autolinked_build/cmake_install.cmake")
 
 endif()
 

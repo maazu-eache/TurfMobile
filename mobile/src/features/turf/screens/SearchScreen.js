@@ -390,8 +390,30 @@ const SortChip = ({ label, icon, active, onPress }) => (
 
   const hasActiveFilters = minTrustScore || maxPrice || sortOrder || playerRoleFilter || matchStatusFilter;
 
+  const filteredPlayers = useMemo(() => {
+    const currentUserId = String(user?._id || user?.id || '').trim();
+    const currentProfileId = String(myProfile?._id || '').trim();
+    const currentProfileUserId = String(myProfile?.userId?._id || myProfile?.userId || '').trim();
+
+    return players.filter((p) => {
+      const pId = String(p._id || '').trim();
+      const pUserId = String(p.userId?._id || p.userId || '').trim();
+
+      if (currentUserId && (pId === currentUserId || pUserId === currentUserId)) {
+        return false;
+      }
+      if (currentProfileId && (pId === currentProfileId || pUserId === currentProfileId)) {
+        return false;
+      }
+      if (currentProfileUserId && (pId === currentProfileUserId || pUserId === currentProfileUserId)) {
+        return false;
+      }
+      return true;
+    });
+  }, [players, user, myProfile]);
+
   const activeLoading = (activeTab === 'turfs' ? turfLoading : activeTab === 'players' ? playerLoading : activeTab === 'matches' ? matchLoading : tournamentLoading) || localLoading;
-  const activeDataList = activeTab === 'turfs' ? turfs : activeTab === 'players' ? players : activeTab === 'matches' ? matches : tournaments;
+  const activeDataList = activeTab === 'turfs' ? turfs : activeTab === 'players' ? filteredPlayers : activeTab === 'matches' ? matches : tournaments;
 
   const getMinPrice = (pricing) => {
     if (!pricing) return 0;

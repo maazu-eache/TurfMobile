@@ -316,13 +316,21 @@ const SlotPickerScreen = ({ route, navigation }) => {
         const slot2 = sorted[i + 1];
         
         if (slot2 && slot1.endTime === slot2.startTime) {
-          // Calculate discount price if any
           let discountPrice = null;
-          if (slot1.discountPrice !== undefined && slot1.discountPrice !== null || 
-              slot2.discountPrice !== undefined && slot2.discountPrice !== null) {
+          if ((slot1.discountPrice !== undefined && slot1.discountPrice !== null) || 
+              (slot2.discountPrice !== undefined && slot2.discountPrice !== null)) {
             const p1 = slot1.discountPrice !== undefined && slot1.discountPrice !== null ? slot1.discountPrice : slot1.price;
             const p2 = slot2.discountPrice !== undefined && slot2.discountPrice !== null ? slot2.discountPrice : slot2.price;
             discountPrice = p1 + p2;
+          }
+
+          let mergedStatus = 'available';
+          if (slot1.status === 'available' && slot2.status === 'available') {
+            mergedStatus = 'available';
+          } else if (slot1.status === 'maintenance' || slot2.status === 'maintenance' || slot1.status === 'blocked' || slot2.status === 'blocked') {
+            mergedStatus = 'maintenance';
+          } else {
+            mergedStatus = 'booked';
           }
 
           merged.push({
@@ -333,7 +341,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
             endTime: slot2.endTime,
             price: slot1.price + slot2.price,
             discountPrice,
-            status: (slot1.status === 'available' && slot2.status === 'available') ? 'available' : 'booked',
+            status: mergedStatus,
           });
           i += 2;
         } else {
@@ -341,6 +349,49 @@ const SlotPickerScreen = ({ route, navigation }) => {
         }
       }
       finalSlots = merged;
+    } else if (selectedIntervalMode === '30' && !databaseHas30MinSlots) {
+      const split = [];
+      const sorted = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+      for (const s of sorted) {
+        const startMoment = moment(s.startTime, 'HH:mm');
+        const endMoment = moment(s.endTime, 'HH:mm');
+        const diffMins = endMoment.diff(startMoment, 'minutes');
+        
+        if (diffMins === 60) {
+          const midTime = startMoment.clone().add(30, 'minutes').format('HH:mm');
+          const halfPrice = Math.round(s.price / 2);
+          const halfDiscount = (s.discountPrice !== undefined && s.discountPrice !== null)
+            ? Math.round(s.discountPrice / 2)
+            : null;
+
+          split.push({
+            ...s,
+            _id: `${s._id}_sub1`,
+            isSplit: true,
+            originalSlots: [s],
+            startTime: s.startTime,
+            endTime: midTime,
+            price: halfPrice,
+            discountPrice: halfDiscount,
+            status: s.status,
+          });
+
+          split.push({
+            ...s,
+            _id: `${s._id}_sub2`,
+            isSplit: true,
+            originalSlots: [s],
+            startTime: midTime,
+            endTime: s.endTime,
+            price: halfPrice,
+            discountPrice: halfDiscount,
+            status: s.status,
+          });
+        } else {
+          split.push(s);
+        }
+      }
+      finalSlots = split;
     }
     
     if (filterFromTime) {
@@ -351,10 +402,10 @@ const SlotPickerScreen = ({ route, navigation }) => {
     }
     
     return finalSlots;
-  }, [slots, selectedIntervalMode, turf, filterFromTime, filterToTime]);
+  }, [slots, selectedIntervalMode, turf, filterFromTime, filterToTime, databaseHas30MinSlots]);
 
   const availableCount = processedSlots.filter(s => s.status === 'available' && !isPastSlot(selectedDate, s.startTime)).length;
-  const bookedCount = processedSlots.filter(s => s.status === 'booked' || s.status === 'offline_booking').length;
+  const bookedCount = processedSlots.filter(s => s.status !== 'available' && !isPastSlot(selectedDate, s.startTime)).length;
   const pastCount = processedSlots.filter(s => isPastSlot(selectedDate, s.startTime)).length;
 
   const totalSelectedPrice = selectedSlots.reduce((acc, s) => acc + (s.discountPrice !== undefined && s.discountPrice !== null ? s.discountPrice : s.price), 0);
@@ -381,7 +432,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
       return (s1Booked && !s2Booked) || (!s1Booked && s2Booked);
     })();
 
-    const isBooked = (slot.status === 'booked' || slot.status === 'offline_booking' || slot.status === 'offline') && !isPartiallyBooked;
+    const isLocked = slot.status !== 'available' && !isPartiallyBooked;
     
     let cardStyle = styles.slotCardAvailable;
     let textStyle = styles.slotTextAvailable;
@@ -389,7 +440,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
     if (isSelected) {
       cardStyle = styles.slotCardSelected;
       textStyle = styles.slotTextSelected;
-    } else if (isBooked) {
+    } else if (isLocked) {
       cardStyle = styles.slotCardBooked;
       textStyle = styles.slotTextBooked;
     } else if (isPartiallyBooked) {
@@ -405,10 +456,10 @@ const SlotPickerScreen = ({ route, navigation }) => {
         key={slot._id}
         style={[styles.slotCard, cardStyle]}
         onPress={() => toggleSlot(slot)}
-        disabled={isBooked || past}
+        disabled={isLocked || past}
         activeOpacity={0.8}
       >
-        {isBooked ? (
+        {isLocked ? (
           <Icon name="lock-outline" size={11} color={colors.textDisabled} style={styles.slotStateIcon} />
         ) : isPartiallyBooked ? (
           <View style={styles.slotPartialDot} />
@@ -571,7 +622,7 @@ const SlotPickerScreen = ({ route, navigation }) => {
         </View>
 
         {/* ── Booking Mode Toggle (only if both are supported) ── */}
-        {turf.bookingMode === 'both' && databaseHas30MinSlots && (
+        {(turf.bookingMode === 'both' || databaseHas30MinSlots) && (
           <View style={styles.toggleContainer}>
             <TouchableOpacity 
               style={[styles.toggleBtn, selectedIntervalMode === '60' && styles.toggleBtnActive]}
@@ -654,8 +705,9 @@ const SlotPickerScreen = ({ route, navigation }) => {
         {/* ── Expandable Time Groups ── */}
         <View style={styles.groupsContainer}>
           {TIME_GROUPS.map((group) => {
+            const groupSlotList = groupedSlots[group.key] || [];
             const isExpanded = expandedGroup === group.key;
-            const slotList = groupedSlots[group.key] || [];
+            
             return (
               <View key={group.key} style={styles.groupTile}>
                 <TouchableOpacity
@@ -681,11 +733,11 @@ const SlotPickerScreen = ({ route, navigation }) => {
 
                 {isExpanded && (
                   <View style={styles.groupContent}>
-                    {slotList.length === 0 ? (
-                      <Text style={styles.noSlotsText}>No slots available for this period</Text>
+                    {groupSlotList.length === 0 ? (
+                      <Text style={styles.noSlotsText}>No slots in this time block.</Text>
                     ) : (
                       <View style={styles.slotsGrid}>
-                        {slotList.map(renderSlotCard)}
+                        {groupSlotList.map(renderSlotCard)}
                       </View>
                     )}
                   </View>
@@ -819,26 +871,31 @@ const SlotPickerScreen = ({ route, navigation }) => {
                     No slots found in this time range.
                   </Text>
                 ) : processedSlots.map((slot) => {
-                  const isBooked = slot.status === 'booked' || slot.status === 'offline_booking' || slot.status === 'offline';
+                  const isMaintenance = slot.status === 'maintenance' || slot.status === 'blocked';
+                  const isLocked = slot.status !== 'available';
                   const past = isPastSlot(selectedDate, slot.startTime);
                   const isSelected = slot.isMerged
                     ? slot.originalSlots.every(os => selectedSlots.some(sel => sel._id === os._id))
                     : selectedSlots.some(sel => sel._id === slot._id);
 
                   const borderColor = isSelected ? (isDark ? '#FFD400' : colors.primaryDark)
-                    : isBooked ? '#2196F3'
+                    : isMaintenance ? '#FF4757'
+                    : isLocked ? '#2196F3'
                     : past ? (isDark ? '#333' : colors.border)
                     : colors.border;
 
-                  const badgeLabel = isBooked ? 'Booked'
+                  const badgeLabel = isMaintenance ? 'Maintenance'
+                    : isLocked ? 'Locked'
                     : past ? 'Past'
                     : 'Available';
 
-                  const badgeBg = isBooked ? 'rgba(33, 150, 243, 0.15)'
+                  const badgeBg = isMaintenance ? 'rgba(255, 71, 87, 0.15)'
+                    : isLocked ? 'rgba(33, 150, 243, 0.15)'
                     : past ? (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)')
                     : 'rgba(46, 213, 115, 0.15)';
 
-                  const badgeText = isBooked ? '#2196F3'
+                  const badgeText = isMaintenance ? '#FF4757'
+                    : isLocked ? '#2196F3'
                     : past ? (isDark ? 'rgba(255, 255, 255, 0.5)' : colors.textTertiary)
                     : '#2ed573';
 
@@ -848,19 +905,21 @@ const SlotPickerScreen = ({ route, navigation }) => {
                     <TouchableOpacity
                       key={slot._id}
                       activeOpacity={0.75}
-                      disabled={isBooked || past}
+                      disabled={isLocked || past}
                       onPress={() => toggleSlot(slot)}
                       style={[
                         styles.fsSlotRow,
                         {
                           borderColor,
                           backgroundColor: isSelected ? (isDark ? 'rgba(255, 212, 0, 0.08)' : '#FFF9D6') : (isDark ? '#1B1B1B' : colors.surfaceVariant),
-                          opacity: (isBooked || past) ? 0.6 : 1,
+                          opacity: (isLocked || past) ? 0.6 : 1,
                         }
                       ]}
                     >
                       <View style={styles.fsSlotCheckbox}>
-                        {isBooked ? (
+                        {isMaintenance ? (
+                          <Icon name="wrench" size={15} color="#FF4757" />
+                        ) : isLocked ? (
                           <Icon name="lock" size={15} color="#2196F3" />
                         ) : past ? (
                           <Icon name="clock-remove-outline" size={15} color={colors.textDisabled} />

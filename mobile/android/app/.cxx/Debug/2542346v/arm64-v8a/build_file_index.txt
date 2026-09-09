@@ -1,3 +1,4 @@
+/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@mgcrea/vision-camera-barcode-scanner/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-async-storage/async-storage/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-community/datetimepicker/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/@react-native-community/netinfo/android/build/generated/source/codegen/jni/CMakeLists.txt
@@ -21,3 +22,4 @@
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets-core/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-worklets/android/build/generated/source/codegen/jni/CMakeLists.txt
 /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt
+/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/rn-qr-generator/android/build/generated/source/codegen/jni/CMakeLists.txt
