@@ -28,6 +28,15 @@ export const loginWithGoogle = createAsyncThunk('auth/loginWithGoogle', async ({
   }
 });
 
+export const loginWithApple = createAsyncThunk('auth/loginWithApple', async ({ identityToken, rawNonce, fullName, email, mobile, city, locationObj, state, fcmToken, role }, { rejectWithValue }) => {
+  try {
+    const res = await api.post('/auth/apple', { identityToken, rawNonce, fullName, email, mobile, city, locationObj, state, fcmToken, role });
+    return res.data.data || res.data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Apple login failed');
+  }
+});
+
 export const forgotPassword = createAsyncThunk('auth/forgotPassword', async (email, { rejectWithValue }) => {
   try {
     const res = await api.post('/auth/forgot-password', { email });
@@ -242,6 +251,32 @@ const authSlice = createSlice({
         state.currentRole = action.payload.user?.role || (action.payload.user?.roles?.includes('owner') ? 'owner' : 'customer');
       })
       .addCase(loginWithGoogle.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      // Apple Login
+      .addCase(loginWithApple.pending, (state) => { state.isLoading = true; state.error = null; })
+      .addCase(loginWithApple.fulfilled, (state, action) => {
+        state.isLoading = false;
+        if (action.payload?.signUpRequired) {
+          return;
+        }
+        if (isUserSuspended(action.payload?.user)) {
+          state.user = null;
+          state.accessToken = null;
+          state.refreshToken = null;
+          state.isAuthenticated = false;
+          state.isGuest = true;
+          state.error = 'Your account has been suspended by the administrator.';
+          return;
+        }
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.accessToken;
+        state.refreshToken = action.payload.refreshToken;
+        state.currentRole = action.payload.user?.role || (action.payload.user?.roles?.includes('owner') ? 'owner' : 'customer');
+      })
+      .addCase(loginWithApple.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })

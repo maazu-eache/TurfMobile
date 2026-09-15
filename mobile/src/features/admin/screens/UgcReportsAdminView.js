@@ -233,29 +233,24 @@ export default function UgcReportsAdminView() {
         )}
 
         {item.status !== 'pending' && (
-          <View style={styles.actionsRow}>
-            <TouchableOpacity 
-              style={[styles.actionBtn, { backgroundColor: '#FF9800' }]} 
-              onPress={() => handleOpenWarning(item)}
-            >
-              <Text style={styles.actionBtnText}>Warn Again</Text>
-            </TouchableOpacity>
-
-            {isPlayer ? (
-              <TouchableOpacity 
-                style={[styles.actionBtn, { backgroundColor: Colors.error }]} 
-                onPress={() => handleExecuteAction(item._id, 'delete_user', 'Delete Player & Total Things')}
-              >
-                <Text style={styles.actionBtnText}>Delete Cascade</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity 
-                style={[styles.actionBtn, { backgroundColor: Colors.error }]} 
-                onPress={() => handleExecuteAction(item._id, 'delete_team', 'Delete Team')}
-              >
-                <Text style={styles.actionBtnText}>Delete Team</Text>
-              </TouchableOpacity>
-            )}
+          <View style={styles.resolvedBadgeBox}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Icon name="check-circle" size={18} color="#4ADE80" />
+              <Text style={styles.resolvedBadgeTitle}>Report Resolved</Text>
+            </View>
+            <Text style={styles.resolvedActionText}>
+              {item.actionTaken === 'delete_team'
+                ? 'Action: Team Deleted'
+                : item.actionTaken === 'delete_user'
+                ? 'Action: Player Deleted'
+                : item.actionTaken === 'suspend_user'
+                ? 'Action: User Suspended'
+                : item.actionTaken === 'warn'
+                ? 'Action: Warning Sent'
+                : item.actionTaken === 'dismiss'
+                ? 'Action: Dismissed'
+                : 'Action Completed'}
+            </Text>
           </View>
         )}
       </View>
@@ -417,4 +412,26 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
   recipientBadge: { backgroundColor: colors.surfaceVariant, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
   recipientTitle: { color: isDark ? '#FFD400' : colors.primaryDark, fontFamily: Typography.fontFamily.bold, fontSize: 13, marginBottom: 4 },
   recipientDetail: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginBottom: 2 },
+
+  resolvedBadgeBox: {
+    backgroundColor: 'rgba(74,222,128,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(74,222,128,0.3)',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  resolvedBadgeTitle: {
+    color: '#4ADE80',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+  },
+  resolvedActionText: {
+    color: colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 12,
+  },
 });

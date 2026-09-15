@@ -400,8 +400,9 @@ const MatchPlayerSelectionScreen = () => {
       if (action === 'abandon') {
         await api.put(`/matches/${matchId}/abandon`, { reason: extraParam });
         dispatch(fetchLiveState(matchId));
-        showCustomAlert('Success', 'Match abandoned');
-        navigation.goBack();
+        // Use replace so the back stack is cleared — user lands on MatchSummary
+        // and cannot navigate back into the live scorer or player selection.
+        navigation.replace('MatchSummary', { matchId });
       } else if (action === 'declare_dls') {
         await api.put(`/matches/${matchId}/declare-dls`);
         const res = await dispatch(fetchLiveState(matchId)).unwrap();

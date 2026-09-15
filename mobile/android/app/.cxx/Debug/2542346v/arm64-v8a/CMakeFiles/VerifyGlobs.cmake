@@ -229,30 +229,6 @@ if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
   file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/cmake.verify_globs")
 endif()
 
-# react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
-file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/*.cpp")
-set(OLD_GLOB
-  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/RNOneSignalSpec-generated.cpp"
-  )
-if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
-  message("-- GLOB mismatch!")
-  file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/cmake.verify_globs")
-endif()
-
-# react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
-file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/react/renderer/components/RNOneSignalSpec/*.cpp")
-set(OLD_GLOB
-  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/react/renderer/components/RNOneSignalSpec/ComponentDescriptors.cpp"
-  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/react/renderer/components/RNOneSignalSpec/EventEmitters.cpp"
-  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/react/renderer/components/RNOneSignalSpec/Props.cpp"
-  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/react/renderer/components/RNOneSignalSpec/ShadowNodes.cpp"
-  "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/react/renderer/components/RNOneSignalSpec/States.cpp"
-  )
-if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
-  message("-- GLOB mismatch!")
-  file(TOUCH_NOCREATE "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/Debug/2542346v/arm64-v8a/CMakeFiles/cmake.verify_globs")
-endif()
-
 # react_codegen_SRCS at /Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-permissions/android/build/generated/source/codegen/jni/CMakeLists.txt:9 (file)
 file(GLOB NEW_GLOB LIST_DIRECTORIES true "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-permissions/android/build/generated/source/codegen/jni/*.cpp")
 set(OLD_GLOB

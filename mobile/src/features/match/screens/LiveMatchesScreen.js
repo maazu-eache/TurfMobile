@@ -102,7 +102,7 @@ const LiveMatchesScreen = () => {
           <Icon name="calendar-clock" size={16} color={colors.textTertiary} />
           <Text style={styles.dateText}>
             {item.status === 'scheduled' 
-              ? `SCHEDULED AT ${moment(item.createdAt).format('DD MMM, hh:mm A').toUpperCase()}` 
+              ? `SCHEDULED AT ${moment(item.scheduledAt || item.createdAt).format('DD MMM, hh:mm A').toUpperCase()}` 
               : item.status.replace('_', ' ').toUpperCase()}
           </Text>
           <Text style={styles.venueText} numberOfLines={1}>

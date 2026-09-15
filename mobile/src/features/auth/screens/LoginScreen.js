@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  Platform, ActivityIndicator, Image, Animated, Easing, Keyboard, Modal, ScrollView,
+  Platform, ActivityIndicator, Image, Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, ScrollView,
   StatusBar
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -9,7 +9,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { loginWithPassword, registerWithPassword, loginWithGoogle, clearError, setGuestMode, logoutLocal } from '../authSlice';
+import { appleAuth, AppleButton } from '@invertase/react-native-apple-authentication';
+import { loginWithPassword, registerWithPassword, loginWithGoogle, loginWithApple, clearError, setGuestMode, logoutLocal } from '../authSlice';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -97,6 +98,18 @@ const LoginScreen = ({ navigation }) => {
   const [googleCity, setGoogleCity] = useState('');
   const [googleLocationObj, setGoogleLocationObj] = useState(null);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Apple OAuth States
+  const [showAppleSignupModal, setShowAppleSignupModal] = useState(false);
+  const [appleRole, setAppleRole] = useState('customer');
+  const [appleIdentityToken, setAppleIdentityToken] = useState('');
+  const [appleRawNonce, setAppleRawNonce] = useState('');
+  const [appleEmail, setAppleEmail] = useState('');
+  const [appleFullName, setAppleFullName] = useState(null);
+  const [appleMobile, setAppleMobile] = useState('');
+  const [appleCity, setAppleCity] = useState('');
+  const [appleLocationObj, setAppleLocationObj] = useState(null);
+  const [appleLoading, setAppleLoading] = useState(false);
 
   const dispatch = useDispatch();
   const { isLoading, error } = useSelector((state) => state.auth);
@@ -283,6 +296,144 @@ const LoginScreen = ({ navigation }) => {
     }
   };
 
+  const handleAppleSignIn = async () => {
+    if (!isLogin && !termsAccepted) {
+      showCustomAlert('Terms & Conditions', 'Please accept the Terms of Service and Privacy Policy to register.');
+      return;
+    }
+    if (Platform.OS !== 'ios') {
+      showCustomAlert('Not Supported', 'Sign in with Apple is only supported on iOS devices.');
+      return;
+    }
+    try {
+      setAppleLoading(true);
+      const rawNonce = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      
+      console.log('🍎 [RN AppleAuth] Triggering appleAuth.performRequest...');
+      const appleAuthRequestResponse = await appleAuth.performRequest({
+        requestedOperation: appleAuth.Operation.LOGIN,
+        requestedScopes: [appleAuth.Scope.EMAIL, appleAuth.Scope.FULL_NAME],
+        nonce: rawNonce,
+      });
+
+      console.log('🍎 [RN AppleAuth] performRequest response:', JSON.stringify(appleAuthRequestResponse, null, 2));
+
+      const { identityToken, fullName, email } = appleAuthRequestResponse;
+
+      if (!identityToken) {
+        console.error('❌ 🍎 [RN AppleAuth] No identityToken returned in response');
+        showCustomAlert('Error', 'Apple Identity Token could not be retrieved.');
+        setAppleLoading(false);
+        return;
+      }
+
+      setAppleIdentityToken(identityToken);
+      setAppleRawNonce(rawNonce);
+      if (fullName) setAppleFullName(fullName);
+      if (email) setAppleEmail(email);
+
+      const fcmToken = await NotificationService.getFCMToken().catch(() => null);
+
+      console.log('🍎 [RN AppleAuth] Dispatching loginWithApple to backend API...');
+      const result = await dispatch(loginWithApple({
+        identityToken,
+        rawNonce,
+        fullName,
+        email,
+        fcmToken,
+        role: isLogin ? undefined : registerRole
+      }));
+
+      console.log('🍎 [RN AppleAuth] loginWithApple result:', result);
+
+      if (loginWithApple.fulfilled.match(result)) {
+        const payload = result.payload;
+        if (payload?.signUpRequired) {
+          if (payload.email) setAppleEmail(payload.email);
+          if (payload.name) setAppleFullName(payload.name);
+          setAppleRole(registerRole || 'customer');
+          setShowAppleSignupModal(true);
+        } else if (payload?.user && (payload.user.isSuspended || payload.user.isActive === false || payload.user.isDeactivated || payload.user.isDeleted)) {
+          handleSuspendedUser();
+        } else if (payload?.user) {
+          navigateByRole(payload.user);
+        }
+      } else {
+        const errPayload = String(result.payload || '');
+        if (errPayload.toLowerCase().includes('suspended') || errPayload.toLowerCase().includes('deactivated')) {
+          handleSuspendedUser();
+        } else {
+          showCustomAlert('Error', result.payload || 'Apple Login failed');
+        }
+      }
+    } catch (err) {
+      const errCode = String(err?.code || '');
+      const errMsg = String(err?.message || '');
+      
+      const isCanceled = 
+        errCode === '1001' || 
+        errCode === 'ERR_REQUEST_CANCELED' || 
+        err?.code === appleAuth.Error.CANCELED ||
+        errMsg.includes('1001') ||
+        errMsg.toLowerCase().includes('canceled') ||
+        errMsg.toLowerCase().includes('cancelled');
+
+      if (isCanceled) {
+        console.log('ℹ️ [AppleAuth] User cancelled or dismissed Apple Sign-In prompt.');
+      } else {
+        console.warn('⚠️ [AppleAuth] Sign-In error:', err);
+        showCustomAlert('Error', err?.message || 'Sign in with Apple failed');
+      }
+    } finally {
+      setAppleLoading(false);
+    }
+  };
+
+  const handleAppleSignupSubmit = async () => {
+    if (!appleMobile.trim() || appleMobile.trim().length !== 10 || !/^\d+$/.test(appleMobile.trim())) {
+      return showCustomAlert('Error', 'Please enter a valid 10-digit phone number');
+    }
+    if (!appleLocationObj || !appleCity) {
+      return showCustomAlert('Error', 'Please select your location');
+    }
+
+    setAppleLoading(true);
+    const fcmToken = await NotificationService.getFCMToken().catch(() => null);
+
+    const result = await dispatch(loginWithApple({
+      identityToken: appleIdentityToken,
+      rawNonce: appleRawNonce,
+      fullName: appleFullName,
+      email: appleEmail,
+      mobile: appleMobile.trim(),
+      city: appleCity,
+      locationObj: appleLocationObj,
+      state: appleLocationObj?.state || '',
+      fcmToken,
+      role: appleRole
+    }));
+
+    setAppleLoading(false);
+
+    if (loginWithApple.fulfilled.match(result)) {
+      setShowAppleSignupModal(false);
+      const payload = result.payload;
+      if (payload?.user && (payload.user.isSuspended || payload.user.isActive === false || payload.user.isDeactivated || payload.user.isDeleted)) {
+        handleSuspendedUser();
+      } else if (payload?.user) {
+        navigateByRole(payload.user);
+      }
+    } else {
+      const errPayload = String(result.payload || '');
+      if (errPayload.toLowerCase().includes('suspended') || errPayload.toLowerCase().includes('deactivated')) {
+        setShowAppleSignupModal(false);
+        handleSuspendedUser();
+      } else {
+        showCustomAlert('Error', result.payload || 'Apple Registration failed');
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     Keyboard.dismiss();
     dispatch(clearError());
@@ -431,9 +582,20 @@ const LoginScreen = ({ navigation }) => {
       >
         <Animated.View style={{ opacity: pageFade, transform: [{ translateY: pageSlide }], width: '100%' }}>
           
-          <View style={styles.topBar}>
+          <View style={[styles.topBar, { justifyContent: 'space-between' }]}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
               <Icon name="chevron-left" size={28} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => {
+                dispatch(setGuestMode(true));
+                reset('Customer');
+              }} 
+              style={styles.skipBtn} 
+              activeOpacity={0.7}
+            >
+              <Text style={styles.skipBtnText}>Browse as Guest</Text>
+              <Icon name="chevron-right" size={16} color={isDark ? '#FFD400' : colors.primaryDark} />
             </TouchableOpacity>
           </View>
 
@@ -509,13 +671,24 @@ const LoginScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            {/* If Sign Up: Show Google Sign-Up at the TOP */}
+            {/* If Sign Up: Show Apple & Google Sign-Up at the TOP */}
             {!isLogin && (
               <>
+                {Platform.OS === 'ios' && (
+                  <View style={{ marginBottom: 12 }}>
+                    <AppleButton
+                      buttonStyle={isDark ? AppleButton.Style.WHITE : AppleButton.Style.BLACK}
+                      buttonType={AppleButton.Type.SIGN_IN}
+                      style={styles.appleBtn}
+                      onPress={handleAppleSignIn}
+                    />
+                  </View>
+                )}
+
                 <TouchableOpacity 
-                  style={[styles.googleBtn, { marginBottom: 16 }, googleLoading && styles.googleBtnDisabled]}
+                  style={[styles.googleBtn, { marginBottom: 16 }, (googleLoading || appleLoading) && styles.googleBtnDisabled]}
                   onPress={handleGoogleSignIn}
-                  disabled={googleLoading || isLoading}
+                  disabled={googleLoading || appleLoading || isLoading}
                   activeOpacity={0.85}
                 >
                   {googleLoading ? (
@@ -626,21 +799,32 @@ const LoginScreen = ({ navigation }) => {
               </TouchableOpacity>
             </Animated.View>
 
-            {/* If Log In: Show Google Login at the BOTTOM */}
+            {/* If Log In: Show Apple & Google Login at the BOTTOM */}
             {isLogin && (
               <>
                 {/* Divider */}
                 <View style={styles.dividerContainer}>
                   <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>OR</Text>
+                  <Text style={styles.dividerText}>OR SIGN IN WITH</Text>
                   <View style={styles.dividerLine} />
                 </View>
 
+                {Platform.OS === 'ios' && (
+                  <View style={{ marginBottom: 12 }}>
+                    <AppleButton
+                      buttonStyle={isDark ? AppleButton.Style.WHITE : AppleButton.Style.BLACK}
+                      buttonType={AppleButton.Type.SIGN_IN}
+                      style={styles.appleBtn}
+                      onPress={handleAppleSignIn}
+                    />
+                  </View>
+                )}
+
                 {/* Google Login Button */}
                 <TouchableOpacity 
-                  style={[styles.googleBtn, googleLoading && styles.googleBtnDisabled]}
+                  style={[styles.googleBtn, (googleLoading || appleLoading) && styles.googleBtnDisabled]}
                   onPress={handleGoogleSignIn}
-                  disabled={googleLoading || isLoading}
+                  disabled={googleLoading || appleLoading || isLoading}
                   activeOpacity={0.85}
                 >
                   {googleLoading ? (
@@ -709,11 +893,48 @@ const LoginScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={styles.modalScroll}>
-              <Text style={styles.modalContent}>
-                {activeModal === 'terms' 
-                  ? 'Welcome to ScoreVerse. By accessing our app, you agree to be bound by these terms.\n\n1. Use of Service\nYou must use the application for lawful purposes only and in a way that does not infringe the rights of others.\n\n2. Booking & Cancellation\nTurf bookings are final once confirmed. Cancellation policies vary by individual turf owners. Please review the turf-specific policy before booking.\n\n3. User Conduct\nPlayers must maintain sportsmanship on and off the field. Turf owners have the right to deny entry for misconduct.\n\n4. Liability\nScoreVerse acts as a facilitator and is not liable for injuries on the field or disputes between owners and players.' 
-                  : 'Your privacy is critically important to us.\n\n1. Data Collection\nWe collect personal data such as name, phone number, and email to facilitate bookings and team formations.\n\n2. Data Usage\nYour data is used to improve our services, manage bookings, and communicate updates. Turf owners receive basic contact info to verify bookings.\n\n3. Security\nWe implement standard security measures to protect your personal information against unauthorized access.\n\n4. Third Parties\nWe do not sell your personal data to third parties. We may share data with service providers to process payments securely.'}
-              </Text>
+              {activeModal === 'terms' ? (
+                <View>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 16 }}>Last Updated: March 2026</Text>
+                  
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>1. Acceptance of Terms</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>Welcome to ScoreVerse. By downloading, accessing, or using our mobile application, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the application.</Text>
+
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>2. Turf Bookings & Cancellations</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>ScoreVerse facilitates slot bookings for sports turfs and arenas. All bookings are final once confirmed. Cancellation and refund policies are managed according to specific venue rules and platform wallet credit guidelines.</Text>
+
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>3. User Conduct & Sportsmanship</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>Players and team managers must maintain sportsmanship on and off the field. Harassment, abuse, or fraudulent tournament registrations will result in immediate account suspension and blacklisting.</Text>
+
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>4. Limitation of Liability</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>ScoreVerse acts as a digital venue and tournament management facilitator and is not liable for personal injuries sustained on sports turfs or direct disputes between venue owners and players.</Text>
+
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>5. Contact Us</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>For questions regarding these Terms of Service, contact our support team at supportatscoreverse@gmail.com.</Text>
+                </View>
+              ) : (
+                <View>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13, marginBottom: 16 }}>Last Updated: March 2026</Text>
+
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>1. Information We Collect</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>We collect information you provide directly to us, such as your name, email address, phone number, profile pictures, and player/team statistics. We also collect precise location data (to display nearby sports turfs and arenas) and access camera/photo library (to scan QR codes and upload team avatars).</Text>
+
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>2. How We Use Information</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>We use the collected information to facilitate turf slot bookings, manage tournament registrations, display live cricket scorecards, authenticate users, process payments, and deliver push notifications about booking statuses and match updates.</Text>
+
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>3. Third-Party Services</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>We do not sell your personal data. We share necessary data with trusted service providers who assist in operating the platform, including secure payment gateways (Razorpay), authentication services (Google Sign-In), and push notification infrastructure (Firebase).</Text>
+
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>4. Data Security</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>We implement industry-standard technical and organizational security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.</Text>
+
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>5. Account & Data Deletion (Your Rights)</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>You have the right to request the permanent deletion of your account and associated personal data at any time. You can delete your account directly inside the app by going to Profile Settings - Delete Account, or by emailing our privacy team at supportatscoreverse@gmail.com. Upon deletion, your personal details, wallet records, and profile statistics are permanently removed.</Text>
+
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 16, marginBottom: 6 }}>6. Contact Us</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 14, lineHeight: 22, marginBottom: 16 }}>If you have any questions, concerns, or inquiries regarding this Privacy Policy, please contact us at supportatscoreverse@gmail.com.</Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -817,8 +1038,11 @@ const LoginScreen = ({ navigation }) => {
       </Modal>
 
       {/* Google Complete Profile Modal */}
-      <Modal visible={showGoogleSignupModal} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
+      <Modal visible={showGoogleSignupModal} animationType="slide" transparent={true} onRequestClose={() => setShowGoogleSignupModal(false)}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
           <View style={[styles.modalContainer, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Complete Profile</Text>
@@ -826,7 +1050,13 @@ const LoginScreen = ({ navigation }) => {
                 <Icon name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
-            <ScrollView contentContainerStyle={styles.modalScroll}>
+            <KeyboardAwareScrollView 
+              contentContainerStyle={styles.modalScroll}
+              enableOnAndroid={true}
+              extraScrollHeight={Platform.OS === 'ios' ? 40 : 20}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <Text style={styles.modalContent}>
                 We authenticated your Google account. Please choose your account type and enter your mobile number and city to finalize registration.
               </Text>
@@ -888,7 +1118,7 @@ const LoginScreen = ({ navigation }) => {
 
               <Text style={styles.googleInputLabel}>Mobile Number</Text>
               <View style={styles.inputContainer}>
-                <Icon name="phone-outline" size={22} color="rgba(255,255,255,0.4)" style={styles.inputIcon} />
+                <Icon name="phone-outline" size={22} color={colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="10-digit mobile number..."
@@ -931,9 +1161,139 @@ const LoginScreen = ({ navigation }) => {
                   <Text style={styles.verifyBtnText}>Save & Log In</Text>
                 )}
               </TouchableOpacity>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Apple Complete Profile Modal */}
+      <Modal visible={showAppleSignupModal} animationType="slide" transparent={true} onRequestClose={() => setShowAppleSignupModal(false)}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalContainer, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Complete Profile</Text>
+              <TouchableOpacity onPress={() => setShowAppleSignupModal(false)} style={styles.modalCloseBtn}>
+                <Icon name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <KeyboardAwareScrollView 
+              contentContainerStyle={styles.modalScroll}
+              enableOnAndroid={true}
+              extraScrollHeight={Platform.OS === 'ios' ? 40 : 20}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.modalContent}>
+                We authenticated your Apple ID. Please choose your account type and enter your mobile number and city to finalize registration.
+              </Text>
+              
+              {appleEmail ? (
+                <View style={styles.googleProfileCard}>
+                  <Text style={styles.googleProfileEmail}>{appleEmail}</Text>
+                </View>
+              ) : null}
+
+              {/* Apple Account Type Selection */}
+              <Text style={styles.googleInputLabel}>Account Type</Text>
+              <View style={styles.googleRoleContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.googleRoleCard,
+                    appleRole === 'customer' && styles.googleRoleCardActive
+                  ]}
+                  onPress={() => setAppleRole('customer')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.googleRoleIconCircle, appleRole === 'customer' && styles.googleRoleIconCircleActive]}>
+                    <Icon name="cricket" size={20} color={appleRole === 'customer' ? '#000' : '#FFD400'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.googleRoleTitle, appleRole === 'customer' && { color: '#FFD400' }]}>
+                      Player
+                    </Text>
+                    <Text style={styles.googleRoleDesc}>Book & play matches</Text>
+                  </View>
+                  {appleRole === 'customer' && (
+                    <Icon name="check-circle" size={20} color="#FFD400" />
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.googleRoleCard,
+                    appleRole === 'owner' && styles.googleRoleCardActive
+                  ]}
+                  onPress={() => setAppleRole('owner')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.googleRoleIconCircle, appleRole === 'owner' && styles.googleRoleIconCircleActive]}>
+                    <Icon name="stadium" size={20} color={appleRole === 'owner' ? '#000' : '#FFD400'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.googleRoleTitle, appleRole === 'owner' && { color: '#FFD400' }]}>
+                      Turf Owner
+                    </Text>
+                    <Text style={styles.googleRoleDesc}>List & manage turf</Text>
+                  </View>
+                  {appleRole === 'owner' && (
+                    <Icon name="check-circle" size={20} color="#FFD400" />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ height: 16 }} />
+
+              <Text style={styles.googleInputLabel}>Mobile Number</Text>
+              <View style={styles.inputContainer}>
+                <Icon name="phone-outline" size={22} color={colors.textTertiary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="10-digit mobile number..."
+                  placeholderTextColor={colors.textTertiary}
+                  value={appleMobile}
+                  onChangeText={(val) => setAppleMobile(val.replace(/\D/g, ''))}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  selectionColor="#FFD400"
+                />
+              </View>
+              
+              <View style={{ height: 16 }} />
+
+              <Text style={styles.googleInputLabel}>Select City</Text>
+              <View style={[styles.inputContainer, { zIndex: 1000 }]}>
+                <LocationAutocomplete
+                  value={appleCity}
+                  onChangeText={setAppleCity}
+                  onSelectLocation={(loc) => {
+                    setAppleCity(loc ? loc.name : '');
+                    setAppleLocationObj(loc ? { name: loc.name, latitude: loc.latitude, longitude: loc.longitude, state: loc.state } : null);
+                  }}
+                  placeholder="Search city location..."
+                  variant="none"
+                  style={styles.input}
+                />
+              </View>
+
+              <View style={{ height: 24 }} />
+
+              <TouchableOpacity 
+                style={[styles.verifyBtn, appleLoading && styles.verifyBtnDisabled]}
+                onPress={handleAppleSignupSubmit}
+                disabled={appleLoading}
+              >
+                {appleLoading ? (
+                  <ActivityIndicator color="#000" size="small" />
+                ) : (
+                  <Text style={styles.verifyBtnText}>Save & Log In</Text>
+                )}
+              </TouchableOpacity>
+            </KeyboardAwareScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </View>
@@ -958,6 +1318,22 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', 
     borderWidth: 1, borderColor: colors.border,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDark ? 0.3 : 0.06, shadowRadius: 4, elevation: 2,
+  },
+  skipBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(255, 212, 0, 0.12)' : 'rgba(0, 0, 0, 0.05)',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255, 212, 0, 0.3)' : colors.border,
+  },
+  skipBtnText: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: isDark ? '#FFD400' : colors.primaryDark,
+    marginRight: 4,
   },
   
   heroContainer: { alignItems: 'center', justifyContent: 'center', height: 120, marginBottom: 20, position: 'relative' },
@@ -1092,9 +1468,14 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: { color: colors.textTertiary, paddingHorizontal: 12, fontSize: 13, fontFamily: Typography.fontFamily.semiBold },
 
-  googleBtn: {
+  appleBtn: {
     height: 52,
+    width: '100%',
     borderRadius: 14,
+  },
+  googleBtn: {
+    height: 50,
+    borderRadius: 6,
     backgroundColor: '#1A73E8',
     justifyContent: 'center',
     alignItems: 'center',

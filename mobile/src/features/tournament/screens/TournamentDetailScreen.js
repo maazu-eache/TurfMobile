@@ -121,6 +121,51 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState({});
 
+  // Fixture Reschedule & Group Filter State
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState('All');
+  const [rescheduleMatch, setRescheduleMatch] = useState(null);
+  const [rescheduleDateText, setRescheduleDateText] = useState('');
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+
+  const getMatchGroupName = useCallback((m) => {
+    if (!m) return 'League Match';
+    if (m.groupName) return m.groupName;
+    if (m.stage && m.stage !== 'League Match') return m.stage;
+    const teamAId = String(m.teamA?._id || m.teamA || '').trim();
+    if (tournament?.groups && tournament.groups.length > 0) {
+      const grp = tournament.groups.find(g => g.teams?.some(tId => String(tId._id || tId).trim() === teamAId));
+      if (grp) return grp.name;
+    }
+    if (tournament?.registeredTeams) {
+      const rt = tournament.registeredTeams.find(r => String(r.team?._id || r.team || '').trim() === teamAId);
+      if (rt?.groupName) return rt.groupName;
+    }
+    return 'League Match';
+  }, [tournament?.groups, tournament?.registeredTeams]);
+
+  const handleSaveReschedule = async () => {
+    if (!rescheduleMatch || !rescheduleDateText) return;
+    const cleanText = rescheduleDateText.trim().replace('T', ' ');
+    const parsed = new Date(cleanText);
+    if (isNaN(parsed.getTime())) {
+      showCustomAlert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD HH:mm format (e.g. 2026-09-16 10:00)');
+      return;
+    }
+    try {
+      setIsRescheduling(true);
+      await api.put(`/matches/${rescheduleMatch._id}/reschedule`, { scheduledAt: parsed.toISOString() });
+      showCustomAlert('Success', 'Match rescheduled successfully!');
+      setShowRescheduleModal(false);
+      setRescheduleMatch(null);
+      await onRefresh();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to reschedule match');
+    } finally {
+      setIsRescheduling(false);
+    }
+  };
+
   const matchesRef = useRef([]);
 
   useEffect(() => {
@@ -218,7 +263,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   }, []);
 
   const fetchAuctionData = useCallback(async () => {
-    if (activeTab === 'Auction' && tournamentId) {
+    if (tournamentId) {
       try {
         const res = await auctionService.getAuctionDetails(tournamentId);
         if (res.data?.exists) {
@@ -243,7 +288,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         console.log('Error fetching auction details', err);
       }
     }
-  }, [activeTab, tournamentId]);
+  }, [tournamentId]);
 
   useEffect(() => {
     if (auctionDetails?._id && tournament?.teams && user?._id) {
@@ -617,9 +662,15 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           </View>
 
           {(() => {
-            const regEndDate = auctionDetails?.registrationEndDate;
-            const regEndPassed = regEndDate ? moment().isAfter(moment.utc(regEndDate).endOf('day')) : false;
-            const auctionDate = auctionDetails?.auctionDate;
+            const regEndDate = auctionDetails?.registrationEndDate || tournament?.registrationEndDate;
+            const isRegistrationClosed = auctionDetails?.status === 'in_progress' ||
+              auctionDetails?.status === 'completed' ||
+              tournament?.auctionStatus === 'completed' ||
+              tournament?.status === 'registration_closed' ||
+              tournament?.status === 'ongoing' ||
+              tournament?.status === 'completed';
+            const regEndPassed = isRegistrationClosed || (regEndDate ? moment().isAfter(moment.utc(regEndDate).endOf('day')) : false);
+            const auctionDate = auctionDetails?.auctionDate || tournament?.auctionDate;
             const auctionDateReached = !auctionDate || moment().isSameOrAfter(moment.utc(auctionDate).startOf('day'));
 
             if (isAuctionRegistered) {
@@ -891,18 +942,22 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               </View>
               <Text style={styles.actionGridText}>Groups</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionGridBtn} onPress={() => setShowAddTeamModal(true)}>
-              <View style={styles.actionGridIcon}>
-                <Icon name="user-plus" size={20} color={colors.primary} />
-              </View>
-              <Text style={styles.actionGridText}>Add Team</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionGridBtn} onPress={handleShareJoinLink}>
-              <View style={styles.actionGridIcon}>
-                <Icon name="link" size={20} color={colors.primary} />
-              </View>
-              <Text style={styles.actionGridText}>Invite</Text>
-            </TouchableOpacity>
+            {!(tournament.tournamentType === 'Auction' && (tournament.auctionStatus === 'completed' || auctionDetails?.status === 'completed')) && (
+              <>
+                <TouchableOpacity style={styles.actionGridBtn} onPress={() => setShowAddTeamModal(true)}>
+                  <View style={styles.actionGridIcon}>
+                    <Icon name="user-plus" size={20} color={colors.primary} />
+                  </View>
+                  <Text style={styles.actionGridText}>Add Team</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionGridBtn} onPress={handleShareJoinLink}>
+                  <View style={styles.actionGridIcon}>
+                    <Icon name="link" size={20} color={colors.primary} />
+                  </View>
+                  <Text style={styles.actionGridText}>Invite</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         )}
 
@@ -959,7 +1014,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.teamSub}>{item.team.city || 'Unknown City'}</Text>
                   </View>
                 </View>
-                {isMainOrganizer && tournament.status !== 'completed' ? (
+                {isMainOrganizer && tournament.status !== 'completed' && !(tournament.tournamentType === 'Auction' && (tournament.auctionStatus === 'completed' || auctionDetails?.status === 'completed')) ? (
                   <TouchableOpacity
                     style={styles.removeTeamBtn}
                     onPress={() => handleRemoveTeam(item.team._id, item.team.name)}
@@ -984,17 +1039,39 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     let filteredMatches = [];
     if (matchSubTab === 'Upcoming') {
       filteredMatches = (tournament.matches?.filter(m => m.status === 'scheduled') || [])
-        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        .sort((a, b) => new Date(a.scheduledAt || a.createdAt || 0) - new Date(b.scheduledAt || b.createdAt || 0));
     } else if (matchSubTab === 'Live') {
       filteredMatches = (tournament.matches?.filter(m => liveStatuses.includes(m.status)) || [])
-        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        .sort((a, b) => new Date(a.scheduledAt || a.createdAt || 0) - new Date(b.scheduledAt || b.createdAt || 0));
     } else if (matchSubTab === 'Past') {
       filteredMatches = (tournament.matches?.filter(m => ['completed', 'abandoned', 'no_result'].includes(m.status)) || [])
-        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        .sort((a, b) => new Date(b.completedAt || b.scheduledAt || b.createdAt || 0) - new Date(a.completedAt || a.scheduledAt || a.createdAt || 0));
     }
 
     if (selectedTeamFilter) {
       filteredMatches = filteredMatches.filter(m => m.teamA?._id === selectedTeamFilter || m.teamB?._id === selectedTeamFilter || m.teamA === selectedTeamFilter || m.teamB === selectedTeamFilter);
+    }
+
+    // Determine unique group names for group-wise filtering
+    const availableGroupNames = Array.from(new Set(filteredMatches.map(m => getMatchGroupName(m)))).filter(Boolean);
+    const hasMultipleGroups = availableGroupNames.length > 1;
+
+    let listData = [];
+    if (selectedGroupFilter !== 'All' && availableGroupNames.includes(selectedGroupFilter)) {
+      listData = filteredMatches.filter(m => getMatchGroupName(m) === selectedGroupFilter);
+    } else {
+      const grouped = {};
+      filteredMatches.forEach(m => {
+        const gName = getMatchGroupName(m);
+        if (!grouped[gName]) grouped[gName] = [];
+        grouped[gName].push(m);
+      });
+      Object.keys(grouped).forEach(gName => {
+        if (hasMultipleGroups) {
+          listData.push({ isGroupHeader: true, title: gName, _id: `header-${gName}` });
+        }
+        listData.push(...grouped[gName]);
+      });
     }
 
     return (
@@ -1026,7 +1103,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               >
                 <MCIcon name="calendar-refresh" size={18} color={(isMatchStarted || isCompleted) ? colors.textSecondary : colors.primary} style={{ marginRight: 8 }} />
                 <Text style={[styles.startMatchBtnText, { color: (isMatchStarted || isCompleted) ? colors.textSecondary : colors.primary }]}>
-                  Fixtures
+                  {hasMatches ? 'Reschedule Fixtures' : 'Fixtures'}
                 </Text>
               </TouchableOpacity>
 
@@ -1078,6 +1155,38 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           })}
         </View>
 
+        {/* Group Filter Chips Bar */}
+        {hasMultipleGroups && (
+          <View style={{ marginBottom: 10 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: 8 }}>
+              {['All', ...availableGroupNames].map(gName => (
+                <TouchableOpacity
+                  key={gName}
+                  onPress={() => setSelectedGroupFilter(gName)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 5,
+                    borderRadius: 16,
+                    backgroundColor: selectedGroupFilter === gName
+                      ? colors.primary
+                      : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
+                    borderWidth: 1,
+                    borderColor: selectedGroupFilter === gName ? colors.primary : colors.border
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 12,
+                    fontFamily: Typography.fontFamily.bold,
+                    color: selectedGroupFilter === gName ? '#000000' : colors.textSecondary
+                  }}>
+                    {gName}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Tournament completed banner for non-Past tabs */}
         {isTournamentCompleted && matchSubTab !== 'Past' ? (
           <View style={{ marginHorizontal: Spacing.md, marginBottom: 16, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: isDark ? 'rgba(255, 204, 0, 0.4)' : 'rgba(255, 204, 0, 0.6)' }}>
@@ -1121,12 +1230,23 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           </View>
         ) : (
           <FlatList
-            data={filteredMatches}
+            data={listData}
             keyExtractor={item => item._id}
             contentContainerStyle={styles.tabContent}
             ListEmptyComponent={<Text style={styles.emptyText}>No {matchSubTab.toLowerCase()} matches found.</Text>}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
             renderItem={({ item }) => {
+              if (item.isGroupHeader) {
+                return (
+                  <View style={{ marginTop: 10, marginBottom: 8, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.primary, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {item.title}
+                    </Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: colors.border, marginLeft: 10, opacity: 0.5 }} />
+                  </View>
+                );
+              }
+
               const isLive = ['in_progress', 'toss_done', 'innings_break', 'super_over'].includes(item.status);
               const isCompleted = item.status === 'completed';
 
@@ -1160,7 +1280,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <View style={{ flex: 1, marginRight: 8 }}>
                       {item.stage ? <Text style={styles.stagePill}>{item.stage}</Text> : null}
                       <Text style={styles.cardSubText} numberOfLines={1}>
-                        {item.format?.toUpperCase() || 'Custom'}  •  {moment(item.createdAt).format('DD MMM, hh:mm A')}  •  {item.overs} Ov
+                        {item.format?.toUpperCase() || 'Custom'}  •  {moment(item.scheduledAt || item.createdAt).format('DD MMM, hh:mm A')}  •  {item.overs} Ov
                       </Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1621,8 +1741,11 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 !canCreateSets && { opacity: 0.55 }
               ]}
               onPress={() => {
+                const totalTeamsCount = (tournament?.registeredTeams?.length || 0) + (tournament?.teams?.length || 0);
                 if (!canCreateSets) {
                   showCustomAlert('Not Available', 'Registration is still open. Create Sets will be available once the registration date has passed.');
+                } else if (totalTeamsCount === 0) {
+                  showCustomAlert('Teams Required', 'Teams must be added to the tournament before creating auction sets and purse.');
                 } else {
                   navigation.navigate('AuctionCreateSets', { tournamentId: tournament._id, mode: 'sets' });
                 }
@@ -2662,7 +2785,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             </View>
           </View>
         </View>
-      </Modal>
+        </Modal>
 
     </View>
   );

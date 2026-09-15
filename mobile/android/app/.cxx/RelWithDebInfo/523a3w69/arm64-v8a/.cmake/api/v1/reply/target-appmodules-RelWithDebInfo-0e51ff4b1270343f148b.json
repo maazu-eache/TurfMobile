@@ -278,14 +278,6 @@
 				},
 				{
 					"backtrace" : 4,
-					"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/."
-				},
-				{
-					"backtrace" : 4,
-					"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/react/renderer/components/RNOneSignalSpec"
-				},
-				{
-					"backtrace" : 4,
 					"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-permissions/android/build/generated/source/codegen/jni/."
 				},
 				{
@@ -485,10 +477,6 @@
 		{
 			"backtrace" : 4,
 			"id" : "react_codegen_RNMapsSpecs::@5748abef1962d24942ec"
-		},
-		{
-			"backtrace" : 4,
-			"id" : "react_codegen_RNOneSignalSpec::@c8beb593ba2a9b201f0b"
 		},
 		{
 			"backtrace" : 4,
@@ -733,13 +721,7 @@
 				113,
 				114,
 				115,
-				116,
-				117,
-				118,
-				119,
-				120,
-				121,
-				122
+				116
 			]
 		}
 	],
@@ -1085,42 +1067,6 @@
 			"backtrace" : 4,
 			"isGenerated" : true,
 			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNMapsSpecs_autolinked_build/CMakeFiles/react_codegen_RNMapsSpecs.dir/react/renderer/components/RNMapsSpecs/States.cpp.o",
-			"sourceGroupIndex" : 1
-		},
-		{
-			"backtrace" : 4,
-			"isGenerated" : true,
-			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNOneSignalSpec_autolinked_build/CMakeFiles/react_codegen_RNOneSignalSpec.dir/RNOneSignalSpec-generated.cpp.o",
-			"sourceGroupIndex" : 1
-		},
-		{
-			"backtrace" : 4,
-			"isGenerated" : true,
-			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNOneSignalSpec_autolinked_build/CMakeFiles/react_codegen_RNOneSignalSpec.dir/react/renderer/components/RNOneSignalSpec/ComponentDescriptors.cpp.o",
-			"sourceGroupIndex" : 1
-		},
-		{
-			"backtrace" : 4,
-			"isGenerated" : true,
-			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNOneSignalSpec_autolinked_build/CMakeFiles/react_codegen_RNOneSignalSpec.dir/react/renderer/components/RNOneSignalSpec/EventEmitters.cpp.o",
-			"sourceGroupIndex" : 1
-		},
-		{
-			"backtrace" : 4,
-			"isGenerated" : true,
-			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNOneSignalSpec_autolinked_build/CMakeFiles/react_codegen_RNOneSignalSpec.dir/react/renderer/components/RNOneSignalSpec/Props.cpp.o",
-			"sourceGroupIndex" : 1
-		},
-		{
-			"backtrace" : 4,
-			"isGenerated" : true,
-			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNOneSignalSpec_autolinked_build/CMakeFiles/react_codegen_RNOneSignalSpec.dir/react/renderer/components/RNOneSignalSpec/ShadowNodes.cpp.o",
-			"sourceGroupIndex" : 1
-		},
-		{
-			"backtrace" : 4,
-			"isGenerated" : true,
-			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/.cxx/RelWithDebInfo/523a3w69/arm64-v8a/RNOneSignalSpec_autolinked_build/CMakeFiles/react_codegen_RNOneSignalSpec.dir/react/renderer/components/RNOneSignalSpec/States.cpp.o",
 			"sourceGroupIndex" : 1
 		},
 		{

@@ -547,6 +547,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
 
   // Modals
   modalOverlay: { flex: 1, backgroundColor: colors.blackAlpha50, justifyContent: 'center', alignItems: 'center' },
+  bottomSheetOverlay: { flex: 1, backgroundColor: colors.blackAlpha50, justifyContent: 'flex-end' },
   qrModalCard: {
     width: '88%',
     maxWidth: 360,
@@ -662,6 +663,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     borderTopWidth: 1, borderTopColor: colors.border,
     paddingHorizontal: 20, paddingTop: 12,
+    width: '100%',
     ...shadows.lg,
   },
   modalHandle: { width: 38, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
@@ -684,24 +686,75 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   lookupBtnText: { color: colors.textOnPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
 
-  foundPlayer: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: colors.successLight, borderRadius: 10,
-    borderWidth: 1, borderColor: colors.success,
-    paddingHorizontal: 14, paddingVertical: 10, marginBottom: 10,
+  foundPlayerCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : 'rgba(34, 197, 94, 0.08)',
+    borderRadius: 14, borderWidth: 1, borderColor: colors.successAlpha30 || 'rgba(34, 197, 94, 0.3)',
+    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 14,
   },
-  foundPlayerText: { color: colors.success, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 },
+  foundPlayerAvatarContainer: { position: 'relative', width: 44, height: 44 },
+  foundPlayerAvatarImg: { width: 44, height: 44, borderRadius: 22 },
+  foundPlayerAvatarPlaceholder: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
+  },
+  foundPlayerInitial: { color: colors.textOnPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 18 },
+  foundCheckBadge: {
+    position: 'absolute', bottom: -2, right: -2,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.surface,
+  },
+  foundPlayerInfo: { flex: 1, justifyContent: 'center' },
+  foundPlayerName: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 15 },
+  foundPlayerSub: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginTop: 2 },
+  foundStatusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : '#DCFCE7',
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+  },
+  foundStatusText: { color: colors.success, fontFamily: Typography.fontFamily.semiBold, fontSize: 11 },
 
-  roleRow: { gap: 8, paddingVertical: 4, marginBottom: 14 },
-  roleChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 20, borderWidth: 1, borderColor: colors.border,
+  newPlayerCard: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : colors.surfaceVariant,
+    borderRadius: 14, borderWidth: 1, borderColor: colors.border,
+    padding: 12, marginBottom: 14,
+  },
+  newPlayerCardTitle: { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  newPlayerCardSub: { color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, fontSize: 12, marginBottom: 10 },
+
+  roleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 16,
+  },
+  roleGridItem: {
+    width: '48%',
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
     backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceVariant,
   },
-  roleChipActive: { borderColor: colors.primary, backgroundColor: colors.primary },
-  roleChipText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 12 },
-  roleChipTextActive: { color: colors.textOnPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 12 },
+  roleGridItemActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  roleGridText: {
+    color: colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: 13,
+  },
+  roleGridTextActive: {
+    color: colors.textOnPrimary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+  },
 
   roleRow2: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -2707,89 +2760,138 @@ const TeamDetailScreen = ({ navigation, route }) => {
       {/* ── ADD PLAYER MODAL ── */}
       <Modal visible={addModalVisible} transparent animationType="slide" onRequestClose={() => setAddModalVisible(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.bottomSheetOverlay}
         >
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => setAddModalVisible(false)} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Add Player</Text>
-            <Text style={styles.modalSub}>Enter mobile number to search</Text>
-
-            <View style={styles.mobileRow}>
-              <View style={[styles.modalInput, { flex: 1 }]}>
-                <Icon name="phone" size={16} color={colors.textTertiary} />
-                <TextInput
-                  style={styles.modalInputText}
-                  placeholder="Mobile number"
-                  placeholderTextColor={colors.textTertiary}
-                  value={mobile}
-                  onChangeText={setMobile}
-                  keyboardType="phone-pad"
-                />
-                {lookupLoading && <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 10 }} />}
+          <TouchableOpacity style={{ flex: 1, width: '100%' }} onPress={() => setAddModalVisible(false)} />
+          <View style={[styles.modalSheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) }]}>
+            <KeyboardAwareScrollView
+              enableOnAndroid={true}
+              extraScrollHeight={25}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              <View style={styles.modalHandle} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={styles.modalTitle}>Add Player</Text>
+                <TouchableOpacity onPress={() => setAddModalVisible(false)} style={{ padding: 4 }}>
+                  <Icon name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
-            </View>
+              <Text style={styles.modalSub}>Enter mobile number to search player profile</Text>
 
-            {lookupDone && (
-              lookedUpPlayer ? (
-                <View style={styles.foundPlayer}>
-                  <Icon name="check-circle" size={16} color={colors.success} />
-                  <Text style={styles.foundPlayerText}>Found: {lookedUpPlayer.name}</Text>
-                </View>
-              ) : (
-                <View style={styles.modalInput}>
-                  <Icon name="account" size={16} color={colors.textTertiary} />
+              <View style={styles.mobileRow}>
+                <View style={[styles.modalInput, { flex: 1 }]}>
+                  <Icon name="phone-outline" size={18} color={colors.textTertiary} />
                   <TextInput
                     style={styles.modalInputText}
-                    placeholder="Player name (new player)"
+                    placeholder="10-digit mobile number"
                     placeholderTextColor={colors.textTertiary}
-                    value={playerName}
-                    onChangeText={setPlayerName}
+                    value={mobile}
+                    onChangeText={setMobile}
+                    keyboardType="phone-pad"
+                    maxLength={10}
                   />
+                  {mobile.length > 0 && (
+                    <TouchableOpacity onPress={() => { setMobile(''); setLookedUpPlayer(null); setLookupDone(false); }} style={{ padding: 4 }}>
+                      <Icon name="close-circle" size={16} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  )}
+                  {lookupLoading && <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 6 }} />}
                 </View>
-              )
-            )}
+              </View>
 
-            <Text style={styles.modalLabel}>Role</Text>
-            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleRow}>
-              {ROLE_OPTIONS.map(r => (
-                <TouchableOpacity
-                  key={r}
-                  style={[styles.roleChip, addRole === r && styles.roleChipActive]}
-                  onPress={() => setAddRole(r)}
-                >
-                  <Icon name={ROLE_ICONS[r]} size={12} color={addRole === r ? colors.textOnPrimary : colors.textSecondary} />
-                  <Text style={[styles.roleChipText, addRole === r && styles.roleChipTextActive]}>{ROLE_LABELS[r]}</Text>
-                </TouchableOpacity>
-              ))}
-            </KeyboardAwareScrollView>
-
-            <TouchableOpacity onPress={handleAddPlayer} disabled={adding || (!lookupDone && !mobile)} activeOpacity={0.8}>
-              <LinearGradient colors={colors.primaryGradient} style={styles.modalSubmitBtn}>
-                {adding ? (
-                  <>
-                    <ActivityIndicator size="small" color={colors.textOnPrimary} />
-                    <Text style={[styles.modalSubmitText, { marginLeft: 8 }]}>Adding...</Text>
-                  </>
+              {lookupDone && (
+                lookedUpPlayer ? (
+                  <View style={styles.foundPlayerCard}>
+                    <View style={styles.foundPlayerAvatarContainer}>
+                      {lookedUpPlayer.photo ? (
+                        <Image
+                          source={{ uri: getImageUrl(lookedUpPlayer.photo) }}
+                          style={styles.foundPlayerAvatarImg}
+                        />
+                      ) : (
+                        <View style={styles.foundPlayerAvatarPlaceholder}>
+                          <Text style={styles.foundPlayerInitial}>
+                            {lookedUpPlayer.name ? lookedUpPlayer.name.charAt(0).toUpperCase() : 'P'}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.foundCheckBadge}>
+                        <Icon name="check" size={10} color="#FFF" />
+                      </View>
+                    </View>
+                    <View style={styles.foundPlayerInfo}>
+                      <Text style={styles.foundPlayerName} numberOfLines={1}>{lookedUpPlayer.name}</Text>
+                      <Text style={styles.foundPlayerSub}>{mobile}</Text>
+                    </View>
+                    <View style={styles.foundStatusBadge}>
+                      <Icon name="account-check-outline" size={14} color={colors.success} />
+                      <Text style={styles.foundStatusText}>Verified</Text>
+                    </View>
+                  </View>
                 ) : (
-                  <>
-                    <Icon name="check" size={16} color={colors.textOnPrimary} />
-                    <Text style={styles.modalSubmitText}>Add Player</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-            <View style={{ height: 20 }} />
+                  <View style={styles.newPlayerCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <Icon name="account-plus-outline" size={16} color={colors.primary} />
+                      <Text style={styles.newPlayerCardTitle}>New Player Profile</Text>
+                    </View>
+                    <Text style={styles.newPlayerCardSub}>No user registered with {mobile}. Enter name below to register as guest.</Text>
+                    <View style={styles.modalInput}>
+                      <Icon name="account-outline" size={18} color={colors.textTertiary} />
+                      <TextInput
+                        style={styles.modalInputText}
+                        placeholder="Player full name"
+                        placeholderTextColor={colors.textTertiary}
+                        value={playerName}
+                        onChangeText={setPlayerName}
+                      />
+                    </View>
+                  </View>
+                )
+              )}
+
+              <Text style={styles.modalLabel}>Role in Team</Text>
+              <View style={styles.roleGrid}>
+                {ROLE_OPTIONS.map(r => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.roleGridItem, addRole === r && styles.roleGridItemActive]}
+                    onPress={() => setAddRole(r)}
+                    activeOpacity={0.8}
+                  >
+                    <Icon name={ROLE_ICONS[r]} size={16} color={addRole === r ? colors.textOnPrimary : colors.textSecondary} />
+                    <Text style={[styles.roleGridText, addRole === r && styles.roleGridTextActive]}>{ROLE_LABELS[r]}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity onPress={handleAddPlayer} disabled={adding || (!lookupDone && !mobile)} activeOpacity={0.85} style={{ marginTop: 8 }}>
+                <LinearGradient colors={colors.primaryGradient} style={styles.modalSubmitBtn}>
+                  {adding ? (
+                    <>
+                      <ActivityIndicator size="small" color={colors.textOnPrimary} />
+                      <Text style={[styles.modalSubmitText, { marginLeft: 8 }]}>Adding...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="account-plus" size={18} color={colors.textOnPrimary} />
+                      <Text style={styles.modalSubmitText}>Add Player</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </KeyboardAwareScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* ── ROLE MODAL ── */}
       <Modal visible={roleModalVisible} transparent animationType="slide" onRequestClose={() => setRoleModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => setRoleModalVisible(false)} />
-          <View style={[styles.modalSheet, { borderRadius: 20 }]}>
+        <View style={styles.bottomSheetOverlay}>
+          <TouchableOpacity style={{ flex: 1, width: '100%' }} onPress={() => setRoleModalVisible(false)} />
+          <View style={[styles.modalSheet, { borderRadius: 20, paddingBottom: Math.max(insets?.bottom || 0, 16) }]}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Change Role</Text>
             <Text style={styles.modalSub}>{selectedPlayerToEdit?.player?.name}</Text>
@@ -2815,11 +2917,12 @@ const TeamDetailScreen = ({ navigation, route }) => {
       {/* ── EDIT TEAM MODAL ── */}
       <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.bottomSheetOverlay}
         >
           <TouchableOpacity style={{ flex: 1 }} onPress={() => setEditModalVisible(false)} />
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) }]}>
+            <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={25} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Edit Team</Text>
 
@@ -2861,7 +2964,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
                   : <><Icon name="check" size={16} color={colors.textOnPrimary} /><Text style={styles.modalSubmitText}>Save Changes</Text></>}
               </LinearGradient>
             </TouchableOpacity>
-            <View style={{ height: 24 }} />
+            </KeyboardAwareScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>

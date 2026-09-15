@@ -371,8 +371,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
 
-  const toggleInnings = (index) => {
-    setExpandedInnings(prev => ({ ...prev, [index]: prev[index] === false ? true : false }));
+  const toggleInnings = (index, currentIsExpanded) => {
+    setExpandedInnings(prev => ({ ...prev, [index]: !currentIsExpanded }));
   };
 
   // Fetch overall career stats when a player preview opens
@@ -739,6 +739,14 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (newWickets > currentWickets) return true;
 
     if (newState.ballEvent && !currentState.ballEvent) return true;
+
+    // Check player changes (striker, nonStriker, bowler, needsBowler, status)
+    const extractId = (p) => typeof p === 'object' && p !== null ? String(p._id || p.id || '') : String(p || '');
+    if (newState.striker !== undefined && extractId(newState.striker) !== extractId(currentState.striker)) return true;
+    if (newState.nonStriker !== undefined && extractId(newState.nonStriker) !== extractId(currentState.nonStriker)) return true;
+    if (newState.bowler !== undefined && extractId(newState.bowler) !== extractId(currentState.bowler)) return true;
+    if (newState.needsBowler !== undefined && newState.needsBowler !== currentState.needsBowler) return true;
+    if (newState.status !== undefined && newState.status !== currentState.status) return true;
 
     return false;
   };
@@ -2463,7 +2471,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     <View style={{ flex: 1 }} />
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={styles.crrText}>CRR: {score?.runRate || '0.00'}</Text>
-                      {!!liveState?.requiredRunRate && (
+                      {liveState?.inningsNumber % 2 === 0 && !!liveState?.requiredRunRate && (
                         <Text style={[styles.crrText, { marginTop: 2 }]}>RRR: {liveState.requiredRunRate}</Text>
                       )}
                     </View>
@@ -3829,16 +3837,60 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       return <Text style={styles.emptyText}>Scorecard not available yet.</Text>;
     }
 
+    let activeInningsIdx = 0;
+    if (liveState?.inningsNumber) {
+      activeInningsIdx = liveState.inningsNumber - 1;
+    } else if (match?.currentInnings) {
+      activeInningsIdx = match.currentInnings - 1;
+    } else if (match?.liveState?.inningsNumber) {
+      activeInningsIdx = match.liveState.inningsNumber - 1;
+    } else if (displayScorecards.length > 1) {
+      const secondInningsStarted = (displayScorecards[1].batting && displayScorecards[1].batting.length > 0) ||
+        (displayScorecards[1].total && (displayScorecards[1].total.runs > 0 || displayScorecards[1].total.wickets > 0 || displayScorecards[1].total.overs !== '0.0'));
+      if (secondInningsStarted) {
+        activeInningsIdx = 1;
+      }
+    }
+    activeInningsIdx = Math.max(0, Math.min(activeInningsIdx, displayScorecards.length - 1));
+
     return (
       <ScrollView contentContainerStyle={styles.content} refreshControl={getRefreshControl()}>
         {displayScorecards.map((sc, index) => {
           const battingTeamName = sc.battingTeam?.name || (sc.battingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name);
-          const isExpanded = expandedInnings[index] !== false; // expanded by default
+          const isLiveInnings = (match?.status !== 'completed') && (index === activeInningsIdx);
+          const defaultExpanded = (match?.status === 'completed') ? true : (index === activeInningsIdx);
+          const isExpanded = expandedInnings[index] !== undefined ? expandedInnings[index] : defaultExpanded;
 
           return (
             <View key={index} style={{ marginBottom: 24 }}>
-              <TouchableOpacity onPress={() => toggleInnings(index)} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, backgroundColor: colors.surfaceVariant, paddingHorizontal: 16, paddingVertical: 14, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: colors.border, ...shadows.sm }}>
-                <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontWeight: '900', fontSize: 14, textTransform: 'uppercase' }}>{battingTeamName} {sc.inningsNumber >= 3 ? '(Super Over)' : ''}</Text>
+              <TouchableOpacity
+                onPress={() => toggleInnings(index, isExpanded)}
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 12,
+                  backgroundColor: isDark ? (isLiveInnings ? 'rgba(255,204,0,0.08)' : colors.surfaceVariant) : colors.surfaceVariant,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  borderRadius: BorderRadius.lg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderLeftWidth: isLiveInnings ? 4 : 1,
+                  borderLeftColor: isLiveInnings ? colors.primary : colors.border,
+                  ...shadows.sm
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontWeight: '800', fontSize: 14, textTransform: 'uppercase' }}>
+                    {battingTeamName} {sc.inningsNumber >= 3 ? '(Super Over)' : ''}
+                  </Text>
+                  {isLiveInnings && (
+                    <View style={{ backgroundColor: colors.error, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                      <Text style={{ color: '#FFF', fontSize: 10, fontFamily: Typography.fontFamily.bold }}>LIVE</Text>
+                    </View>
+                  )}
+                </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.semiBold, fontSize: 13 }}>
                     {sc.batting.length > 0 ? (
@@ -3847,7 +3899,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Yet to bat</Text>
                     )}
                   </Text>
-                  <Icon name={isExpanded ? "chevron-up" : "chevron-down"} size={28} color={colors.primary} />
+                  <Icon name={isExpanded ? "chevron-up" : "chevron-down"} size={22} color={colors.textSecondary} />
                 </View>
               </TouchableOpacity>
 

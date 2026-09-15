@@ -123,29 +123,31 @@ const EditProfileScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Phone Number</Text>
+          <Text style={[styles.label, styles.labelDisabled]}>Phone Number</Text>
           <View style={[styles.inputContainer, styles.inputDisabled]}>
-            <Icon name="phone" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+            <Icon name="phone" size={18} color={colors.textTertiary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, { color: colors.textSecondary }]}
+              style={[styles.input, styles.inputTextDisabled]}
               value={user?.mobile || 'Not provided'}
               editable={false}
             />
+            <Icon name="lock" size={14} color={colors.textTertiary} style={{ marginRight: 10 }} />
           </View>
-          <Text style={styles.helpText}>Phone number cannot be changed.</Text>
+          <Text style={[styles.helpText, styles.helpTextDisabled]}>🔒 Cannot be changed after registration.</Text>
         </View>
 
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Email Address</Text>
+          <Text style={[styles.label, styles.labelDisabled]}>Email Address</Text>
           <View style={[styles.inputContainer, styles.inputDisabled]}>
-            <Icon name="email" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+            <Icon name="email" size={18} color={colors.textTertiary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, { color: colors.textSecondary }]}
-              value={user?.email || ''}
+              style={[styles.input, styles.inputTextDisabled]}
+              value={user?.email || 'Not provided'}
               editable={false}
             />
+            <Icon name="lock" size={14} color={colors.textTertiary} style={{ marginRight: 10 }} />
           </View>
-          <Text style={styles.helpText}>Email address cannot be changed.</Text>
+          <Text style={[styles.helpText, styles.helpTextDisabled]}>🔒 Cannot be changed after registration.</Text>
         </View>
 
         <TouchableOpacity 
@@ -277,10 +279,19 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     ...(isDark ? {} : shadows.sm),
   },
-  inputDisabled: { 
-    backgroundColor: colors.surfaceVariant, 
-    borderColor: colors.borderLight,
-    opacity: 0.85,
+  inputDisabled: {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)',
+    borderStyle: 'dashed',
+  },
+  inputTextDisabled: {
+    color: colors.textTertiary,
+  },
+  labelDisabled: {
+    color: colors.textTertiary,
+  },
+  helpTextDisabled: {
+    color: colors.textTertiary,
   },
   inputIcon: { 
     marginRight: Spacing.sm,

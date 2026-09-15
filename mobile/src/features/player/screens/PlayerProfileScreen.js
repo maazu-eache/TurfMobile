@@ -541,6 +541,8 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   fieldContainer: { marginBottom: 14 },
   label: { color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontFamily: Typography.fontFamily.medium },
+  labelDisabled: { color: colors.textTertiary },
+  disabledInputWrapper: { position: 'relative', justifyContent: 'center' },
   input: {
     backgroundColor: isDark ? colors.background : colors.surfaceVariant,
     borderWidth: 1,
@@ -552,6 +554,15 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     fontSize: 14,
     fontFamily: Typography.fontFamily.regular,
   },
+  inputDisabled: {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+    borderStyle: 'dashed',
+    borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+    color: colors.textTertiary,
+    paddingRight: 38,
+  },
+  lockIcon: { position: 'absolute', right: 12 },
+  helpTextDisabled: { fontSize: 11, color: colors.textTertiary, marginTop: 4, fontFamily: Typography.fontFamily.medium },
   dropdownBtn: {
     borderWidth: 1,
     borderRadius: 10,
@@ -1851,26 +1862,31 @@ const PlayerProfileScreen = ({ navigation }) => {
               </View>
 
               <View style={styles.fieldContainer}>
-                <Text style={styles.label}>Mobile Number</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholderTextColor={colors.textTertiary}
-                  value={form.mobile}
-                  keyboardType="phone-pad"
-                  onChangeText={t => setForm({ ...form, mobile: t })}
-                />
+                <Text style={[styles.label, styles.labelDisabled]}>Mobile Number</Text>
+                <View style={styles.disabledInputWrapper}>
+                  <TextInput
+                    style={[styles.input, styles.inputDisabled]}
+                    placeholderTextColor={colors.textTertiary}
+                    value={form.mobile || 'Not provided'}
+                    editable={false}
+                  />
+                  <Icon name="lock-closed-outline" size={16} color={colors.textTertiary} style={styles.lockIcon} />
+                </View>
+                <Text style={styles.helpTextDisabled}>🔒 Cannot be changed after registration.</Text>
               </View>
 
               <View style={styles.fieldContainer}>
-                <Text style={styles.label}>Email Address</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholderTextColor={colors.textTertiary}
-                  value={form.email}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  onChangeText={t => setForm({ ...form, email: t })}
-                />
+                <Text style={[styles.label, styles.labelDisabled]}>Email Address</Text>
+                <View style={styles.disabledInputWrapper}>
+                  <TextInput
+                    style={[styles.input, styles.inputDisabled]}
+                    placeholderTextColor={colors.textTertiary}
+                    value={form.email || 'Not provided'}
+                    editable={false}
+                  />
+                  <Icon name="lock-closed-outline" size={16} color={colors.textTertiary} style={styles.lockIcon} />
+                </View>
+                <Text style={styles.helpTextDisabled}>🔒 Cannot be changed after registration.</Text>
               </View>
 
               <View style={styles.fieldContainer}>
@@ -1885,7 +1901,9 @@ const PlayerProfileScreen = ({ navigation }) => {
                   <DateTimePicker
                     value={form.dob ? new Date(form.dob) : new Date()}
                     mode="date" display="spinner" maximumDate={new Date()}
-                    textColor={colors.textPrimary} accentColor={colors.primary}
+                    themeVariant={isDark ? 'dark' : 'light'}
+                    textColor={isDark ? '#FFFFFF' : '#000000'} accentColor={colors.primary}
+                    style={{ height: 216, width: '100%', backgroundColor: isDark ? colors.background : '#FFFFFF' }}
                     onChange={onDateChange}
                   />
                 )}

@@ -26,7 +26,7 @@ const TournamentListScreen = ({ navigation }) => {
     setLoading(true);
     try {
       let statusFilter = '';
-      if (activeTab === 'Upcoming') statusFilter = 'registration_open';
+      if (activeTab === 'Upcoming') statusFilter = 'registration_open,registration_closed';
       if (activeTab === 'Ongoing') statusFilter = 'ongoing';
       if (activeTab === 'Completed') statusFilter = 'completed';
 

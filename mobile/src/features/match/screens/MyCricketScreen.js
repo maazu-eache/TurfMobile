@@ -498,19 +498,20 @@ const MyCricketScreen = ({ route }) => {
   useEffect(() => {
     if (isFocused) {
       StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
-      const targetTab = route?.params?.tab || 'Matches';
+      let targetTab = activeTopTab;
       if (route?.params?.tab) {
+        targetTab = route.params.tab;
+        setActiveTopTab(targetTab);
+        setActiveSubTab('My');
+        setSearchQuery('');
         navigation.setParams({ tab: undefined });
       }
-      setActiveTopTab(targetTab);
-      setActiveSubTab('My');
-      setSearchQuery('');
-      
+
       const targetIndex = Math.max(0, TOP_TABS.indexOf(targetTab));
       const doScroll = () => {
         scrollViewRef.current?.scrollTo({ x: targetIndex * SCREEN_WIDTH, animated: false });
       };
-      
+
       doScroll();
       const timer1 = setTimeout(doScroll, 50);
       const timer2 = setTimeout(doScroll, 150);
@@ -518,13 +519,8 @@ const MyCricketScreen = ({ route }) => {
         clearTimeout(timer1);
         clearTimeout(timer2);
       };
-    } else {
-      setActiveTopTab('Matches');
-      setActiveSubTab('My');
-      setSearchQuery('');
-      scrollViewRef.current?.scrollTo({ x: 0, animated: false });
     }
-  }, [isFocused, route?.params?.tab, navigation]);
+  }, [isFocused, route?.params?.tab, navigation, isDark]);
   const insets = useSafeAreaInsets();
   const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
 
@@ -842,7 +838,7 @@ const MyCricketScreen = ({ route }) => {
           </View>
         </View>
         
-        <Text style={styles.cardSubText}>{item.stage ? `${item.stage} | ` : ''}{item.format === 'test' ? 'Test' : item.format === 't20' ? 'T20' : item.format === 'odi' ? 'ODI' : item.format || 'Custom'} | {moment(item.createdAt).format('DD MMM YYYY, h:mm a')} | {item.overs} Ov.</Text>
+        <Text style={styles.cardSubText}>{item.stage ? `${item.stage} | ` : ''}{item.format === 'test' ? 'Test' : item.format === 't20' ? 'T20' : item.format === 'odi' ? 'ODI' : item.format || 'Custom'} | {moment(item.scheduledAt || item.createdAt).format('DD MMM YYYY, h:mm a')} | {item.overs} Ov.</Text>
         
         <View style={styles.teamScoreRow}>
           <View style={styles.matchTeamInfo}>

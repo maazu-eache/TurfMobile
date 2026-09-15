@@ -68,14 +68,14 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
             // A player just got sold/unsold — check history for sold event
             const lastHistory = updatedState?.history?.[0];
             if (lastHistory?.eventType === 'player_sold') {
-              // Find the player from teams squads (newly added)
-              const reg = prev.auction.currentPlayer;
-              const winTeamId = lastHistory?.team;
-              const winTeam = (updatedState.teams || []).find(t => t._id?.toString() === winTeamId?.toString());
+              const reg = prev.auction.currentPlayer || lastHistory?.registration;
+              const winTeamObj = typeof lastHistory?.team === 'object' && lastHistory.team 
+                ? lastHistory.team 
+                : (updatedState.teams || []).find(t => t._id?.toString() === (lastHistory?.team?._id || lastHistory?.team)?.toString());
               setLastSold({
                 player: reg,
-                team: winTeam,
-                price: lastHistory?.amount || 0,
+                team: winTeamObj,
+                price: lastHistory?.amount ?? 0,
               });
             }
           }
@@ -98,6 +98,17 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
     try {
       const res = await auctionService.getLiveState(auctionId);
       setLiveState(res.data);
+      if (!res.data?.auction?.currentPlayer && res.data?.history?.[0]?.eventType === 'player_sold') {
+        const lastHistory = res.data.history[0];
+        const winTeamObj = typeof lastHistory?.team === 'object' && lastHistory.team 
+          ? lastHistory.team 
+          : (res.data.teams || []).find(t => t._id?.toString() === (lastHistory?.team?._id || lastHistory?.team)?.toString());
+        setLastSold({
+          player: lastHistory?.registration,
+          team: winTeamObj,
+          price: lastHistory?.amount ?? 0,
+        });
+      }
       Animated.parallel([
         Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
         Animated.timing(opacityAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
@@ -300,7 +311,7 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
         {starPlayer && starPrice > 0 && (
           <View style={styles.starBanner}>
             <View style={styles.starBannerHeader}>
-              <Icon name="star-circle" size={16} color="#FFD700" />
+              <Icon name="star-circle" size={16} color={isDark ? '#FFD700' : '#D97706'} />
               <Text style={styles.starBannerTitle}>
                 {liveState?.auction?.status === 'completed' ? 'Highest Bid in the auction' : 'Highest Bid till now'}
               </Text>
@@ -310,7 +321,7 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
                 <Image source={{ uri: getImageUrl(starPlayer.photo || starPlayer.player?.photo) }} style={styles.starAvatar} />
               ) : (
                 <View style={[styles.starAvatar, { backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
-                  <Icon name="account" size={20} color="#FFD700" />
+                  <Icon name="account" size={20} color={isDark ? '#FFD700' : '#D97706'} />
                 </View>
               )}
               <View style={{ flex: 1, marginLeft: 10 }}>
@@ -319,7 +330,7 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
                 <Text style={styles.starRole}>{starPlayer.role}</Text>
               </View>
               <View style={styles.starPricePill}>
-                <Icon name="trophy" size={12} color="#FFD700" />
+                <Icon name="trophy" size={12} color={isDark ? '#FFD700' : '#D97706'} />
                 <Text style={styles.starPriceText}>{starPrice} Pts</Text>
               </View>
             </View>
@@ -389,10 +400,18 @@ const AuctionLivePublicScreen = ({ route, navigation }) => {
                     </View>
                   </View>
                   <View style={styles.teamPurseWrap}>
-                    <Text style={[styles.teamPurseRemaining, isLeading && { color: '#FFD700' }, !isAuctionStarted && { fontSize: 11, color: colors.textSecondary }]}>
-                      {isAuctionStarted ? remaining : 'Yet to announce'}
-                    </Text>
-                    {isAuctionStarted && <Text style={styles.teamPurseLabel}>Pts left</Text>}
+                    {(totalPurse > 0 || isAuctionStarted) ? (
+                      <>
+                        <Text style={[styles.teamPurseRemaining, isLeading && { color: '#FFD700' }]}>
+                          {remaining}
+                        </Text>
+                        <Text style={styles.teamPurseLabel}>Pts left</Text>
+                      </>
+                    ) : (
+                      <View style={styles.pendingPurseBadge}>
+                        <Text style={styles.pendingPurseText}>Yet to announce</Text>
+                      </View>
+                    )}
                   </View>
                   <Icon
                     name={isExpanded ? 'chevron-up' : 'chevron-down'}
@@ -585,22 +604,22 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   // Star Player Banner
   starBanner: {
     marginHorizontal: Spacing.base, marginBottom: Spacing.md,
-    backgroundColor: '#1a1500', borderRadius: 14, padding: 12,
-    borderWidth: 1.5, borderColor: '#FFD700',
+    backgroundColor: isDark ? 'rgba(255,215,0,0.08)' : 'rgba(217,119,6,0.08)', borderRadius: 14, padding: 12,
+    borderWidth: 1.5, borderColor: isDark ? '#FFD700' : '#D97706',
   },
   starBannerHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  starBannerTitle: { color: '#FFD700', fontSize: 12, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  starBannerTitle: { color: isDark ? '#FFD700' : '#B45309', fontSize: 12, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
   starBannerBody: { flexDirection: 'row', alignItems: 'center' },
-  starAvatar: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, borderColor: '#FFD700' },
+  starAvatar: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, borderColor: isDark ? '#FFD700' : '#D97706' },
   starName: { color: colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.bold },
   starTeam: { color: colors.textTertiary, fontSize: 11, marginTop: 1 },
   starRole: { color: colors.textTertiary, fontSize: 11 },
   starPricePill: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: 'rgba(255,215,0,0.18)', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: 'rgba(255,215,0,0.5)',
+    backgroundColor: isDark ? 'rgba(255,215,0,0.18)' : 'rgba(217,119,6,0.15)', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: isDark ? 'rgba(255,215,0,0.5)' : 'rgba(217,119,6,0.4)',
   },
-  starPriceText: { color: '#FFD700', fontSize: 14, fontFamily: Typography.fontFamily.bold },
+  starPriceText: { color: isDark ? '#FFD700' : '#B45309', fontSize: 14, fontFamily: Typography.fontFamily.bold },
 
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -642,6 +661,14 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   teamPurseWrap: { alignItems: 'flex-end', marginLeft: 4 },
   teamPurseRemaining: { fontFamily: Typography.fontFamily.bold, fontSize: 16, color: colors.primary },
   teamPurseLabel: { fontSize: 10, color: colors.textTertiary, marginTop: 1 },
+  pendingPurseBadge: {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+    borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2.5,
+    borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+  },
+  pendingPurseText: {
+    fontSize: 10, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary,
+  },
 
   // Squad list inside team card
   squadSection: {

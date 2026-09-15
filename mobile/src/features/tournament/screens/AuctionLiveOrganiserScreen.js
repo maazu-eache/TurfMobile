@@ -239,11 +239,12 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
   };
 
   const handleGenerateUnsoldSet = () => {
-    showConfirmAlert('Unsold Players', 'Are you sure you want to create a new set for all unsold players?', 'Yes, Generate', false, async () => {
+    showConfirmAlert('Unsold / Skipped Players', 'Are you sure you want to create a new set for all unsold and skipped players?', 'Yes, Generate', false, async () => {
           setLoading(true);
           try {
             const res = await auctionService.generateUnsoldSet(auctionId);
             setLiveState(res.data);
+            showCustomAlert('Success', 'Unsold & skipped players set generated!');
           } catch (err) {
             showCustomAlert('Error', err.response?.data?.message || 'Failed to generate unsold set');
           } finally {
@@ -911,7 +912,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
           {starPlayer && starPrice > 0 && (
             <View style={styles.starBanner}>
               <View style={styles.starBannerHeader}>
-                <Icon name="star-circle" size={16} color="#FFD700" />
+                <Icon name="star-circle" size={16} color={isDark ? '#FFD700' : '#D97706'} />
                 <Text style={styles.starBannerTitle}>
                   {liveState?.auction?.status === 'completed' ? 'Highest Bid in the auction' : 'Highest Bid till now'}
                 </Text>
@@ -921,7 +922,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                   <Image source={{ uri: getImageUrl(starPlayer.photo) }} style={styles.starAvatar} />
                 ) : (
                   <View style={[styles.starAvatar, { backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }]}>
-                    <Icon name="account" size={20} color="#FFD700" />
+                    <Icon name="account" size={20} color={isDark ? '#FFD700' : '#D97706'} />
                   </View>
                 )}
                 <View style={{ flex: 1, marginLeft: 10 }}>
@@ -930,7 +931,7 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                   <Text style={styles.starRole}>{starPlayer.role}</Text>
                 </View>
                 <View style={styles.starPricePill}>
-                  <Icon name="trophy" size={12} color="#FFD700" />
+                  <Icon name="trophy" size={12} color={isDark ? '#FFD700' : '#D97706'} />
                   <Text style={styles.starPriceText}>{starPrice} Pts</Text>
                 </View>
               </View>
@@ -1182,21 +1183,21 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   // Star Player Banner styles
   starBanner: {
     borderRadius: 14, padding: 12, marginBottom: Spacing.md,
-    backgroundColor: '#1a1500', borderWidth: 1.5, borderColor: '#FFD700',
+    backgroundColor: isDark ? 'rgba(255,215,0,0.08)' : 'rgba(217,119,6,0.08)', borderWidth: 1.5, borderColor: isDark ? '#FFD700' : '#D97706',
   },
   starBannerHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  starBannerTitle: { color: '#FFD700', fontSize: 12, fontFamily: Typography.fontFamily.bold },
+  starBannerTitle: { color: isDark ? '#FFD700' : '#B45309', fontSize: 12, fontFamily: Typography.fontFamily.bold },
   starBannerBody: { flexDirection: 'row', alignItems: 'center' },
-  starAvatar: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, borderColor: '#FFD700' },
+  starAvatar: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, borderColor: isDark ? '#FFD700' : '#D97706' },
   starName: { color: colors.textPrimary, fontSize: 15, fontFamily: Typography.fontFamily.bold },
   starTeam: { color: colors.textTertiary, fontSize: 11, marginTop: 1 },
   starRole: { color: colors.textTertiary, fontSize: 11 },
   starPricePill: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: 'rgba(255,215,0,0.18)', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: 'rgba(255,215,0,0.5)',
+    backgroundColor: isDark ? 'rgba(255,215,0,0.18)' : 'rgba(217,119,6,0.15)', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: isDark ? 'rgba(255,215,0,0.5)' : 'rgba(217,119,6,0.4)',
   },
-  starPriceText: { color: '#FFD700', fontSize: 14, fontFamily: Typography.fontFamily.bold },
+  starPriceText: { color: isDark ? '#FFD700' : '#B45309', fontSize: 14, fontFamily: Typography.fontFamily.bold },
 
   teamDetailsCard: {
     backgroundColor: colors.surface,

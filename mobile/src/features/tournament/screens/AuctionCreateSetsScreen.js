@@ -65,9 +65,9 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
 
   // Create Sets Controls
   const [numSets, setNumSets] = useState(5);
-  const [playersPerSet, setPlayersPerSet] = useState(24);
-  const [basePrice, setBasePrice] = useState('1000');
-  const [teamPurse, setTeamPurse] = useState('50000');
+  const [playersPerSet, setPlayersPerSet] = useState(5);
+  const [basePrice, setBasePrice] = useState('500');
+  const [teamPurse, setTeamPurse] = useState('10000');
   const [strategy, setStrategy] = useState('mixture');
   const [showSetPlayersModal, setShowSetPlayersModal] = useState(false);
   const [selectedSetPlayers, setSelectedSetPlayers] = useState([]);
@@ -262,10 +262,20 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
       } catch (e) { }
     }
 
+    const tTeams = auctionProfile?.tournament?.teams || [];
+    const tRegTeams = auctionProfile?.tournament?.registeredTeams || [];
+    const totalTeams = tTeams.length + tRegTeams.length;
+
+    if (totalTeams === 0) {
+      showCustomAlert('Teams Required', 'Teams must be added to the tournament before creating auction sets and purse.');
+      return;
+    }
+
     if (registrations.length === 0) {
       showCustomAlert('No Players', 'There are no registered players to create sets.');
       return;
     }
+
     setLoading(true);
     try {
       await auctionService.generateSets(activeId, playersPerSet, Number(basePrice) || 0, Number(teamPurse) || 0, strategy);

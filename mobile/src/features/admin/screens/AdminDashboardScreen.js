@@ -514,6 +514,34 @@ const AdminDashboardScreen = ({ navigation }) => {
     const joinedDate = formatISTDateSpelled(item.userId?.createdAt || item.createdAt);
     const ownerName = item.businessName || item.userId?.name || 'Unknown Owner';
     const initials = ownerName.charAt(0).toUpperCase();
+    const userEmail = item.userId?.email || '';
+    const userId = item.userId?._id || item.userId;
+
+    const handleDeleteOwner = () => {
+      showCustomAlert(
+        'Delete Owner',
+        `Remove "${ownerName}" from the Owners table?\n\nThis will:\n• Delete their Owner record\n• Downgrade their account to Player\n• Log them out immediately`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete Owner',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await api.delete(`/admin/owners/${item._id}`);
+                showCustomAlert(
+                  'Owner Deleted',
+                  `"${ownerName}" has been removed from the Owners table and downgraded to Player.`
+                );
+                fetchData();
+              } catch (err) {
+                showCustomAlert('Error', err.response?.data?.message || 'Failed to delete owner.');
+              }
+            },
+          },
+        ]
+      );
+    };
 
     return (
       <View style={styles.card}>
@@ -526,7 +554,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{ownerName}</Text>
-              <Text style={styles.cardSubtitle} numberOfLines={1}>{item.userId?.email}</Text>
+              <Text style={styles.cardSubtitle} numberOfLines={1}>{userEmail}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.joinedLabel}>JOINED</Text>
@@ -575,9 +603,35 @@ const AdminDashboardScreen = ({ navigation }) => {
             <Text style={styles.noTurfsText}>No turfs registered yet.</Text>
           </View>
         )}
+
+        {/* ── Delete Owner action ── */}
+        <TouchableOpacity
+          onPress={handleDeleteOwner}
+          style={{
+            marginTop: 10,
+            marginHorizontal: 12,
+            marginBottom: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            paddingVertical: 9,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: 'rgba(244,67,54,0.35)',
+            backgroundColor: 'rgba(244,67,54,0.08)',
+          }}
+          activeOpacity={0.7}
+        >
+          <Icon name="account-remove" size={15} color={Colors.error} />
+          <Text style={{ color: Colors.error, fontSize: 13, fontFamily: Typography.fontFamily.semiBold }}>
+            Delete Owner
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   };
+
 
   const renderUserCard = ({ item }) => {
     const joinedDate = formatISTDateSpelled(item.createdAt);

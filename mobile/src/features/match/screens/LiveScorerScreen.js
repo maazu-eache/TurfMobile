@@ -1221,8 +1221,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
       await api.put(`/matches/${matchId}/abandon`, { reason: abandonReason });
       setShowAbandonModal(false);
       dispatch(fetchLiveState(matchId));
-      showCustomAlert('Success', 'Match abandoned');
-      navigation.goBack();
+      // Use replace so the back stack is cleared — user goes straight to
+      // MatchSummary and cannot navigate back to the live scorer or any
+      // team-selection screen.
+      navigation.replace('MatchSummary', { matchId });
     } catch (e) {
       showCustomAlert('Error', 'Failed to abandon match');
     }

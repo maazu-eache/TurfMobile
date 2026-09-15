@@ -10,7 +10,6 @@
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-gesture-handler/android/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-image-picker/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-maps/android/src/main/jni/CMakeLists.txt",
-    "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-permissions/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-razorpay/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-reanimated/android/build/generated/source/codegen/jni/CMakeLists.txt",
@@ -90,11 +89,6 @@
       "toolchain": "toolchain",
       "abi": "arm64-v8a",
       "artifactName": "react_codegen_RNMapsSpecs"
-    },
-    "react_codegen_RNOneSignalSpec::@c8beb593ba2a9b201f0b": {
-      "toolchain": "toolchain",
-      "abi": "arm64-v8a",
-      "artifactName": "react_codegen_RNOneSignalSpec"
     },
     "react_codegen_RNPermissionsSpec::@7ad697819b753921c957": {
       "toolchain": "toolchain",

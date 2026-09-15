@@ -45,31 +45,36 @@ const PrivacyPolicyScreen = ({ navigation }) => {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.lastUpdated}>Last Updated: August 2026</Text>
+          <Text style={styles.lastUpdated}>Last Updated: March 2026</Text>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>1. Information We Collect</Text>
-            <Text style={styles.paragraph}>We collect information you provide directly to us, such as when you create or modify your account, request on-demand services, contact customer support, or otherwise communicate with us. This information may include: name, email, phone number, postal address, profile picture, payment method, and other information you choose to provide.</Text>
+            <Text style={styles.paragraph}>We collect information you provide directly to us, such as your name, email address, phone number, profile pictures, and player/team statistics. We also collect precise location data (to display nearby sports turfs and arenas) and access camera/photo library (to scan QR codes and upload team avatars).</Text>
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>2. How We Use Information</Text>
-            <Text style={styles.paragraph}>We use the information we collect about you to provide, maintain, and improve our services, such as to facilitate payments, send receipts, provide products and services you request, develop new features, provide customer support to Users, authenticate users, and send product updates and administrative messages.</Text>
+            <Text style={styles.paragraph}>We use the collected information to facilitate turf slot bookings, manage tournament registrations, display live cricket scorecards, authenticate users, process payments, and deliver push notifications about booking statuses and match updates.</Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>3. Sharing of Information</Text>
-            <Text style={styles.paragraph}>We may share the information we collect about you with vendors, consultants, marketing partners, and other service providers who need access to such information to carry out work on our behalf. We may also share your information to comply with legal processes or protect the rights, property, and safety of RoughTurf, our users, or others.</Text>
+            <Text style={styles.sectionTitle}>3. Third-Party Services</Text>
+            <Text style={styles.paragraph}>We do not sell your personal data. We share necessary data with trusted service providers who assist in operating the platform, including secure payment gateways (Razorpay), authentication services (Google Sign-In), and push notification infrastructure (Firebase).</Text>
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>4. Data Security</Text>
-            <Text style={styles.paragraph}>We take reasonable measures to help protect information about you from loss, theft, misuse and unauthorized access, disclosure, alteration and destruction.</Text>
+            <Text style={styles.paragraph}>We implement industry-standard technical and organizational security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.</Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>5. Contact Us</Text>
-            <Text style={styles.paragraph}>If you have any questions about this Privacy Policy, please contact us at supportatscoreverse@gmail.com.</Text>
+            <Text style={styles.sectionTitle}>5. Account & Data Deletion (Your Rights)</Text>
+            <Text style={styles.paragraph}>You have the right to request the permanent deletion of your account and associated personal data at any time. You can delete your account directly inside the app by going to Profile Settings - Delete Account, or by emailing our privacy team at supportatscoreverse@gmail.com. Upon deletion, your personal details, wallet records, and profile statistics are permanently removed.</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>6. Contact Us</Text>
+            <Text style={styles.paragraph}>If you have any questions, concerns, or inquiries regarding this Privacy Policy, please contact us at supportatscoreverse@gmail.com.</Text>
           </View>
         </ScrollView>
       </View>

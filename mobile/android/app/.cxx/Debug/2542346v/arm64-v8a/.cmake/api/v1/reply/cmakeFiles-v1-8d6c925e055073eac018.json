@@ -267,10 +267,6 @@
 		},
 		{
 			"isExternal" : true,
-			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/CMakeLists.txt"
-		},
-		{
-			"isExternal" : true,
 			"path" : "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-permissions/android/build/generated/source/codegen/jni/CMakeLists.txt"
 		},
 		{

@@ -46,8 +46,6 @@
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>ScoreVerse needs your location to show you sports turfs and arenas available in your immediate vicinity.</string>

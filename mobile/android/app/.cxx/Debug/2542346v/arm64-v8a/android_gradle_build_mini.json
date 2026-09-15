@@ -10,7 +10,6 @@
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-gesture-handler/android/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-image-picker/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-maps/android/src/main/jni/CMakeLists.txt",
-    "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-permissions/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-razorpay/android/build/generated/source/codegen/jni/CMakeLists.txt",
     "/Users/apple/RoughTurf/TurfMobile/mobile/node_modules/react-native-reanimated/android/build/generated/source/codegen/jni/CMakeLists.txt",
@@ -41,73 +40,8 @@
     "{LIST_OF_TARGETS_TO_BUILD}"
   ],
   "libraries": {
-    "react_codegen_RNOneSignalSpec::@c8beb593ba2a9b201f0b": {
-      "artifactName": "react_codegen_RNOneSignalSpec",
-      "abi": "arm64-v8a",
-      "runtimeFiles": []
-    },
     "react_codegen_rnviewshot::@0ba03d237e60b9258a87": {
       "artifactName": "react_codegen_rnviewshot",
-      "abi": "arm64-v8a",
-      "runtimeFiles": []
-    },
-    "react_codegen_rngesturehandler_codegen::@39f233abcd2c728bc6ec": {
-      "artifactName": "react_codegen_rngesturehandler_codegen",
-      "abi": "arm64-v8a",
-      "output": "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/build/intermediates/cxx/Debug/2542346v/obj/arm64-v8a/libreact_codegen_rngesturehandler_codegen.so",
-      "runtimeFiles": [
-        "/Users/apple/.gradle/caches/9.3.1/transforms/ed58bc8a633de13e3e2325d5f38fa465/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so",
-        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
-        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so"
-      ]
-    },
-    "react_codegen_rndocumentpickerCGen::@aac1846a245ca418eb66": {
-      "artifactName": "react_codegen_rndocumentpickerCGen",
-      "abi": "arm64-v8a",
-      "runtimeFiles": []
-    },
-    "react_codegen_rnsvg::@4f40eb209d0c0b4a3b65": {
-      "artifactName": "react_codegen_rnsvg",
-      "abi": "arm64-v8a",
-      "output": "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/build/intermediates/cxx/Debug/2542346v/obj/arm64-v8a/libreact_codegen_rnsvg.so",
-      "runtimeFiles": [
-        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
-        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
-        "/Users/apple/.gradle/caches/9.3.1/transforms/ed58bc8a633de13e3e2325d5f38fa465/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
-      ]
-    },
-    "react_codegen_RNCNetInfoSpec::@c36c96bfd5b5770618a5": {
-      "artifactName": "react_codegen_RNCNetInfoSpec",
-      "abi": "arm64-v8a",
-      "runtimeFiles": []
-    },
-    "react_codegen_RNMapsSpecs::@5748abef1962d24942ec": {
-      "artifactName": "react_codegen_RNMapsSpecs",
-      "abi": "arm64-v8a",
-      "runtimeFiles": []
-    },
-    "react_codegen_RNGoogleSignInCGen::@337b7b353bd94a4215c0": {
-      "artifactName": "react_codegen_RNGoogleSignInCGen",
-      "abi": "arm64-v8a",
-      "runtimeFiles": []
-    },
-    "react_codegen_rnreanimated::@8afabad14bfffa3f8b9a": {
-      "artifactName": "react_codegen_rnreanimated",
-      "abi": "arm64-v8a",
-      "runtimeFiles": []
-    },
-    "react_codegen_rnscreens::@25bcbd507e98d3a854ad": {
-      "artifactName": "react_codegen_rnscreens",
-      "abi": "arm64-v8a",
-      "output": "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/build/intermediates/cxx/Debug/2542346v/obj/arm64-v8a/libreact_codegen_rnscreens.so",
-      "runtimeFiles": [
-        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
-        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
-        "/Users/apple/.gradle/caches/9.3.1/transforms/ed58bc8a633de13e3e2325d5f38fa465/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
-      ]
-    },
-    "react_codegen_AsyncStorageSpec::@15af80695a6281ecf900": {
-      "artifactName": "react_codegen_AsyncStorageSpec",
       "abi": "arm64-v8a",
       "runtimeFiles": []
     },
@@ -136,8 +70,23 @@
       "abi": "arm64-v8a",
       "runtimeFiles": []
     },
+    "react_codegen_rngesturehandler_codegen::@39f233abcd2c728bc6ec": {
+      "artifactName": "react_codegen_rngesturehandler_codegen",
+      "abi": "arm64-v8a",
+      "output": "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/build/intermediates/cxx/Debug/2542346v/obj/arm64-v8a/libreact_codegen_rngesturehandler_codegen.so",
+      "runtimeFiles": [
+        "/Users/apple/.gradle/caches/9.3.1/transforms/ed58bc8a633de13e3e2325d5f38fa465/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so",
+        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so"
+      ]
+    },
     "react_codegen_RNCWebViewSpec::@eb48929f9f7453740a6c": {
       "artifactName": "react_codegen_RNCWebViewSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_rndocumentpickerCGen::@aac1846a245ca418eb66": {
+      "artifactName": "react_codegen_rndocumentpickerCGen",
       "abi": "arm64-v8a",
       "runtimeFiles": []
     },
@@ -165,8 +114,33 @@
       "abi": "arm64-v8a",
       "runtimeFiles": []
     },
+    "react_codegen_rnsvg::@4f40eb209d0c0b4a3b65": {
+      "artifactName": "react_codegen_rnsvg",
+      "abi": "arm64-v8a",
+      "output": "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/build/intermediates/cxx/Debug/2542346v/obj/arm64-v8a/libreact_codegen_rnsvg.so",
+      "runtimeFiles": [
+        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
+        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/Users/apple/.gradle/caches/9.3.1/transforms/ed58bc8a633de13e3e2325d5f38fa465/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
+      ]
+    },
+    "react_codegen_RNCNetInfoSpec::@c36c96bfd5b5770618a5": {
+      "artifactName": "react_codegen_RNCNetInfoSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_RNMapsSpecs::@5748abef1962d24942ec": {
+      "artifactName": "react_codegen_RNMapsSpecs",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
     "react_codegen_rnworklets::@68f58d84d4754f193387": {
       "artifactName": "react_codegen_rnworklets",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_RNGoogleSignInCGen::@337b7b353bd94a4215c0": {
+      "artifactName": "react_codegen_RNGoogleSignInCGen",
       "abi": "arm64-v8a",
       "runtimeFiles": []
     },
@@ -175,13 +149,33 @@
       "abi": "arm64-v8a",
       "runtimeFiles": []
     },
+    "react_codegen_rnreanimated::@8afabad14bfffa3f8b9a": {
+      "artifactName": "react_codegen_rnreanimated",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
     "react_codegen_RNImagePickerSpec::@f66ee9a2efecfb28bee4": {
       "artifactName": "react_codegen_RNImagePickerSpec",
       "abi": "arm64-v8a",
       "runtimeFiles": []
     },
+    "react_codegen_rnscreens::@25bcbd507e98d3a854ad": {
+      "artifactName": "react_codegen_rnscreens",
+      "abi": "arm64-v8a",
+      "output": "/Users/apple/RoughTurf/TurfMobile/mobile/android/app/build/intermediates/cxx/Debug/2542346v/obj/arm64-v8a/libreact_codegen_rnscreens.so",
+      "runtimeFiles": [
+        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
+        "/Users/apple/.gradle/caches/9.3.1/transforms/3a93bcd048c18436916bae8ce0f887b1/transformed/jetified-react-android-0.86.0-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/Users/apple/.gradle/caches/9.3.1/transforms/ed58bc8a633de13e3e2325d5f38fa465/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
+      ]
+    },
     "react_codegen_RNVoiceSpec::@1709dfcdf84ac6ba7908": {
       "artifactName": "react_codegen_RNVoiceSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_AsyncStorageSpec::@15af80695a6281ecf900": {
+      "artifactName": "react_codegen_AsyncStorageSpec",
       "abi": "arm64-v8a",
       "runtimeFiles": []
     },

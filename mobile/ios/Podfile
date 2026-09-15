@@ -19,9 +19,11 @@ target 'ScoreVerse' do
   pod 'FirebaseCoreInternal', :modular_headers => true
   pod 'AppCheckCore', :modular_headers => true
 
-  permissions_path = '../node_modules/react-native-permissions/ios'
-  pod 'Permission-Camera', :path => "#{permissions_path}/Camera"
-  pod 'Permission-PhotoLibrary', :path => "#{permissions_path}/PhotoLibrary"
+  require_relative '../node_modules/react-native-permissions/scripts/setup'
+  setup_permissions([
+    'Camera',
+    'PhotoLibrary',
+  ])
 
   config = use_native_modules!
 

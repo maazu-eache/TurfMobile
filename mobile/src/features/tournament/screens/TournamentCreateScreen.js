@@ -21,14 +21,9 @@ const PLAYERS_OPTIONS = ['5', '6', '7', '8', '9', '10', '11', '15'];
 const OVERS_OPTIONS = ['3', '5', '8', '10', '12', '15', '20', '50'];
 const WICKETS_OPTIONS = ['10', '11', '15', '20'];
 
-const TournamentCreateScreen = ({ navigation }) => {
-  const { colors, shadows, isDark } = useTheme();
-  const insets = useSafeAreaInsets();
-  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
-  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
-  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
-
 const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [visible, setVisible] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -75,9 +70,9 @@ const CustomNumberDropdown = ({ label, value, options, onChangeText }) => {
   );
 };
 
-
-
 const CustomDropdown = ({ label, value, options, onSelect }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const [visible, setVisible] = useState(false);
   return (
     <>
@@ -104,6 +99,13 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
     </>
   );
 };
+
+const TournamentCreateScreen = ({ navigation }) => {
+  const { colors, shadows, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
+  const safeBottom = Math.max(insets?.bottom || 0, Platform.OS === 'ios' ? 24 : 0);
+  const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
 
 
   const [step, setStep] = useState(0);
@@ -223,20 +225,57 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
 
   const [datePickerTarget, setDatePickerTarget] = useState('startDate');
 
-  const onDateChange = (event, selectedDate) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setDateObj(selectedDate);
-      if (datePickerMode === 'time') {
-        const hh = String(selectedDate.getHours()).padStart(2, '0');
-        const mm = String(selectedDate.getMinutes()).padStart(2, '0');
-        setForm(f => ({ ...f, [datePickerTarget]: `${hh}:${mm}` }));
+  const openDatePicker = (target, mode = 'date') => {
+    setDatePickerTarget(target);
+    setDatePickerMode(mode);
+
+    let currentVal = new Date();
+    const valStr = form[target];
+    if (valStr) {
+      if (mode === 'time') {
+        const parts = valStr.split(':');
+        if (parts.length === 2) {
+          currentVal.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+        }
       } else {
-        const day = String(selectedDate.getDate()).padStart(2, '0');
-        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const year = selectedDate.getFullYear();
-        const dateStr = `${day}/${month}/${year}`;
-        setForm(f => ({ ...f, [datePickerTarget]: dateStr }));
+        const parts = valStr.split('/');
+        if (parts.length === 3) {
+          const parsed = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+          if (!isNaN(parsed.getTime())) {
+            currentVal = parsed;
+          }
+        }
+      }
+    }
+    setDateObj(currentVal);
+    setShowDatePicker(true);
+  };
+
+  const applySelectedDate = (selectedDate) => {
+    if (!selectedDate) return;
+    setDateObj(selectedDate);
+    if (datePickerMode === 'time') {
+      const hh = String(selectedDate.getHours()).padStart(2, '0');
+      const mm = String(selectedDate.getMinutes()).padStart(2, '0');
+      setForm(f => ({ ...f, [datePickerTarget]: `${hh}:${mm}` }));
+    } else {
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const year = selectedDate.getFullYear();
+      const dateStr = `${day}/${month}/${year}`;
+      setForm(f => ({ ...f, [datePickerTarget]: dateStr }));
+    }
+  };
+
+  const onDateChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+      if (selectedDate && event.type !== 'dismissed') {
+        applySelectedDate(selectedDate);
+      }
+    } else {
+      if (selectedDate) {
+        setDateObj(selectedDate);
       }
     }
   };
@@ -456,7 +495,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Start Date *</Text>
-                <TouchableOpacity onPress={() => { setDatePickerTarget('startDate'); setDatePickerMode('date'); setShowDatePicker(true); }} activeOpacity={0.8}>
+                <TouchableOpacity onPress={() => openDatePicker('startDate', 'date')} activeOpacity={0.8}>
                   <View pointerEvents="none">
                     <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.startDate} editable={false} placeholder="DD/MM/YYYY" />
                   </View>
@@ -528,7 +567,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
                   <View style={styles.row}>
                     <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                       <Text style={styles.label}>Reg Start Date *</Text>
-                      <TouchableOpacity onPress={() => { setDatePickerTarget('registrationStartDate'); setDatePickerMode('date'); setShowDatePicker(true); }} activeOpacity={0.8}>
+                      <TouchableOpacity onPress={() => openDatePicker('registrationStartDate', 'date')} activeOpacity={0.8}>
                         <View pointerEvents="none">
                           <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.registrationStartDate} editable={false} placeholder="DD/MM/YYYY" />
                         </View>
@@ -536,7 +575,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
                     </View>
                     <View style={[styles.inputGroup, { flex: 1 }]}>
                       <Text style={styles.label}>Reg End Date *</Text>
-                      <TouchableOpacity onPress={() => { setDatePickerTarget('registrationEndDate'); setDatePickerMode('date'); setShowDatePicker(true); }} activeOpacity={0.8}>
+                      <TouchableOpacity onPress={() => openDatePicker('registrationEndDate', 'date')} activeOpacity={0.8}>
                         <View pointerEvents="none">
                           <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.registrationEndDate} editable={false} placeholder="DD/MM/YYYY" />
                         </View>
@@ -547,7 +586,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
                   <View style={styles.row}>
                     <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                       <Text style={styles.label}>Auction Date</Text>
-                      <TouchableOpacity onPress={() => { setDatePickerTarget('auctionDate'); setDatePickerMode('date'); setShowDatePicker(true); }} activeOpacity={0.8}>
+                      <TouchableOpacity onPress={() => openDatePicker('auctionDate', 'date')} activeOpacity={0.8}>
                         <View pointerEvents="none">
                           <TextInput style={styles.input} placeholderTextColor={offWhite} value={form.auctionDate} editable={false} placeholder="DD/MM/YYYY" />
                         </View>
@@ -555,7 +594,7 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
                     </View>
                     <View style={[styles.inputGroup, { flex: 1 }]}>
                       <Text style={styles.label}>Auction Time (Optional)</Text>
-                      <TouchableOpacity onPress={() => { setDatePickerTarget('auctionTime'); setDatePickerMode('time'); setShowDatePicker(true); }} activeOpacity={0.8}>
+                      <TouchableOpacity onPress={() => openDatePicker('auctionTime', 'time')} activeOpacity={0.8}>
                         <View pointerEvents="none">
                           <TextInput 
                             style={styles.input} 
@@ -623,20 +662,62 @@ const CustomDropdown = ({ label, value, options, onSelect }) => {
       </View>
 
       {showDatePicker && (
-        <DateTimePicker
-          value={dateObj}
-          mode={datePickerMode}
-          display="default"
-          onChange={onDateChange}
-          minimumDate={
-            datePickerMode === 'date' 
-              ? (form.tournamentType === 'Auction' && (datePickerTarget === 'registrationStartDate' || datePickerTarget === 'registrationEndDate')
-                  ? undefined 
-                  : new Date()
-                )
-              : undefined
-          }
-        />
+        Platform.OS === 'ios' ? (
+          <Modal transparent animationType="fade" visible={showDatePicker}>
+            <TouchableOpacity 
+              style={styles.dateModalOverlay} 
+              activeOpacity={1} 
+              onPress={() => setShowDatePicker(false)}
+            >
+              <View style={styles.dateModalContainer}>
+                <View style={styles.dateModalHeader}>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <Text style={styles.dateModalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.dateModalTitle}>
+                    {datePickerMode === 'time' ? 'Select Time' : 'Select Date'}
+                  </Text>
+                  <TouchableOpacity onPress={() => { applySelectedDate(dateObj); setShowDatePicker(false); }}>
+                    <Text style={styles.dateModalDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={dateObj}
+                  mode={datePickerMode}
+                  display="spinner"
+                  themeVariant={isDark ? 'dark' : 'light'}
+                  textColor={isDark ? '#FFFFFF' : '#000000'}
+                  accentColor={colors.primary}
+                  style={{ height: 216, width: '100%', backgroundColor: isDark ? colors.background : '#FFFFFF' }}
+                  onChange={onDateChange}
+                  minimumDate={
+                    datePickerMode === 'date' 
+                      ? (form.tournamentType === 'Auction' && (datePickerTarget === 'registrationStartDate' || datePickerTarget === 'registrationEndDate')
+                          ? undefined 
+                          : new Date(new Date().setHours(0,0,0,0))
+                        )
+                      : undefined
+                  }
+                />
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        ) : (
+          <DateTimePicker
+            value={dateObj}
+            mode={datePickerMode}
+            display="default"
+            onChange={onDateChange}
+            minimumDate={
+              datePickerMode === 'date' 
+                ? (form.tournamentType === 'Auction' && (datePickerTarget === 'registrationStartDate' || datePickerTarget === 'registrationEndDate')
+                    ? undefined 
+                    : new Date(new Date().setHours(0,0,0,0))
+                  )
+                : undefined
+            }
+          />
+        )
       )}
     </View>
   );
@@ -691,6 +772,44 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
 
   lookupBtn: { backgroundColor: colors.primary, height: 50, paddingHorizontal: 20, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' },
   lookupBtnText: { color: colors.textOnPrimary || '#000000', fontFamily: Typography.fontFamily.bold },
+
+  dateModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  dateModalContainer: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 30,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dateModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  dateModalTitle: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  dateModalCancelText: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  dateModalDoneText: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.primary,
+  },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: '80%', backgroundColor: colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, maxHeight: '80%' },
