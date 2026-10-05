@@ -24,7 +24,7 @@ const TOP_TABS = ['Matches', 'Tournaments', 'Teams'];
 const TOURNAMENT_FALLBACK = require('../../../assets/images/TournamentFallBack.png');
 const MATCH_SUB_TABS = ['My', 'Played', 'Network', 'Near By'];
 const TEAM_SUB_TABS = ['My', 'Opponents', 'Following'];
-const TOURNAMENT_SUB_TABS = ['My', 'Following', 'Near By'];
+const TOURNAMENT_SUB_TABS = ['My', 'Following', 'Near By', 'Search'];
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -122,6 +122,11 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: 10,
   },
+  searchContainerSearch: {
+    borderColor: colors.primary,
+    borderWidth: 1.5,
+    backgroundColor: isDark ? 'rgba(255,204,0,0.06)' : 'rgba(255,204,0,0.05)',
+  },
   searchIcon: { marginRight: 6 },
   searchInput: {
     flex: 1,
@@ -140,6 +145,27 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     marginTop: 40,
     fontSize: 14,
     fontFamily: Typography.fontFamily.medium,
+  },
+  searchEmptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    paddingTop: 60,
+  },
+  searchEmptyTitle: {
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 18,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  searchEmptySubtitle: {
+    color: colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   
   /* MATCH CARD */
@@ -488,6 +514,8 @@ const MyCricketScreen = ({ route }) => {
   const [activeTopTab, setActiveTopTab] = useState('Matches');
   const [activeSubTab, setActiveSubTab] = useState('My');
   const [searchQuery, setSearchQuery] = useState('');
+  const [tournamentSearchQuery, setTournamentSearchQuery] = useState('');
+  const tournamentSearchDebounceRef = useRef(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const dispatch = useDispatch();
@@ -535,6 +563,79 @@ const MyCricketScreen = ({ route }) => {
   const [showPosterShareModal, setShowPosterShareModal] = useState(false);
   const [isCapturingQr, setIsCapturingQr] = useState(false);
   const qrCardRef = useRef(null);
+
+  const [matchPage, setMatchPage] = useState(1);
+  const [hasMoreMatches, setHasMoreMatches] = useState(true);
+  const [isMatchPaginating, setIsMatchPaginating] = useState(false);
+
+  const [tournamentPage, setTournamentPage] = useState(1);
+  const [hasMoreTournaments, setHasMoreTournaments] = useState(true);
+  const [isTournamentPaginating, setIsTournamentPaginating] = useState(false);
+
+  const getMatchParams = (page = 1) => {
+    const params = {
+      status: activeSubTab === 'Played' ? 'completed' : (activeSubTab === 'Near By' ? undefined : 'active'),
+      filterType: activeSubTab.toLowerCase().replace(' ', ''),
+      page,
+      limit: 15,
+    };
+    if (activeSubTab === 'Near By') {
+      const userCity = myProfile?.city || user?.city || (typeof myProfile?.location === 'string' ? myProfile.location : (typeof user?.location === 'string' ? user.location : (myProfile?.location?.city || user?.location?.city)));
+      if (userCity) params.city = userCity;
+      if (myProfile?.latitude && myProfile?.longitude) {
+        params.lat = myProfile.latitude;
+        params.lng = myProfile.longitude;
+      }
+    }
+    return params;
+  };
+
+  const getTournamentParams = (page = 1, searchOverride) => {
+    const params = { page, limit: 15 };
+    if (activeSubTab === 'My') params.filterType = 'my';
+    else if (activeSubTab === 'Following') params.filterType = 'following';
+    else if (activeSubTab === 'Near By') {
+      const userCity = myProfile?.city || user?.city || (typeof myProfile?.location === 'string' ? myProfile.location : (typeof user?.location === 'string' ? user.location : (myProfile?.location?.city || user?.location?.city)));
+      if (userCity) params.city = userCity;
+      if (myProfile?.latitude && myProfile?.longitude) {
+        params.lat = myProfile.latitude;
+        params.lng = myProfile.longitude;
+      }
+    } else if (activeSubTab === 'Search') {
+      const q = searchOverride !== undefined ? searchOverride : tournamentSearchQuery;
+      if (q && q.trim()) params.search = q.trim();
+      // No filterType — search all tournaments globally
+    }
+    return params;
+  };
+
+  const handleLoadMoreMatches = () => {
+    if (!matchLoading && !isMatchPaginating && hasMoreMatches) {
+      setIsMatchPaginating(true);
+      const nextPage = matchPage + 1;
+      setMatchPage(nextPage);
+      dispatch(fetchMyMatches(getMatchParams(nextPage)))
+        .then(res => {
+          const items = res.payload?.data || res.payload || [];
+          setHasMoreMatches(items.length >= 8);
+        })
+        .finally(() => setIsMatchPaginating(false));
+    }
+  };
+
+  const handleLoadMoreTournaments = () => {
+    if (!tournamentLoading && !isTournamentPaginating && hasMoreTournaments) {
+      setIsTournamentPaginating(true);
+      const nextPage = tournamentPage + 1;
+      setTournamentPage(nextPage);
+      dispatch(fetchTournaments(getTournamentParams(nextPage)))
+        .then(res => {
+          const items = res.payload?.data || res.payload || [];
+          setHasMoreTournaments(items.length >= 8);
+        })
+        .finally(() => setIsTournamentPaginating(false));
+    }
+  };
 
   const handleOpenQrModal = (e, team) => {
     if (e && e.stopPropagation) e.stopPropagation();
@@ -587,16 +688,12 @@ const MyCricketScreen = ({ route }) => {
 
     if (isFocused) {
       if (activeTopTab === 'Matches') {
-        const params = { status: activeSubTab === 'Played' ? 'completed' : (activeSubTab === 'Near By' ? undefined : 'active'), filterType: activeSubTab.toLowerCase().replace(' ', ''), limit: 20 };
-        if (activeSubTab === 'Near By') {
-          const userCity = myProfile?.city || user?.city || (typeof myProfile?.location === 'string' ? myProfile.location : (typeof user?.location === 'string' ? user.location : (myProfile?.location?.city || user?.location?.city)));
-          if (userCity) params.city = userCity;
-          if (myProfile?.latitude && myProfile?.longitude) {
-            params.lat = myProfile.latitude;
-            params.lng = myProfile.longitude;
-          }
-        }
-        dispatch(fetchMyMatches(params));
+        setMatchPage(1);
+        setHasMoreMatches(true);
+        dispatch(fetchMyMatches(getMatchParams(1))).then(res => {
+          const items = res.payload?.data || res.payload || [];
+          setHasMoreMatches(items.length >= 8);
+        });
 
         unsubscribeScore = socketService.onScoreUpdate((data) => {
           socketService.remoteLog('MyCricketScreen', 'Score update event received', { matchId: data?.matchId || data?.match?._id, score: data?.score });
@@ -621,17 +718,12 @@ const MyCricketScreen = ({ route }) => {
         dispatch(fetchFollowingTeams());
       }
       if (activeTopTab === 'Tournaments') {
-        const params = { limit: 20 };
-        if (activeSubTab === 'My') params.filterType = 'my';
-        else if (activeSubTab === 'Following') params.filterType = 'following';
-        else if (activeSubTab === 'Near By') {
-          if (myProfile?.city) params.city = myProfile.city;
-          if (myProfile?.latitude && myProfile?.longitude) {
-            params.lat = myProfile.latitude;
-            params.lng = myProfile.longitude;
-          }
-        }
-        dispatch(fetchTournaments(params));
+        setTournamentPage(1);
+        setHasMoreTournaments(true);
+        dispatch(fetchTournaments(getTournamentParams(1))).then(res => {
+          const items = res.payload?.data || res.payload || [];
+          setHasMoreTournaments(items.length >= 8);
+        });
       }
     }
 
@@ -1085,7 +1177,6 @@ const MyCricketScreen = ({ route }) => {
   );
 
   const renderMatchesTab = () => {
-    const isListLoading = matchLoading && !refreshing;
     const matchList = (myMatches && myMatches.length > 0) ? myMatches : (matches || []);
     const sortedMatches = [...matchList].sort((a, b) => {
       const liveStatuses = ['in_progress', 'toss_done', 'innings_break', 'super_over'];
@@ -1098,6 +1189,8 @@ const MyCricketScreen = ({ route }) => {
       const dateB = new Date(b.createdAt || 0).getTime();
       return dateB - dateA;
     });
+
+    const isListLoading = matchLoading && !refreshing && sortedMatches.length === 0 && !isMatchPaginating;
 
     return (
       <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
@@ -1119,6 +1212,16 @@ const MyCricketScreen = ({ route }) => {
             renderItem={renderMatchCard}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
+            onEndReached={handleLoadMoreMatches}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              isMatchPaginating ? (
+                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={{ fontSize: 12, color: colors.textTertiary, marginTop: 4 }}>Loading more matches…</Text>
+                </View>
+              ) : null
+            }
             ListEmptyComponent={<Text style={styles.emptyText}>No matches found</Text>}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
           />
@@ -1127,10 +1230,24 @@ const MyCricketScreen = ({ route }) => {
     );
   };
 
+  const handleTournamentSearchChange = (text) => {
+    setTournamentSearchQuery(text);
+    if (tournamentSearchDebounceRef.current) clearTimeout(tournamentSearchDebounceRef.current);
+    tournamentSearchDebounceRef.current = setTimeout(() => {
+      setTournamentPage(1);
+      setHasMoreTournaments(true);
+      dispatch(fetchTournaments(getTournamentParams(1, text))).then(res => {
+        const items = res.payload?.data || res.payload || [];
+        setHasMoreTournaments(items.length >= 8);
+      });
+    }, 400);
+  };
+
   const renderTournamentsTab = () => {
-    const isListLoading = tournamentLoading && !refreshing;
+    const isSearchTab = activeSubTab === 'Search';
+
     const sortedTournaments = [...(tournaments || [])]
-      .filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter(t => !isSearchTab ? t.name.toLowerCase().includes(searchQuery.toLowerCase()) : true)
       .sort((a, b) => {
         const aLive = ['ongoing', 'live', 'registration_open'].includes(a.status);
         const bLive = ['ongoing', 'live', 'registration_open'].includes(b.status);
@@ -1142,6 +1259,8 @@ const MyCricketScreen = ({ route }) => {
         return dateB - dateA;
       });
 
+    const isListLoading = tournamentLoading && !refreshing && sortedTournaments.length === 0 && !isTournamentPaginating;
+
     return (
       <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
         <View style={styles.actionHeader}>
@@ -1151,17 +1270,50 @@ const MyCricketScreen = ({ route }) => {
           </TouchableOpacity>
         </View>
         {renderSubTabBar(TOURNAMENT_SUB_TABS)}
-        <View style={styles.searchContainer}>
-          <Icon name="magnify" size={20} color={colors.textTertiary} style={styles.searchIcon} />
-          <TextInput 
-            style={styles.searchInput}
-            placeholder="Search by name"
-            placeholderTextColor={colors.textTertiary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-        {isListLoading ? (
+
+        {isSearchTab ? (
+          // Dedicated global search input for the Search tab
+          <View style={[styles.searchContainer, styles.searchContainerSearch]}>
+            <Icon name="magnify" size={20} color={colors.primary} style={styles.searchIcon} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.textPrimary }]}
+              placeholder="Search all tournaments by name…"
+              placeholderTextColor={colors.textTertiary}
+              value={tournamentSearchQuery}
+              onChangeText={handleTournamentSearchChange}
+              autoFocus={false}
+              returnKeyType="search"
+            />
+            {tournamentSearchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => { setTournamentSearchQuery(''); dispatch(fetchTournaments(getTournamentParams(1, ''))); }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Icon name="close-circle" size={18} color={colors.textTertiary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          // Quick local-filter search for My / Following / Near By
+          <View style={styles.searchContainer}>
+            <Icon name="magnify" size={20} color={colors.textTertiary} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by name"
+              placeholderTextColor={colors.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        )}
+
+        {isSearchTab && !tournamentSearchQuery.trim() ? (
+          <View style={styles.searchEmptyState}>
+            <Icon name="magnify" size={48} color={colors.primaryAlpha30 || colors.border} />
+            <Text style={styles.searchEmptyTitle}>Search Tournaments</Text>
+            <Text style={styles.searchEmptySubtitle}>Type a tournament name to find it anywhere in the app</Text>
+          </View>
+        ) : isListLoading ? (
           <View style={styles.listContainer}>
             {[1, 2].map(i => <React.Fragment key={i}>{renderTournamentSkeleton()}</React.Fragment>)}
           </View>
@@ -1172,7 +1324,21 @@ const MyCricketScreen = ({ route }) => {
             renderItem={renderTournamentCard}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={<Text style={styles.emptyText}>No tournaments found</Text>}
+            onEndReached={handleLoadMoreTournaments}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              isTournamentPaginating ? (
+                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={{ fontSize: 12, color: colors.textTertiary, marginTop: 4 }}>Loading more tournaments…</Text>
+                </View>
+              ) : null
+            }
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>
+                {isSearchTab ? `No tournaments found for "${tournamentSearchQuery}"` : 'No tournaments found'}
+              </Text>
+            }
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
           />
         )}
@@ -1181,8 +1347,8 @@ const MyCricketScreen = ({ route }) => {
   };
 
   const renderTeamsTab = () => {
-    const isListLoading = (teamLoading || opponentsLoading || followingLoading) && !refreshing;
     const teamData = activeSubTab === 'My' ? myTeams : activeSubTab === 'Opponents' ? opponentTeams : followingTeams || [];
+    const isListLoading = (teamLoading || opponentsLoading || followingLoading) && !refreshing && teamData.length === 0;
     return (
       <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
         <View style={styles.actionHeader}>

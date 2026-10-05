@@ -15,7 +15,7 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../../components/common/CustomDateTimePicker';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Svg, { Circle } from 'react-native-svg';
 import LinearGradient from '../../../components/SolidGradient';
@@ -1078,43 +1078,41 @@ const SlotPickerScreen = ({ route, navigation }) => {
       )}
 
       {/* Native Platform Time Pickers */}
-      {showNativeFromPicker && (
-        <DateTimePicker
-          value={filterFromTime ? moment(filterFromTime, 'HH:mm').toDate() : new Date()}
-          mode="time"
-          is24Hour={false}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, date) => {
-            setShowNativeFromPicker(false);
-            if (event.type === 'set' && date) {
-              const formattedTime = moment(date).format('HH:mm');
-              setFilterFromTime(formattedTime);
-              if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
-                setSelectedIntervalMode('30');
-              }
+      <CustomDateTimePicker
+        visible={showNativeFromPicker}
+        value={filterFromTime ? moment(filterFromTime, 'HH:mm').toDate() : new Date()}
+        mode="time"
+        is24Hour={false}
+        onConfirm={(date) => {
+          if (date) {
+            const formattedTime = moment(date).format('HH:mm');
+            setFilterFromTime(formattedTime);
+            if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
+              setSelectedIntervalMode('30');
             }
-          }}
-        />
-      )}
+          }
+        }}
+        onCancel={() => setShowNativeFromPicker(false)}
+        onClose={() => setShowNativeFromPicker(false)}
+      />
 
-      {showNativeToPicker && (
-        <DateTimePicker
-          value={filterToTime ? moment(filterToTime, 'HH:mm').toDate() : new Date()}
-          mode="time"
-          is24Hour={false}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, date) => {
-            setShowNativeToPicker(false);
-            if (event.type === 'set' && date) {
-              const formattedTime = moment(date).format('HH:mm');
-              setFilterToTime(formattedTime);
-              if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
-                setSelectedIntervalMode('30');
-              }
+      <CustomDateTimePicker
+        visible={showNativeToPicker}
+        value={filterToTime ? moment(filterToTime, 'HH:mm').toDate() : new Date()}
+        mode="time"
+        is24Hour={false}
+        onConfirm={(date) => {
+          if (date) {
+            const formattedTime = moment(date).format('HH:mm');
+            setFilterToTime(formattedTime);
+            if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
+              setSelectedIntervalMode('30');
             }
-          }}
-        />
-      )}
+          }
+        }}
+        onCancel={() => setShowNativeToPicker(false)}
+        onClose={() => setShowNativeToPicker(false)}
+      />
 
       {/* Bulk Booking Time Selection Modal */}
       {(activePicker === 'startTime' || activePicker === 'endTime') && (

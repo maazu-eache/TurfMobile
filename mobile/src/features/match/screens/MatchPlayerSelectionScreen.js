@@ -24,6 +24,7 @@ import socketService from '../../../services/socketService';
 import api, { getImageUrl } from '../../../api/axios';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
+import EditTossModal from '../components/EditTossModal';
 
 const MatchPlayerSelectionScreen = () => {
   const { colors, shadows, isDark } = useTheme();
@@ -52,6 +53,7 @@ const MatchPlayerSelectionScreen = () => {
 
   // Settings & Scorer states
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showEditTossModal, setShowEditTossModal] = useState(false);
   const [showAddScorerModal, setShowAddScorerModal] = useState(false);
   const [newScorerMobile, setNewScorerMobile] = useState('');
   const [scorerSearchResult, setScorerSearchResult] = useState(null);
@@ -417,7 +419,9 @@ const MatchPlayerSelectionScreen = () => {
   const handleSettingsAction = async (action) => {
     setShowSettingsModal(false);
 
-    if (action === 'add_scorer') {
+    if (action === 'edit_toss') {
+      setShowEditTossModal(true);
+    } else if (action === 'add_scorer') {
       setShowAddScorerModal(true);
     } else if (action === 'revise_overs') {
       setRevisedOvers(String(match?.overs || ''));
@@ -532,6 +536,28 @@ const MatchPlayerSelectionScreen = () => {
   const isCreator = String(creatorId) === String(user?._id);
   const isMatchActive = !['completed', 'abandoned'].includes(liveState?.match?.status);
 
+  const isBeforeFirstBall = useMemo(() => {
+    const status = liveState?.match?.status;
+    if (['scheduled', 'toss_done'].includes(status)) return true;
+    const inn = liveState?.inningsNumber || liveState?.match?.currentInnings || 1;
+    if (inn > 1) return false;
+    const totalBalls = liveState?.score?.totalBalls !== undefined ? liveState.score.totalBalls : 0;
+    const oversStr = String(liveState?.score?.overs || '0.0');
+    return totalBalls === 0 && (oversStr === '0.0' || oversStr === '0');
+  }, [liveState?.match?.status, liveState?.inningsNumber, liveState?.match?.currentInnings, liveState?.score?.totalBalls, liveState?.score?.overs]);
+
+  const tossSummaryText = useMemo(() => {
+    const m = liveState?.match;
+    if (!m?.toss?.winner) return null;
+    const winnerId = String(typeof m.toss.winner === 'object' ? (m.toss.winner._id || m.toss.winner.id) : m.toss.winner);
+    const teamAId = String(m.teamA?._id || m.teamA?.id || m.teamA || '');
+    const winnerName = typeof m.toss.winner === 'object' && m.toss.winner.name
+      ? m.toss.winner.name
+      : (winnerId === teamAId ? m.teamA?.name : m.teamB?.name);
+    if (!winnerName) return null;
+    return `${winnerName} won toss & elected to ${m.toss.choice || 'bat'}`;
+  }, [liveState?.match]);
+
   return (
     <View style={[styles.safe, { paddingTop: safeTop }]}>
       {submitting && (
@@ -628,6 +654,26 @@ const MatchPlayerSelectionScreen = () => {
                 ? 'Select the new batter(s) to continue scoring.'
                 : 'Choose your opening batters and opening bowler.'}
             </Text>
+          </View>
+        )}
+
+        {/* Toss info & Edit button before first ball */}
+        {isBeforeFirstBall && (
+          <View style={styles.tossBanner}>
+            <View style={styles.tossBannerLeft}>
+              <Icon name="hand-coin" size={16} color={colors.primary} />
+              <Text style={styles.tossBannerText} numberOfLines={1}>
+                {tossSummaryText || 'Toss completed'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.tossBannerEditBtn}
+              onPress={() => setShowEditTossModal(true)}
+              activeOpacity={0.8}
+            >
+              <Icon name="pencil" size={12} color="#000" />
+              <Text style={styles.tossBannerEditBtnText}>Edit Toss</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1022,6 +1068,23 @@ const MatchPlayerSelectionScreen = () => {
                 {/* MATCH MANAGEMENT SECTION */}
                 <Text style={styles.sidebarSectionTitle}>Match Management</Text>
 
+                {isBeforeFirstBall && (
+                  <TouchableOpacity
+                    style={styles.sidebarCard}
+                    activeOpacity={0.7}
+                    onPress={() => handleSettingsAction('edit_toss')}
+                  >
+                    <View style={[styles.sidebarCardIconBox, { backgroundColor: `${colors.primary}20` }]}>
+                      <Icon name="hand-coin" size={20} color={colors.primary} />
+                    </View>
+                    <View style={styles.sidebarCardBody}>
+                      <Text style={styles.sidebarCardTitle}>Edit Toss Details</Text>
+                      <Text style={styles.sidebarCardDesc}>Change toss winner & decision (before 1st ball)</Text>
+                    </View>
+                    <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+
                 {isCreator && isMatchActive ? (
                   <TouchableOpacity
                     style={styles.sidebarCard}
@@ -1356,6 +1419,31 @@ const MatchPlayerSelectionScreen = () => {
           </View>
         </Modal>
       ) : null}
+
+      {/* Edit Toss Modal */}
+      <EditTossModal
+        visible={showEditTossModal}
+        onClose={() => setShowEditTossModal(false)}
+        match={liveState?.match || match}
+        onTossChanged={async () => {
+          setSelectedStriker(null);
+          setSelectedNonStriker(null);
+          setSelectedBowler(null);
+          setBattingTeamRoster([]);
+          setBowlingTeamRoster([]);
+          initializedRef.current = false;
+          try {
+            const res = await dispatch(fetchLiveState(matchId)).unwrap();
+            if (res?.match) {
+              const isTeamABat = res.battingTeam === res.match?.teamA?._id;
+              const bTeam = isTeamABat ? res.match.teamA : res.match.teamB;
+              const fTeam = isTeamABat ? res.match.teamB : res.match.teamA;
+              if (bTeam?._id) fetchTeam(bTeam._id, setBattingTeamRoster);
+              if (fTeam?._id) fetchTeam(fTeam._id, setBowlingTeamRoster);
+            }
+          } catch (_) {}
+        }}
+      />
     </View>
   );
 };
@@ -1408,6 +1496,45 @@ const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => S
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
     color: colors.textSecondary,
+  },
+  tossBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: `${colors.primary}14`,
+    borderColor: `${colors.primary}35`,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: Spacing.md,
+  },
+  tossBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    marginRight: 8,
+  },
+  tossBannerText: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    flex: 1,
+  },
+  tossBannerEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  tossBannerEditBtnText: {
+    color: '#000',
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
   },
   sectionLabelRow: {
     flexDirection: 'row',

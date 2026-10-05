@@ -286,7 +286,7 @@ const TournamentLeaderboard = ({ tournament, onShare }) => {
         ))}
       </View>
 
-      {onShare && (
+      {onShare && data.length > 0 && (
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.md, paddingTop: 12, paddingBottom: 16 }}>
           <TouchableOpacity
             style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(154,188,47,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}

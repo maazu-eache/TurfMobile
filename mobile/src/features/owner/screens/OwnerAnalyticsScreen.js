@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../../components/common/CustomDateTimePicker';
 import { Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { useTheme } from '../../../theme/ThemeContext';
 import { fetchOwnerAnalytics } from '../ownerSlice';
@@ -225,8 +225,9 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
   const fetchAnalytics = () => {
     let params = { range: dateRange, turfId: selectedTurfId };
     if (dateRange === 'custom') {
-      params.startDate = customStart.toISOString().split('T')[0];
-      params.endDate = customEnd.toISOString().split('T')[0];
+      const formatYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (customStart) params.startDate = formatYMD(customStart);
+      if (customEnd) params.endDate = formatYMD(customEnd);
     }
     dispatch(fetchOwnerAnalytics(params));
   };
@@ -452,21 +453,19 @@ const OwnerAnalyticsScreen = ({ navigation }) => {
         </ScrollView>
       )}
 
-      {showPicker && (
-        <DateTimePicker
-          value={showPicker === 'start' ? customStart : customEnd}
-          mode="date"
-          display="default"
-          onChange={(event, selectedDate) => {
-            const current = showPicker;
-            setShowPicker(Platform.OS === 'ios' ? current : null);
-            if (selectedDate) {
-              if (current === 'start') setCustomStart(selectedDate);
-              else setCustomEnd(selectedDate);
-            }
-          }}
-        />
-      )}
+      <CustomDateTimePicker
+        visible={Boolean(showPicker)}
+        mode="date"
+        value={showPicker === 'start' ? customStart : customEnd}
+        onConfirm={(selectedDate) => {
+          if (selectedDate) {
+            if (showPicker === 'start') setCustomStart(selectedDate);
+            else setCustomEnd(selectedDate);
+          }
+        }}
+        onCancel={() => setShowPicker(null)}
+        onClose={() => setShowPicker(null)}
+      />
 
       <Modal visible={turfModalVisible} transparent animationType="slide">
         <View style={ss.modalOverlay}>

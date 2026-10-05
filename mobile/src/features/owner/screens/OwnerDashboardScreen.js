@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -10,7 +10,7 @@ import NativeLinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchOwnerDashboard } from '../ownerSlice';
-import { logout } from '../../auth/authSlice';
+import { logout, logoutLocal } from '../../auth/authSlice';
 import { Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { useTheme } from '../../../theme/ThemeContext';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
@@ -83,6 +83,7 @@ const OwnerDashboardScreen = ({ navigation }) => {
   const turfStatusMap = useMemo(() => getTurfStatus(colors), [colors]);
 
   const [isSidebarVisible, setSidebarVisible] = useState(false);
+  const pendingActionRef = useRef(null);
   const { dashboard, isLoading } = useSelector((s) => s.owner);
   const { user } = useSelector((s) => s.auth);
   const [revenueTab, setRevenueTab] = useState('revenue');
@@ -98,42 +99,13 @@ const OwnerDashboardScreen = ({ navigation }) => {
   const onRefresh = () => dispatch(fetchOwnerDashboard());
 
   const handleDeleteAccount = () => {
+    pendingActionRef.current = 'deleteAccount';
     setSidebarVisible(false);
-    setTimeout(() => {
-      showCustomAlert(
-        "Delete Account",
-        "⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nAre you absolutely sure you want to delete your account? All your turfs, slots, and transaction history will be permanently erased. You cannot delete your account if you have upcoming bookings.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete My Account",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await api.delete('/users/delete-account');
-                showCustomAlert(
-                  "Account Deleted",
-                  "Your account has been permanently deleted.",
-                  [{ text: "OK", onPress: () => dispatch(logout()) }]
-                );
-              } catch (err) {
-                showCustomAlert("Error", err.response?.data?.message || "Failed to delete account");
-              }
-            }
-          }
-        ]
-      );
-    }, 300);
   };
 
   const handleLogout = () => {
+    pendingActionRef.current = 'logout';
     setSidebarVisible(false);
-    setTimeout(() => {
-      showCustomAlert('Confirm Logout', 'Are you sure you want to log out?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', onPress: () => dispatch(logout()), style: 'destructive' },
-      ]);
-    }, 300);
   };
 
   // ── Skeleton ──────────────────────────────────────────────────────────────
@@ -504,6 +476,47 @@ const OwnerDashboardScreen = ({ navigation }) => {
         isVisible={isSidebarVisible}
         onBackdropPress={() => setSidebarVisible(false)}
         onSwipeComplete={() => setSidebarVisible(false)}
+        onModalHide={() => {
+          if (pendingActionRef.current === 'logout') {
+            pendingActionRef.current = null;
+            showCustomAlert('Confirm Logout', 'Are you sure you want to log out?', [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Logout', 
+                style: 'destructive',
+                onPress: () => {
+                  dispatch(logoutLocal());
+                  dispatch(logout());
+                } 
+              },
+            ]);
+          } else if (pendingActionRef.current === 'deleteAccount') {
+            pendingActionRef.current = null;
+            showCustomAlert(
+              "Delete Account",
+              "⚠️ WARNING: THIS ACTION CANNOT BE RESTORED OR UNDONE!\n\nAre you absolutely sure you want to delete your account? All your turfs, slots, and transaction history will be permanently erased. You cannot delete your account if you have upcoming bookings.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete My Account",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      await api.delete('/users/delete-account');
+                      showCustomAlert(
+                        "Account Deleted",
+                        "Your account has been permanently deleted.",
+                        [{ text: "OK", onPress: () => dispatch(logout()) }]
+                      );
+                    } catch (err) {
+                      showCustomAlert("Error", err.response?.data?.message || "Failed to delete account");
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        }}
         swipeDirection="left"
         animationIn="slideInLeft"
         animationOut="slideOutLeft"

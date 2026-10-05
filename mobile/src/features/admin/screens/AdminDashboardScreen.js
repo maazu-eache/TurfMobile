@@ -353,6 +353,36 @@ const AdminDashboardScreen = ({ navigation }) => {
     );
   };
 
+  const handleSoftDeleteTurf = async (turfId, turfName) => {
+    try {
+      await api.put(`/admin/turfs/${turfId}/soft-delete`);
+      showCustomAlert('Success', `Turf "${turfName || 'Selected'}" soft-deleted successfully.`);
+      fetchData();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to soft delete turf');
+    }
+  };
+
+  const handleRestoreTurf = async (turfId, turfName) => {
+    try {
+      await api.put(`/admin/turfs/${turfId}/restore`);
+      showCustomAlert('Success', `Turf "${turfName || 'Selected'}" restored to active status.`);
+      fetchData();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to restore turf');
+    }
+  };
+
+  const handleHardDeleteTurf = async (turfId, turfName) => {
+    try {
+      await api.delete(`/admin/turfs/${turfId}/hard-delete`);
+      showCustomAlert('Success', `Turf "${turfName || 'Selected'}" permanently deleted from database.`);
+      fetchData();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to hard delete turf');
+    }
+  };
+
   const handleDeleteTurf = async (turfId) => {
     try {
       await api.delete(`/admin/turfs/${turfId}`);
@@ -586,10 +616,20 @@ const AdminDashboardScreen = ({ navigation }) => {
                       </Text>
                     ) : null}
                   </View>
-                  {turf.status ? (
-                    <View style={[styles.turfStatusChip, turf.status === 'active' || turf.isVerified ? styles.turfStatusActive : styles.turfStatusPending]}>
-                      <Text style={[styles.turfStatusText, turf.status === 'active' || turf.isVerified ? { color: Colors.success } : { color: '#FF9800' }]}>
-                        {turf.status?.toUpperCase() || (turf.isVerified ? 'VERIFIED' : 'PENDING')}
+                  {turf.status || turf.isDeleted ? (
+                    <View style={[
+                      styles.turfStatusChip,
+                      turf.isDeleted
+                        ? { backgroundColor: 'rgba(244,67,54,0.18)', borderColor: '#F44336' }
+                        : (turf.status === 'active' || turf.isVerified ? styles.turfStatusActive : styles.turfStatusPending)
+                    ]}>
+                      <Text style={[
+                        styles.turfStatusText,
+                        turf.isDeleted
+                          ? { color: '#F44336' }
+                          : (turf.status === 'active' || turf.isVerified ? { color: Colors.success } : { color: '#FF9800' })
+                      ]}>
+                        {turf.isDeleted ? 'DELETED' : (turf.status?.toUpperCase() || (turf.isVerified ? 'VERIFIED' : 'PENDING'))}
                       </Text>
                     </View>
                   ) : null}
@@ -843,13 +883,14 @@ const AdminDashboardScreen = ({ navigation }) => {
   };
 
   const renderTurfCard = ({ item }) => {
-    const isActive   = item.status === 'active';
-    const isSuspend  = item.status === 'suspended';
-    const isPending  = item.status === 'pending';
-    const statusColor = isActive ? Colors.primary : isSuspend ? Colors.error : '#FF9800';
-    const statusBg    = isActive ? Colors.primaryAlpha20 : isSuspend ? 'rgba(244,67,54,0.15)' : 'rgba(255,152,0,0.15)';
-    const statusIcon  = isActive ? 'check-circle' : isSuspend ? 'alert-circle' : 'clock-outline';
-    const statusLabel = item.status.toUpperCase();
+    const isDeleted  = item.isDeleted === true || item.status === 'deleted';
+    const isActive   = !isDeleted && item.status === 'active';
+    const isSuspend  = !isDeleted && item.status === 'suspended';
+    const isPending  = !isDeleted && item.status === 'pending';
+    const statusColor = isDeleted ? Colors.error : isActive ? Colors.primary : isSuspend ? Colors.error : '#FF9800';
+    const statusBg    = isDeleted ? 'rgba(244,67,54,0.25)' : isActive ? Colors.primaryAlpha20 : isSuspend ? 'rgba(244,67,54,0.15)' : 'rgba(255,152,0,0.15)';
+    const statusIcon  = isDeleted ? 'trash-can-outline' : isActive ? 'check-circle' : isSuspend ? 'alert-circle' : 'clock-outline';
+    const statusLabel = isDeleted ? 'DELETED' : item.status.toUpperCase();
 
     const priceStr = item.pricing?.weekdayDay > 0 ? `₹${item.pricing.weekdayDay}/hr` : null;
     const ownerName = item.owner?.businessName || item.owner?.userId?.name || 'Owner';
@@ -991,8 +1032,16 @@ const AdminDashboardScreen = ({ navigation }) => {
             </View>
           )}
 
+          {/* Soft-deleted banner */}
+          {isDeleted && (
+            <View style={styles.turfDeletedBanner}>
+              <Icon name="alert-octagon" size={14} color={Colors.error} />
+              <Text style={styles.turfDeletedText}>SOFT-DELETED TURF (Hidden from App & Search)</Text>
+            </View>
+          )}
+
           {/* Deletion request banner */}
-          {item.deletionRequested && (
+          {item.deletionRequested && !isDeleted && (
             <View style={styles.turfDeletionBanner}>
               <Icon name="alert-decagram-outline" size={13} color={Colors.error} />
               <Text style={styles.turfDeletionText}>Deletion Requested by Owner</Text>
@@ -1001,7 +1050,7 @@ const AdminDashboardScreen = ({ navigation }) => {
 
           {/* Action buttons */}
           <View style={styles.turfActionsRow}>
-            {item.deletionRequested && (
+            {item.deletionRequested && !isDeleted && (
               <>
                 <TouchableOpacity
                   style={[styles.turfActionBtn, styles.turfActionBtnGhost]}
@@ -1021,10 +1070,11 @@ const AdminDashboardScreen = ({ navigation }) => {
                   style={[styles.turfActionBtn, styles.turfActionBtnDanger]}
                   onPress={() => showCustomAlert(
                     'Approve Deletion',
-                    'Permanently delete this turf, its slots, and bookings?',
+                    'Choose deletion type for this turf:',
                     [
                       { text: 'Cancel', style: 'cancel' },
-                      { text: 'Delete', style: 'destructive', onPress: () => handleDeleteTurf(item._id) }
+                      { text: 'Soft Delete', onPress: () => handleSoftDeleteTurf(item._id, item.name) },
+                      { text: 'Hard Delete', style: 'destructive', onPress: () => handleHardDeleteTurf(item._id, item.name) }
                     ]
                   )}
                 >
@@ -1034,32 +1084,97 @@ const AdminDashboardScreen = ({ navigation }) => {
               </>
             )}
 
-            <TouchableOpacity
-              style={[
-                styles.turfActionBtn,
-                isActive ? styles.turfActionBtnDanger : styles.turfActionBtnPrimary,
-              ]}
-              onPress={() => {
-                const actionName = isActive ? 'Suspend' : 'Activate';
-                showCustomAlert(
-                  `Confirm ${actionName}`,
-                  `Are you sure you want to ${actionName.toLowerCase()} this turf?`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: actionName, onPress: () => handleToggleStatus(item._id) }
-                  ]
-                );
-              }}
-            >
-              <Icon
-                name={isActive ? 'pause-circle-outline' : 'play-circle-outline'}
-                size={13}
-                color={isActive ? Colors.error : Colors.primary}
-              />
-              <Text style={[styles.turfActionBtnText, { color: isActive ? Colors.error : Colors.primary }]}>
-                {isActive ? 'Suspend' : 'Activate'}
-              </Text>
-            </TouchableOpacity>
+            {isDeleted ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.turfActionBtn, styles.turfActionBtnPrimary]}
+                  onPress={() => showCustomAlert(
+                    'Restore Turf',
+                    `Restore "${item.name}" back to active status?`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Restore', onPress: () => handleRestoreTurf(item._id, item.name) }
+                    ]
+                  )}
+                >
+                  <Icon name="refresh" size={13} color={Colors.primary} />
+                  <Text style={[styles.turfActionBtnText, { color: Colors.primary }]}>Restore</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.turfActionBtn, styles.turfActionBtnDanger]}
+                  onPress={() => showCustomAlert(
+                    'Permanent Hard Delete',
+                    `PERMANENTLY delete "${item.name}" and all associated data from MongoDB database? This cannot be undone.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'HARD DELETE', style: 'destructive', onPress: () => handleHardDeleteTurf(item._id, item.name) }
+                    ]
+                  )}
+                >
+                  <Icon name="trash-can-outline" size={13} color={Colors.error} />
+                  <Text style={[styles.turfActionBtnText, { color: Colors.error }]}>Hard Delete</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.turfActionBtn, styles.turfActionBtnDanger]}
+                  onPress={() => showCustomAlert(
+                    'Soft Delete Turf',
+                    `Soft-delete "${item.name}"? It will be hidden from public app and search, but past booking history will be preserved.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Soft Delete', style: 'destructive', onPress: () => handleSoftDeleteTurf(item._id, item.name) }
+                    ]
+                  )}
+                >
+                  <Icon name="delete-outline" size={13} color={Colors.error} />
+                  <Text style={[styles.turfActionBtnText, { color: Colors.error }]}>Soft Delete</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.turfActionBtn, styles.turfActionBtnDanger]}
+                  onPress={() => showCustomAlert(
+                    'Permanent Hard Delete',
+                    `PERMANENTLY delete "${item.name}" and all slots/bookings from database? This action is IRREVERSIBLE.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'HARD DELETE', style: 'destructive', onPress: () => handleHardDeleteTurf(item._id, item.name) }
+                    ]
+                  )}
+                >
+                  <Icon name="trash-can-outline" size={13} color={Colors.error} />
+                  <Text style={[styles.turfActionBtnText, { color: Colors.error }]}>Hard Delete</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.turfActionBtn,
+                    isActive ? styles.turfActionBtnDanger : styles.turfActionBtnPrimary,
+                  ]}
+                  onPress={() => {
+                    const actionName = isActive ? 'Suspend' : 'Activate';
+                    showCustomAlert(
+                      `Confirm ${actionName}`,
+                      `Are you sure you want to ${actionName.toLowerCase()} this turf?`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: actionName, onPress: () => handleToggleStatus(item._id) }
+                      ]
+                    );
+                  }}
+                >
+                  <Icon
+                    name={isActive ? 'pause-circle-outline' : 'play-circle-outline'}
+                    size={13}
+                    color={isActive ? Colors.error : Colors.primary}
+                  />
+                  <Text style={[styles.turfActionBtnText, { color: isActive ? Colors.error : Colors.primary }]}>
+                    {isActive ? 'Suspend' : 'Activate'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </TouchableOpacity>
@@ -2405,7 +2520,7 @@ const AdminDashboardScreen = ({ navigation }) => {
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.dropdownItemText, isSelected && styles.dropdownItemTextActive]} numberOfLines={1}>
-                            {t?.name || 'Turf'}
+                            {t?.name || 'Turf'}{t?.isDeleted ? ' (Deleted)' : ''}
                           </Text>
                           {t?.city ? <Text style={styles.dropdownItemSubText} numberOfLines={1}>{t.city}</Text> : null}
                         </View>
@@ -3107,6 +3222,14 @@ const createStyles = (colors, isDark, shadows) => StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6,
     marginBottom: Spacing.sm,
   },
+  turfDeletedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(244,67,54,0.15)',
+    borderRadius: 8, borderWidth: 1, borderColor: '#F44336',
+    paddingHorizontal: 10, paddingVertical: 6,
+    marginBottom: Spacing.sm,
+  },
+  turfDeletedText: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: '#F44336' },
   turfDeletionText: { fontSize: 12, fontFamily: Typography.fontFamily.bold, color: Colors.error },
   turfActionsRow: {
     flexDirection: 'row',

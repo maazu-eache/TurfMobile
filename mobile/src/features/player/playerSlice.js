@@ -93,14 +93,23 @@ const playerSlice = createSlice({
       .addCase(fetchMyPlayer.fulfilled, (state, a) => { state.myProfile = a.payload; })
       .addCase(updatePlayerProfile.fulfilled, (state, a) => { state.myProfile = a.payload; })
       .addCase(fetchPlayerById.fulfilled, (state, a) => { state.viewedPlayer = a.payload; })
+      .addCase(fetchRankings.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(fetchRankings.fulfilled, (state, a) => {
-        if (a.meta.arg.page > 1) {
+        state.isLoading = false;
+        if (a.meta.arg?.page > 1) {
           const existingIds = new Set(state.rankings.map(t => t._id));
           const newItems = (a.payload.data || []).filter(t => !existingIds.has(t._id));
           state.rankings = [...state.rankings, ...newItems];
         } else {
           state.rankings = a.payload.data || [];
         }
+      })
+      .addCase(fetchRankings.rejected, (state, a) => {
+        state.isLoading = false;
+        state.error = a.payload;
       })
       .addCase(fetchMatchHistory.fulfilled, (state, a) => { state.matchHistory = a.payload || []; })
       .addCase(fetchPlayerAchievements.fulfilled, (state, a) => { state.achievements = a.payload || []; })

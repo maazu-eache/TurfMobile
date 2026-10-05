@@ -17,7 +17,7 @@ import { useTheme } from '../../../theme/ThemeContext';
 import api from '../../../api/axios';
 import { formatISTTime } from '../../../utils/dateFormatter';
 import { showCustomAlert } from '../../../components/CustomAlert';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../../components/common/CustomDateTimePicker';
 import moment from 'moment';
 import Tts from 'react-native-tts';
 import Voice from '@react-native-voice/voice';
@@ -209,6 +209,249 @@ const SlotManagerScreen = ({ navigation, route }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(moment().startOf('month'));
   const [activePicker, setActivePicker] = useState('none'); 
+
+  const renderTimePickerOverlay = () => {
+    if (!(activePicker === 'slotTime' || activePicker === 'startTime' || activePicker === 'endTime')) return null;
+    return (
+      <View 
+        style={{
+          position: 'absolute',
+          top: -200,
+          left: -200,
+          right: -200,
+          bottom: -200,
+          backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.6)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 999999,
+          elevation: 999999,
+        }}
+      >
+        <TouchableOpacity 
+          style={StyleSheet.absoluteFillObject} 
+          activeOpacity={1} 
+          onPress={() => setActivePicker('none')} 
+        />
+        <View style={[styles.modalContent, { width: '90%', maxWidth: 420, maxHeight: '85%', height: '85%', paddingBottom: 14, zIndex: 10 }]}>
+          <View style={styles.modalHeaderTitle}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modalTitle}>Select Slot Timings</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>
+                Tap multiple slots to select / unselect
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <TouchableOpacity onPress={selectAllSlotsInTab} style={{ backgroundColor: isDark ? '#262626' : '#E5E7EB', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6 }}>
+                <Text style={{ fontSize: 10.5, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark }}>
+                  Select All
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setActivePicker('none')} style={styles.modalClose}>
+                <Icon name="close" size={18} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Tab Switcher: 1 Hour vs 30 Mins */}
+          <View style={{ flexDirection: 'row', backgroundColor: isDark ? '#262626' : '#E5E7EB', borderRadius: 10, padding: 3, marginVertical: 8 }}>
+            <TouchableOpacity
+              style={[{ flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8 }, timePickerTab === '60' && { backgroundColor: '#FFD400' }]}
+              onPress={() => setTimePickerTab('60')}
+              activeOpacity={0.8}
+            >
+              <Text style={[{ fontSize: 11.5, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }, timePickerTab === '60' && { color: '#000' }]}>
+                1 Hour Slots
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[{ flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8 }, timePickerTab === '30' && { backgroundColor: '#FFD400' }]}
+              onPress={() => setTimePickerTab('30')}
+              activeOpacity={0.8}
+            >
+              <Text style={[{ fontSize: 11.5, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }, timePickerTab === '30' && { color: '#000' }]}>
+                30 Mins Slots
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={{ paddingBottom: 10 }} showsVerticalScrollIndicator={true}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'space-between' }}>
+              {(timePickerTab === '60' ? ONE_HOUR_SLOTS : THIRTY_MIN_SLOTS).map((slot) => {
+                const isSelected = (bulkData.selectedTimeSlots || []).some(
+                  s => s.startTime === slot.startTime && s.endTime === slot.endTime
+                );
+                return (
+                  <TouchableOpacity
+                    key={`${slot.startTime}-${slot.endTime}`}
+                    style={[
+                      {
+                        width: '48.8%',
+                        backgroundColor: isDark ? '#1F1F1F' : '#F8F9FA',
+                        borderRadius: 10,
+                        paddingVertical: 10,
+                        paddingHorizontal: 6,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        borderWidth: 1.5,
+                        borderColor: isSelected ? '#FFD400' : (isDark ? '#2E2E2E' : '#E5E7EB')
+                      },
+                      isSelected && { backgroundColor: isDark ? 'rgba(255,212,0,0.18)' : '#FFF9DB', borderColor: '#FFD400' }
+                    ]}
+                    onPress={() => toggleSlotTimeSelection(slot)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon 
+                      name={isSelected ? "check-circle" : "circle-outline"} 
+                      size={13} 
+                      color={isSelected ? (isDark ? '#FFD400' : '#D97706') : colors.textTertiary} 
+                    />
+                    <Text 
+                      style={[
+                        { 
+                          fontSize: 10, 
+                          fontFamily: isSelected ? Typography.fontFamily.bold : Typography.fontFamily.medium, 
+                          color: isSelected ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textPrimary,
+                          textAlign: 'center'
+                        }
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {slot.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          {/* Bottom Done Button */}
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#FFD400',
+              borderRadius: 12,
+              paddingVertical: 12,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginTop: 6
+            }}
+            onPress={() => setActivePicker('none')}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#000' }}>
+              Done ({(bulkData.selectedTimeSlots || []).length} Slots Selected)
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderCalendarOverlay = () => {
+    if (!showCalendar) return null;
+    return (
+      <View 
+        style={{
+          position: 'absolute',
+          top: -200,
+          left: -200,
+          right: -200,
+          bottom: -200,
+          backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.6)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 999999,
+          elevation: 999999,
+        }}
+      >
+        <TouchableOpacity 
+          style={StyleSheet.absoluteFillObject} 
+          activeOpacity={1} 
+          onPress={() => { setShowCalendar(false); setActivePicker('none'); }} 
+        />
+        <View style={[styles.modalContent, { width: '90%', maxWidth: 420, zIndex: 10 }]}>
+          <View style={styles.modalHeaderTitle}>
+            <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).subtract(1, 'month'))}>
+              <Icon name="chevron-left" size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>{calendarMonth.format('MMMM YYYY')}</Text>
+            <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).add(1, 'month'))}>
+              <Icon name="chevron-right" size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.calendarGrid}>
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+              <Text key={i} style={styles.dayOfWeek}>{d}</Text>
+            ))}
+            {(() => {
+              const startDay = moment(calendarMonth).startOf('month').day();
+              const daysInMonth = moment(calendarMonth).daysInMonth();
+              const grid = [];
+              for (let i = 0; i < startDay; i++) grid.push(<View key={`empty-${i}`} style={styles.calDay} />);
+              for (let i = 1; i <= daysInMonth; i++) {
+                const d = moment(calendarMonth).date(i);
+                const dStr = d.format('YYYY-MM-DD');
+                const isPast = d.isBefore(moment(), 'day');
+                const isBulkOrDiscount = activePicker === 'start' || activePicker === 'end' || activePicker === 'discountStart' || activePicker === 'discountEnd';
+                const isDisabled = isPast && isBulkOrDiscount;
+                const isSel = (activePicker === 'none' && selectedDate === dStr) ||
+                  (activePicker === 'start' && bulkData.startDate === dStr) ||
+                  (activePicker === 'end' && bulkData.endDate === dStr) ||
+                  (activePicker === 'discountStart' && discountStartDate === dStr) ||
+                  (activePicker === 'discountEnd' && discountEndDate === dStr) ||
+                  (activePicker === 'singleDate' && selectedDate === dStr);
+                grid.push(
+                  <TouchableOpacity
+                    key={`day-${i}`}
+                    disabled={isDisabled}
+                    style={[
+                      styles.calDay, 
+                      isSel && styles.calDaySel,
+                      isDisabled && { opacity: 0.35 }
+                    ]}
+                    onPress={() => {
+                      if (activePicker === 'start') {
+                        setBulkData(prev => ({ ...prev, startDate: dStr }));
+                      } else if (activePicker === 'end') {
+                        setBulkData(prev => ({ ...prev, endDate: dStr }));
+                      } else if (activePicker === 'discountStart') {
+                        setDiscountStartDate(dStr);
+                      } else if (activePicker === 'discountEnd') {
+                        setDiscountEndDate(dStr);
+                      } else {
+                        setSelectedDate(dStr);
+                        setDates(generateDates(d.toDate()));
+                      }
+                      setShowCalendar(false);
+                      setActivePicker('none');
+                    }}
+                  >
+                    <Text 
+                      style={[
+                        styles.calDayText, 
+                        isPast && { color: isDark ? 'rgba(255,255,255,0.35)' : '#9CA3AF' }, 
+                        isSel && { color: '#000', fontFamily: Typography.fontFamily.bold }
+                      ]}
+                    >
+                      {i}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }
+              return grid;
+            })()}
+          </View>
+
+          <TouchableOpacity style={styles.closeModalBtn} onPress={() => { setShowCalendar(false); setActivePicker('none'); }}>
+            <Text style={styles.closeModalText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
   
   const getOriginalPriceText = () => {
     if (selectedSlots.length === 0) return '';
@@ -1548,6 +1791,7 @@ const SlotManagerScreen = ({ navigation, route }) => {
               </View>
             </ScrollView>
           </View>
+          {renderCalendarOverlay()}
         </View>
       </Modal>
 
@@ -1888,256 +2132,47 @@ const SlotManagerScreen = ({ navigation, route }) => {
               <View style={{ height: 40 }} />
             </KeyboardAwareScrollView>
           </View>
-        </View>
-      </Modal>
-
-      {/* Time Picker Modal with Multiple Selection, 1-Hour & 30-Min Tabs */}
-      <Modal 
-        visible={activePicker === 'slotTime' || activePicker === 'startTime' || activePicker === 'endTime'} 
-        transparent 
-        animationType="fade" 
-        statusBarTranslucent 
-        onRequestClose={() => setActivePicker('none')}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '85%', height: '85%', paddingBottom: 14 }]}>
-            <View style={styles.modalHeaderTitle}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>Select Slot Timings</Text>
-                <Text style={{ fontSize: 11, color: colors.textSecondary, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>
-                  Tap multiple slots to select / unselect
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <TouchableOpacity onPress={selectAllSlotsInTab} style={{ backgroundColor: isDark ? '#262626' : '#E5E7EB', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 10.5, fontFamily: Typography.fontFamily.bold, color: isDark ? '#FFD400' : colors.primaryDark }}>
-                    Select All
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setActivePicker('none')} style={styles.modalClose}>
-                  <Icon name="close" size={18} color={colors.textPrimary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Tab Switcher: 1 Hour vs 30 Mins */}
-            <View style={{ flexDirection: 'row', backgroundColor: isDark ? '#262626' : '#E5E7EB', borderRadius: 10, padding: 3, marginVertical: 8 }}>
-              <TouchableOpacity
-                style={[{ flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8 }, timePickerTab === '60' && { backgroundColor: '#FFD400' }]}
-                onPress={() => setTimePickerTab('60')}
-                activeOpacity={0.8}
-              >
-                <Text style={[{ fontSize: 11.5, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }, timePickerTab === '60' && { color: '#000' }]}>
-                  1 Hour Slots
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[{ flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8 }, timePickerTab === '30' && { backgroundColor: '#FFD400' }]}
-                onPress={() => setTimePickerTab('30')}
-                activeOpacity={0.8}
-              >
-                <Text style={[{ fontSize: 11.5, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }, timePickerTab === '30' && { color: '#000' }]}>
-                  30 Mins Slots
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={{ paddingBottom: 10 }} showsVerticalScrollIndicator={true}>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'space-between' }}>
-                {(timePickerTab === '60' ? ONE_HOUR_SLOTS : THIRTY_MIN_SLOTS).map((slot) => {
-                  const isSelected = (bulkData.selectedTimeSlots || []).some(
-                    s => s.startTime === slot.startTime && s.endTime === slot.endTime
-                  );
-                  return (
-                    <TouchableOpacity
-                      key={`${slot.startTime}-${slot.endTime}`}
-                      style={[
-                        {
-                          width: '48.8%',
-                          backgroundColor: isDark ? '#1F1F1F' : '#F8F9FA',
-                          borderRadius: 10,
-                          paddingVertical: 10,
-                          paddingHorizontal: 6,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                          borderWidth: 1.5,
-                          borderColor: isSelected ? '#FFD400' : (isDark ? '#2E2E2E' : '#E5E7EB')
-                        },
-                        isSelected && { backgroundColor: isDark ? 'rgba(255,212,0,0.18)' : '#FFF9DB', borderColor: '#FFD400' }
-                      ]}
-                      onPress={() => toggleSlotTimeSelection(slot)}
-                      activeOpacity={0.7}
-                    >
-                      <Icon 
-                        name={isSelected ? "check-circle" : "circle-outline"} 
-                        size={13} 
-                        color={isSelected ? (isDark ? '#FFD400' : '#D97706') : colors.textTertiary} 
-                      />
-                      <Text 
-                        style={[
-                          { 
-                            fontSize: 10, 
-                            fontFamily: isSelected ? Typography.fontFamily.bold : Typography.fontFamily.medium, 
-                            color: isSelected ? (isDark ? '#FFD400' : colors.primaryDark) : colors.textPrimary,
-                            textAlign: 'center'
-                          }
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {slot.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            {/* Bottom Done Button */}
-            <TouchableOpacity
-              style={{
-                backgroundColor: '#FFD400',
-                borderRadius: 12,
-                paddingVertical: 12,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginTop: 6
-              }}
-              onPress={() => setActivePicker('none')}
-              activeOpacity={0.8}
-            >
-              <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: '#000' }}>
-                Done ({(bulkData.selectedTimeSlots || []).length} Slots Selected)
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Calendar Modal */}
-      <Modal visible={showCalendar} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowCalendar(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeaderTitle}>
-              <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).subtract(1, 'month'))}>
-                <Icon name="chevron-left" size={24} color={colors.textPrimary} />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>{calendarMonth.format('MMMM YYYY')}</Text>
-              <TouchableOpacity onPress={() => setCalendarMonth(moment(calendarMonth).add(1, 'month'))}>
-                <Icon name="chevron-right" size={24} color={colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.calendarGrid}>
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                <Text key={i} style={styles.dayOfWeek}>{d}</Text>
-              ))}
-              {(() => {
-                const startDay = moment(calendarMonth).startOf('month').day();
-                const daysInMonth = moment(calendarMonth).daysInMonth();
-                const grid = [];
-                for (let i = 0; i < startDay; i++) grid.push(<View key={`empty-${i}`} style={styles.calDay} />);
-                for (let i = 1; i <= daysInMonth; i++) {
-                  const d = moment(calendarMonth).date(i);
-                  const dStr = d.format('YYYY-MM-DD');
-                  const isPast = d.isBefore(moment(), 'day');
-                  const isBulkOrDiscount = activePicker === 'start' || activePicker === 'end' || activePicker === 'discountStart' || activePicker === 'discountEnd';
-                  const isDisabled = isPast && isBulkOrDiscount;
-                  const isSel = (activePicker === 'none' && selectedDate === dStr) ||
-                    (activePicker === 'start' && bulkData.startDate === dStr) ||
-                    (activePicker === 'end' && bulkData.endDate === dStr) ||
-                    (activePicker === 'discountStart' && discountStartDate === dStr) ||
-                    (activePicker === 'discountEnd' && discountEndDate === dStr) ||
-                    (activePicker === 'singleDate' && selectedDate === dStr);
-                  grid.push(
-                    <TouchableOpacity
-                      key={`day-${i}`}
-                      disabled={isDisabled}
-                      style={[
-                        styles.calDay, 
-                        isSel && styles.calDaySel,
-                        isDisabled && { opacity: 0.35 }
-                      ]}
-                      onPress={() => {
-                        if (activePicker === 'start') {
-                          setBulkData({ ...bulkData, startDate: dStr });
-                        } else if (activePicker === 'end') {
-                          setBulkData({ ...bulkData, endDate: dStr });
-                        } else if (activePicker === 'discountStart') {
-                          setDiscountStartDate(dStr);
-                        } else if (activePicker === 'discountEnd') {
-                          setDiscountEndDate(dStr);
-                        } else {
-                          setSelectedDate(dStr);
-                          setDates(generateDates(d.toDate()));
-                        }
-                        setShowCalendar(false);
-                        setActivePicker('none');
-                      }}
-                    >
-                      <Text 
-                        style={[
-                          styles.calDayText, 
-                          isPast && { color: isDark ? 'rgba(255,255,255,0.35)' : '#9CA3AF' }, 
-                          isSel && { color: '#000', fontFamily: Typography.fontFamily.bold }
-                        ]}
-                      >
-                        {i}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }
-                return grid;
-              })()}
-            </View>
-
-            <TouchableOpacity style={styles.closeModalBtn} onPress={() => { setShowCalendar(false); setActivePicker('none'); }}>
-              <Text style={styles.closeModalText}>Close</Text>
-            </TouchableOpacity>
-          </View>
+          {renderTimePickerOverlay()}
+          {renderCalendarOverlay()}
         </View>
       </Modal>
 
       {/* Native Platform Time Pickers */}
-      {showNativeFromPicker && (
-        <DateTimePicker
-          value={filterFromTime ? moment(filterFromTime, 'HH:mm').toDate() : new Date()}
-          mode="time"
-          is24Hour={false}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, date) => {
-            setShowNativeFromPicker(false);
-            if (event.type === 'set' && date) {
-              const formattedTime = moment(date).format('HH:mm');
-              setFilterFromTime(formattedTime);
-              if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
-                setSelectedIntervalMode('30');
-              }
+      <CustomDateTimePicker
+        visible={showNativeFromPicker}
+        value={filterFromTime ? moment(filterFromTime, 'HH:mm').toDate() : new Date()}
+        mode="time"
+        is24Hour={false}
+        onConfirm={(date) => {
+          if (date) {
+            const formattedTime = moment(date).format('HH:mm');
+            setFilterFromTime(formattedTime);
+            if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
+              setSelectedIntervalMode('30');
             }
-          }}
-        />
-      )}
+          }
+        }}
+        onCancel={() => setShowNativeFromPicker(false)}
+        onClose={() => setShowNativeFromPicker(false)}
+      />
 
-      {showNativeToPicker && (
-        <DateTimePicker
-          value={filterToTime ? moment(filterToTime, 'HH:mm').toDate() : new Date()}
-          mode="time"
-          is24Hour={false}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, date) => {
-            setShowNativeToPicker(false);
-            if (event.type === 'set' && date) {
-              const formattedTime = moment(date).format('HH:mm');
-              setFilterToTime(formattedTime);
-              if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
-                setSelectedIntervalMode('30');
-              }
+      <CustomDateTimePicker
+        visible={showNativeToPicker}
+        value={filterToTime ? moment(filterToTime, 'HH:mm').toDate() : new Date()}
+        mode="time"
+        is24Hour={false}
+        onConfirm={(date) => {
+          if (date) {
+            const formattedTime = moment(date).format('HH:mm');
+            setFilterToTime(formattedTime);
+            if (formattedTime.split(':')[1] === '30' && databaseHas30MinSlots) {
+              setSelectedIntervalMode('30');
             }
-          }}
-        />
-      )}
+          }
+        }}
+        onCancel={() => setShowNativeToPicker(false)}
+        onClose={() => setShowNativeToPicker(false)}
+      />
 
       {/* ── Filtered Slots Center Modal ── */}
       {showFilteredSlotsModal && (
@@ -2576,7 +2611,8 @@ const SlotManagerScreen = ({ navigation, route }) => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
+      {renderTimePickerOverlay()}
+      {renderCalendarOverlay()}
     </View>
   );
 };

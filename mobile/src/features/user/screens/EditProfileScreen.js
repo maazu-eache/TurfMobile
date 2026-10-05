@@ -20,6 +20,7 @@ const EditProfileScreen = ({ navigation }) => {
   const { colors, shadows, isDark } = useTheme();
 
   const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
   const [photo, setPhoto] = useState(user?.photo ? { uri: getImageUrl(user.photo) } : null);
   const [isLoading, setIsLoading] = useState(false);
   const [cropModalVisible, setCropModalVisible] = useState(false);
@@ -54,6 +55,7 @@ const EditProfileScreen = ({ navigation }) => {
     try {
       const formData = new FormData();
       formData.append('name', name.trim());
+      formData.append('email', email.trim());
       
       if (photo && photo.fileName) {
         formData.append('photo', {
@@ -137,17 +139,19 @@ const EditProfileScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.formGroup}>
-          <Text style={[styles.label, styles.labelDisabled]}>Email Address</Text>
-          <View style={[styles.inputContainer, styles.inputDisabled]}>
-            <Icon name="email" size={18} color={colors.textTertiary} style={styles.inputIcon} />
+          <Text style={styles.label}>Email Address</Text>
+          <View style={styles.inputContainer}>
+            <Icon name="email" size={18} color={colors.textSecondary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, styles.inputTextDisabled]}
-              value={user?.email || 'Not provided'}
-              editable={false}
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Enter your email address"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
-            <Icon name="lock" size={14} color={colors.textTertiary} style={{ marginRight: 10 }} />
           </View>
-          <Text style={[styles.helpText, styles.helpTextDisabled]}>🔒 Cannot be changed after registration.</Text>
         </View>
 
         <TouchableOpacity 
@@ -280,15 +284,17 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     ...(isDark ? {} : shadows.sm),
   },
   inputDisabled: {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)',
-    borderStyle: 'dashed',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#F4F5F7',
+    borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+    borderStyle: 'solid',
+    borderWidth: 1,
   },
   inputTextDisabled: {
-    color: colors.textTertiary,
+    color: colors.textSecondary,
+    opacity: 0.8,
   },
   labelDisabled: {
-    color: colors.textTertiary,
+    color: colors.textSecondary,
   },
   helpTextDisabled: {
     color: colors.textTertiary,

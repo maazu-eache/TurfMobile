@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../../components/common/CustomDateTimePicker';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createMatch, clearLiveState } from '../matchSlice';
@@ -140,6 +140,14 @@ const MatchSetupScreen = ({ navigation, route }) => {
       }
       if (matchData.groundType) {
         setGroundType(GROUND_TYPES.includes(matchData.groundType) ? matchData.groundType : 'Open Ground');
+      }
+      if (matchData.scheduledAt) {
+        const d = new Date(matchData.scheduledAt);
+        if (!isNaN(d.getTime())) {
+          setTempDate(d);
+          const formattedDate = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + d.toTimeString().substring(0, 5);
+          setMatchDate(formattedDate);
+        }
       }
       if (matchData.wagonWheelEnabled !== undefined) setWagonWheel(matchData.wagonWheelEnabled);
 
@@ -743,15 +751,45 @@ const MatchSetupScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={tempDate}
-          mode={datePickerMode}
-          is24Hour={false}
-          display="default"
-          onChange={onDateChange}
-        />
-      )}
+      <CustomDateTimePicker
+        visible={showDatePicker}
+        mode={datePickerMode}
+        value={tempDate}
+        is24Hour={false}
+        onConfirm={(selectedDate) => {
+          setTempDate(selectedDate);
+          if (datePickerMode === 'date') {
+            // onClose will also fire after this (from handleDone in picker).
+            // setShowDatePicker(false) here is a no-op on iOS since onClose
+            // will do it, but it's needed conceptually before we reopen.
+            setTimeout(() => {
+              setDatePickerMode('time');
+              setShowDatePicker(true);
+            }, Platform.OS === 'ios' ? 350 : 0);
+          } else {
+            // Time step done — format and store the final value.
+            const formattedDate =
+              selectedDate.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              }) +
+              ' ' +
+              selectedDate.toTimeString().substring(0, 5);
+            setMatchDate(formattedDate);
+          }
+        }}
+        onCancel={() => {
+          setShowDatePicker(false);
+          setDatePickerMode('date');
+        }}
+        onClose={() => {
+          setShowDatePicker(false);
+          // Don't reset datePickerMode here — if we're reopening for time step
+          // the setTimeout in onConfirm will set it to 'time' after close.
+        }}
+      />
 
       <Modal visible={otpModalVisible} transparent={true} animationType="fade" onRequestClose={() => setOtpModalVisible(false)}>
         <View style={styles.modalOverlay}>

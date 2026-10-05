@@ -93,15 +93,14 @@ export const refreshTokenThunk = createAsyncThunk('auth/refreshToken', async (_,
 });
 
 export const logout = createAsyncThunk('auth/logout', async (_, { dispatch, getState }) => {
+  const { refreshToken } = getState().auth;
+  dispatch(logoutLocal());
   try {
-    const { refreshToken } = getState().auth;
     if (refreshToken) {
       await api.post('/auth/logout', { refreshToken });
     }
   } catch (err) {
     console.log('Backend logout failed', err);
-  } finally {
-    dispatch(logoutLocal());
   }
 });
 

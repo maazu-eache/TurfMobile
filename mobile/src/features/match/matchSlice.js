@@ -128,7 +128,7 @@ const matchSlice = createSlice({
           isMatchComplete: payload.isMatchComplete !== undefined ? payload.isMatchComplete : state.liveState.isMatchComplete,
           inningsNumber: payload.inningsNumber !== undefined ? payload.inningsNumber : state.liveState.inningsNumber,
           result: payload.result !== undefined ? payload.result : state.liveState.result,
-          currentOverBalls: payload.currentOverBalls || state.liveState.currentOverBalls,
+          currentOverBalls: payload.currentOverBalls !== undefined ? payload.currentOverBalls : state.liveState.currentOverBalls,
           recentCommentary: (() => {
             if (!payload.recentCommentary || payload.recentCommentary.length === 0) {
               return state.liveState.recentCommentary;
@@ -244,13 +244,21 @@ const matchSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      .addCase(fetchMyMatches.pending, (state) => {
-        state.isLoading = true;
+      .addCase(fetchMyMatches.pending, (state, action) => {
+        if (!action.meta.arg?.page || action.meta.arg?.page === 1) {
+          state.isLoading = true;
+        }
         state.error = null;
       })
       .addCase(fetchMyMatches.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.myMatches = action.payload.data || [];
+        if (action.meta.arg?.page > 1) {
+          const existingIds = new Set(state.myMatches.map(m => m._id));
+          const newItems = (action.payload.data || []).filter(m => !existingIds.has(m._id));
+          state.myMatches = [...state.myMatches, ...newItems];
+        } else {
+          state.myMatches = action.payload.data || [];
+        }
       })
       .addCase(fetchMyMatches.rejected, (state, action) => {
         state.isLoading = false;

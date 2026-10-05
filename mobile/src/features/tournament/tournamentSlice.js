@@ -32,8 +32,10 @@ const tournamentSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchTournaments.pending, (state) => {
-        state.isLoading = true;
+      .addCase(fetchTournaments.pending, (state, a) => {
+        if (!a.meta.arg?.page || a.meta.arg?.page === 1) {
+          state.isLoading = true;
+        }
         state.error = null;
       })
       .addCase(fetchTournaments.fulfilled, (state, a) => {

@@ -1150,7 +1150,8 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   photoImg: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    resizeMode: 'contain',
+    backgroundColor: '#0a0f1d',
   },
 
   // Modal

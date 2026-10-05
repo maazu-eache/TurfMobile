@@ -5,7 +5,7 @@ import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchLiveState, setLiveState, addMatchScorer, updateLiveViewers } from '../matchSlice';
+import { fetchLiveState, setLiveState, clearLiveState, addMatchScorer, updateLiveViewers } from '../matchSlice';
 import api, { BASE_URL, getImageUrl } from '../../../api/axios';
 import socketService from '../../../services/socketService';
 import { WebView } from 'react-native-webview';
@@ -18,6 +18,8 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 import SharePreviewModal from '../../tournament/components/SharePreviewModal';
 import { MatchSummaryPoster, MotmPoster, AiReportPoster } from '../../tournament/components/PosterTemplates';
 import PartnershipsView from '../components/PartnershipsView';
+import EditMatchModal from '../components/EditMatchModal';
+import EditTossModal from '../components/EditTossModal';
 import Tts from 'react-native-tts';
 import Video from 'react-native-video';
 
@@ -471,6 +473,24 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     return mvpObj;
   }, [liveState?.match, scorecards]);
 
+  const isBeforeFirstBall = useMemo(() => {
+    const match = liveState?.match;
+    if (!match) return false;
+    if (['scheduled', 'toss_done'].includes(match.status)) return true;
+    if (match.status === 'in_progress') {
+      const inn1 = (match.innings || []).find(i => typeof i === 'object' && i.inningsNumber === 1);
+      if (inn1) {
+        return (inn1.totalBalls || 0) === 0 && (inn1.totalRuns || 0) === 0;
+      }
+      const liveBalls = liveState?.score?.totalBalls;
+      if (liveBalls !== undefined) {
+        return liveState?.inningsNumber === 1 && liveBalls === 0;
+      }
+      return (match.currentInnings || 1) === 1 && (!commentary || commentary.length === 0);
+    }
+    return false;
+  }, [liveState?.match?.status, liveState?.match?.innings, liveState?.match?.currentInnings, liveState?.score?.totalBalls, liveState?.inningsNumber, commentary?.length]);
+
   const progressMessages = [
     "Analyzing batting performances...",
     "Reviewing bowling statistics...",
@@ -523,6 +543,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activePosterType, setActivePosterType] = useState(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showEditMatchModal, setShowEditMatchModal] = useState(false);
+  const [showEditTossModal, setShowEditTossModal] = useState(false);
   const [showAddScorerModal, setShowAddScorerModal] = useState(false);
   const [showDeclareResultModal, setShowDeclareResultModal] = useState(false);
   const [showAbandonModal, setShowAbandonModal] = useState(false);
@@ -5414,6 +5436,38 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleDeleteMatch = () => {
+    showCustomAlert(
+      'Delete Match',
+      'Are you sure you want to permanently delete this match? All match statistics, live scoring, and scorecards will be deleted. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/matches/${cleanMatchId}`);
+              try { dispatch(clearLiveState()); } catch (_) {}
+              showCustomAlert('Match Deleted', 'The match has been deleted successfully.');
+              try {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'MyCricketMain', params: { tab: 'Matches' } }]
+                });
+              } catch (_) {
+                navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } });
+              }
+            } catch (err) {
+              console.error('Error deleting match:', err);
+              showCustomAlert('Error', err.response?.data?.message || err.message || 'Failed to delete match');
+            }
+          }
+        }
+      ]
+    );
+  };
+
 
   return (
     <View style={[styles.container, { paddingTop: safeTop }]}>
@@ -5466,7 +5520,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {isActiveScorer && match.status !== 'completed' && match.status !== 'abandoned' && match.status !== 'no_result' && (
+            {(isActiveScorer || isCreator || isMatchOrganizer) && (
               <TouchableOpacity style={{ padding: 8 }} onPress={() => setShowSettingsModal(true)}>
                 <Icon name="cog" size={20} color="#111827" />
               </TouchableOpacity>
@@ -5685,7 +5739,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
 
                 {/* Options */}
                 <View style={{ paddingHorizontal: 16, gap: 10 }}>
-                  {/* {isActiveScorer && (
+                  {(isActiveScorer || isCreator || isMatchOrganizer) && (
                     <TouchableOpacity
                       style={{
                         flexDirection: 'row', alignItems: 'center',
@@ -5695,19 +5749,44 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                       activeOpacity={0.7}
                       onPress={() => {
                         setShowSettingsModal(false);
-                        navigation.navigate('MatchSetup', { matchId: cleanMatchId, matchData: match });
+                        setShowEditMatchModal(true);
                       }}
                     >
                       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                        <Icon name="pencil" size={20} color={colors.primary} />
+                        <Icon name="tune-variant" size={20} color={colors.primary} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Edit Match Details</Text>
-                        <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Edit overs, wickets, ground, location, etc</Text>
+                        <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Edit overs, overs/bowler, wickets & format</Text>
                       </View>
                       <Icon name="chevron-right" size={18} color={colors.textTertiary} />
                     </TouchableOpacity>
-                  )} */}
+                  )}
+
+                  {(isActiveScorer || isCreator || isMatchOrganizer) && isBeforeFirstBall && (
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row', alignItems: 'center',
+                        backgroundColor: colors.surface, borderRadius: 14,
+                        padding: 16, borderWidth: 1, borderColor: colors.border,
+                      }}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setShowSettingsModal(false);
+                        setShowEditTossModal(true);
+                      }}
+                    >
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                        <Icon name="hand-coin" size={20} color={colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Edit Toss Details</Text>
+                        <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Change toss winner & decision (before 1st ball)</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  )}
+
                   <TouchableOpacity
                     style={{
                       flexDirection: 'row', alignItems: 'center',
@@ -5764,12 +5843,59 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                     </View>
                     <Icon name="chevron-right" size={18} color={`${colors.error}60`} />
                   </TouchableOpacity>
+
+                  {/* Delete Match for Active Scorer / Creator */}
+                  {(isActiveScorer || isCreator || isMatchOrganizer) && (
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row', alignItems: 'center',
+                        backgroundColor: `${colors.error}0D`, borderRadius: 14,
+                        padding: 16, borderWidth: 1, borderColor: `${colors.error}30`,
+                      }}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setShowSettingsModal(false);
+                        handleDeleteMatch();
+                      }}
+                    >
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: `${colors.error}20`, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                        <Icon name="trash-can-outline" size={20} color={colors.error} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.error, fontSize: 16, fontFamily: Typography.fontFamily.semiBold }}>Delete Match</Text>
+                        <Text style={{ color: `${colors.error}88`, fontSize: 12, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>Permanently remove match and all scores</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={`${colors.error}60`} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Edit Match Details Modal */}
+      <EditMatchModal
+        visible={showEditMatchModal}
+        onClose={() => setShowEditMatchModal(false)}
+        match={match}
+        onUpdate={() => {
+          dispatch(fetchLiveState(cleanMatchId));
+          onRefresh();
+        }}
+      />
+
+      {/* Edit Toss Details Modal */}
+      <EditTossModal
+        visible={showEditTossModal}
+        onClose={() => setShowEditTossModal(false)}
+        match={match}
+        onTossChanged={() => {
+          dispatch(fetchLiveState(cleanMatchId));
+          onRefresh();
+        }}
+      />
 
       {/* ── Add Scorer Modal ── */}
       <Modal visible={showAddScorerModal} animationType="fade" transparent>

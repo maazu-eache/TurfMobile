@@ -42,8 +42,23 @@ class AuctionService {
     return res.data;
   }
 
+  async removePlayer(auctionId, regId) {
+    const res = await api.delete(`/auctions/${auctionId}/registrations/${regId}`);
+    return res.data;
+  }
+
   async generateSets(auctionId, setSize = 24, basePrice = 1000, teamPurse = 50000, strategy = 'mixture') {
     const res = await api.post(`/auctions/${auctionId}/sets/generate`, { setSize, basePrice, teamPurse, strategy });
+    return res.data;
+  }
+
+  async createCustomSets(auctionId, sets, teamPurse = 50000) {
+    const res = await api.post(`/auctions/${auctionId}/sets/custom`, { sets, teamPurse });
+    return res.data;
+  }
+
+  async updateBidIncrements(auctionId, increments) {
+    const res = await api.post(`/auctions/${auctionId}/bid-increments`, { increments });
     return res.data;
   }
 
@@ -97,8 +112,8 @@ class AuctionService {
     return res.data;
   }
 
-  async generateUnsoldSet(auctionId) {
-    const res = await api.post(`/auctions/${auctionId}/generate-unsold-set`);
+  async generateUnsoldSet(auctionId, playerIds = null) {
+    const res = await api.post(`/auctions/${auctionId}/generate-unsold-set`, { playerIds });
     return res.data;
   }
 

@@ -14,6 +14,7 @@ import {
   RefreshControl,
   Platform,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -71,6 +72,14 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
   const [strategy, setStrategy] = useState('mixture');
   const [showSetPlayersModal, setShowSetPlayersModal] = useState(false);
   const [selectedSetPlayers, setSelectedSetPlayers] = useState([]);
+
+  // Custom / Player-Wise Sets State
+  const [creationMode, setCreationMode] = useState('custom'); // 'custom' | 'auto'
+  const [customSets, setCustomSets] = useState([]);
+  const [activeSetIdForSelection, setActiveSetIdForSelection] = useState(null);
+  const [showPlayerSelectionModal, setShowPlayerSelectionModal] = useState(false);
+  const [playerSearchQuery, setPlayerSearchQuery] = useState('');
+  const [playerRoleFilter, setPlayerRoleFilter] = useState('All');
 
   useEffect(() => {
     loadData();
@@ -289,6 +298,162 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleConfirmRemovePlayer = (item) => {
+    showCustomAlert(
+      'Remove Player',
+      `Are you sure you want to remove ${item.fullName} from this auction?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => handleRemovePlayer(item._id)
+        }
+      ]
+    );
+  };
+
+  const handleRemovePlayer = async (regId) => {
+    let activeId = targetAuctionId || auctionProfile?._id || routeAuctionId || tournamentId;
+    if (!activeId) return;
+    try {
+      setLoading(true);
+      await auctionService.removePlayer(activeId, regId);
+      showCustomAlert('Removed', 'Player removed from auction successfully');
+      await loadData();
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to remove player');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddCustomSet = () => {
+    const nextIdx = customSets.length + 1;
+    const defaultNames = ['Grade A Players', 'Grade B Players', 'Grade C Players', 'Grade D Players', 'Grade E Players'];
+    const defaultPrices = ['5000', '2500', '1000', '500', '250'];
+    const nextName = defaultNames[nextIdx - 1] || `Grade ${String.fromCharCode(64 + nextIdx)} Players`;
+    const nextPrice = defaultPrices[nextIdx - 1] || '500';
+    setCustomSets(prev => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        setName: nextName,
+        basePrice: nextPrice,
+        playerIds: []
+      }
+    ]);
+  };
+
+  const handleRemoveCustomSet = (setId) => {
+    setCustomSets(prev => prev.filter(s => s.id !== setId));
+  };
+
+  const handleUpdateCustomSet = (setId, field, val) => {
+    setCustomSets(prev => prev.map(s => s.id === setId ? { ...s, [field]: val } : s));
+  };
+
+  const handleOpenPlayerSelection = (setId) => {
+    setActiveSetIdForSelection(setId);
+    setPlayerSearchQuery('');
+    setPlayerRoleFilter('All');
+    setShowPlayerSelectionModal(true);
+  };
+
+  const handleTogglePlayerInSet = (playerId) => {
+    if (!activeSetIdForSelection) return;
+    setCustomSets(prev => {
+      return prev.map(s => {
+        if (s.id === activeSetIdForSelection) {
+          const exists = s.playerIds.includes(playerId);
+          return {
+            ...s,
+            playerIds: exists ? s.playerIds.filter(id => id !== playerId) : [...s.playerIds, playerId]
+          };
+        } else {
+          // If already in another set, remove it from that set
+          return {
+            ...s,
+            playerIds: s.playerIds.filter(id => id !== playerId)
+          };
+        }
+      });
+    });
+  };
+
+  const handleQuickRemovePlayerFromSet = (setId, playerId) => {
+    setCustomSets(prev => prev.map(s => {
+      if (s.id === setId) {
+        return { ...s, playerIds: s.playerIds.filter(id => id !== playerId) };
+      }
+      return s;
+    }));
+  };
+
+  const handleSaveCustomSets = async () => {
+    let activeId = targetAuctionId;
+    if (!activeId && tournamentId) {
+      try {
+        const detailsRes = await auctionService.getAuctionDetails(tournamentId);
+        if (detailsRes.data && detailsRes.data._id) {
+          activeId = detailsRes.data._id;
+          setTargetAuctionId(activeId);
+        }
+      } catch (e) { }
+    }
+
+    const tTeams = auctionProfile?.tournament?.teams || [];
+    const tRegTeams = auctionProfile?.tournament?.registeredTeams || [];
+    const totalTeams = tTeams.length + tRegTeams.length;
+
+    if (totalTeams === 0) {
+      showCustomAlert('Teams Required', 'Teams must be added to the tournament before creating auction sets and purse.');
+      return;
+    }
+
+    if (registrations.length === 0) {
+      showCustomAlert('No Players', 'There are no registered players to create sets.');
+      return;
+    }
+
+    if (customSets.length === 0) {
+      showCustomAlert('No Sets Created', 'Please click "+ CREATE FIRST SET" to define at least one set.');
+      return;
+    }
+
+    const totalSelected = customSets.reduce((sum, s) => sum + s.playerIds.length, 0);
+    if (totalSelected === 0) {
+      showCustomAlert('No Players Selected', 'Please select at least one player in a set.');
+      return;
+    }
+
+    const emptySets = customSets.filter(s => s.playerIds.length === 0);
+    if (emptySets.length > 0) {
+      showCustomAlert(
+        'Empty Sets Found',
+        `Some sets have no players selected (${emptySets.map(s => s.setName).join(', ')}). Please select players or remove empty sets.`
+      );
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const setsPayload = customSets.map(s => ({
+        setName: s.setName?.trim() || 'Set',
+        basePrice: Number(s.basePrice) || 0,
+        playerIds: s.playerIds
+      }));
+      await auctionService.createCustomSets(activeId, setsPayload, Number(teamPurse) || 0);
+      await loadData();
+      showCustomAlert('Success', 'Custom sets created successfully!');
+      setActiveTab('sets');
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to create custom sets');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <View style={[styles.container, { paddingBottom: Math.max(safeBottom, 8) }]}>
       {/* Compact Top Header */}
@@ -391,11 +556,24 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                   <Text style={styles.playerRole}>{item.role}</Text>
                   <Text style={styles.playerSub}>{item.battingStyle || 'Right Handed'} | {item.bowlingStyle || 'Medium'}</Text>
                 </View>
-                <View style={styles.paidChip}>
-                  <Icon name={item.registrationType === 'offline' ? 'cash' : 'credit-card-outline'} size={12} color="#4ADE80" style={{ marginRight: 4 }} />
-                  <Text style={styles.paidText}>
-                    {item.registrationType === 'offline' ? 'Offline' : 'Online'} • ₹{item.registrationFee || 0}
-                  </Text>
+                <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
+                  <View style={styles.paidChip}>
+                    <Icon name={item.registrationType === 'offline' ? 'cash' : 'credit-card-outline'} size={12} color="#4ADE80" style={{ marginRight: 4 }} />
+                    <Text style={styles.paidText}>
+                      {item.registrationType === 'offline' ? 'Offline' : 'Online'} • ₹{item.registrationFee || 0}
+                    </Text>
+                  </View>
+                  {!isReadOnly && item.soldStatus !== 'sold' && (
+                    <TouchableOpacity
+                      style={styles.removePlayerBtn}
+                      onPress={() => handleConfirmRemovePlayer(item)}
+                      disabled={loading}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Icon name="trash-can-outline" size={13} color="#EF4444" />
+                      {/* <Text style={styles.removePlayerText}></Text> */}
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             )}
@@ -433,170 +611,430 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
 
       {/* Tab 2: Create Sets Controls */}
       {activeTab === 'create_sets' && (
-        <ScrollView
+        <KeyboardAwareScrollView
+          enableOnAndroid={true}
+          extraScrollHeight={Platform.OS === 'ios' ? 40 : 25}
+          keyboardShouldPersistTaps="handled"
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 40 }}
+          contentContainerStyle={{ padding: Spacing.md, paddingBottom: 60 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
-          {/* Stats Banner */}
-          <View style={styles.statsBanner}>
-            <View style={styles.statsBannerItem}>
-              <Icon name="account-group" size={20} color={colors.primary} />
-              <Text style={styles.statsBannerNum}>{registrations.length}</Text>
-              <Text style={styles.statsBannerLbl}>Total Players</Text>
-            </View>
-            <View style={styles.statsBannerDivider} />
-            <View style={styles.statsBannerItem}>
-              <Icon name="cards" size={20} color="#818CF8" />
-              <Text style={[styles.statsBannerNum, { color: '#818CF8' }]}>{Math.ceil(registrations.length / (parseInt(playersPerSet) || 1)) || 0}</Text>
-              <Text style={styles.statsBannerLbl}>Sets to Create</Text>
-            </View>
-            <View style={styles.statsBannerDivider} />
-            <View style={styles.statsBannerItem}>
-              <Icon name="account-multiple" size={20} color="#F59E0B" />
-              <Text style={[styles.statsBannerNum, { color: '#F59E0B' }]}>{playersPerSet || 0}</Text>
-              <Text style={styles.statsBannerLbl}>Per Set</Text>
-            </View>
+          {/* Mode Switcher */}
+          <View style={styles.modeToggleRow}>
+            <TouchableOpacity
+              style={[styles.modeToggleBtn, creationMode === 'custom' && styles.modeToggleBtnActive]}
+              onPress={() => setCreationMode('custom')}
+            >
+              <Icon name="account-star" size={16} color={creationMode === 'custom' ? '#000' : colors.textTertiary} style={{ marginRight: 6 }} />
+              <Text style={[styles.modeToggleText, creationMode === 'custom' && styles.modeToggleTextActive]}>Manual / Grade Sets</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeToggleBtn, creationMode === 'auto' && styles.modeToggleBtnActive]}
+              onPress={() => setCreationMode('auto')}
+            >
+              <Icon name="auto-fix" size={16} color={creationMode === 'auto' ? '#000' : colors.textTertiary} style={{ marginRight: 6 }} />
+              <Text style={[styles.modeToggleText, creationMode === 'auto' && styles.modeToggleTextActive]}>Auto Generator</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Strategy Card */}
-          <View style={styles.configSection}>
-            <View style={styles.configSectionHeader}>
-              <View style={styles.configStepBadge}><Text style={styles.configStepNum}>1</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.configSectionTitle}>Set Generation Strategy</Text>
-                <Text style={styles.configSectionSub}>Choose how players are distributed into sets</Text>
-              </View>
-            </View>
-            <View style={styles.strategyRow}>
-              <TouchableOpacity
-                style={[styles.strategyCard, strategy === 'mixture' && styles.strategyCardActive]}
-                onPress={() => setStrategy('mixture')}
-              >
-                <View style={[styles.strategyIconBox, strategy === 'mixture' && { backgroundColor: colors.primary + '22' }]}>
-                  <Icon name="shuffle-variant" size={22} color={strategy === 'mixture' ? colors.primary : colors.textTertiary} />
-                </View>
-                <Text style={[styles.strategyTitle, strategy === 'mixture' && { color: colors.primary }]}>Random Mixture</Text>
-                <Text style={styles.strategyDesc}>Players are shuffled{`\n`}and grouped randomly</Text>
-                {strategy === 'mixture' && (
-                  <View style={styles.strategyCheck}>
-                    <Icon name="check-circle" size={16} color={colors.primary} />
+          {creationMode === 'custom' ? (
+            /* ─────────────────────────────────────────────────────────────
+               CUSTOM / PLAYER-WISE SET CREATION (Grade A, Grade B, etc.)
+               ───────────────────────────────────────────────────────────── */
+            <View>
+              {/* Custom Sets Stats Banner */}
+              {(() => {
+                const totalAssigned = customSets.reduce((sum, s) => sum + s.playerIds.length, 0);
+                const totalUnassigned = Math.max(0, registrations.length - totalAssigned);
+                return (
+                  <View style={styles.statsBanner}>
+                    <View style={styles.statsBannerItem}>
+                      <Icon name="account-group" size={20} color={colors.primary} />
+                      <Text style={styles.statsBannerNum}>{registrations.length}</Text>
+                      <Text style={styles.statsBannerLbl}>Total Players</Text>
+                    </View>
+                    <View style={styles.statsBannerDivider} />
+                    <View style={styles.statsBannerItem}>
+                      <Icon name="account-check" size={20} color="#4ADE80" />
+                      <Text style={[styles.statsBannerNum, { color: '#4ADE80' }]}>{totalAssigned}</Text>
+                      <Text style={styles.statsBannerLbl}>Assigned</Text>
+                    </View>
+                    <View style={styles.statsBannerDivider} />
+                    <View style={styles.statsBannerItem}>
+                      <Icon name="account-clock" size={20} color={totalUnassigned > 0 ? '#F59E0B' : colors.textTertiary} />
+                      <Text style={[styles.statsBannerNum, { color: totalUnassigned > 0 ? '#F59E0B' : colors.textTertiary }]}>{totalUnassigned}</Text>
+                      <Text style={styles.statsBannerLbl}>Unassigned</Text>
+                    </View>
                   </View>
+                );
+              })()}
+
+              <Text style={styles.customSectionTitle}>Define Sets & Assign Players</Text>
+              <Text style={styles.customSectionSub}>Assign players to each set (e.g. Grade A, Grade B) and set base points.</Text>
+
+              {/* Set Cards or Empty State */}
+              {customSets.length === 0 ? (
+                <View style={styles.noCustomSetsCard}>
+                  <View style={styles.noCustomSetsIconWrap}>
+                    <Icon name="shape-plus" size={34} color={colors.primary} />
+                  </View>
+                  <Text style={styles.noCustomSetsTitle}>No Sets Created</Text>
+                  <Text style={styles.noCustomSetsSub}>
+                    Sets must be created by the organiser. Click below to add your first set, specify base points, and select players.
+                  </Text>
+                  <TouchableOpacity style={styles.addFirstSetBtn} onPress={handleAddCustomSet} activeOpacity={0.8}>
+                    <Icon name="plus" size={18} color="#000" style={{ marginRight: 6 }} />
+                    <Text style={styles.addFirstSetBtnText}>CREATE FIRST SET</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  {customSets.map((set, sIdx) => {
+                    const setPlayerObjs = registrations.filter(r => set.playerIds.includes(r._id));
+                    const presetNames = ['Grade A Players', 'Grade B Players', 'Grade C Players', 'Marquee Players', 'Emerging Players'];
+                    const presetPrices = ['5000', '2500', '1000', '500'];
+
+                    return (
+                      <View key={set.id} style={styles.customSetCard}>
+                        {/* Header */}
+                        <View style={styles.customSetHeader}>
+                          <View style={styles.customSetBadge}>
+                            <Text style={styles.customSetBadgeText}>SET {sIdx + 1}</Text>
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={styles.customSetNameHeading} numberOfLines={1}>{set.setName || `Set ${sIdx + 1}`}</Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.deleteSetBtn}
+                            onPress={() => handleRemoveCustomSet(set.id)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Icon name="trash-can-outline" size={18} color="#EF4444" />
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Set Name Input */}
+                        <Text style={styles.customFieldLabel}>Set Name</Text>
+                        <TextInput
+                          style={styles.customInput}
+                          placeholder="e.g. Grade A Players"
+                          placeholderTextColor={colors.textTertiary}
+                          value={set.setName}
+                          onChangeText={(val) => handleUpdateCustomSet(set.id, 'setName', val)}
+                        />
+                        {/* Preset Name Pills */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
+                          {presetNames.map(pName => (
+                            <TouchableOpacity
+                              key={pName}
+                              style={[styles.presetPill, set.setName === pName && styles.presetPillActive]}
+                              onPress={() => handleUpdateCustomSet(set.id, 'setName', pName)}
+                            >
+                              <Text style={[styles.presetPillText, set.setName === pName && styles.presetPillTextActive]}>{pName}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+
+                        {/* Base Points Input */}
+                        <View style={{ marginTop: 10 }}>
+                          <Text style={styles.customFieldLabel}>Base Points for this Set (Pts)</Text>
+                          <View style={styles.customPriceRow}>
+                            <View style={styles.customPriceIcon}>
+                              <Icon name="currency-inr" size={16} color={colors.primary} />
+                            </View>
+                            <TextInput
+                              style={styles.customPriceInput}
+                              placeholder="e.g. 5000"
+                              placeholderTextColor={colors.textTertiary}
+                              keyboardType="number-pad"
+                              value={String(set.basePrice || '')}
+                              onChangeText={(val) => handleUpdateCustomSet(set.id, 'basePrice', val)}
+                            />
+                          </View>
+                          {/* Preset Price Pills */}
+                          <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                            {presetPrices.map(priceVal => (
+                              <TouchableOpacity
+                                key={priceVal}
+                                style={[styles.presetPill, String(set.basePrice) === priceVal && styles.presetPillActive]}
+                                onPress={() => handleUpdateCustomSet(set.id, 'basePrice', priceVal)}
+                              >
+                                <Text style={[styles.presetPillText, String(set.basePrice) === priceVal && styles.presetPillTextActive]}>{priceVal} Pts</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+
+                        {/* Player Selection Section */}
+                        <View style={{ marginTop: 14 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <Text style={styles.customFieldLabel}>
+                              Assigned Players ({set.playerIds.length})
+                            </Text>
+                          </View>
+
+                          <TouchableOpacity
+                            style={styles.selectPlayersBtn}
+                            onPress={() => handleOpenPlayerSelection(set.id)}
+                          >
+                            <Icon name="account-multiple-plus" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+                            <Text style={styles.selectPlayersBtnText}>
+                              {set.playerIds.length === 0 ? 'Select Players for this Set' : `Edit Selected Players (${set.playerIds.length})`}
+                            </Text>
+                            <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                          </TouchableOpacity>
+
+                          {/* Chips preview of selected players */}
+                          {setPlayerObjs.length > 0 && (
+                            <View style={styles.playerChipsContainer}>
+                              {setPlayerObjs.map(p => (
+                                <View key={p._id} style={styles.playerChip}>
+                                  {p.photo ? (
+                                    <Image source={{ uri: getImageUrl(p.photo) }} style={styles.playerChipAvatar} />
+                                  ) : (
+                                    <View style={styles.playerChipAvatarPlaceholder}>
+                                      <Text style={styles.playerChipInitials}>{(p.fullName || 'P').charAt(0).toUpperCase()}</Text>
+                                    </View>
+                                  )}
+                                  <Text style={styles.playerChipName} numberOfLines={1}>{p.fullName}</Text>
+                                  <TouchableOpacity
+                                    onPress={() => handleQuickRemovePlayerFromSet(set.id, p._id)}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    style={{ marginLeft: 4 }}
+                                  >
+                                    <Icon name="close-circle" size={14} color={colors.textTertiary} />
+                                  </TouchableOpacity>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+
+                  {/* Add Set Button */}
+                  <TouchableOpacity style={styles.addSetBtn} onPress={handleAddCustomSet} activeOpacity={0.8}>
+                    <Icon name="plus-circle-outline" size={20} color={colors.primary} style={{ marginRight: 8 }} />
+                    <Text style={styles.addSetBtnText}>+ ADD ANOTHER SET</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* Team Purse Card */}
+              <View style={[styles.configSection, { marginTop: 14 }]}>
+                <View style={styles.configSectionHeader}>
+                  <View style={[styles.configStepBadge, { backgroundColor: '#F59E0B22', borderColor: '#F59E0B55' }]}>
+                    <Icon name="wallet" size={14} color="#F59E0B" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.configSectionTitle}>Team Purse Budget</Text>
+                    <Text style={styles.configSectionSub}>Total bidding purse allocated to each team</Text>
+                  </View>
+                </View>
+                <View style={styles.customPriceRow}>
+                  <View style={[styles.customPriceIcon, { backgroundColor: '#F59E0B22' }]}>
+                    <Icon name="wallet" size={16} color="#F59E0B" />
+                  </View>
+                  <TextInput
+                    style={styles.customPriceInput}
+                    placeholder="e.g. 50000"
+                    placeholderTextColor={colors.textTertiary}
+                    keyboardType="number-pad"
+                    value={teamPurse}
+                    onChangeText={setTeamPurse}
+                  />
+                  <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: Typography.fontFamily.semiBold, marginRight: 8 }}>Pts</Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  {['25000', '50000', '100000', '200000'].map(purseVal => (
+                    <TouchableOpacity
+                      key={purseVal}
+                      style={[styles.presetPill, String(teamPurse) === purseVal && styles.presetPillActive]}
+                      onPress={() => setTeamPurse(purseVal)}
+                    >
+                      <Text style={[styles.presetPillText, String(teamPurse) === purseVal && styles.presetPillTextActive]}>{Number(purseVal).toLocaleString('en-IN')} Pts</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Save Custom Sets Button */}
+              <TouchableOpacity style={[styles.generateBtn, { marginTop: 16 }]} onPress={handleSaveCustomSets} disabled={loading}>
+                {loading ? <ActivityIndicator color="#000" /> : (
+                  <>
+                    <Icon name="check-all" size={20} color="#000" style={{ marginRight: 8 }} />
+                    <Text style={styles.generateBtnText}>SAVE & CREATE CUSTOM SETS</Text>
+                  </>
                 )}
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.strategyCard, strategy === 'role_wise' && styles.strategyCardActive]}
-                onPress={() => setStrategy('role_wise')}
-              >
-                <View style={[styles.strategyIconBox, strategy === 'role_wise' && { backgroundColor: '#818CF822' }]}>
-                  <Icon name="account-group" size={22} color={strategy === 'role_wise' ? '#818CF8' : colors.textTertiary} />
+            </View>
+          ) : (
+            /* ─────────────────────────────────────────────────────────────
+               AUTO GENERATOR MODE (Mixture or Role-wise)
+               ───────────────────────────────────────────────────────────── */
+            <View>
+              {/* Stats Banner */}
+              <View style={styles.statsBanner}>
+                <View style={styles.statsBannerItem}>
+                  <Icon name="account-group" size={20} color={colors.primary} />
+                  <Text style={styles.statsBannerNum}>{registrations.length}</Text>
+                  <Text style={styles.statsBannerLbl}>Total Players</Text>
                 </View>
-                <Text style={[styles.strategyTitle, strategy === 'role_wise' && { color: '#818CF8' }]}>Role Wise</Text>
-                <Text style={styles.strategyDesc}>Batsmen, Bowlers{`\n`}grouped by role</Text>
-                {strategy === 'role_wise' && (
-                  <View style={[styles.strategyCheck, { backgroundColor: '#818CF822', borderColor: '#818CF8' }]}>
-                    <Icon name="check-circle" size={16} color="#818CF8" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Players Per Set Card */}
-          <View style={styles.configSection}>
-            <View style={styles.configSectionHeader}>
-              <View style={styles.configStepBadge}><Text style={styles.configStepNum}>2</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.configSectionTitle}>Players in Each Set</Text>
-                <Text style={styles.configSectionSub}>How many players per auction set?</Text>
+                <View style={styles.statsBannerDivider} />
+                <View style={styles.statsBannerItem}>
+                  <Icon name="cards" size={20} color="#818CF8" />
+                  <Text style={[styles.statsBannerNum, { color: '#818CF8' }]}>{Math.ceil(registrations.length / (parseInt(playersPerSet) || 1)) || 0}</Text>
+                  <Text style={styles.statsBannerLbl}>Sets to Create</Text>
+                </View>
+                <View style={styles.statsBannerDivider} />
+                <View style={styles.statsBannerItem}>
+                  <Icon name="account-multiple" size={20} color="#F59E0B" />
+                  <Text style={[styles.statsBannerNum, { color: '#F59E0B' }]}>{playersPerSet || 0}</Text>
+                  <Text style={styles.statsBannerLbl}>Per Set</Text>
+                </View>
               </View>
-            </View>
-            <View style={styles.counterRow}>
-              <TouchableOpacity style={styles.counterBtn} onPress={() => setPlayersPerSet(Math.max(1, (parseInt(playersPerSet) || 0) - 1))}>
-                <Text style={styles.counterBtnText}>−</Text>
-              </TouchableOpacity>
-              <View style={styles.counterValBox}>
-                <TextInput
-                  style={styles.counterVal}
-                  keyboardType="number-pad"
-                  value={String(playersPerSet)}
-                  onChangeText={(val) => {
-                    const num = parseInt(val.replace(/[^0-9]/g, ''), 10);
+
+              {/* Strategy Card */}
+              <View style={styles.configSection}>
+                <View style={styles.configSectionHeader}>
+                  <View style={styles.configStepBadge}><Text style={styles.configStepNum}>1</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.configSectionTitle}>Set Generation Strategy</Text>
+                    <Text style={styles.configSectionSub}>Choose how players are distributed into sets</Text>
+                  </View>
+                </View>
+                <View style={styles.strategyRow}>
+                  <TouchableOpacity
+                    style={[styles.strategyCard, strategy === 'mixture' && styles.strategyCardActive]}
+                    onPress={() => setStrategy('mixture')}
+                  >
+                    <View style={[styles.strategyIconBox, strategy === 'mixture' && { backgroundColor: colors.primary + '22' }]}>
+                      <Icon name="shuffle-variant" size={22} color={strategy === 'mixture' ? colors.primary : colors.textTertiary} />
+                    </View>
+                    <Text style={[styles.strategyTitle, strategy === 'mixture' && { color: colors.primary }]}>Random Mixture</Text>
+                    <Text style={styles.strategyDesc}>Players are shuffled{`\n`}and grouped randomly</Text>
+                    {strategy === 'mixture' && (
+                      <View style={styles.strategyCheck}>
+                        <Icon name="check-circle" size={16} color={colors.primary} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.strategyCard, strategy === 'role_wise' && styles.strategyCardActive]}
+                    onPress={() => setStrategy('role_wise')}
+                  >
+                    <View style={[styles.strategyIconBox, strategy === 'role_wise' && { backgroundColor: '#818CF822' }]}>
+                      <Icon name="account-group" size={22} color={strategy === 'role_wise' ? '#818CF8' : colors.textTertiary} />
+                    </View>
+                    <Text style={[styles.strategyTitle, strategy === 'role_wise' && { color: '#818CF8' }]}>Role Wise</Text>
+                    <Text style={styles.strategyDesc}>Batsmen, Bowlers{`\n`}grouped by role</Text>
+                    {strategy === 'role_wise' && (
+                      <View style={[styles.strategyCheck, { backgroundColor: '#818CF822', borderColor: '#818CF8' }]}>
+                        <Icon name="check-circle" size={16} color="#818CF8" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Players Per Set Card */}
+              <View style={styles.configSection}>
+                <View style={styles.configSectionHeader}>
+                  <View style={styles.configStepBadge}><Text style={styles.configStepNum}>2</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.configSectionTitle}>Players in Each Set</Text>
+                    <Text style={styles.configSectionSub}>How many players per auction set?</Text>
+                  </View>
+                </View>
+                <View style={styles.counterRow}>
+                  <TouchableOpacity style={styles.counterBtn} onPress={() => setPlayersPerSet(Math.max(1, (parseInt(playersPerSet) || 0) - 1))}>
+                    <Text style={styles.counterBtnText}>−</Text>
+                  </TouchableOpacity>
+                  <View style={styles.counterValBox}>
+                    <TextInput
+                      style={styles.counterVal}
+                      keyboardType="number-pad"
+                      value={String(playersPerSet)}
+                      onChangeText={(val) => {
+                        const num = parseInt(val.replace(/[^0-9]/g, ''), 10);
+                        const maxPlayers = registrations.length > 0 ? registrations.length : 999;
+                        if (!isNaN(num)) { setPlayersPerSet(Math.min(num, maxPlayers)); }
+                        else if (val === '') { setPlayersPerSet(''); }
+                      }}
+                    />
+                  </View>
+                  <TouchableOpacity style={styles.counterBtn} onPress={() => {
                     const maxPlayers = registrations.length > 0 ? registrations.length : 999;
-                    if (!isNaN(num)) { setPlayersPerSet(Math.min(num, maxPlayers)); }
-                    else if (val === '') { setPlayersPerSet(''); }
-                  }}
-                />
+                    setPlayersPerSet(Math.min(maxPlayers, (parseInt(playersPerSet) || 0) + 1));
+                  }}>
+                    <Text style={styles.counterBtnText}>+</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <TouchableOpacity style={styles.counterBtn} onPress={() => {
-                const maxPlayers = registrations.length > 0 ? registrations.length : 999;
-                setPlayersPerSet(Math.min(maxPlayers, (parseInt(playersPerSet) || 0) + 1));
-              }}>
-                <Text style={styles.counterBtnText}>+</Text>
+
+              {/* Financial Config Card */}
+              <View style={styles.configSection}>
+                <View style={styles.configSectionHeader}>
+                  <View style={styles.configStepBadge}><Text style={styles.configStepNum}>3</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.configSectionTitle}>Financial Settings</Text>
+                    <Text style={styles.configSectionSub}>Set base price and team auction budget</Text>
+                  </View>
+                </View>
+                <View style={styles.financialRow}>
+                  <View style={styles.financialField}>
+                    <View style={styles.financialIcon}>
+                      <Icon name="currency-inr" size={16} color={colors.primary} />
+                    </View>
+                    <Text style={styles.financialLabel}>Base Price (Pts)</Text>
+                    <TextInput
+                      style={styles.financialInput}
+                      placeholder="e.g. 1000"
+                      placeholderTextColor={colors.textTertiary}
+                      keyboardType="number-pad"
+                      value={basePrice}
+                      onChangeText={setBasePrice}
+                    />
+                  </View>
+                  <View style={styles.financialField}>
+                    <View style={[styles.financialIcon, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
+                      <Icon name="wallet" size={16} color="#F59E0B" />
+                    </View>
+                    <Text style={styles.financialLabel}>Team Purse (Pts)</Text>
+                    <TextInput
+                      style={styles.financialInput}
+                      placeholder="e.g. 50000"
+                      placeholderTextColor={colors.textTertiary}
+                      keyboardType="number-pad"
+                      value={teamPurse}
+                      onChangeText={setTeamPurse}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Summary + Generate */}
+              <View style={styles.generateSummaryBox}>
+                <Icon name="information-outline" size={14} color={colors.textTertiary} style={{ marginRight: 6 }} />
+                <Text style={styles.generateSummaryText}>
+                  {registrations.length} players → {Math.ceil(registrations.length / (parseInt(playersPerSet) || 1)) || 0} sets of ~{playersPerSet || 0} each
+                  {strategy === 'role_wise' ? ' (grouped by role)' : ' (random mix)'}
+                </Text>
+              </View>
+
+              <TouchableOpacity style={styles.generateBtn} onPress={handleCreateSets} disabled={loading}>
+                {loading ? <ActivityIndicator color="#000" /> : (
+                  <>
+                    <Icon name="auto-fix" size={20} color="#000" style={{ marginRight: 8 }} />
+                    <Text style={styles.generateBtnText}>GENERATE SETS NOW</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
-          </View>
-
-          {/* Financial Config Card */}
-          <View style={styles.configSection}>
-            <View style={styles.configSectionHeader}>
-              <View style={styles.configStepBadge}><Text style={styles.configStepNum}>3</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.configSectionTitle}>Financial Settings</Text>
-                <Text style={styles.configSectionSub}>Set base price and team auction budget</Text>
-              </View>
-            </View>
-            <View style={styles.financialRow}>
-              <View style={styles.financialField}>
-                <View style={styles.financialIcon}>
-                  <Icon name="currency-inr" size={16} color={colors.primary} />
-                </View>
-                <Text style={styles.financialLabel}>Base Price (Pts)</Text>
-                <TextInput
-                  style={styles.financialInput}
-                  placeholder="e.g. 1000"
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="number-pad"
-                  value={basePrice}
-                  onChangeText={setBasePrice}
-                />
-              </View>
-              <View style={styles.financialField}>
-                <View style={[styles.financialIcon, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
-                  <Icon name="wallet" size={16} color="#F59E0B" />
-                </View>
-                <Text style={styles.financialLabel}>Team Purse (Pts)</Text>
-                <TextInput
-                  style={styles.financialInput}
-                  placeholder="e.g. 50000"
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="number-pad"
-                  value={teamPurse}
-                  onChangeText={setTeamPurse}
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Summary + Generate */}
-          <View style={styles.generateSummaryBox}>
-            <Icon name="information-outline" size={14} color={colors.textTertiary} style={{ marginRight: 6 }} />
-            <Text style={styles.generateSummaryText}>
-              {registrations.length} players → {Math.ceil(registrations.length / (parseInt(playersPerSet) || 1)) || 0} sets of ~{playersPerSet || 0} each
-              {strategy === 'role_wise' ? ' (grouped by role)' : ' (random mix)'}
-            </Text>
-          </View>
-
-          <TouchableOpacity style={styles.generateBtn} onPress={handleCreateSets} disabled={loading}>
-            {loading ? <ActivityIndicator color="#000" /> : (
-              <>
-                <Icon name="auto-fix" size={20} color="#000" style={{ marginRight: 8 }} />
-                <Text style={styles.generateBtnText}>GENERATE SETS NOW</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
+          )}
+        </KeyboardAwareScrollView>
       )}
 
       {/* Tab 3: Sets Overview */}
@@ -730,7 +1168,12 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={{ paddingVertical: 10 }}>
+            <KeyboardAwareScrollView
+              enableOnAndroid={true}
+              extraScrollHeight={Platform.OS === 'ios' ? 40 : 25}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingVertical: 10 }}
+            >
               <View style={{ marginBottom: 15 }}>
                 <Text style={styles.label}>Player Mobile Number *</Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -744,7 +1187,7 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                     maxLength={10}
                   />
                   <View style={styles.lookupBtn}>
-                    {lookingUp ? <ActivityIndicator color="#000" size="small" /> : <Icon name="check-circle" color={phoneInput.length === 10 ? '#000' : colors.textTertiary} size={20} />}
+                    {lookingUp ? <ActivityIndicator color="#000" size="small" /> : <Icon name="check-circle" color={phoneInput.length === 10 ? '#000' : 'rgba(0,0,0,0.3)'} size={20} />}
                   </View>
                 </View>
                 {lookupMessage ? <Text style={{ color: colors.primary, fontSize: 12, marginTop: 8, fontFamily: Typography.fontFamily.medium }}>{lookupMessage}</Text> : null}
@@ -833,7 +1276,138 @@ const AuctionCreateSetsScreen = ({ route, navigation }) => {
                   <Text style={styles.submitBtnText}>ADD TO AUCTION POOL</Text>
                 )}
               </TouchableOpacity>
-            </ScrollView>
+            </KeyboardAwareScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Select Players for Custom Set */}
+      <Modal
+        visible={showPlayerSelectionModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPlayerSelectionModal(false)}
+      >
+        <View style={styles.playerSelectModalOverlay}>
+          <View style={styles.playerSelectModalCard}>
+            <View style={styles.modalSheetHandle} />
+            {(() => {
+              const currentSet = customSets.find(s => s.id === activeSetIdForSelection);
+              const selectedCount = currentSet?.playerIds?.length || 0;
+
+              const filteredPlayers = registrations.filter(r => {
+                const matchesRole = playerRoleFilter === 'All' || r.role === playerRoleFilter;
+                const matchesQuery = !playerSearchQuery || r.fullName?.toLowerCase().includes(playerSearchQuery.toLowerCase()) || r.mobileNumber?.includes(playerSearchQuery);
+                return matchesRole && matchesQuery;
+              });
+
+              return (
+                <View style={{ flex: 1 }}>
+                  <View style={styles.modalHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalTitle} numberOfLines={1}>Select Players for {currentSet?.setName || 'Set'}</Text>
+                      <Text style={{ fontSize: 12, color: colors.primary, fontFamily: Typography.fontFamily.semiBold, marginTop: 2 }}>
+                        {selectedCount} players selected
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setShowPlayerSelectionModal(false)}>
+                      <Icon name="close" size={24} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Search Bar */}
+                  <View style={styles.playerSearchRow}>
+                    <Icon name="magnify" size={18} color={colors.textTertiary} style={{ marginRight: 8 }} />
+                    <TextInput
+                      style={styles.playerSearchInput}
+                      placeholder="Search player by name..."
+                      placeholderTextColor={colors.textTertiary}
+                      value={playerSearchQuery}
+                      onChangeText={setPlayerSearchQuery}
+                    />
+                    {playerSearchQuery ? (
+                      <TouchableOpacity onPress={() => setPlayerSearchQuery('')}>
+                        <Icon name="close-circle" size={16} color={colors.textTertiary} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  {/* Role Filter Chips */}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 38, marginBottom: 10 }}>
+                    {['All', ...ROLES].map(r => (
+                      <TouchableOpacity
+                        key={r}
+                        style={[styles.roleFilterChip, playerRoleFilter === r && styles.roleFilterChipActive]}
+                        onPress={() => setPlayerRoleFilter(r)}
+                      >
+                        <Text style={[styles.roleFilterChipText, playerRoleFilter === r && styles.roleFilterChipTextActive]}>{r}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  {/* Player List */}
+                  <FlatList
+                    data={filteredPlayers}
+                    keyExtractor={(item) => item._id}
+                    contentContainerStyle={{ paddingBottom: 20 }}
+                    ListEmptyComponent={
+                      <View style={{ alignItems: 'center', paddingVertical: 30 }}>
+                        <Icon name="account-search-outline" size={40} color={colors.textTertiary} />
+                        <Text style={{ color: colors.textTertiary, fontSize: 13, marginTop: 8 }}>No players match your search.</Text>
+                      </View>
+                    }
+                    renderItem={({ item }) => {
+                      const isSelectedInActiveSet = currentSet?.playerIds?.includes(item._id);
+                      // Check if selected in ANOTHER set
+                      const otherSet = customSets.find(s => s.id !== activeSetIdForSelection && s.playerIds.includes(item._id));
+
+                      return (
+                        <TouchableOpacity
+                          style={[styles.pickerPlayerCard, isSelectedInActiveSet && styles.pickerPlayerCardSelected]}
+                          onPress={() => handleTogglePlayerInSet(item._id)}
+                          activeOpacity={0.7}
+                        >
+                          {/* Checkbox Icon */}
+                          <View style={[styles.pickerCheckbox, isSelectedInActiveSet && styles.pickerCheckboxActive]}>
+                            {isSelectedInActiveSet && <Icon name="check" size={14} color="#000" />}
+                          </View>
+
+                          {/* Avatar */}
+                          {item.photo ? (
+                            <Image source={{ uri: getImageUrl(item.photo) }} style={styles.pickerAvatar} />
+                          ) : (
+                            <View style={styles.pickerAvatarPlaceholder}>
+                              <Text style={styles.pickerAvatarInitials}>{(item.fullName || 'P').charAt(0).toUpperCase()}</Text>
+                            </View>
+                          )}
+
+                          {/* Info */}
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={styles.pickerPlayerName}>{item.fullName}</Text>
+                            <Text style={styles.pickerPlayerSub}>{item.role} • {item.battingStyle || 'Right Handed'}</Text>
+                          </View>
+
+                          {/* Badge if in other set */}
+                          {otherSet && !isSelectedInActiveSet && (
+                            <View style={styles.otherSetBadge}>
+                              <Text style={styles.otherSetBadgeText}>In {otherSet.setName}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    }}
+                  />
+
+                  {/* Done Button */}
+                  <TouchableOpacity
+                    style={styles.doneBtn}
+                    onPress={() => setShowPlayerSelectionModal(false)}
+                  >
+                    <Text style={styles.doneBtnText}>DONE ({selectedCount} SELECTED)</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
           </View>
         </View>
       </Modal>
@@ -1146,12 +1720,12 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   emptyText: { color: colors.textTertiary, marginTop: 6, fontSize: 13, textAlign: 'center' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: Spacing.lg, maxHeight: '85%' },
+  modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: Spacing.lg, maxHeight: '85%', borderWidth: 1, borderColor: colors.border },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   modalTitle: { fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary },
 
   label: {
-    color: colors.textTertiary,
+    color: isDark ? colors.textTertiary : colors.textSecondary,
     fontSize: 11,
     fontFamily: Typography.fontFamily.bold,
     letterSpacing: 0.6,
@@ -1160,9 +1734,9 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.background,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 14,
     height: 46,
@@ -1181,7 +1755,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 5,
   },
-  photoBox: { width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  photoBox: { width: 70, height: 70, borderRadius: 35, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.background, borderWidth: 1.5, borderColor: colors.border, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   photoImg: { width: 70, height: 70, borderRadius: 35 },
   chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 8 },
   chip: {
@@ -1189,8 +1763,8 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderColor: colors.border,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.background,
   },
   chipActive: {
     backgroundColor: colors.primary,
@@ -1218,6 +1792,458 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     elevation: 8,
   },
   submitBtnText: { color: '#000', fontFamily: Typography.fontFamily.bold, fontSize: 15, letterSpacing: 0.4 },
+
+  // ── Remove Player ──
+  removePlayerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+    gap: 4,
+  },
+  removePlayerText: {
+    color: '#EF4444',
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+
+  // ── Mode Switcher ──
+  modeToggleRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modeToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  modeToggleBtnActive: {
+    backgroundColor: colors.primary,
+  },
+  modeToggleText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textTertiary,
+  },
+  modeToggleTextActive: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
+  },
+
+  // ── Custom Sets Styles ──
+  customSectionTitle: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  customSectionSub: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginBottom: 14,
+  },
+  customSetCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    marginBottom: 14,
+  },
+  customSetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  customSetBadge: {
+    backgroundColor: colors.primary + '22',
+    borderWidth: 1,
+    borderColor: colors.primary + '55',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  customSetBadgeText: {
+    color: colors.primary,
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.5,
+  },
+  customSetNameHeading: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  deleteSetBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  customFieldLabel: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textSecondary,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  customInput: {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.medium,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  presetPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginRight: 6,
+  },
+  presetPillActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '18',
+  },
+  presetPillText: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  presetPillTextActive: {
+    color: colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  customPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+  },
+  customPriceIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary + '18',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  customPriceInput: {
+    flex: 1,
+    color: colors.primary,
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    paddingVertical: 10,
+  },
+  selectPlayersBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  selectPlayersBtnText: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  playerChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  playerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  playerChipAvatar: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    marginRight: 5,
+  },
+  playerChipAvatarPlaceholder: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.primary + '22',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 5,
+  },
+  playerChipInitials: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.primary,
+  },
+  playerChipName: {
+    fontSize: 11,
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.medium,
+    maxWidth: 100,
+  },
+  addSetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.primary + '88',
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginVertical: 4,
+  },
+  addSetBtnText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.5,
+  },
+
+  // ── No Custom Sets Empty State ──
+  noCustomSetsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
+    borderStyle: 'dashed',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  noCustomSetsIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: `${colors.primary}18`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  noCustomSetsTitle: {
+    fontSize: 17,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+    marginBottom: 6,
+  },
+  noCustomSetsSub: {
+    fontSize: 13,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 20,
+    paddingHorizontal: 12,
+  },
+  addFirstSetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  addFirstSetBtnText: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+    letterSpacing: 0.5,
+  },
+
+  // ── Player Selection Modal Styles ──
+  playerSelectModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end',
+  },
+  playerSelectModalCard: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 24,
+    height: '85%',
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 20,
+  },
+  modalSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  playerSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
+  playerSearchInput: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 13,
+    paddingVertical: 8,
+  },
+  roleFilterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginRight: 6,
+  },
+  roleFilterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  roleFilterChipText: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  roleFilterChipTextActive: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
+  },
+  pickerPlayerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginBottom: 6,
+  },
+  pickerPlayerCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '0D',
+  },
+  pickerCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  pickerCheckboxActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  pickerAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    resizeMode: 'contain',
+    backgroundColor: '#0a0f1d',
+  },
+  pickerAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickerAvatarInitials: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.primary,
+  },
+  pickerPlayerName: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  pickerPlayerSub: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginTop: 1,
+  },
+  otherSetBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  otherSetBadgeText: {
+    color: '#F59E0B',
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  doneBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  doneBtnText: {
+    color: '#000',
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
 });
 
 export default AuctionCreateSetsScreen;

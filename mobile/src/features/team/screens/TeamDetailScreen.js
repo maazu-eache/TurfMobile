@@ -41,8 +41,8 @@ const DETAIL_TABS = [
 ];
 
 const ROLE_OPTIONS = ['player', 'captain', 'vice_captain', 'wicket_keeper', 'admin'];
-const ROLE_LABELS = { player: 'Player', captain: 'Captain', vice_captain: 'Vice Captain', wicket_keeper: 'Wicket Keeper', admin: 'Admin' };
-const ROLE_ICONS = { player: 'account', captain: 'crown', vice_captain: 'star-half-full', wicket_keeper: 'handball', admin: 'shield-crown' };
+const ROLE_LABELS = { player: 'Player', captain: 'Captain', vice_captain: 'Vice Captain', wicket_keeper: 'Wicket Keeper', admin: 'Admin (Max 2)' };
+const ROLE_ICONS = { player: 'account', captain: 'crown', vice_captain: 'star-half-full', wicket_keeper: 'handball', admin: 'shield-account' };
 
 const ACHIEVEMENTS = [
   { id: 'first_win', icon: 'trophy', label: 'First Win', desc: 'Win your first match', target: 1, key: 'wins' },
@@ -382,6 +382,25 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   actionIconBtnDanger: { borderColor: 'rgba(244,67,54,0.3)', backgroundColor: colors.errorLight },
+
+  verifiedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    backgroundColor: 'rgba(76,175,80,0.12)', borderRadius: 4,
+    paddingHorizontal: 4, paddingVertical: 1,
+    borderWidth: 0.5, borderColor: 'rgba(76,175,80,0.4)',
+  },
+  verifiedBadgeText: {
+    color: '#4CAF50', fontFamily: Typography.fontFamily.semiBold, fontSize: 8, letterSpacing: 0.2,
+  },
+  ghostBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderRadius: 4,
+    paddingHorizontal: 4, paddingVertical: 1,
+    borderWidth: 0.5, borderColor: colors.border,
+  },
+  ghostBadgeText: {
+    color: colors.textTertiary, fontFamily: Typography.fontFamily.semiBold, fontSize: 8, letterSpacing: 0.2,
+  },
 
   addPlayerBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -1301,6 +1320,14 @@ const TeamDetailScreen = ({ navigation, route }) => {
   }, [mobile]);
 
   const handleAddPlayer = async () => {
+    if (!mobile.trim()) { showCustomAlert('Validation Error', 'Mobile number is required'); return; }
+    if (addRole === 'admin') {
+      const currentAdmins = selectedTeam?.players?.filter(p => p.role === 'admin') || [];
+      if (currentAdmins.length >= 2) {
+        showCustomAlert('Limit Reached', 'A team can have a maximum of 2 Admins.');
+        return;
+      }
+    }
     setAdding(true);
     try {
       await dispatch(addPlayerToTeam({ teamId: id, mobile: mobile.trim(), name: playerName.trim(), role: addRole })).unwrap();
@@ -1308,18 +1335,26 @@ const TeamDetailScreen = ({ navigation, route }) => {
       setLookedUpPlayer(null); setLookupDone(false);
       showCustomAlert('Success', 'Player added!');
       dispatch(fetchTeamById(id));
-    } catch (e) { showCustomAlert('Error', typeof e === 'string' ? e : 'Failed to add player'); }
+    } catch (e) { showCustomAlert('Error', typeof e === 'string' ? e : e?.message || 'Failed to add player'); }
     finally { setAdding(false); }
   };
 
   const handleUpdateRole = async (newRole) => {
     if (!selectedPlayerToEdit) return;
+    if (newRole === 'admin') {
+      const currentAdmins = selectedTeam?.players?.filter(p => p.role === 'admin' && (p.player?._id || p.player) !== (selectedPlayerToEdit.player?._id || selectedPlayerToEdit.player)) || [];
+      if (currentAdmins.length >= 2) {
+        showCustomAlert('Limit Reached', 'A team can have a maximum of 2 Admins.');
+        return;
+      }
+    }
     setUpdatingRole(true);
     try {
       await dispatch(updatePlayerRole({ teamId: id, playerId: selectedPlayerToEdit.player._id, role: newRole })).unwrap();
       setRoleModalVisible(false);
       showCustomAlert('Success', 'Role updated');
-    } catch (e) { showCustomAlert('Error', typeof e === 'string' ? e : 'Failed'); }
+      dispatch(fetchTeamById(id));
+    } catch (e) { showCustomAlert('Error', typeof e === 'string' ? e : e?.message || 'Failed to update role'); }
     finally { setUpdatingRole(false); }
   };
 
@@ -1377,14 +1412,27 @@ const TeamDetailScreen = ({ navigation, route }) => {
   };
 
   const handleRemovePlayer = (member) => {
-    showCustomAlert('Remove Player', `Remove ${member.player?.name}?`, [
+    const isCap = member.role === 'captain' || (selectedTeam?.captain && (selectedTeam.captain._id === member.player._id || selectedTeam.captain === member.player._id));
+    const isVC = member.role === 'vice_captain' || (selectedTeam?.viceCaptain && (selectedTeam.viceCaptain._id === member.player._id || selectedTeam.viceCaptain === member.player._id));
+
+    if (isCap || isVC) {
+      const leaderTitle = isCap ? 'Captain' : 'Vice Captain';
+      showCustomAlert(
+        'Cannot Remove Leader',
+        `Cannot remove ${leaderTitle} (${member.player?.name}). Please assign another player as ${leaderTitle} before removing them.`
+      );
+      return;
+    }
+
+    showCustomAlert('Remove Player', `Remove ${member.player?.name} from the team?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove', style: 'destructive', onPress: async () => {
           try {
             await dispatch(removePlayerFromTeam({ teamId: id, playerId: member.player._id })).unwrap();
-            showCustomAlert('Removed', 'Player removed');
-          } catch (e) { showCustomAlert('Error', typeof e === 'string' ? e : 'Failed'); }
+            showCustomAlert('Removed', 'Player removed from team');
+            dispatch(fetchTeamById(id));
+          } catch (e) { showCustomAlert('Error', typeof e === 'string' ? e : e?.message || 'Failed to remove player'); }
         }
       }
     ]);
@@ -1436,6 +1484,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
           const isVC = member.role === 'vice_captain';
           const isWK = member.role === 'wicket_keeper';
 
+          // Verified = has a linked app user account; Ghost = manually registered without app account
+          const isVerified = !!(p.userId?._id || (typeof p.userId === 'string' && p.userId));
+
           const dismissals = (p.batting?.innings || 0) - (p.batting?.notOuts || 0);
           const batAvg = dismissals > 0 ? (p.batting.runs / dismissals).toFixed(1) : '0';
           const sr = p.batting?.balls > 0 ? ((p.batting.runs / p.batting.balls) * 100).toFixed(0) : '0';
@@ -1479,6 +1530,17 @@ const TeamDetailScreen = ({ navigation, route }) => {
                   {isMe && (
                     <View style={styles.youBadge}>
                       <Text style={styles.youBadgeText}>YOU</Text>
+                    </View>
+                  )}
+                  {isVerified ? (
+                    <View style={styles.verifiedBadge}>
+                      <Icon name="check-circle" size={9} color="#4CAF50" />
+                      <Text style={styles.verifiedBadgeText}>Verified</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.ghostBadge}>
+                      <Icon name="ghost" size={9} color={colors.textTertiary} />
+                      <Text style={styles.ghostBadgeText}>Guest</Text>
                     </View>
                   )}
                 </View>

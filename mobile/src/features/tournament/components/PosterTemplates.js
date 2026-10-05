@@ -280,7 +280,7 @@ const PosterFooter = ({ t, variant = "boxed" }) => {
           end={{ x: 1, y: 0 }}
           style={styles.footerDividerWide}
         />
-        <Text style={styles.footerTextMinimal}>POWERED BY ✦ DECOLZ × OCA</Text>
+        <Text style={styles.footerTextMinimal}>POWERED BY DECOLZ × OCA</Text>
       </View>
     );
   }
@@ -292,7 +292,7 @@ const PosterFooter = ({ t, variant = "boxed" }) => {
         end={{ x: 1, y: 0 }}
         style={styles.footerDividerWide}
       />
-      <Text style={[styles.footerText, { color: t.secTextColor }]}>POWERED BY ✦ DECOLZ × OCA</Text>
+      <Text style={[styles.footerText, { color: t.secTextColor }]}>POWERED BY DECOLZ × OCA</Text>
     </View>
   );
 };
@@ -403,7 +403,7 @@ export const TurfPoster = ({ turf, theme, shareUrl }) => {
           ]}
         >
           <View style={{ flex: 1 }}>
-            <Text style={[styles.footerText, { color: t.secTextColor, fontSize: 8 }]}>POWERED BY ✦ DECOLZ × OCA</Text>
+            <Text style={[styles.footerText, { color: t.secTextColor, fontSize: 8 }]}>POWERED BY DECOLZ × OCA</Text>
             {shareUrl ? (
               <Text style={{ fontSize: 7, color: t.secTextColor, marginTop: 2, opacity: 0.75 }} numberOfLines={1}>
                 {shareUrl}
@@ -634,6 +634,7 @@ export const PointsTablePoster = ({ pointsTable, tournamentName, groupName, them
             <Text style={[styles.tableHeadCell, { flex: 1, color: t.secTextColor }]}>M</Text>
             <Text style={[styles.tableHeadCell, { flex: 1, color: t.secTextColor }]}>W</Text>
             <Text style={[styles.tableHeadCell, { flex: 1, color: t.secTextColor }]}>L</Text>
+            <Text style={[styles.tableHeadCell, { flex: 1, color: t.secTextColor }]}>T</Text>
             <Text style={[styles.tableHeadCell, { flex: 1, color: t.accentColor, fontFamily: Typography.fontFamily.bold }]}>PTS</Text>
             <Text style={[styles.tableHeadCell, { flex: 1.5, color: t.secTextColor }]}>NRR</Text>
           </LinearGradient>
@@ -666,6 +667,7 @@ export const PointsTablePoster = ({ pointsTable, tournamentName, groupName, them
               <Text style={[styles.tableCell, { flex: 1, color: t.secTextColor }]}>{row.played}</Text>
               <Text style={[styles.tableCell, { flex: 1, color: t.secTextColor }]}>{row.won}</Text>
               <Text style={[styles.tableCell, { flex: 1, color: t.secTextColor }]}>{row.lost}</Text>
+              <Text style={[styles.tableCell, { flex: 1, color: t.secTextColor }]}>{row.tie || 0}</Text>
               <Text style={[styles.tableCell, { flex: 1, color: t.textColor, fontFamily: Typography.fontFamily.bold, fontSize: 13 }]}>{row.points}</Text>
               <Text style={[styles.tableCell, { flex: 1.5, color: t.secTextColor, fontSize: 11 }]}>
                 {row.netRunRate ? parseFloat(row.netRunRate).toFixed(3) : "0.000"}
@@ -782,10 +784,14 @@ export const LeaderboardPoster = ({ type, data, tournamentName, theme, startInde
   );
 };
 
-export const FullSchedulePoster = ({ matches, tournamentName, theme, pageInfo }) => {
+export const FullSchedulePoster = ({ matches, tournamentName, theme, pageInfo, startIndex }) => {
   const t = getThemeStyles(theme);
   const displayMatches = pageInfo ? matches || [] : (matches || []).slice(0, 7);
   const totalMatchesCount = pageInfo?.totalMatches || matches?.length || 0;
+  const effectiveStartIndex = startIndex !== undefined && startIndex !== null
+    ? startIndex
+    : (pageInfo ? (pageInfo.current - 1) * (pageInfo.pageSize || 6) : 0);
+
   return (
     <ImageBackground source={STADIUM_BG} style={getContainerStyle(t, 358)}>
       <View style={{ width: "100%", backgroundColor: t.overlayBg }}>
@@ -801,24 +807,28 @@ export const FullSchedulePoster = ({ matches, tournamentName, theme, pageInfo })
           ) : null}
         </View>
         <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}>
-          {displayMatches.map((m, idx) => (
-            <View key={m._id || idx} style={[getCardStyle(t), { marginBottom: 8, padding: 0, overflow: "hidden" }]}>
-              <View style={{ position: "absolute", top: 0, left: 0, bottom: 0, right: 0, flexDirection: "row", backgroundColor: "#050505" }}>
-                <View style={{ flex: 1, position: "relative" }}>
-                  <Image source={getSource(m.teamA?.logo)} style={{ width: "100%", height: "100%", opacity: 0.35 }} resizeMode="cover" />
-                  <LinearGradient colors={["transparent", "#050505"]} start={{ x: 0.3, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
+          {displayMatches.map((m, idx) => {
+            const matchNum = (typeof m.matchNumber === "number" && m.matchNumber > 0)
+              ? m.matchNumber
+              : (effectiveStartIndex + idx + 1);
+            return (
+              <View key={m._id || idx} style={[getCardStyle(t), { marginBottom: 8, padding: 0, overflow: "hidden" }]}>
+                <View style={{ position: "absolute", top: 0, left: 0, bottom: 0, right: 0, flexDirection: "row", backgroundColor: "#050505" }}>
+                  <View style={{ flex: 1, position: "relative" }}>
+                    <Image source={getSource(m.teamA?.logo)} style={{ width: "100%", height: "100%", opacity: 0.35 }} resizeMode="cover" />
+                    <LinearGradient colors={["transparent", "#050505"]} start={{ x: 0.3, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
+                  </View>
+                  <View style={{ flex: 1, position: "relative" }}>
+                    <Image source={getSource(m.teamB?.logo)} style={{ width: "100%", height: "100%", opacity: 0.35 }} resizeMode="cover" />
+                    <LinearGradient colors={["#050505", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 0.7, y: 0 }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
+                  </View>
                 </View>
-                <View style={{ flex: 1, position: "relative" }}>
-                  <Image source={getSource(m.teamB?.logo)} style={{ width: "100%", height: "100%", opacity: 0.35 }} resizeMode="cover" />
-                  <LinearGradient colors={["#050505", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 0.7, y: 0 }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
-                </View>
-              </View>
-              <LinearGradient colors={t.gradientBar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ height: 2, width: "100%" }} />
-              <View style={{ padding: Spacing.md }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                  <Text style={{ color: t.accentColor, fontSize: 10, fontFamily: Typography.fontFamily.bold, textShadowColor: "rgba(0,0,0,0.8)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
-                    MATCH {idx + 1} • {m.format?.toUpperCase() || "CUSTOM"}
-                  </Text>
+                <LinearGradient colors={t.gradientBar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ height: 2, width: "100%" }} />
+                <View style={{ padding: Spacing.md }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                    <Text style={{ color: t.accentColor, fontSize: 10, fontFamily: Typography.fontFamily.bold, textShadowColor: "rgba(0,0,0,0.8)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+                      MATCH {matchNum} • {m.format?.toUpperCase() || "CUSTOM"}
+                    </Text>
                   <Text style={{ color: "#E2E8F0", fontSize: 10, fontFamily: Typography.fontFamily.medium, textShadowColor: "rgba(0,0,0,0.8)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
                     {moment(m.scheduledAt || m.createdAt).format("DD MMM, hh:mm A")}
                   </Text>
@@ -838,7 +848,8 @@ export const FullSchedulePoster = ({ matches, tournamentName, theme, pageInfo })
                 </View>
               </View>
             </View>
-          ))}
+          );
+        })}
         </View>
         <PosterFooter t={t} />
       </View>

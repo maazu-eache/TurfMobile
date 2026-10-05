@@ -17,7 +17,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, Typography, useTheme } from '../../../theme/theme';
 import auctionService from '../../../services/auctionService';
-import { getImageUrl } from '../../../api/axios';
+import api, { getImageUrl } from '../../../api/axios';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { launchImageLibrary } from 'react-native-image-picker';
 
 const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
   const { colors, shadows, isDark } = useTheme();
@@ -27,6 +29,21 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
   const { auctionId } = route.params || {};
 
+  const initialIncrements = route.params?.initialIncrements && route.params.initialIncrements.length > 0
+    ? route.params.initialIncrements
+    : [50, 100, 200, 500];
+  const initialActive = route.params?.initialActiveIncrement || initialIncrements[0] || 100;
+
+  const [bidPoints, setBidPoints] = useState(initialIncrements);
+  const [activePoint, setActivePoint] = useState(initialActive);
+  const [showPointsModal, setShowPointsModal] = useState(false);
+  const [modalPoints, setModalPoints] = useState(initialIncrements);
+  const [modalCustomPoint, setModalCustomPoint] = useState('');
+  const [showQuickCustomInput, setShowQuickCustomInput] = useState(false);
+  const [quickCustomPoint, setQuickCustomPoint] = useState('');
+  const [showManualBidRow, setShowManualBidRow] = useState(false);
+  const [showDetailedStats, setShowDetailedStats] = useState(false);
+
   const [liveState, setLiveState] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState(null);
@@ -35,6 +52,101 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
   const [manualBid, setManualBid] = useState('');
   const [activeTab, setActiveTab] = useState('auction');
   const [expandedTeams, setExpandedTeams] = useState({});
+
+  // ── Unsold Set Builder & Add Player Modal States ──
+  const [showUnsoldModal, setShowUnsoldModal] = useState(false);
+  const [unsoldPlayersList, setUnsoldPlayersList] = useState([]);
+  const [selectedUnsoldIds, setSelectedUnsoldIds] = useState(new Set());
+  const [loadingUnsoldList, setLoadingUnsoldList] = useState(false);
+  const [unsoldSearchQuery, setUnsoldSearchQuery] = useState('');
+
+  // Add New Player Modal
+  const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
+  const [newPlayerForm, setNewPlayerForm] = useState({
+    fullName: '',
+    mobileNumber: '',
+    role: 'All Rounder',
+    battingStyle: 'Right Handed',
+    bowlingStyle: 'Right Arm Medium',
+    basePrice: '',
+    photo: null,
+  });
+  const [submittingNewPlayer, setSubmittingNewPlayer] = useState(false);
+  const [lookingUpNewPlayer, setLookingUpNewPlayer] = useState(false);
+  const [lookupNewPlayerMessage, setLookupNewPlayerMessage] = useState('');
+  const [lookupSuccess, setLookupSuccess] = useState(false);
+
+  const handleOpenAddPlayerModal = () => {
+    setNewPlayerForm({
+      fullName: '',
+      mobileNumber: '',
+      role: 'All Rounder',
+      battingStyle: 'Right Handed',
+      bowlingStyle: 'Right Arm Medium',
+      basePrice: String(liveState?.auction?.defaultBasePrice || 100),
+      photo: null,
+    });
+    setLookupNewPlayerMessage('');
+    setLookupSuccess(false);
+    setShowAddPlayerModal(true);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    const cleanPhone = (newPlayerForm.mobileNumber || '').replace(/\D/g, '');
+    if (cleanPhone.length === 10) {
+      setLookingUpNewPlayer(true);
+      setLookupNewPlayerMessage('');
+      const doLookup = async () => {
+        try {
+          const res = await api.get(`/users/lookup/${cleanPhone}`);
+          if (res.data?.data?.user && isMounted) {
+            const u = res.data.data.user;
+            const rawPhoto = u.avatar || u.photo;
+            const photoUrl = rawPhoto ? getImageUrl(rawPhoto) : null;
+            const userRole = u.playingRole || u.role;
+            const mapBattingStyle = (style) => {
+              if (style === 'Right Hand') return 'Right Handed';
+              if (style === 'Left Hand') return 'Left Handed';
+              return style;
+            };
+            const mappedBatting = mapBattingStyle(u.battingStyle);
+            setNewPlayerForm((f) => ({
+              ...f,
+              fullName: u.name || f.fullName,
+              role: userRole && ['All Rounder', 'Batsman', 'Bowler', 'Wicket Keeper'].includes(userRole) ? userRole : f.role,
+              battingStyle: mappedBatting && ['Right Handed', 'Left Handed'].includes(mappedBatting) ? mappedBatting : f.battingStyle,
+              bowlingStyle: u.bowlingStyle || f.bowlingStyle,
+              photo: photoUrl ? { uri: photoUrl, isRemoteUrl: true } : f.photo,
+              foundUser: u,
+            }));
+            setLookupSuccess(true);
+            setLookupNewPlayerMessage('Player account found! Details pre-filled.');
+          } else if (isMounted) {
+            setLookupSuccess(false);
+            setLookupNewPlayerMessage('No account found for this number. Enter details manually.');
+          }
+        } catch (e) {
+          if (isMounted) {
+            setLookupSuccess(false);
+            setLookupNewPlayerMessage('No account found for this number. Enter details manually.');
+          }
+        } finally {
+          if (isMounted) setLookingUpNewPlayer(false);
+        }
+      };
+
+      const timer = setTimeout(doLookup, 350);
+      return () => {
+        isMounted = false;
+        clearTimeout(timer);
+      };
+    } else {
+      setLookupNewPlayerMessage('');
+      setLookupSuccess(false);
+    }
+  }, [newPlayerForm.mobileNumber]);
+
   
   const toggleTeam = (teamId) =>
     setExpandedTeams(prev => ({ ...prev, [teamId]: !prev[teamId] }));
@@ -238,19 +350,142 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
     });
   };
 
-  const handleGenerateUnsoldSet = () => {
-    showConfirmAlert('Unsold / Skipped Players', 'Are you sure you want to create a new set for all unsold and skipped players?', 'Yes, Generate', false, async () => {
-          setLoading(true);
-          try {
-            const res = await auctionService.generateUnsoldSet(auctionId);
-            setLiveState(res.data);
-            showCustomAlert('Success', 'Unsold & skipped players set generated!');
-          } catch (err) {
-            showCustomAlert('Error', err.response?.data?.message || 'Failed to generate unsold set');
-          } finally {
-            setLoading(false);
-          }
+  const handleOpenUnsoldModal = async () => {
+    setShowUnsoldModal(true);
+    setLoadingUnsoldList(true);
+    try {
+      const res = await auctionService.getRegistrations(auctionId);
+      const allRegs = res.data || [];
+      const eligible = allRegs.filter(
+        (p) => p.approvalStatus === 'approved' && !p.soldToTeam && (p.soldStatus === 'unsold' || p.soldStatus === 'skipped' || p.soldStatus === 'available')
+      );
+      setUnsoldPlayersList(eligible);
+      setSelectedUnsoldIds(new Set(eligible.map((p) => p._id)));
+    } catch (err) {
+      showCustomAlert('Error', 'Failed to fetch unsold players.');
+    } finally {
+      setLoadingUnsoldList(false);
+    }
+  };
+
+  const handleTogglePlayerSelection = (playerId) => {
+    setSelectedUnsoldIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playerId)) {
+        next.delete(playerId);
+      } else {
+        next.add(playerId);
+      }
+      return next;
     });
+  };
+
+  const handleSelectAllUnsold = () => {
+    if (selectedUnsoldIds.size === unsoldPlayersList.length) {
+      setSelectedUnsoldIds(new Set());
+    } else {
+      setSelectedUnsoldIds(new Set(unsoldPlayersList.map((p) => p._id)));
+    }
+  };
+
+  const handleCreateSelectedUnsoldSet = async () => {
+    if (selectedUnsoldIds.size === 0) {
+      showCustomAlert('Select Players', 'Please select at least one player for the new set.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await auctionService.generateUnsoldSet(auctionId, Array.from(selectedUnsoldIds));
+      setLiveState(res.data);
+      setShowUnsoldModal(false);
+      showCustomAlert('Success', `New set created with ${selectedUnsoldIds.size} player${selectedUnsoldIds.size > 1 ? 's' : ''}!`);
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to generate unsold set');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePickNewPlayerPhoto = () => {
+    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (response) => {
+      if (response.didCancel) return;
+      if (response.errorCode) {
+        showCustomAlert('Error', response.errorMessage || 'Failed to pick image');
+        return;
+      }
+      if (response.assets && response.assets.length > 0) {
+        setNewPlayerForm((prev) => ({ ...prev, photo: response.assets[0] }));
+      }
+    });
+  };
+
+  const handleSaveNewPlayer = async () => {
+    const cleanPhone = (newPlayerForm.mobileNumber || '').replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      showCustomAlert('Validation', 'Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (!newPlayerForm.fullName.trim()) {
+      showCustomAlert('Validation', 'Please enter player full name.');
+      return;
+    }
+
+    setSubmittingNewPlayer(true);
+    try {
+      const formData = new FormData();
+      formData.append('fullName', newPlayerForm.fullName.trim());
+      formData.append('mobileNumber', cleanPhone);
+      formData.append('role', newPlayerForm.role);
+      formData.append('battingStyle', newPlayerForm.battingStyle);
+      formData.append('bowlingStyle', newPlayerForm.bowlingStyle);
+
+      const bPrice = newPlayerForm.basePrice ? Number(newPlayerForm.basePrice) : (liveState?.auction?.defaultBasePrice || 100);
+      formData.append('basePrice', bPrice);
+
+      if (newPlayerForm.photo) {
+        if (newPlayerForm.photo.isRemoteUrl) {
+          formData.append('photo', newPlayerForm.photo.uri);
+        } else if (newPlayerForm.photo.uri) {
+          formData.append('photo', {
+            uri: newPlayerForm.photo.uri,
+            type: newPlayerForm.photo.type || 'image/jpeg',
+            name: newPlayerForm.photo.fileName || `player_${Date.now()}.jpg`,
+          });
+        }
+      } else {
+        formData.append('photo', `https://ui-avatars.com/api/?name=${encodeURIComponent(newPlayerForm.fullName.trim())}&background=9ABC2F&color=fff`);
+      }
+
+      const res = await auctionService.manualRegisterPlayer(auctionId, formData);
+      const createdReg = res.data;
+
+      if (createdReg) {
+        setUnsoldPlayersList((prev) => [createdReg, ...prev]);
+        setSelectedUnsoldIds((prev) => new Set([...prev, createdReg._id]));
+      }
+
+      showCustomAlert('Success', `${newPlayerForm.fullName.trim()} added and selected for the auction!`);
+      setShowAddPlayerModal(false);
+      setNewPlayerForm({
+        fullName: '',
+        mobileNumber: '',
+        role: 'All Rounder',
+        battingStyle: 'Right Handed',
+        bowlingStyle: 'Right Arm Medium',
+        basePrice: '',
+        photo: null,
+      });
+      setLookupNewPlayerMessage('');
+      setLookupSuccess(false);
+    } catch (err) {
+      showCustomAlert('Error', err.response?.data?.message || 'Failed to add player');
+    } finally {
+      setSubmittingNewPlayer(false);
+    }
+  };
+
+  const handleGenerateUnsoldSet = () => {
+    handleOpenUnsoldModal();
   };
 
   const handleCloseAuction = () => {
@@ -280,6 +515,130 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
     } finally {
       setLoading(false);
       setStartingSetId(null);
+    }
+  };
+
+  const PRESET_POINTS = [20, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000];
+
+  useEffect(() => {
+    if (liveState?.auction?.bidIncrements && liveState.auction.bidIncrements.length > 0) {
+      if (!route.params?.initialIncrements) {
+        setBidPoints(liveState.auction.bidIncrements);
+        if (!activePoint) setActivePoint(liveState.auction.bidIncrements[0]);
+      }
+    }
+  }, [liveState?.auction?.bidIncrements]);
+
+  const handleApplyQuickCustom = () => {
+    const val = Number(quickCustomPoint.trim());
+    if (!val || isNaN(val) || val <= 0) {
+      showCustomAlert('Invalid Value', 'Please enter a valid positive point amount.');
+      return;
+    }
+    if (!bidPoints.includes(val)) {
+      const next = [...bidPoints, val].sort((a, b) => a - b);
+      setBidPoints(next);
+      auctionService.updateBidIncrements(auctionId, next).catch(() => {});
+    }
+    setActivePoint(val);
+    setQuickCustomPoint('');
+    setShowQuickCustomInput(false);
+  };
+
+  const handleToggleModalPoint = (val) => {
+    setModalPoints(prev => {
+      let next;
+      if (prev.includes(val)) {
+        if (prev.length <= 1) {
+          showCustomAlert('At Least One', 'You must keep at least one bid point option.');
+          return prev;
+        }
+        next = prev.filter(p => p !== val);
+      } else {
+        next = [...prev, val].sort((a, b) => a - b);
+      }
+      return next;
+    });
+  };
+
+  const handleAddModalCustomPoint = () => {
+    const val = Number(modalCustomPoint.trim());
+    if (!val || isNaN(val) || val <= 0) {
+      showCustomAlert('Invalid Value', 'Please enter a valid positive point amount.');
+      return;
+    }
+    if (modalPoints.includes(val)) {
+      showCustomAlert('Already Added', 'This point amount is already in the list.');
+      return;
+    }
+    const next = [...modalPoints, val].sort((a, b) => a - b);
+    setModalPoints(next);
+    setModalCustomPoint('');
+  };
+
+  const handleRemoveModalPoint = (val) => {
+    if (modalPoints.length <= 1) {
+      showCustomAlert('At Least One', 'You must keep at least one bid point option.');
+      return;
+    }
+    const next = modalPoints.filter(p => p !== val);
+    setModalPoints(next);
+  };
+
+  const handleSaveModalPoints = async () => {
+    if (!modalPoints || modalPoints.length === 0) {
+      showCustomAlert('Select Points', 'Please select at least one point value.');
+      return;
+    }
+    setBidPoints(modalPoints);
+    if (!modalPoints.includes(activePoint)) {
+      setActivePoint(modalPoints[0]);
+    }
+    setShowPointsModal(false);
+    try {
+      await auctionService.updateBidIncrements(auctionId, modalPoints);
+    } catch (e) {
+      console.log('Error saving bid increments:', e);
+    }
+  };
+
+  const handleTeamBid = async (team, targetBidAmount, isBasePrice = false) => {
+    if (!currentPlayer) {
+      showCustomAlert('No Player', 'No player is currently on the auction block.');
+      return;
+    }
+    if (team._id === currentHighestTeam?._id) {
+      showCustomAlert('Already Leading', `${team.name} already holds the highest bid!`);
+      return;
+    }
+    const purseTotal = liveState?.auction?.teamPurse || team.auctionPurse || 0;
+    const purseRemaining = team.purseRemaining ?? purseTotal;
+    if (targetBidAmount > purseRemaining) {
+      showCustomAlert(
+        'Purse Limit',
+        `${team.name} has only ${purseRemaining} Pts remaining. This bid requires ${targetBidAmount} Pts.`
+      );
+      return;
+    }
+
+    // Optimistic Update
+    const prevLiveState = liveState;
+    setLiveState({
+      ...liveState,
+      auction: {
+        ...liveState.auction,
+        currentHighestBid: targetBidAmount,
+        currentHighestTeam: team
+      }
+    });
+    setSelectedTeamId(team._id);
+
+    try {
+      const res = await auctionService.updateBid(auctionId, team._id, targetBidAmount);
+      setLiveState(res.data);
+    } catch (err) {
+      setLiveState(prevLiveState);
+      showCustomAlert('Bid Error', err.response?.data?.message || 'Failed to update bid');
     }
   };
 
@@ -432,7 +791,490 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
+      {/* ── Points Configuration Modal ── */}
+      <Modal
+        visible={showPointsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPointsModal(false)}
+      >
+        <View style={styles.alertOverlay}>
+          <View style={styles.pointsModalBox}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name="tune" size={20} color={colors.primary} style={{ marginRight: 8 }} />
+                <Text style={styles.pointsModalTitle}>Auction Bid Points</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowPointsModal(false)} style={{ padding: 4 }}>
+                <Icon name="close" size={20} color={colors.textTertiary} />
+              </TouchableOpacity>
+            </View>
+
+            <KeyboardAwareScrollView
+              enableOnAndroid={true}
+              extraScrollHeight={20}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Active Points list */}
+              <Text style={styles.modalSectionSub}>Active Points in Auction ({modalPoints.length})</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {modalPoints.map(pt => (
+                  <View key={pt} style={styles.modalPointBadge}>
+                    <Text style={styles.modalPointBadgeText}>+{pt}</Text>
+                    <TouchableOpacity onPress={() => handleRemoveModalPoint(pt)} style={{ marginLeft: 4 }}>
+                      <Icon name="close-circle" size={15} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+
+              {/* Quick Presets */}
+              <Text style={styles.modalSectionSub}>Toggle Presets</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {PRESET_POINTS.map(pt => {
+                  const isSelected = modalPoints.includes(pt);
+                  return (
+                    <TouchableOpacity
+                      key={pt}
+                      style={[styles.presetPointPill, isSelected && styles.presetPointPillActive]}
+                      onPress={() => handleToggleModalPoint(pt)}
+                    >
+                      {isSelected && <Icon name="check" size={11} color="#000" style={{ marginRight: 3 }} />}
+                      <Text style={[styles.presetPointPillText, isSelected && styles.presetPointPillTextActive]}>
+                        +{pt}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Add Custom Point */}
+              <Text style={styles.modalSectionSub}>Add Custom Point</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                <TextInput
+                  style={styles.modalCustomInput}
+                  placeholder="e.g. 750, 1500"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="numeric"
+                  value={modalCustomPoint}
+                  onChangeText={setModalCustomPoint}
+                  onSubmitEditing={handleAddModalCustomPoint}
+                />
+                <TouchableOpacity style={styles.modalCustomAddBtn} onPress={handleAddModalCustomPoint}>
+                  <Text style={styles.modalCustomAddBtnText}>+ ADD</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Save Button */}
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSaveModalPoints}>
+                <Text style={styles.modalSaveBtnText}>SAVE & APPLY POINTS</Text>
+              </TouchableOpacity>
+            </KeyboardAwareScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Unsold & Custom Re-Auction Set Modal ── */}
+      <Modal
+        visible={showUnsoldModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowUnsoldModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdropTap}
+            activeOpacity={1}
+            onPress={() => setShowUnsoldModal(false)}
+          />
+          <View style={styles.unsoldModalContainer}>
+            {/* Sheet Handle */}
+            <View style={styles.modalSheetHandleWrap}>
+              <View style={styles.modalSheetHandle} />
+            </View>
+
+            {/* Header */}
+            <View style={styles.unsoldModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.unsoldModalTitle}>Build Re-Auction Set</Text>
+                <Text style={styles.unsoldModalSub}>
+                  Select players to include in this set or add new players.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setShowUnsoldModal(false)}
+              >
+                <Icon name="close" size={20} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Actions Bar */}
+            <View style={styles.unsoldActionsRow}>
+              <TouchableOpacity
+                style={styles.addNewPlayerTriggerBtn}
+                onPress={handleOpenAddPlayerModal}
+              >
+                <Icon name="account-plus" size={16} color={colors.background} style={{ marginRight: 6 }} />
+                <Text style={styles.addNewPlayerTriggerText}>+ Add New Player</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.selectAllBtn}
+                onPress={handleSelectAllUnsold}
+              >
+                <Icon
+                  name={selectedUnsoldIds.size === unsoldPlayersList.length && unsoldPlayersList.length > 0 ? "checkbox-marked" : "checkbox-multiple-marked-outline"}
+                  size={16}
+                  color={colors.primary}
+                  style={{ marginRight: 5 }}
+                />
+                <Text style={styles.selectAllBtnText}>
+                  {selectedUnsoldIds.size === unsoldPlayersList.length && unsoldPlayersList.length > 0 ? 'Deselect All' : 'Select All'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <View style={styles.unsoldSearchBox}>
+              <Icon name="magnify" size={18} color={colors.textTertiary} style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.unsoldSearchInput}
+                placeholder="Search player name, mobile, role..."
+                placeholderTextColor={colors.textTertiary}
+                value={unsoldSearchQuery}
+                onChangeText={setUnsoldSearchQuery}
+              />
+              {unsoldSearchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setUnsoldSearchQuery('')}>
+                  <Icon name="close-circle" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Selection Counter Bar */}
+            <View style={styles.unsoldCountRow}>
+              <Text style={styles.unsoldCountText}>
+                <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold }}>
+                  {selectedUnsoldIds.size}
+                </Text> of {unsoldPlayersList.length} players selected for next set
+              </Text>
+            </View>
+
+            {/* Players List */}
+            {loadingUnsoldList ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 13 }}>
+                  Fetching unsold players...
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 16 }}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+              >
+                {unsoldPlayersList
+                  .filter((p) => {
+                    if (!unsoldSearchQuery.trim()) return true;
+                    const q = unsoldSearchQuery.toLowerCase();
+                    const name = (p.user?.fullName || p.fullName || '').toLowerCase();
+                    const mobile = (p.user?.mobileNumber || p.mobileNumber || '').toLowerCase();
+                    const role = (p.role || '').toLowerCase();
+                    return name.includes(q) || mobile.includes(q) || role.includes(q);
+                  })
+                  .map((player) => {
+                    const isSelected = selectedUnsoldIds.has(player._id);
+                    const name = player.user?.fullName || player.fullName || 'Player';
+                    const photo = player.user?.profilePhoto || player.photo;
+                    const role = player.role || 'Player';
+                    const basePrice = player.basePrice || liveState?.auction?.defaultBasePrice || 100;
+                    const status = player.soldStatus || 'unsold';
+
+                    return (
+                      <TouchableOpacity
+                        key={player._id}
+                        style={[styles.unsoldPlayerRow, isSelected && styles.unsoldPlayerRowSelected]}
+                        activeOpacity={0.7}
+                        onPress={() => handleTogglePlayerSelection(player._id)}
+                      >
+                        <View style={{ marginRight: 12 }}>
+                          <Icon
+                            name={isSelected ? "checkbox-marked" : "checkbox-blank-outline"}
+                            size={22}
+                            color={isSelected ? colors.primary : colors.textTertiary}
+                          />
+                        </View>
+
+                        {photo ? (
+                          <Image source={{ uri: photo }} style={styles.unsoldPlayerAvatar} />
+                        ) : (
+                          <View style={styles.unsoldPlayerAvatarPlaceholder}>
+                            <Text style={styles.unsoldPlayerInitials}>
+                              {name.slice(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text style={styles.unsoldPlayerName} numberOfLines={1}>{name}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+                            <Text style={styles.unsoldPlayerMeta}>{role.toUpperCase()}</Text>
+                            <View style={[styles.unsoldStatusChip, status === 'skipped' ? { backgroundColor: 'rgba(234, 179, 8, 0.15)' } : null]}>
+                              <Text style={[styles.unsoldStatusChipText, status === 'skipped' ? { color: '#EAB308' } : null]}>
+                                {status.toUpperCase()}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+                          <Text style={styles.unsoldPlayerBasePrice}>{basePrice} pts</Text>
+                          <Text style={{ fontSize: 10, color: colors.textTertiary }}>Base Price</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                {unsoldPlayersList.length === 0 && (
+                  <View style={styles.emptyUnsoldBox}>
+                    <Icon name="account-search-outline" size={44} color={colors.textTertiary} />
+                    <Text style={styles.emptyUnsoldTitle}>No Unsold Players</Text>
+                    <Text style={styles.emptyUnsoldSub}>
+                      All registered players have been auctioned or no unsold players exist.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.emptyAddBtn}
+                      onPress={handleOpenAddPlayerModal}
+                    >
+                      <Icon name="account-plus" size={16} color={colors.background} style={{ marginRight: 6 }} />
+                      <Text style={styles.emptyAddBtnText}>+ Add New Player to Auction</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+
+            {/* Bottom Create Button */}
+            <View style={[styles.unsoldBottomBar, { paddingBottom: Math.max(safeBottom, 16) + 8 }]}>
+              <TouchableOpacity
+                style={[
+                  styles.createUnsoldSetBtn,
+                  (selectedUnsoldIds.size === 0 || loading) && { opacity: 0.5 }
+                ]}
+                disabled={selectedUnsoldIds.size === 0 || loading}
+                onPress={handleCreateSelectedUnsoldSet}
+              >
+                {loading ? (
+                  <ActivityIndicator color={colors.background} size="small" />
+                ) : (
+                  <>
+                    <Icon name="play-circle" size={20} color={colors.background} style={{ marginRight: 8 }} />
+                    <Text style={styles.createUnsoldSetBtnText}>
+                      CREATE SET WITH {selectedUnsoldIds.size} PLAYER{selectedUnsoldIds.size === 1 ? '' : 'S'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Add New Player Modal ── */}
+      <Modal
+        visible={showAddPlayerModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !submittingNewPlayer && setShowAddPlayerModal(false)}
+      >
+        <View style={styles.centerModalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdropTap}
+            activeOpacity={1}
+            onPress={() => !submittingNewPlayer && setShowAddPlayerModal(false)}
+          />
+          <View style={styles.addPlayerModalContainer}>
+            <View style={styles.unsoldModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.unsoldModalTitle}>Add New Player</Text>
+                <Text style={styles.unsoldModalSub}>
+                  Register a new player directly into this tournament auction.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                disabled={submittingNewPlayer}
+                onPress={() => setShowAddPlayerModal(false)}
+              >
+                <Icon name="close" size={20} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <KeyboardAwareScrollView
+              style={{ maxHeight: 440 }}
+              enableOnAndroid={true}
+              extraScrollHeight={25}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* 1. Mobile Number (FIRST) */}
+              <Text style={styles.addPlayerFieldLabel}>Player Mobile Number *</Text>
+              <View style={{ position: 'relative', justifyContent: 'center', marginBottom: 2 }}>
+                <TextInput
+                  style={[styles.addPlayerInput, { marginBottom: 0, paddingRight: 40 }]}
+                  placeholder="Enter 10-digit mobile number"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={newPlayerForm.mobileNumber}
+                  onChangeText={(val) => setNewPlayerForm((p) => ({ ...p, mobileNumber: val }))}
+                />
+                <View style={styles.phoneLookupIndicator}>
+                  {lookingUpNewPlayer ? (
+                    <ActivityIndicator color={colors.primary} size="small" />
+                  ) : lookupSuccess ? (
+                    <Icon name="check-circle" color={colors.primary} size={22} />
+                  ) : newPlayerForm.mobileNumber?.length === 10 ? (
+                    <Icon name="account-search-outline" color={colors.textTertiary} size={22} />
+                  ) : null}
+                </View>
+              </View>
+
+              {lookupNewPlayerMessage ? (
+                <View style={styles.phoneLookupMsg}>
+                  <Icon
+                    name={lookupSuccess ? "check-decagram" : "information-outline"}
+                    size={14}
+                    color={lookupSuccess ? colors.primary : colors.textTertiary}
+                  />
+                  <Text
+                    style={[
+                      styles.phoneLookupMsgText,
+                      { color: lookupSuccess ? colors.primary : colors.textTertiary }
+                    ]}
+                  >
+                    {lookupNewPlayerMessage}
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ marginBottom: 10 }} />
+              )}
+
+              {/* 2. Photo & Full Name */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <TouchableOpacity
+                  style={styles.newPlayerPhotoPicker}
+                  onPress={handlePickNewPlayerPhoto}
+                >
+                  {newPlayerForm.photo?.uri ? (
+                    <Image source={{ uri: newPlayerForm.photo.uri }} style={styles.newPlayerPhotoPreview} />
+                  ) : (
+                    <View style={styles.newPlayerPhotoPlaceholder}>
+                      <Icon name="camera-plus" size={20} color={colors.primary} />
+                      <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 2 }}>Photo</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.addPlayerFieldLabel}>Full Name *</Text>
+                  <TextInput
+                    style={[styles.addPlayerInput, { marginBottom: 0 }]}
+                    placeholder="e.g. Virat Kohli"
+                    placeholderTextColor={colors.textTertiary}
+                    value={newPlayerForm.fullName}
+                    onChangeText={(val) => setNewPlayerForm((p) => ({ ...p, fullName: val }))}
+                  />
+                </View>
+              </View>
+
+              {/* 3. Playing Role */}
+              <Text style={styles.addPlayerFieldLabel}>Playing Role</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {['All Rounder', 'Batsman', 'Bowler', 'Wicket Keeper'].map((role) => (
+                  <TouchableOpacity
+                    key={role}
+                    style={[styles.roleSelectChip, newPlayerForm.role === role && styles.roleSelectChipActive]}
+                    onPress={() => setNewPlayerForm((p) => ({ ...p, role }))}
+                  >
+                    <Text style={[styles.roleSelectChipText, newPlayerForm.role === role && styles.roleSelectChipTextActive]}>
+                      {role}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 4. Batting Style */}
+              <Text style={styles.addPlayerFieldLabel}>Batting Style</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                {['Right Handed', 'Left Handed'].map((style) => (
+                  <TouchableOpacity
+                    key={style}
+                    style={[styles.roleSelectChip, newPlayerForm.battingStyle === style && styles.roleSelectChipActive]}
+                    onPress={() => setNewPlayerForm((p) => ({ ...p, battingStyle: style }))}
+                  >
+                    <Text style={[styles.roleSelectChipText, newPlayerForm.battingStyle === style && styles.roleSelectChipTextActive]}>
+                      {style}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 5. Bowling Style */}
+              <Text style={styles.addPlayerFieldLabel}>Bowling Style</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {['Right Arm Medium', 'Right Arm Fast', 'Right Arm Spin', 'Left Arm Fast', 'Left Arm Spin', 'None'].map((bStyle) => (
+                  <TouchableOpacity
+                    key={bStyle}
+                    style={[styles.roleSelectChip, newPlayerForm.bowlingStyle === bStyle && styles.roleSelectChipActive]}
+                    onPress={() => setNewPlayerForm((p) => ({ ...p, bowlingStyle: bStyle }))}
+                  >
+                    <Text style={[styles.roleSelectChipText, newPlayerForm.bowlingStyle === bStyle && styles.roleSelectChipTextActive]}>
+                      {bStyle}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 6. Base Points */}
+              <Text style={styles.addPlayerFieldLabel}>Base Points (pts)</Text>
+              <TextInput
+                style={styles.addPlayerInput}
+                placeholder={String(liveState?.auction?.defaultBasePrice || 100)}
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numeric"
+                value={newPlayerForm.basePrice}
+                onChangeText={(val) => setNewPlayerForm((p) => ({ ...p, basePrice: val }))}
+              />
+            </KeyboardAwareScrollView>
+
+            {/* Save & Select Button */}
+            <View style={{ paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <TouchableOpacity
+                style={[styles.saveNewPlayerBtn, submittingNewPlayer && { opacity: 0.6 }]}
+                disabled={submittingNewPlayer}
+                onPress={handleSaveNewPlayer}
+              >
+                {submittingNewPlayer ? (
+                  <ActivityIndicator color={colors.background} size="small" />
+                ) : (
+                  <>
+                    <Icon name="check-bold" size={18} color={colors.background} style={{ marginRight: 6 }} />
+                    <Text style={styles.saveNewPlayerBtnText}>SAVE & SELECT FOR AUCTION</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* ── Header ── */}
+
       <View style={[styles.header, { paddingTop: safeTop + 6 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="arrow-left" size={22} color={colors.textPrimary} />
@@ -630,23 +1472,25 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
                         : 'All players have been auctioned. You can now close the auction.'}
                     </Text>
 
-                    {totalUnsold > 0 && (
-                      <TouchableOpacity
-                        style={styles.unsoldSetBtn}
-                        onPress={handleGenerateUnsoldSet}
-                        disabled={loading}
-                      >
-                        {loading ? <ActivityIndicator color={colors.background} size="small" /> : (
-                          <>
-                            <Icon name="account-reactivate" size={18} color={colors.background} style={{ marginRight: 8 }} />
-                            <Text style={styles.unsoldSetBtnText}>RE-AUCTION {totalUnsold} UNSOLD PLAYER{totalUnsold > 1 ? 'S' : ''}</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                      style={styles.unsoldSetBtn}
+                      onPress={handleOpenUnsoldModal}
+                      disabled={loading}
+                    >
+                      {loading ? <ActivityIndicator color={colors.background} size="small" /> : (
+                        <>
+                          <Icon name="account-reactivate" size={18} color={colors.background} style={{ marginRight: 8 }} />
+                          <Text style={styles.unsoldSetBtnText}>
+                            {totalUnsold > 0
+                              ? `SELECT UNSOLD / ADD PLAYERS (${totalUnsold})`
+                              : '+ ADD PLAYERS & CREATE NEW SET'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[styles.closeAuctionBtn, totalUnsold > 0 && { marginTop: 10 }]}
+                      style={[styles.closeAuctionBtn, { marginTop: 10 }]}
                       onPress={handleCloseAuction}
                       disabled={loading}
                     >
@@ -692,197 +1536,429 @@ const AuctionLiveOrganiserScreen = ({ route, navigation }) => {
             /* ── MAIN AUCTION VIEW — premium full-screen flex layout ── */
             <View style={{ flex: 1 }}>
 
-              {/* ── BLOCK 1: Large Player Photo ── */}
-              <View style={styles.playerBidCard}>
-                {currentPlayer?.photo ? (
-                  <Image source={{ uri: getImageUrl(currentPlayer.photo) }} style={styles.avatarImage} />
-                ) : (
-                  <View style={styles.avatarPlaceholder}>
-                    <Icon name="account-circle" size={100} color={colors.textTertiary} />
-                    <Text style={{ color: colors.textTertiary, fontSize: 13, marginTop: 8 }}>No photo available</Text>
+              {/* ── BLOCK 1: Compact Player Card ── */}
+              <View style={styles.compactPlayerCard}>
+                {/* Photo Thumbnail */}
+                <View style={styles.compactPhotoWrap}>
+                  {currentPlayer?.photo ? (
+                    <Image source={{ uri: getImageUrl(currentPlayer.photo) }} style={styles.compactAvatarImage} />
+                  ) : (
+                    <View style={styles.compactAvatarPlaceholder}>
+                      <Icon name="account" size={30} color={colors.textTertiary} />
+                    </View>
+                  )}
+                  <View style={styles.compactLiveBadge}>
+                    <View style={styles.compactLiveDot} />
+                    <Text style={styles.compactLiveText}>LIVE</Text>
                   </View>
-                )}
-
-                {/* Top-right: LIVE tag */}
-                <View style={styles.photoLiveBadge}>
-                  <View style={styles.liveDot} />
-                  <Text style={styles.photoLiveText}>LIVE</Text>
                 </View>
 
-                {/* Bottom overlay */}
-                <View style={styles.playerCardOverlay}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.playerName} numberOfLines={1}>{currentPlayer?.fullName}</Text>
-                    <View style={styles.playerMeta}>
-                      <View style={styles.rolePill}>
-                        <Text style={styles.rolePillText}>{currentPlayer?.role}</Text>
-                      </View>
-                      <Text style={styles.basePrice}>
-                        Base {currentPlayer?.basePrice || liveState?.auction?.defaultBasePrice || 0} Pts
+                {/* Player Info (Name, Role, Base, Leading) */}
+                <View style={styles.compactPlayerInfo}>
+                  <Text style={styles.compactPlayerName} numberOfLines={1}>
+                    {currentPlayer?.fullName}
+                  </Text>
+                  <View style={styles.compactMetaRow}>
+                    <View style={styles.compactRolePill}>
+                      <Text style={styles.compactRolePillText} numberOfLines={1}>
+                        {currentPlayer?.role || 'Player'}
                       </Text>
                     </View>
-                    {currentHighestTeam && (
-                      <View style={styles.leadingRow}>
-                        <Icon name="trophy" size={12} color="#FFD700" />
-                        <Text style={styles.leadingTeamLabel} numberOfLines={1}>
-                          Leading: {currentHighestTeam.shortName || currentHighestTeam.name}
-                        </Text>
-                      </View>
-                    )}
+                    <Text style={styles.compactBasePrice}>
+                      Base: {currentPlayer?.basePrice || liveState?.auction?.defaultBasePrice || 0} Pts
+                    </Text>
                   </View>
-                  <View style={styles.bidBubble}>
-                    <Text style={styles.bidBubbleLabel}>CURRENT BID</Text>
-                    <Text style={styles.bidBubbleVal}>{liveState?.auction?.currentHighestBid || 0}</Text>
-                    <Text style={styles.bidBubbleUnit}>Points</Text>
-                  </View>
+                  {currentHighestTeam ? (
+                    <View style={styles.compactLeadingRow}>
+                      <Icon name="crown" size={12} color="#FFD700" />
+                      <Text style={styles.compactLeadingText} numberOfLines={1}>
+                        {currentHighestTeam.shortName || currentHighestTeam.name} ({liveState?.auction?.currentHighestBid || 0} Pts)
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.compactNoBidsText}>No bids yet · Tap team to open</Text>
+                  )}
+                </View>
+
+                {/* Current Bid Display */}
+                <View style={styles.compactBidBox}>
+                  <Text style={styles.compactBidLabel}>CURRENT BID</Text>
+                  <Text style={styles.compactBidVal} numberOfLines={1}>
+                    {liveState?.auction?.currentHighestBid || 0}
+                  </Text>
+                  <Text style={styles.compactBidUnit}>Points</Text>
                 </View>
               </View>
 
-              {/* ── BLOCK 2: Progress ── */}
-              {currentSetObj && (
-                <View style={styles.progressBlock}>
-                  <View style={styles.progressRow}>
-                    <View style={styles.setsStrip}>
-                      {sets.map((s, idx) => {
-                        const isActive = s._id === currentSetId;
-                        const isDone = s.status === 'completed';
-                        return (
-                          <View key={s._id} style={[
-                            styles.setDot,
-                            isActive && styles.setDotActive,
-                            isDone && styles.setDotDone,
-                          ]}>
-                            {isDone
-                              ? <Icon name="check" size={11} color="#fff" />
-                              : <Text style={[styles.setDotText, isActive && { color: colors.primary }]}>{idx + 1}</Text>
-                            }
-                          </View>
-                        );
-                      })}
+              {/* ── COMPACT STATS & SET STRIP (Tap to expand full stats) ── */}
+              <TouchableOpacity
+                style={styles.compactStatsBar}
+                onPress={() => setShowDetailedStats(prev => !prev)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.compactStatsBarLeft}>
+                  <Icon name="cricket" size={13} color={colors.primary} style={{ marginRight: 4 }} />
+                  <Text style={styles.compactStatsBarText} numberOfLines={1}>
+                    {currentPlayer?.playerStats?.ballType || liveState?.tournament?.ballType || 'Tennis'}:{' '}
+                    <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>
+                      {currentPlayer?.playerStats?.batting?.runs ?? 0}R
+                    </Text>
+                    {' · '}
+                    <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>
+                      {currentPlayer?.playerStats?.bowling?.wickets ?? 0}W
+                    </Text>
+                    {' · '}
+                    <Text style={{ color: colors.textPrimary, fontFamily: Typography.fontFamily.bold }}>
+                      {currentPlayer?.playerStats?.fielding?.catches ?? 0}Ct
+                    </Text>
+                  </Text>
+                </View>
+
+                <View style={styles.compactStatsBarRight}>
+                  {currentSetObj && (
+                    <View style={styles.compactSetPill}>
+                      <Text style={styles.compactSetPillText} numberOfLines={1}>
+                        {currentSetObj.setName} ({setProgress})
+                      </Text>
                     </View>
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text style={styles.progressLabel}>{currentSetObj.setName}</Text>
-                        <Text style={styles.progressCount}>{setProgress} players</Text>
+                  )}
+                  <Icon
+                    name={showDetailedStats ? 'chevron-up' : 'chevron-down'}
+                    size={15}
+                    color={colors.textTertiary}
+                    style={{ marginLeft: 4 }}
+                  />
+                </View>
+              </TouchableOpacity>
+
+              {/* Expanded Detailed Stats & Set Progress (Only visible if expanded) */}
+              {showDetailedStats && (
+                <View style={{ marginBottom: 6 }}>
+                  {/* Detailed Stats Card */}
+                  <View style={styles.statsCardContainer}>
+                    <View style={styles.statsCardHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Icon name="baseball" size={13} color={colors.primary} style={{ marginRight: 4 }} />
+                        <Text style={styles.statsBallTypeTitle}>
+                          {currentPlayer?.playerStats?.ballType || liveState?.tournament?.ballType || 'Tennis'} Ball Stats
+                        </Text>
+                        <View style={styles.matchesPill}>
+                          <Text style={styles.matchesPillText}>
+                            {currentPlayer?.playerStats?.matches ?? 0} M
+                          </Text>
+                        </View>
                       </View>
-                      <View style={styles.progressBarBg}>
-                        <View style={[styles.progressBarFill, {
-                          width: `${((currentSetObj.auctionedCount || 0) / (currentSetObj.totalPlayersCount || 1)) * 100}%`,
-                        }]} />
+                      <Text style={styles.playerStylesSummary} numberOfLines={1}>
+                        {currentPlayer?.battingStyle || 'Right Hand'} · {currentPlayer?.bowlingStyle || 'Right Arm Med'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.statsMetricsRow}>
+                      {/* Batting */}
+                      <View style={styles.metricColumn}>
+                        <View style={styles.metricColumnHeader}>
+                          <Icon name="cricket" size={11} color="#F59E0B" style={{ marginRight: 3 }} />
+                          <Text style={[styles.metricColumnTitle, { color: '#F59E0B' }]}>BATTING</Text>
+                        </View>
+                        <Text style={styles.metricMainVal}>
+                          {currentPlayer?.playerStats?.batting?.runs ?? 0} <Text style={styles.metricUnit}>Runs</Text>
+                        </Text>
+                        <Text style={styles.metricSubVal}>
+                          Avg {currentPlayer?.playerStats?.batting?.average ?? '0.0'} · SR {currentPlayer?.playerStats?.batting?.strikeRate ?? '0.0'}
+                        </Text>
+                        <Text style={styles.metricDetailVal}>
+                          HS {currentPlayer?.playerStats?.batting?.highestScore ?? 0} · 4s:{currentPlayer?.playerStats?.batting?.fours ?? 0} · 6s:{currentPlayer?.playerStats?.batting?.sixes ?? 0}
+                        </Text>
+                      </View>
+
+                      <View style={styles.metricDivider} />
+
+                      {/* Bowling */}
+                      <View style={styles.metricColumn}>
+                        <View style={styles.metricColumnHeader}>
+                          <Icon name="bowling" size={11} color="#3B82F6" style={{ marginRight: 3 }} />
+                          <Text style={[styles.metricColumnTitle, { color: '#3B82F6' }]}>BOWLING</Text>
+                        </View>
+                        <Text style={styles.metricMainVal}>
+                          {currentPlayer?.playerStats?.bowling?.wickets ?? 0} <Text style={styles.metricUnit}>Wkts</Text>
+                        </Text>
+                        <Text style={styles.metricSubVal}>
+                          Econ {currentPlayer?.playerStats?.bowling?.economy ?? '0.0'} · Avg {currentPlayer?.playerStats?.bowling?.average ?? '0.0'}
+                        </Text>
+                        <Text style={styles.metricDetailVal}>
+                          Best {currentPlayer?.playerStats?.bowling?.best ?? '-'} · Ov {currentPlayer?.playerStats?.bowling?.overs ?? 0}
+                        </Text>
+                      </View>
+
+                      <View style={styles.metricDivider} />
+
+                      {/* Fielding */}
+                      <View style={styles.metricColumn}>
+                        <View style={styles.metricColumnHeader}>
+                          <Icon name="hand-back-right" size={11} color="#10B981" style={{ marginRight: 3 }} />
+                          <Text style={[styles.metricColumnTitle, { color: '#10B981' }]}>FIELDING</Text>
+                        </View>
+                        <Text style={styles.metricMainVal}>
+                          {currentPlayer?.playerStats?.fielding?.catches ?? 0} <Text style={styles.metricUnit}>Ct</Text>
+                        </Text>
+                        <Text style={styles.metricSubVal}>
+                          Run Outs: {currentPlayer?.playerStats?.fielding?.runOuts ?? 0}
+                        </Text>
+                        <Text style={styles.metricDetailVal}>
+                          Stumpings: {currentPlayer?.playerStats?.fielding?.stumpings ?? 0}
+                        </Text>
                       </View>
                     </View>
                   </View>
+
+                  {/* Set Progress Block */}
+                  {currentSetObj && (
+                    <View style={styles.progressBlock}>
+                      <View style={styles.progressRow}>
+                        <View style={styles.setsStrip}>
+                          {sets.map((s, idx) => {
+                            const isActive = s._id === currentSetId;
+                            const isDone = s.status === 'completed';
+                            return (
+                              <View key={s._id} style={[
+                                styles.setDot,
+                                isActive && styles.setDotActive,
+                                isDone && styles.setDotDone,
+                              ]}>
+                                {isDone
+                                  ? <Icon name="check" size={11} color="#fff" />
+                                  : <Text style={[styles.setDotText, isActive && { color: colors.primary }]}>{idx + 1}</Text>
+                                }
+                              </View>
+                            );
+                          })}
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <Text style={styles.progressLabel}>{currentSetObj.setName}</Text>
+                            <Text style={styles.progressCount}>{setProgress} players</Text>
+                          </View>
+                          <View style={styles.progressBarBg}>
+                            <View style={[styles.progressBarFill, {
+                              width: `${((currentSetObj.auctionedCount || 0) / (currentSetObj.totalPlayersCount || 1)) * 100}%`,
+                            }]} />
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  )}
                 </View>
               )}
 
-              {/* ── BLOCK 4: Team Grid (flex:1) ── */}
-              <View style={{ flex: 1, marginTop: 8 }}>
-                <Text style={styles.sectionLabel}>SELECT TEAM TO BID</Text>
+              {/* ── POINT INCREMENT STRIP (Select point once, tap teams to bid instantly) ── */}
+              <View style={styles.pointsConfigBlock}>
+                <View style={styles.pointsConfigHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Icon name="lightning-bolt" size={15} color={colors.primary} style={{ marginRight: 4 }} />
+                    <Text style={styles.sectionLabelSmall}>BID STEP:</Text>
+                    <View style={styles.activePointBadge}>
+                      <Text style={styles.activePointBadgeText}>+{activePoint} Pts</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                    {hasBid && (
+                      <TouchableOpacity
+                        style={styles.undoBidHeaderBtn}
+                        onPress={handleUndoBid}
+                      >
+                        <Icon name="undo" size={13} color="#EF4444" style={{ marginRight: 2 }} />
+                        <Text style={styles.undoBidHeaderText}>Undo</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={styles.configurePointsBtn}
+                      onPress={() => {
+                        setModalPoints(bidPoints);
+                        setModalCustomPoint('');
+                        setShowPointsModal(true);
+                      }}
+                    >
+                      <Icon name="tune" size={13} color={colors.primary} style={{ marginRight: 2 }} />
+                      <Text style={styles.configurePointsBtnText}>Points</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Point increment chips strip */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pointsScrollContent}>
+                  {bidPoints.map((pt) => {
+                    const isSelected = activePoint === pt;
+                    return (
+                      <TouchableOpacity
+                        key={pt}
+                        style={[styles.pointPill, isSelected && styles.pointPillActive]}
+                        onPress={() => setActivePoint(pt)}
+                      >
+                        {isSelected && <Icon name="check" size={11} color="#000" style={{ marginRight: 3 }} />}
+                        <Text style={[styles.pointPillText, isSelected && styles.pointPillTextActive]}>
+                          +{pt}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {showQuickCustomInput ? (
+                    <View style={styles.inlineCustomBox}>
+                      <TextInput
+                        style={styles.inlineCustomInput}
+                        placeholder="Pts"
+                        placeholderTextColor={colors.textTertiary}
+                        keyboardType="numeric"
+                        value={quickCustomPoint}
+                        onChangeText={setQuickCustomPoint}
+                        autoFocus
+                        onSubmitEditing={handleApplyQuickCustom}
+                      />
+                      <TouchableOpacity style={styles.inlineCustomAddBtn} onPress={handleApplyQuickCustom}>
+                        <Icon name="check" size={14} color="#000" />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ padding: 4 }} onPress={() => setShowQuickCustomInput(false)}>
+                        <Icon name="close" size={12} color={colors.textTertiary} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.pointPillCustom}
+                      onPress={() => setShowQuickCustomInput(true)}
+                    >
+                      <Icon name="plus" size={13} color={colors.primary} />
+                      <Text style={styles.pointPillCustomText}>Custom</Text>
+                    </TouchableOpacity>
+                  )}
+                </ScrollView>
+              </View>
+
+              {/* ── RAPID 1-TAP TEAM BIDDING ── */}
+              <View style={{ flex: 1, minHeight: 0, marginTop: 2 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                  <Text style={styles.sectionLabel}>
+                    {!hasBid ? 'TAP TEAM TO OPEN AT BASE PRICE' : `TAP TEAM TO BID +${activePoint} PTS`}
+                  </Text>
+                  <Text style={styles.nextBidHint}>
+                    Next: {!hasBid ? `${currentPlayer?.basePrice || liveState?.auction?.defaultBasePrice || 0} Pts` : `${(liveState?.auction?.currentHighestBid || 0) + Number(activePoint)} Pts`}
+                  </Text>
+                </View>
+
                 <ScrollView contentContainerStyle={styles.teamGrid} showsVerticalScrollIndicator={false}>
                   {teams.map((t) => {
                     const isHighest = t._id === currentHighestTeam?._id;
-                    const isSelected = selectedTeamId === t._id;
                     const purseTotal = liveState?.auction?.teamPurse || t.auctionPurse || 1;
                     const purseLeft = t.purseRemaining ?? purseTotal;
-                    const pct = Math.max(0, Math.min(100, (purseLeft / purseTotal) * 100));
+                    const nextBidAmount = !hasBid
+                      ? (currentPlayer?.basePrice || liveState?.auction?.defaultBasePrice || 0)
+                      : (liveState?.auction?.currentHighestBid || 0) + Number(activePoint);
+                    const canAfford = purseLeft >= nextBidAmount;
+
                     return (
                       <TouchableOpacity
                         key={t._id}
                         style={[
-                          styles.teamChip,
-                          isSelected && styles.teamChipSelected,
-                          isHighest && styles.teamChipHighest,
+                          styles.teamCard,
+                          isHighest && styles.teamCardHighest,
+                          !isHighest && !canAfford && { opacity: 0.45 },
                         ]}
                         onPress={() => {
-                          if (isHighest) { showCustomAlert('Already Leading', `${t.name} holds the current highest bid.`); return; }
-                          setSelectedTeamId(t._id);
+                          if (isHighest) {
+                            showCustomAlert('Already Leading', `${t.name} holds the current highest bid.`);
+                            return;
+                          }
+                          if (!canAfford) {
+                            showCustomAlert('Insufficient Purse', `${t.name} has only ${purseLeft} Pts remaining. Required: ${nextBidAmount} Pts.`);
+                            return;
+                          }
+                          handleTeamBid(t, nextBidAmount, !hasBid);
                         }}
                         disabled={isHighest}
+                        activeOpacity={0.7}
                       >
-                        {/* Leading crown */}
-                        {isHighest && (
-                          <View style={styles.leadingCrown}>
-                            <Icon name="crown" size={10} color="#FFD700" />
-                          </View>
-                        )}
-                        {t.logo ? (
-                          <Image source={{ uri: getImageUrl(t.logo) }} style={styles.teamLogo} />
-                        ) : (
-                          <View style={[
-                            styles.teamLogoPlaceholder,
-                            isSelected && { backgroundColor: colors.primaryAlpha20, borderColor: colors.primary },
-                            isHighest && { backgroundColor: '#FFD70022', borderColor: '#FFD700' },
-                          ]}>
-                            <Icon name="shield-crown" size={20}
-                              color={isHighest ? '#FFD700' : isSelected ? colors.primary : colors.textTertiary} />
-                          </View>
-                        )}
-                        <Text style={[
-                          styles.teamChipName,
-                          isSelected && styles.teamChipNameActive,
-                          isHighest && { color: '#FFD700' },
-                        ]} numberOfLines={1}>
-                          {t.shortName || t.name}
-                        </Text>
-                        {/* Purse mini-bar */}
-                        <View style={styles.purseMiniBar}>
-                          <View style={[styles.purseMiniBarFill, { width: `${pct}%` }]} />
+                        {/* Header: Logo, Name, Purse (Centered for 4-in-a-row) */}
+                        <View style={styles.teamCardHeader}>
+                          {t.logo ? (
+                            <Image source={{ uri: getImageUrl(t.logo) }} style={styles.teamLogoSmall} />
+                          ) : (
+                            <View style={[styles.teamLogoSmallPlaceholder, isHighest && { backgroundColor: '#FFD70022', borderColor: '#FFD700' }]}>
+                              <Icon name="shield-crown" size={12} color={isHighest ? '#FFD700' : colors.textTertiary} />
+                            </View>
+                          )}
+                          {isHighest && (
+                            <View style={styles.leadingBadgeIcon}>
+                              <Icon name="crown" size={10} color="#FFD700" />
+                            </View>
+                          )}
+                          <Text style={[styles.teamCardName, isHighest && { color: '#FFD700' }]} numberOfLines={1}>
+                            {t.shortName || t.name}
+                          </Text>
+                          <Text style={[styles.teamCardPurse, isHighest && { color: '#FFD700' }]} numberOfLines={1}>
+                            {purseLeft >= 1000 ? `${Math.round(purseLeft / 1000)}k` : purseLeft} Pts
+                          </Text>
                         </View>
-                        <Text style={[styles.teamChipPurse, isHighest && { color: '#FFD700' }]}>
-                          {purseLeft} Pts
-                        </Text>
+
+                        {/* Action Badge */}
+                        <View style={[
+                          styles.teamActionBadge,
+                          isHighest && styles.teamActionBadgeHighest,
+                          !isHighest && !canAfford && styles.teamActionBadgeDisabled,
+                        ]}>
+                          {isHighest ? (
+                            <Text style={styles.teamActionBadgeTextHighest} numberOfLines={1}>
+                              👑 LEADING
+                            </Text>
+                          ) : !hasBid ? (
+                            <Text style={styles.teamActionBadgeText} numberOfLines={1}>
+                              OPEN {nextBidAmount}
+                            </Text>
+                          ) : (
+                            <Text style={styles.teamActionBadgeText} numberOfLines={1}>
+                              +{activePoint} ({nextBidAmount})
+                            </Text>
+                          )}
+                        </View>
                       </TouchableOpacity>
                     );
                   })}
                 </ScrollView>
               </View>
 
-              {/* ── BLOCK 3: Bid Controls ── */}
-              <View style={styles.bidControlsBlock}>
-                {!currentHighestTeam ? (
-                  <TouchableOpacity
-                    style={styles.firstBidBtn}
-                    onPress={() => handleQuickBidIncrement(
-                      currentPlayer?.basePrice || liveState?.auction?.defaultBasePrice || 0, true
-                    )}
-                  >
-                    <Icon name="gavel" size={18} color="#000" style={{ marginRight: 8 }} />
-                    <Text style={styles.firstBidBtnText}>
-                     Open at Base Price ({currentPlayer?.basePrice || liveState?.auction?.defaultBasePrice || 0} Pts)
+              {/* Collapsible Manual Jump Bid Bar */}
+              <View style={styles.manualBidMiniBar}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}
+                  onPress={() => setShowManualBidRow(!showManualBidRow)}
+                >
+                  <Text style={{ fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary }}>
+                    {showManualBidRow ? '▼ Hide Manual Jump Bid' : '▶ Direct Jump / Custom Bid Amount'}
+                  </Text>
+                  {selectedTeamId && (
+                    <Text style={{ fontSize: 11, color: colors.primary }}>
+                      Selected: {teams.find(t => t._id === selectedTeamId)?.shortName || 'None'}
                     </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={{ gap: 8 }}>
-                    <View style={styles.bidControlsRow}>
-                      {[50, 100, 200, 500].map((inc) => (
-                        <TouchableOpacity key={inc} style={styles.incBtn} onPress={() => handleQuickBidIncrement(inc, false)}>
-                          <Text style={styles.incBtnText}>+{inc}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <TextInput
-                        style={styles.manualInput}
-                        placeholder="Custom amount"
-                        placeholderTextColor={colors.textTertiary}
-                        keyboardType="numeric"
-                        value={manualBid}
-                        onChangeText={setManualBid}
-                        returnKeyType="done"
-                        onSubmitEditing={handleManualBid}
-                      />
-                      <TouchableOpacity style={[styles.bidBtn, { paddingHorizontal: 20 }]} onPress={handleManualBid}>
-                        <Text style={styles.bidBtnText}>BID</Text>
-                      </TouchableOpacity>
-                      {currentHighestTeam && (
-                        <TouchableOpacity style={[styles.bidBtn, { backgroundColor: '#EF4444', borderColor: '#EF4444', paddingHorizontal: 12 }]} onPress={handleUndoBid}>
-                          <Icon name="undo" size={20} color="#fff" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {showManualBidRow && (
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+                    <TextInput
+                      style={styles.manualInput}
+                      placeholder="Jump amount (e.g. 5000)"
+                      placeholderTextColor={colors.textTertiary}
+                      keyboardType="numeric"
+                      value={manualBid}
+                      onChangeText={setManualBid}
+                      returnKeyType="done"
+                      onSubmitEditing={handleManualBid}
+                    />
+                    <TouchableOpacity style={[styles.bidBtn, { paddingHorizontal: 16 }]} onPress={handleManualBid}>
+                      <Text style={styles.bidBtnText}>PLACE JUMP BID</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
+
 
               {/* ── BLOCK 5: Action Buttons ── */}
               <View style={styles.actionRow}>
@@ -1331,7 +2407,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     borderRadius: 55,
     overflow: 'hidden',
     marginBottom: 12,
-    marginTop: 8,
+    backgroundColor: '#0a0f1d',
     borderWidth: 2.5,
     borderColor: colors.primary,
     position: 'relative',
@@ -1339,7 +2415,8 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   soldPlayerPhoto: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    resizeMode: 'contain',
+    backgroundColor: '#0a0f1d',
   },
   stampWrap: {
     position: 'absolute',
@@ -1482,13 +2559,194 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   emptyBox: { alignItems: 'center', paddingVertical: Spacing['2xl'] },
   emptyText: { color: colors.textSecondary, marginTop: Spacing.sm, fontFamily: Typography.fontFamily.medium },
 
-  // ── Player Card: Large Photo Banner ──
+  // ── Compact Player Card & Stats Bar ──
+  compactPlayerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 6,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  compactPhotoWrap: {
+    width: 95,
+    height: 95,
+    borderRadius: 10,
+    backgroundColor: '#0a0f1d',
+    position: 'relative',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  compactAvatarImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
+  },
+  compactAvatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1a1a2e',
+  },
+  compactLiveBadge: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderWidth: 0.5,
+    borderColor: colors.primary,
+  },
+  compactLiveDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+    marginRight: 3,
+  },
+  compactLiveText: {
+    color: colors.primary,
+    fontSize: 7.5,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.5,
+  },
+  compactPlayerInfo: {
+    flex: 1,
+    marginLeft: 8,
+    justifyContent: 'center',
+  },
+  compactPlayerName: {
+    fontSize: 14.5,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  compactMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  compactRolePill: {
+    backgroundColor: colors.backgroundElevated,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderWidth: 0.5,
+    borderColor: colors.primary,
+  },
+  compactRolePillText: {
+    color: colors.primary,
+    fontSize: 9.5,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  compactBasePrice: {
+    color: colors.textTertiary,
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  compactLeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    gap: 3,
+  },
+  compactLeadingText: {
+    color: '#FFD700',
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  compactNoBidsText: {
+    color: colors.textTertiary,
+    fontSize: 9.5,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: 2,
+  },
+  compactBidBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 7,
+    minWidth: 62,
+    marginLeft: 6,
+  },
+  compactBidLabel: {
+    color: '#000',
+    fontSize: 7.5,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.5,
+    opacity: 0.75,
+  },
+  compactBidVal: {
+    color: '#000',
+    fontSize: 17,
+    fontFamily: Typography.fontFamily.bold,
+    lineHeight: 19,
+  },
+  compactBidUnit: {
+    color: '#000',
+    fontSize: 8,
+    opacity: 0.75,
+  },
+
+  // ── Compact Stats Bar ──
+  compactStatsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  compactStatsBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  compactStatsBarText: {
+    fontSize: 10.5,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  compactStatsBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 6,
+  },
+  compactSetPill: {
+    backgroundColor: colors.backgroundElevated,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 0.5,
+    borderColor: colors.border,
+  },
+  compactSetPillText: {
+    fontSize: 9.5,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textSecondary,
+  },
+
+  // ── Player Card: Large Photo Banner (Fallback/Detailed) ──
   playerBidCard: {
     borderRadius: 18,
     marginBottom: 10,
     overflow: 'hidden',
     height: 220,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0a0f1d',
     position: 'relative',
     // Shadow
     shadowColor: colors.primary,
@@ -1500,7 +2758,8 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   avatarImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    resizeMode: 'contain',
+    backgroundColor: '#0a0f1d',
     position: 'absolute',
     top: 0,
     left: 0,
@@ -1612,6 +2871,101 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     lineHeight: 26,
   },
   bidBubbleUnit: { color: '#000', fontSize: 10, opacity: 0.7 },
+
+  // ── Ball-type Player Stats Card ──
+  statsCardContainer: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  statsCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    marginBottom: 8,
+  },
+  statsBallTypeTitle: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  matchesPill: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    marginLeft: 6,
+  },
+  matchesPillText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textSecondary,
+  },
+  playerStylesSummary: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    fontFamily: Typography.fontFamily.medium,
+    maxWidth: '48%',
+  },
+  statsMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  metricColumn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+  metricColumnHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  metricColumnTitle: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.5,
+  },
+  metricMainVal: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  metricUnit: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  metricSubVal: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: 1,
+    textAlign: 'center',
+  },
+  metricDetailVal: {
+    fontSize: 9,
+    color: colors.textTertiary,
+    marginTop: 1,
+    textAlign: 'center',
+  },
+  metricDivider: {
+    width: 1,
+    height: '80%',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    marginHorizontal: 4,
+    alignSelf: 'center',
+  },
 
   // ── Progress Block ──
   progressBlock: {
@@ -1739,22 +3093,360 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   },
   bidBtnText: { color: '#5bc8ff', fontFamily: Typography.fontFamily.bold, fontSize: 13 },
 
+  // ── Points Configuration Block & Pills ──
+  pointsConfigBlock: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginBottom: 3,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  pointsConfigHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  sectionLabelSmall: {
+    color: colors.textTertiary,
+    fontSize: 9.5,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  activePointBadge: {
+    backgroundColor: colors.primaryAlpha20 || 'rgba(74,222,128,0.18)',
+    borderRadius: 10,
+    paddingVertical: 2,
+    paddingHorizontal: 7,
+    marginLeft: 6,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  activePointBadgeText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.primary,
+  },
+  undoBidHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderRadius: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  undoBidHeaderText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#EF4444',
+  },
+  configurePointsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundElevated,
+    borderRadius: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  configurePointsBtnText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.primary,
+  },
+  pointsScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pointPill: {
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pointPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  pointPillText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textSecondary,
+  },
+  pointPillTextActive: {
+    color: '#000000',
+    fontFamily: Typography.fontFamily.bold,
+  },
+  pointPillCustom: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundElevated,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  pointPillCustomText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.primary,
+  },
+  inlineCustomBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundElevated,
+    borderRadius: 14,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    gap: 4,
+  },
+  inlineCustomInput: {
+    width: 48,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    fontSize: 12,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  inlineCustomAddBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    padding: 3,
+  },
+  nextBidHint: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.primary,
+  },
+
+  // ── Points Modal Styles ──
+  pointsModalBox: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 18,
+    width: '90%',
+    maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  pointsModalTitle: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  modalSectionSub: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  modalPointBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    backgroundColor: colors.primaryAlpha20 || 'rgba(74,222,128,0.15)',
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  modalPointBadgeText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.primary,
+  },
+  presetPointPill: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: colors.backgroundElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  presetPointPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  presetPointPillText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textSecondary,
+  },
+  presetPointPillTextActive: {
+    color: '#000000',
+    fontFamily: Typography.fontFamily.bold,
+  },
+  modalCustomInput: {
+    flex: 1,
+    backgroundColor: colors.backgroundElevated,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalCustomAddBtn: {
+    backgroundColor: colors.primaryAlpha20 || 'rgba(74,222,128,0.2)',
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  modalCustomAddBtnText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.primary,
+  },
+  modalSaveBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    height: 46,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalSaveBtnText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#000',
+  },
+
   // ── Section Label ──
   sectionLabel: {
     color: colors.textTertiary,
-    fontSize: 10,
+    fontSize: 9.5,
     fontFamily: Typography.fontFamily.semiBold,
-    letterSpacing: 1.2,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
-    marginBottom: 6,
+    marginBottom: 2,
   },
 
   // ── Team Grid ──
+  // ── Team Grid (4 in a row) ──
   teamGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 4,
+    justifyContent: 'flex-start',
+    paddingBottom: 4,
   },
+  teamCard: {
+    width: '23.8%',
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 66,
+  },
+  teamCardHighest: {
+    borderColor: '#FFD700',
+    backgroundColor: 'rgba(255, 215, 0, 0.08)',
+  },
+  teamCardHeader: {
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 2,
+    position: 'relative',
+  },
+  teamLogoSmall: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    marginBottom: 2,
+  },
+  teamLogoSmallPlaceholder: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.surfaceVariant,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  teamCardName: {
+    fontSize: 9.5,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    width: '100%',
+  },
+  teamCardPurse: {
+    fontSize: 8,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    width: '100%',
+  },
+  leadingBadgeIcon: {
+    position: 'absolute',
+    top: -2,
+    right: 0,
+  },
+  teamActionBadge: {
+    backgroundColor: colors.primaryAlpha20 || 'rgba(74, 222, 128, 0.15)',
+    borderRadius: 5,
+    paddingVertical: 2.5,
+    paddingHorizontal: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    width: '100%',
+    marginTop: 2,
+  },
+  teamActionBadgeHighest: {
+    backgroundColor: 'rgba(255, 215, 0, 0.18)',
+    borderColor: '#FFD700',
+  },
+  teamActionBadgeDisabled: {
+    backgroundColor: colors.backgroundElevated,
+    borderColor: colors.border,
+  },
+  teamActionBadgeText: {
+    fontSize: 8.5,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.primary,
+    textAlign: 'center',
+  },
+  teamActionBadgeTextHighest: {
+    fontSize: 8,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFD700',
+    textAlign: 'center',
+  },
+  manualBidMiniBar: {
+    marginTop: 3,
+    paddingHorizontal: 2,
+  },
+
+  // Legacy teamChip preserved for safety
   teamChip: {
     width: '22.5%',
     backgroundColor: colors.surface,
@@ -1820,20 +3512,22 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   leadingBadge: { position: 'absolute', top: 4, right: 4 },
   leadingBadgeText: { color: colors.primary, fontSize: 8 },
 
+
   // ── Action Buttons (SOLD=green / UNSOLD=red / SKIP=indigo) ──
   actionRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 8,
+    marginTop: 4,
+    marginBottom: 2,
   },
   actionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 14,
-    borderRadius: 14,
+    gap: 4,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   actionBtnSold: {
     backgroundColor: '#16a34a',  // green
@@ -1939,6 +3633,341 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     marginTop: Spacing.sm,
   },
   primaryBtnText: { color: colors.background, fontFamily: Typography.fontFamily.bold, fontSize: 15 },
+
+  // Unsold & Re-auction modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'flex-end',
+  },
+  centerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.md,
+  },
+  modalBackdropTap: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  modalSheetHandleWrap: {
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingTop: 4,
+  },
+  modalSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  modalCloseBtn: {
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  unsoldModalContainer: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: 0,
+    height: '85%',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: colors.border,
+    zIndex: 1,
+    elevation: 20,
+  },
+  unsoldBottomBar: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  unsoldModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  unsoldModalTitle: {
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 18,
+  },
+  unsoldModalSub: {
+    color: colors.textTertiary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  unsoldActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  addNewPlayerTriggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  addNewPlayerTriggerText: {
+    color: colors.background,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 12,
+  },
+  selectAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(154, 188, 47, 0.1)',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  selectAllBtnText: {
+    color: colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 12,
+  },
+  unsoldSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 40,
+    marginBottom: 8,
+  },
+  unsoldSearchInput: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 13,
+    paddingVertical: 0,
+  },
+  unsoldCountRow: {
+    marginBottom: 8,
+  },
+  unsoldCountText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  unsoldPlayerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+  },
+  unsoldPlayerRowSelected: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(154, 188, 47, 0.08)',
+  },
+  unsoldPlayerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+  },
+  unsoldPlayerAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  unsoldPlayerInitials: {
+    color: colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+  },
+  unsoldPlayerName: {
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+  },
+  unsoldPlayerMeta: {
+    color: colors.textTertiary,
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  unsoldStatusChip: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  unsoldStatusChipText: {
+    color: '#EF4444',
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  unsoldPlayerBasePrice: {
+    color: colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+  },
+  emptyUnsoldBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 16,
+  },
+  emptyUnsoldTitle: {
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 16,
+    marginTop: 10,
+  },
+  emptyUnsoldSub: {
+    color: colors.textTertiary,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  emptyAddBtnText: {
+    color: colors.background,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 13,
+  },
+  createUnsoldSetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    height: 48,
+    borderRadius: 12,
+  },
+  createUnsoldSetBtnText: {
+    color: colors.background,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+  },
+
+  // Add new player modal styles
+  addPlayerModalContainer: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: Spacing.lg,
+    maxHeight: '85%',
+    width: '92%',
+    maxWidth: 420,
+    borderWidth: 1,
+    borderColor: colors.border,
+    zIndex: 1,
+    elevation: 20,
+  },
+  newPlayerPhotoPicker: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    backgroundColor: colors.background,
+  },
+  phoneLookupIndicator: {
+    position: 'absolute',
+    right: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneLookupMsg: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  phoneLookupMsgText: {
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  newPlayerPhotoPreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  newPlayerPhotoPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPlayerFieldLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    marginBottom: 6,
+  },
+  addPlayerInput: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 42,
+    color: colors.textPrimary,
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  roleSelectChip: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  roleSelectChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(154, 188, 47, 0.15)',
+  },
+  roleSelectChipText: {
+    color: colors.textTertiary,
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  roleSelectChipTextActive: {
+    color: colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  saveNewPlayerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    height: 48,
+    borderRadius: 12,
+  },
+  saveNewPlayerBtnText: {
+    color: colors.background,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+  },
 });
 
 export default AuctionLiveOrganiserScreen;

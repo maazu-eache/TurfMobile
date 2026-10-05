@@ -286,7 +286,7 @@ const SortChip = ({ label, icon, active, onPress }) => (
 
       const handleFetchResult = (res) => {
         const items = res.payload?.data || res.payload || [];
-        setHasMore(items.length >= 10);
+        setHasMore(items.length >= 8);
       };
 
       let fetchPromise;
@@ -772,7 +772,7 @@ const SortChip = ({ label, icon, active, onPress }) => (
 
   // ─── Render ──────────────────────────────────────────────────────────────
   const handleLoadMore = () => {
-    if (!activeLoading && !isPaginating && hasMore && activeDataList.length >= 10) {
+    if (!activeLoading && !isPaginating && hasMore && activeDataList.length >= 5) {
       setIsPaginating(true);
       setPage(p => p + 1);
     }

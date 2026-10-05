@@ -7,7 +7,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { useSelector } from 'react-redux';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../../components/common/CustomDateTimePicker';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
 
@@ -237,10 +237,28 @@ const TournamentCreateScreen = ({ navigation }) => {
         if (parts.length === 2) {
           currentVal.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
         }
-      } else {
+      } else if (valStr.includes('/')) {
         const parts = valStr.split('/');
         if (parts.length === 3) {
           const parsed = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+          if (!isNaN(parsed.getTime())) {
+            currentVal = parsed;
+          }
+        }
+      } else if (valStr.includes('-')) {
+        const parts = valStr.split('-');
+        if (parts.length === 3) {
+          let year, month, day;
+          if (parts[0].length === 4) {
+            year = parseInt(parts[0], 10);
+            month = parseInt(parts[1], 10) - 1;
+            day = parseInt(parts[2], 10);
+          } else {
+            day = parseInt(parts[0], 10);
+            month = parseInt(parts[1], 10) - 1;
+            year = parseInt(parts[2], 10);
+          }
+          const parsed = new Date(year, month, day);
           if (!isNaN(parsed.getTime())) {
             currentVal = parsed;
           }
@@ -661,64 +679,24 @@ const TournamentCreateScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {showDatePicker && (
-        Platform.OS === 'ios' ? (
-          <Modal transparent animationType="fade" visible={showDatePicker}>
-            <TouchableOpacity 
-              style={styles.dateModalOverlay} 
-              activeOpacity={1} 
-              onPress={() => setShowDatePicker(false)}
-            >
-              <View style={styles.dateModalContainer}>
-                <View style={styles.dateModalHeader}>
-                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                    <Text style={styles.dateModalCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.dateModalTitle}>
-                    {datePickerMode === 'time' ? 'Select Time' : 'Select Date'}
-                  </Text>
-                  <TouchableOpacity onPress={() => { applySelectedDate(dateObj); setShowDatePicker(false); }}>
-                    <Text style={styles.dateModalDoneText}>Done</Text>
-                  </TouchableOpacity>
-                </View>
-                <DateTimePicker
-                  value={dateObj}
-                  mode={datePickerMode}
-                  display="spinner"
-                  themeVariant={isDark ? 'dark' : 'light'}
-                  textColor={isDark ? '#FFFFFF' : '#000000'}
-                  accentColor={colors.primary}
-                  style={{ height: 216, width: '100%', backgroundColor: isDark ? colors.background : '#FFFFFF' }}
-                  onChange={onDateChange}
-                  minimumDate={
-                    datePickerMode === 'date' 
-                      ? (form.tournamentType === 'Auction' && (datePickerTarget === 'registrationStartDate' || datePickerTarget === 'registrationEndDate')
-                          ? undefined 
-                          : new Date(new Date().setHours(0,0,0,0))
-                        )
-                      : undefined
-                  }
-                />
-              </View>
-            </TouchableOpacity>
-          </Modal>
-        ) : (
-          <DateTimePicker
-            value={dateObj}
-            mode={datePickerMode}
-            display="default"
-            onChange={onDateChange}
-            minimumDate={
-              datePickerMode === 'date' 
-                ? (form.tournamentType === 'Auction' && (datePickerTarget === 'registrationStartDate' || datePickerTarget === 'registrationEndDate')
-                    ? undefined 
-                    : new Date(new Date().setHours(0,0,0,0))
-                  )
-                : undefined
-            }
-          />
-        )
-      )}
+      <CustomDateTimePicker
+        visible={showDatePicker}
+        mode={datePickerMode}
+        value={dateObj}
+        minimumDate={
+          datePickerMode === 'date' 
+            ? (form.tournamentType === 'Auction' && (datePickerTarget === 'registrationStartDate' || datePickerTarget === 'registrationEndDate')
+                ? undefined 
+                : new Date(new Date().setHours(0,0,0,0))
+              )
+            : undefined
+        }
+        onConfirm={(selectedDate) => {
+          applySelectedDate(selectedDate);
+        }}
+        onCancel={() => setShowDatePicker(false)}
+        onClose={() => setShowDatePicker(false)}
+      />
     </View>
   );
 };

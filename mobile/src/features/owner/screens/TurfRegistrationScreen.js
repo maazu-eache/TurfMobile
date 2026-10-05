@@ -15,7 +15,6 @@ import { createTurf, updateTurf } from '../../turf/turfSlice';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import CustomTimePicker from '../../../components/CustomTimePicker';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import moment from 'moment';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 

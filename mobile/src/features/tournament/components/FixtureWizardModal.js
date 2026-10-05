@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import moment from 'moment';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../../components/common/CustomDateTimePicker';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -466,14 +466,22 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
         </View>
       </View>
 
-      {(showDatePicker || showTimePicker) && (
-        <DateTimePicker
-          value={groupMode && activeGroupIndex !== null ? groupSchedule[activeGroupIndex].startTime : firstMatchDate}
-          mode={pickerMode}
-          display="default"
-          onChange={handleDateChange}
-        />
-      )}
+      <CustomDateTimePicker
+        visible={showDatePicker || showTimePicker}
+        mode={pickerMode}
+        value={groupMode && activeGroupIndex !== null ? groupSchedule[activeGroupIndex].startTime : firstMatchDate}
+        onConfirm={(selectedDate) => {
+          handleDateChange({ type: 'set' }, selectedDate);
+        }}
+        onCancel={() => {
+          setShowDatePicker(false);
+          setShowTimePicker(false);
+        }}
+        onClose={() => {
+          setShowDatePicker(false);
+          setShowTimePicker(false);
+        }}
+      />
     </Modal>
   );
 };

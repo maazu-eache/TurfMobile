@@ -245,6 +245,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
     selectionLockRef.current = true;
     try {
       const selectedBowlerObj = squad.find(p => String(p._id || p) === String(bowlerId)) || fullSquad.find(p => String(p._id || p) === String(bowlerId)) || bowlerId;
+      const isMidOver = !!route.params?.isMidOver;
 
       if (liveState) {
         dispatch(setLiveState({
@@ -252,7 +253,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
           bowler: selectedBowlerObj,
           bowlerStats: { runs: 0, balls: 0, wickets: 0, maidens: 0, overs: 0 },
           needsBowler: false,
-          currentOverBalls: []
+          currentOverBalls: isMidOver ? (liveState.currentOverBalls || []) : []
         }));
       }
 
@@ -261,7 +262,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
 
       // Emit via Socket.IO instead of slow HTTP API call
       const socket = socketService.getSocket();
-      socket.emit('change_bowler', { matchId: match._id, bowlerId });
+      socket.emit('change_bowler', { matchId: match._id, bowlerId, isMidOver });
 
       setTimeout(() => {
         selectionLockRef.current = false;
@@ -286,11 +287,20 @@ const SelectBowlerScreen = ({ route, navigation }) => {
           <Icon name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={styles.headerTitle}>Select Bowler</Text>
+          <Text style={styles.headerTitle}>{route.params?.isMidOver ? 'Replace Bowler' : 'Select Bowler'}</Text>
           <Text style={styles.headerSubtitle}>{isTeamABatting ? match?.teamB?.name : match?.teamA?.name}</Text>
         </View>
         <View style={{ width: 36 }} />
       </View>
+
+      {route.params?.isMidOver ? (
+        <View style={styles.midOverBanner}>
+          <Icon name="medical-bag" size={16} color="#EAB308" />
+          <Text style={styles.midOverBannerText}>
+            Mid-Over Replacement: Select a bowler to complete the remaining balls of this over.
+          </Text>
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -323,12 +333,15 @@ const SelectBowlerScreen = ({ route, navigation }) => {
             }
 
             const prevBowlerId = String(liveState?.previousBowler?._id || liveState?.previousBowler || '');
+            const currentBowlerId = String(route.params?.currentBowlerId || liveState?.bowler?._id || liveState?.bowler || '');
             const itemId = String(item._id || item);
             const isPreviousBowler = prevBowlerId !== '' && prevBowlerId === itemId;
+            const isCurrentInjuredBowler = !!route.params?.isMidOver && currentBowlerId !== '' && currentBowlerId === itemId;
 
             const otherEligibleBowlers = squad.filter(p => {
               const pId = String(p._id || p);
               if (pId === itemId) return false;
+              if (route.params?.isMidOver && pId === currentBowlerId) return false;
               if (currentScorecard) {
                 const bStat = currentScorecard.bowling.find(b => String(b.player?._id || b.player) === pId);
                 if (bStat && bStat.overs >= match.bowlerQuota) return false;
@@ -337,7 +350,7 @@ const SelectBowlerScreen = ({ route, navigation }) => {
             });
 
             const isPreviousBowlerBlocked = isPreviousBowler && otherEligibleBowlers.length > 0;
-            const isDisabled = isQuotaCompleted || isPreviousBowlerBlocked;
+            const isDisabled = isQuotaCompleted || isPreviousBowlerBlocked || isCurrentInjuredBowler;
 
             const photoUrl = item.photo || item.userId?.photo || item.avatar || null;
             const quotaMax = match.bowlerQuota || 4;
@@ -380,6 +393,8 @@ const SelectBowlerScreen = ({ route, navigation }) => {
                     <Text style={styles.statusTextError}>Quota full ({bowledOvers}/{quotaMax} ov)</Text>
                   ) : isPreviousBowlerBlocked ? (
                     <Text style={styles.statusTextError}>Bowled previous over</Text>
+                  ) : isCurrentInjuredBowler ? (
+                    <Text style={styles.statusTextError}>Current bowler (being replaced)</Text>
                   ) : (
                     <View style={styles.quotaBarRow}>
                       <View style={styles.quotaBarBg}>
@@ -561,6 +576,22 @@ const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => S
     fontFamily: Typography.fontFamily.medium,
     color: colors.textSecondary,
     marginTop: 1,
+  },
+  midOverBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(234, 179, 8, 0.12)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(234, 179, 8, 0.25)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  midOverBannerText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: isDark ? '#FFD633' : '#A16207',
   },
   loadingContainer: {
     padding: Spacing.xl,

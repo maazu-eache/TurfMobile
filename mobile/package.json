@@ -1,13 +1,14 @@
 {
   "name": "scoreverse",
-  "version": "1.26",
+  "version": "1.30",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "start": "react-native start",
     "test": "jest",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -80,6 +81,7 @@
     "eslint": "^10.6.0",
     "jest": "^30.4.2",
     "metro-react-native-babel-preset": "^0.77.0",
+    "patch-package": "^8.0.1",
     "prettier": "3.9.4",
     "react-native-dotenv": "^3.4.11"
   },

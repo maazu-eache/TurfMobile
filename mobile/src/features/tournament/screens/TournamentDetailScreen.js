@@ -128,6 +128,84 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
 
+  // Auction Launch Points Selection Modal State
+  const [showLaunchPointsModal, setShowLaunchPointsModal] = useState(false);
+  const [launchPoints, setLaunchPoints] = useState([50, 100, 200, 500]);
+  const [customPointInput, setCustomPointInput] = useState('');
+  const [defaultActivePoint, setDefaultActivePoint] = useState(100);
+  const [launchingAuctionLoading, setLaunchingAuctionLoading] = useState(false);
+
+  const PRESET_AUCTION_POINTS = [20, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000];
+
+  const handleToggleLaunchPoint = (val) => {
+    setLaunchPoints(prev => {
+      let next;
+      if (prev.includes(val)) {
+        if (prev.length <= 1) {
+          showCustomAlert('At Least One', 'You must keep at least one bid point option.');
+          return prev;
+        }
+        next = prev.filter(p => p !== val);
+      } else {
+        next = [...prev, val].sort((a, b) => a - b);
+      }
+      if (!next.includes(defaultActivePoint)) {
+        setDefaultActivePoint(next[0] || 100);
+      }
+      return next;
+    });
+  };
+
+  const handleAddCustomLaunchPoint = () => {
+    const val = Number(customPointInput.trim());
+    if (!val || isNaN(val) || val <= 0) {
+      showCustomAlert('Invalid Value', 'Please enter a valid positive point amount.');
+      return;
+    }
+    if (launchPoints.includes(val)) {
+      showCustomAlert('Already Added', 'This point amount is already in the list.');
+      return;
+    }
+    const next = [...launchPoints, val].sort((a, b) => a - b);
+    setLaunchPoints(next);
+    setCustomPointInput('');
+  };
+
+  const handleRemoveLaunchPoint = (val) => {
+    if (launchPoints.length <= 1) {
+      showCustomAlert('At Least One', 'You must keep at least one bid point option.');
+      return;
+    }
+    const next = launchPoints.filter(p => p !== val);
+    setLaunchPoints(next);
+    if (defaultActivePoint === val) {
+      setDefaultActivePoint(next[0] || 100);
+    }
+  };
+
+  const handleConfirmLaunchAuction = async () => {
+    if (!launchPoints || launchPoints.length === 0) {
+      showCustomAlert('Select Points', 'Please select at least one point value.');
+      return;
+    }
+    setLaunchingAuctionLoading(true);
+    try {
+      if (auctionDetails?._id) {
+        await auctionService.updateBidIncrements(auctionDetails._id, launchPoints);
+      }
+    } catch (e) {
+      console.log('Error saving bid increments:', e);
+    } finally {
+      setLaunchingAuctionLoading(false);
+      setShowLaunchPointsModal(false);
+      navigation.navigate('AuctionLiveOrganiser', {
+        auctionId: auctionDetails?._id,
+        initialIncrements: launchPoints,
+        initialActiveIncrement: defaultActivePoint || launchPoints[0] || 100,
+      });
+    }
+  };
+
   const getMatchGroupName = useCallback((m) => {
     if (!m) return 'League Match';
     if (m.groupName) return m.groupName;
@@ -514,6 +592,39 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     } finally {
       setCompleteLoading(false);
     }
+  };
+
+  const handleDeleteTournament = () => {
+    if (!isMainOrganizer) return;
+    showCustomAlert(
+      'Delete Tournament',
+      'Are you sure you want to permanently delete this tournament? All matches, scorecards, fixtures, and tournament records will be removed. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              await api.delete(`/tournaments/${tournamentId}`);
+              showCustomAlert('Deleted', 'Tournament deleted successfully.', [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    navigation.goBack();
+                  }
+                }
+              ]);
+            } catch (e) {
+              showCustomAlert('Error', e.response?.data?.message || 'Failed to delete tournament');
+            } finally {
+              setActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleCalculateScenario = async () => {
@@ -942,22 +1053,18 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               </View>
               <Text style={styles.actionGridText}>Groups</Text>
             </TouchableOpacity>
-            {!(tournament.tournamentType === 'Auction' && (tournament.auctionStatus === 'completed' || auctionDetails?.status === 'completed')) && (
-              <>
-                <TouchableOpacity style={styles.actionGridBtn} onPress={() => setShowAddTeamModal(true)}>
-                  <View style={styles.actionGridIcon}>
-                    <Icon name="user-plus" size={20} color={colors.primary} />
-                  </View>
-                  <Text style={styles.actionGridText}>Add Team</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionGridBtn} onPress={handleShareJoinLink}>
-                  <View style={styles.actionGridIcon}>
-                    <Icon name="link" size={20} color={colors.primary} />
-                  </View>
-                  <Text style={styles.actionGridText}>Invite</Text>
-                </TouchableOpacity>
-              </>
-            )}
+            <TouchableOpacity style={styles.actionGridBtn} onPress={() => setShowAddTeamModal(true)}>
+              <View style={styles.actionGridIcon}>
+                <Icon name="user-plus" size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.actionGridText}>Add Team</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionGridBtn} onPress={handleShareJoinLink}>
+              <View style={styles.actionGridIcon}>
+                <Icon name="link" size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.actionGridText}>Invite</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1014,7 +1121,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.teamSub}>{item.team.city || 'Unknown City'}</Text>
                   </View>
                 </View>
-                {isMainOrganizer && tournament.status !== 'completed' && !(tournament.tournamentType === 'Auction' && (tournament.auctionStatus === 'completed' || auctionDetails?.status === 'completed')) ? (
+                {isMainOrganizer && tournament.status !== 'completed' ? (
                   <TouchableOpacity
                     style={styles.removeTeamBtn}
                     onPress={() => handleRemoveTeam(item.team._id, item.team.name)}
@@ -1508,9 +1615,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                         <Text style={styles.tableCell}>P</Text>
                         <Text style={styles.tableCell}>W</Text>
                         <Text style={styles.tableCell}>L</Text>
+                        <Text style={styles.tableCell}>T</Text>
                         <Text style={styles.tableCell}>NR</Text>
                         <Text style={styles.tableCell}>Pts</Text>
-                        <Text style={styles.tableCell}>NRR</Text>
+                        <Text style={[styles.tableCell, { flex: 1.2 }]}>NRR</Text>
                       </View>
                       {rows.map((row, idx) => {
                         const scenario = tournament.qualificationScenarios?.[row.team?._id];
@@ -1541,9 +1649,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                             <Text style={styles.tableCell}>{row.played}</Text>
                             <Text style={styles.tableCell}>{row.won}</Text>
                             <Text style={styles.tableCell}>{row.lost}</Text>
-                            <Text style={styles.tableCell}>{row.noResult}</Text>
+                            <Text style={styles.tableCell}>{row.tie || 0}</Text>
+                            <Text style={styles.tableCell}>{row.noResult || 0}</Text>
                             <Text style={[styles.tableCell, { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
-                            <Text style={[styles.tableCell, { color: row.netRunRate >= 0 ? colors.success : colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
+                            <Text style={[styles.tableCell, { flex: 1.2, color: row.netRunRate >= 0 ? colors.success : colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -1560,9 +1669,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               <Text style={styles.tableCell}>P</Text>
               <Text style={styles.tableCell}>W</Text>
               <Text style={styles.tableCell}>L</Text>
+              <Text style={styles.tableCell}>T</Text>
               <Text style={styles.tableCell}>NR</Text>
               <Text style={styles.tableCell}>Pts</Text>
-              <Text style={styles.tableCell}>NRR</Text>
+              <Text style={[styles.tableCell, { flex: 1.2 }]}>NRR</Text>
             </View>
             {pointsTable.map((row, idx) => {
               const scenario = tournament.qualificationScenarios?.[row.team?._id];
@@ -1593,9 +1703,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   <Text style={styles.tableCell}>{row.played}</Text>
                   <Text style={styles.tableCell}>{row.won}</Text>
                   <Text style={styles.tableCell}>{row.lost}</Text>
-                  <Text style={styles.tableCell}>{row.noResult}</Text>
+                  <Text style={styles.tableCell}>{row.tie || 0}</Text>
+                  <Text style={styles.tableCell}>{row.noResult || 0}</Text>
                   <Text style={[styles.tableCell, { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>{row.points}</Text>
-                  <Text style={[styles.tableCell, { color: row.netRunRate >= 0 ? colors.success : colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.2, color: row.netRunRate >= 0 ? colors.success : colors.error }]}>{row.netRunRate?.toFixed(2)}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -1774,7 +1885,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     if (!auctionDetails?.hasSets) {
                       showCustomAlert('Cannot Launch', 'Please create auction sets first before launching the live auction.');
                     } else {
-                      navigation.navigate('AuctionLiveOrganiser', { auctionId: auctionDetails._id });
+                      const existing = auctionDetails?.bidIncrements && auctionDetails.bidIncrements.length > 0
+                        ? auctionDetails.bidIncrements
+                        : [50, 100, 200, 500];
+                      setLaunchPoints(existing);
+                      setDefaultActivePoint(existing[0] || 100);
+                      setCustomPointInput('');
+                      setShowLaunchPointsModal(true);
                     }
                   }}
                 >
@@ -1925,7 +2042,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   {myRegistrationData.soldStatus === 'sold' && (
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={{ color: colors.textTertiary, fontSize: 13 }}>Sold to</Text>
-                      <Text style={{ color: colors.white, fontSize: 16, fontFamily: Typography.fontFamily.semiBold, marginTop: 4 }}>{myRegistrationData.soldToTeam?.name || 'A Team'}</Text>
+                      <Text style={{ color: colors.textPrimary, fontSize: 16, fontFamily: Typography.fontFamily.semiBold, marginTop: 4 }}>{myRegistrationData.soldToTeam?.name || 'A Team'}</Text>
                       <Text style={{ color: colors.warning, fontSize: 14, marginTop: 2 }}>{myRegistrationData.soldPrice} points</Text>
                     </View>
                   )}
@@ -2369,7 +2486,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <Icon name="edit-3" size={18} color="#F59E0B" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.sidebarCardTitle}>Edit Details</Text>
+                    <Text style={styles.sidebarCardTitle}>Edit Tournament Details</Text>
                     <Text style={styles.sidebarCardDesc}>Update format & rules</Text>
                   </View>
                   <Icon name="chevron-right" size={16} color={colors.textTertiary} />
@@ -2397,6 +2514,25 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.sidebarCardTitle, { color: "#EF4444" }]}>End Tournament</Text>
                     <Text style={styles.sidebarCardDesc}>Mark completed & set winner</Text>
+                  </View>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+
+              {isMainOrganizer && (
+                <TouchableOpacity
+                  style={[styles.sidebarCard, { borderColor: 'rgba(239, 68, 68, 0.3)' }]}
+                  onPress={() => {
+                    setShowSettingsSidebar(false);
+                    handleDeleteTournament();
+                  }}
+                >
+                  <View style={[styles.sidebarIconBox, { backgroundColor: isDark ? "rgba(239, 68, 68, 0.15)" : "rgba(239, 68, 68, 0.1)" }]}>
+                    <Icon name="trash-2" size={18} color="#EF4444" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.sidebarCardTitle, { color: "#EF4444" }]}>Delete Tournament</Text>
+                    <Text style={styles.sidebarCardDesc}>Permanently remove tournament</Text>
                   </View>
                   <Icon name="chevron-right" size={16} color={colors.textTertiary} />
                 </TouchableOpacity>
@@ -2575,10 +2711,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     padding: 14,
                     marginHorizontal: Spacing.lg,
                     marginBottom: 10,
-                    backgroundColor: 'rgba(255,255,255,0.04)',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.1)'
+                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : colors.border
                   }}
                   activeOpacity={0.7}
                   onPress={() => {
@@ -2596,8 +2732,42 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                     <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(154,188,47,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                       <Icon name="calendar" size={18} color={colors.primary} />
                     </View>
+                  ) : item.logo ? (
+                    <Image
+                      source={{ uri: getImageUrl(item.logo) }}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        marginRight: 12,
+                        borderWidth: 1,
+                        borderColor: isDark ? 'rgba(255,255,255,0.2)' : colors.border
+                      }}
+                    />
                   ) : (
-                    <Image source={{ uri: item.logo ? getImageUrl(item.logo) : 'https://via.placeholder.com/40' }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }} />
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        marginRight: 12,
+                        backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.12)',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        borderWidth: 1,
+                        borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(230,184,0,0.4)',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: isDark ? colors.primary : '#8B6E00',
+                          fontFamily: Typography.fontFamily.bold,
+                          fontSize: 15,
+                        }}
+                      >
+                        {(item.shortName || (item.name || 'T').split(/\s+/).map(w => w[0]).slice(0, 2).join('') || 'T').toUpperCase()}
+                      </Text>
+                    </View>
                   )}
                   <Text style={[styles.bodyText, { color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 15 }]}>
                     {item.name}
@@ -2638,9 +2808,10 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             <FullSchedulePoster
               key={index}
               matches={chunk}
+              startIndex={index * chunkSize}
               tournamentName={tournament?.name}
               tournamentBanner={tournament?.banner}
-              pageInfo={chunks.length > 1 ? { current: index + 1, total: chunks.length, totalMatches: matches.length } : null}
+              pageInfo={chunks.length > 1 ? { current: index + 1, total: chunks.length, totalMatches: matches.length, pageSize: chunkSize } : null}
             />
           ));
         })()}
@@ -2787,7 +2958,258 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         </View>
         </Modal>
 
+        {/* Launch Live Auction Points Configuration Modal */}
+        <Modal
+          visible={showLaunchPointsModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowLaunchPointsModal(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+            <View style={{
+              backgroundColor: colors.surface,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              maxHeight: '90%',
+              paddingTop: 20,
+              paddingHorizontal: 20,
+              paddingBottom: 24,
+              borderWidth: 1,
+              borderColor: colors.borderLight,
+            }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  <View style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: colors.primaryAlpha20 || 'rgba(74, 222, 128, 0.15)',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    marginRight: 12,
+                  }}>
+                    <MCIcon name="gavel" size={22} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 18, fontFamily: Typography.fontFamily.bold, color: colors.textPrimary }}>
+                      Auction Bidding Points
+                    </Text>
+                    <Text style={{ fontSize: 12, fontFamily: Typography.fontFamily.regular, color: colors.textSecondary, marginTop: 2 }}>
+                      Select points to display on the auction screen
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowLaunchPointsModal(false)}
+                  style={{ padding: 6, borderRadius: 16, backgroundColor: colors.backgroundElevated }}
+                >
+                  <MCIcon name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <KeyboardAwareScrollView
+                enableOnAndroid={true}
+                extraScrollHeight={20}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Flow Tip Banner */}
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.08)',
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 16,
+                  borderWidth: 1,
+                  borderColor: 'rgba(59, 130, 246, 0.25)',
+                }}>
+                  <MCIcon name="lightning-bolt" size={20} color="#3B82F6" style={{ marginRight: 10 }} />
+                  <Text style={{ flex: 1, fontSize: 12, color: colors.textSecondary, lineHeight: 17 }}>
+                    <Text style={{ fontFamily: Typography.fontFamily.bold, color: '#3B82F6' }}>Rapid Bidding Flow: </Text>
+                    Select a point once during auction, then simply tap teams to instantly place bids! You can switch points anytime.
+                  </Text>
+                </View>
+
+                {/* Selected Points Preview */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                    Active Points in Auction ({launchPoints.length})
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {launchPoints.map(pt => {
+                      const isDefault = defaultActivePoint === pt;
+                      return (
+                        <TouchableOpacity
+                          key={pt}
+                          onPress={() => setDefaultActivePoint(pt)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            paddingVertical: 7,
+                            paddingHorizontal: 12,
+                            borderRadius: 20,
+                            backgroundColor: isDefault ? (colors.primaryAlpha20 || 'rgba(74,222,128,0.2)') : colors.backgroundElevated,
+                            borderWidth: 1.5,
+                            borderColor: isDefault ? colors.primary : colors.border,
+                          }}
+                        >
+                          {isDefault && (
+                            <MCIcon name="star" size={13} color={colors.primary} style={{ marginRight: 4 }} />
+                          )}
+                          <Text style={{
+                            fontSize: 13,
+                            fontFamily: Typography.fontFamily.bold,
+                            color: isDefault ? colors.primary : colors.textPrimary,
+                            marginRight: 6,
+                          }}>
+                            +{pt} Pts
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => handleRemoveLaunchPoint(pt)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <MCIcon name="close-circle" size={16} color={colors.textTertiary} />
+                          </TouchableOpacity>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <Text style={{ fontSize: 11, color: colors.textTertiary, marginTop: 6 }}>
+                    ★ Tap any chip to set starting point (Currently: +{defaultActivePoint} Pts)
+                  </Text>
+                </View>
+
+                {/* Quick Presets */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                    Preset Point Options (Tap to add/remove)
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {PRESET_AUCTION_POINTS.map(pt => {
+                      const isSelected = launchPoints.includes(pt);
+                      return (
+                        <TouchableOpacity
+                          key={pt}
+                          onPress={() => handleToggleLaunchPoint(pt)}
+                          style={{
+                            paddingVertical: 6,
+                            paddingHorizontal: 12,
+                            borderRadius: 16,
+                            backgroundColor: isSelected ? colors.primary : colors.backgroundElevated,
+                            borderWidth: 1,
+                            borderColor: isSelected ? colors.primary : colors.border,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          }}
+                        >
+                          {isSelected && (
+                            <MCIcon name="check" size={13} color="#000" style={{ marginRight: 4 }} />
+                          )}
+                          <Text style={{
+                            fontSize: 12,
+                            fontFamily: Typography.fontFamily.semiBold,
+                            color: isSelected ? '#000000' : colors.textSecondary,
+                          }}>
+                            +{pt}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* Custom Point Input */}
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={{ fontSize: 12, fontFamily: Typography.fontFamily.bold, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                    Add Custom Point Value
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TextInput
+                      style={{
+                        flex: 1,
+                        backgroundColor: colors.backgroundElevated,
+                        borderRadius: 12,
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        fontSize: 14,
+                        fontFamily: Typography.fontFamily.medium,
+                        color: colors.textPrimary,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                      placeholder="e.g. 150, 750, 1500"
+                      placeholderTextColor={colors.textTertiary}
+                      keyboardType="numeric"
+                      value={customPointInput}
+                      onChangeText={setCustomPointInput}
+                      onSubmitEditing={handleAddCustomLaunchPoint}
+                    />
+                    <TouchableOpacity
+                      onPress={handleAddCustomLaunchPoint}
+                      style={{
+                        backgroundColor: colors.primaryAlpha20 || 'rgba(74,222,128,0.2)',
+                        paddingHorizontal: 18,
+                        borderRadius: 12,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        borderWidth: 1,
+                        borderColor: colors.primary,
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.bold, color: colors.primary }}>
+                        + ADD
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Action Buttons */}
+                <TouchableOpacity
+                  onPress={handleConfirmLaunchAuction}
+                  disabled={launchingAuctionLoading || launchPoints.length === 0}
+                  style={{
+                    backgroundColor: colors.primary,
+                    borderRadius: 14,
+                    height: 52,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                    marginBottom: 10,
+                    opacity: launchPoints.length === 0 ? 0.5 : 1,
+                  }}
+                >
+                  {launchingAuctionLoading ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <>
+                      <MCIcon name="broadcast" size={20} color="#000" style={{ marginRight: 8 }} />
+                      <Text style={{ fontSize: 15, fontFamily: Typography.fontFamily.bold, color: '#000' }}>
+                        LAUNCH LIVE AUCTION ({launchPoints.length} Points)
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setShowLaunchPointsModal(false)}
+                  style={{
+                    paddingVertical: 12,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontFamily: Typography.fontFamily.medium, color: colors.textTertiary }}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+              </KeyboardAwareScrollView>
+            </View>
+          </View>
+        </Modal>
+
     </View>
+
   );
 };
 

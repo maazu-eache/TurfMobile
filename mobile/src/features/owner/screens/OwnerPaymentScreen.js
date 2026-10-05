@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar 
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { payOwnerFee, logout } from '../../auth/authSlice';
+import { payOwnerFee, logout, logoutLocal } from '../../auth/authSlice';
 import { Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { useTheme } from '../../../theme/ThemeContext';
 
@@ -26,6 +26,7 @@ const OwnerPaymentScreen = () => {
   };
 
   const handleLogout = () => {
+    dispatch(logoutLocal());
     dispatch(logout());
   };
 

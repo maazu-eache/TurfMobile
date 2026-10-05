@@ -11,7 +11,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyPlayer, updatePlayerProfile, fetchMatchHistory } from '../playerSlice';
 import { useTheme, Typography, Spacing, BorderRadius, Colors } from '../../../theme/theme';
 import { showCustomAlert } from '../../../components/CustomAlert';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../../components/common/CustomDateTimePicker';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api, { getImageUrl } from '../../../api/axios';
@@ -555,10 +555,12 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
   },
   inputDisabled: {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
-    borderStyle: 'dashed',
-    borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
-    color: colors.textTertiary,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#F4F5F7',
+    borderStyle: 'solid',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+    color: colors.textSecondary,
+    opacity: 0.8,
     paddingRight: 38,
   },
   lockIcon: { position: 'absolute', right: 12 },
@@ -1016,29 +1018,31 @@ const PlayerProfileScreen = ({ navigation }) => {
   }, [myProfile?._id, activeStatTab, activeBallType]);
 
   useEffect(() => {
-    if (myProfile) {
-      setForm({
-        name: myProfile.userId?.name || user?.name || '',
-        mobile: myProfile.userId?.mobile || user?.mobile || '',
-        email: myProfile.userId?.email || user?.email || '',
-        location: myProfile.location || myProfile.city || user?.city || '',
-        dob: myProfile.dob ? new Date(myProfile.dob).toISOString().split('T')[0] : '',
-        gender: myProfile.gender || 'Male',
-        playingRole: myProfile.playingRole || 'Batsman',
-        battingStyle: myProfile.battingStyle || 'Right Hand',
-        battingOrder: myProfile.battingOrder || 'Top Order',
-        bowlingStyle: myProfile.bowlingStyle || 'Right Arm Fast',
-      });
-    } else if (user) {
-      setForm(prev => ({ 
-        ...prev, 
-        name: user.name || '', 
-        mobile: user.mobile || '', 
-        email: user.email || '',
-        location: user.city || ''
-      }));
+    if (!isEditModalVisible) {
+      if (myProfile) {
+        setForm({
+          name: myProfile.userId?.name || user?.name || '',
+          mobile: myProfile.userId?.mobile || user?.mobile || '',
+          email: myProfile.userId?.email || user?.email || '',
+          location: myProfile.location || myProfile.city || user?.city || '',
+          dob: myProfile.dob ? (typeof myProfile.dob === 'string' ? myProfile.dob.split('T')[0] : `${new Date(myProfile.dob).getFullYear()}-${String(new Date(myProfile.dob).getMonth() + 1).padStart(2, '0')}-${String(new Date(myProfile.dob).getDate()).padStart(2, '0')}`) : '',
+          gender: myProfile.gender || 'Male',
+          playingRole: myProfile.playingRole || 'Batsman',
+          battingStyle: myProfile.battingStyle || 'Right Hand',
+          battingOrder: myProfile.battingOrder || 'Top Order',
+          bowlingStyle: myProfile.bowlingStyle || 'Right Arm Fast',
+        });
+      } else if (user) {
+        setForm(prev => ({ 
+          ...prev, 
+          name: user.name || '', 
+          mobile: user.mobile || '', 
+          email: user.email || '',
+          location: user.city || ''
+        }));
+      }
     }
-  }, [myProfile, user]);
+  }, [myProfile, user, isEditModalVisible]);
 
   const handleSave = async () => {
     try {
@@ -1055,8 +1059,13 @@ const PlayerProfileScreen = ({ navigation }) => {
   };
 
   const onDateChange = (event, selectedDate) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selectedDate) setForm(prev => ({ ...prev, dob: selectedDate.toISOString().split('T')[0] }));
+    setShowDatePicker(false);
+    if (selectedDate && event?.type !== 'dismissed') {
+      const y = selectedDate.getFullYear();
+      const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const d = String(selectedDate.getDate()).padStart(2, '0');
+      setForm(prev => ({ ...prev, dob: `${y}-${m}-${d}` }));
+    }
   };
 
   // ── Derive stats ──────────────────────────────────────────────────────────
@@ -1876,17 +1885,16 @@ const PlayerProfileScreen = ({ navigation }) => {
               </View>
 
               <View style={styles.fieldContainer}>
-                <Text style={[styles.label, styles.labelDisabled]}>Email Address</Text>
-                <View style={styles.disabledInputWrapper}>
-                  <TextInput
-                    style={[styles.input, styles.inputDisabled]}
-                    placeholderTextColor={colors.textTertiary}
-                    value={form.email || 'Not provided'}
-                    editable={false}
-                  />
-                  <Icon name="lock-closed-outline" size={16} color={colors.textTertiary} style={styles.lockIcon} />
-                </View>
-                <Text style={styles.helpTextDisabled}>🔒 Cannot be changed after registration.</Text>
+                <Text style={styles.label}>Email Address</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholderTextColor={colors.textTertiary}
+                  value={form.email}
+                  onChangeText={(t) => setForm(f => ({ ...f, email: t }))}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholder="Enter email address"
+                />
               </View>
 
               <View style={styles.fieldContainer}>
@@ -1897,16 +1905,20 @@ const PlayerProfileScreen = ({ navigation }) => {
                   </Text>
                   <Icon name="calendar-outline" size={18} color={colors.primary} />
                 </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={form.dob ? new Date(form.dob) : new Date()}
-                    mode="date" display="spinner" maximumDate={new Date()}
-                    themeVariant={isDark ? 'dark' : 'light'}
-                    textColor={isDark ? '#FFFFFF' : '#000000'} accentColor={colors.primary}
-                    style={{ height: 216, width: '100%', backgroundColor: isDark ? colors.background : '#FFFFFF' }}
-                    onChange={onDateChange}
-                  />
-                )}
+                <CustomDateTimePicker
+                  visible={showDatePicker}
+                  mode="date"
+                  value={form.dob || new Date()}
+                  maximumDate={new Date()}
+                  onConfirm={(selectedDate) => {
+                    const y = selectedDate.getFullYear();
+                    const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                    const d = String(selectedDate.getDate()).padStart(2, '0');
+                    setForm(f => ({ ...f, dob: `${y}-${m}-${d}` }));
+                  }}
+                  onCancel={() => setShowDatePicker(false)}
+                  onClose={() => setShowDatePicker(false)}
+                />
               </View>
 
               <View style={styles.fieldContainer}>

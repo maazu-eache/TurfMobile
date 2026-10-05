@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from '../../../components/SolidGradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { scoreBall, undoBall, fetchLiveState, addMatchScorer, setInitialPlayers, setLiveState } from '../matchSlice';
+import { scoreBall, undoBall, fetchLiveState, addMatchScorer, setInitialPlayers, setLiveState, clearLiveState } from '../matchSlice';
 import api, { BASE_URL, getImageUrl } from '../../../api/axios';
 import socketService from '../../../services/socketService';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
@@ -13,6 +13,8 @@ import { showCustomAlert } from '../../../components/CustomAlert';
 import GoldenSpinner from '../../../components/GoldenSpinner';
 import SharePreviewModal from '../../tournament/components/SharePreviewModal';
 import { MatchSummaryPoster } from '../../tournament/components/PosterTemplates';
+import EditMatchModal from '../components/EditMatchModal';
+import EditTossModal from '../components/EditTossModal';
 
 
 
@@ -93,6 +95,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
   const [scoringToast, setScoringToast] = useState(null);
   const toastTimeoutRef = useRef(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTranslateY = useRef(new Animated.Value(6)).current;
 
   // Scoring Modal/Drawer states
   const [showExtrasPanel, setShowExtrasPanel] = useState(null);
@@ -143,6 +146,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
   const [scorerTab, setScorerTab] = useState('teamA'); // 'teamA' | 'teamB' | 'search'
   const [scorerAddingId, setScorerAddingId] = useState(null); // tracks loading per player
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showOverCompletedModal, setShowOverCompletedModal] = useState(false);
+  const lastOverModalShownRef = useRef('');
+  const [showEditMatchModal, setShowEditMatchModal] = useState(false);
+  const [showEditTossModal, setShowEditTossModal] = useState(false);
   const [showPenaltyModal, setShowPenaltyModal] = useState(false);
   const [penaltyRuns, setPenaltyRuns] = useState('5');
   const [penaltyTeam, setPenaltyTeam] = useState('batting');
@@ -217,10 +224,17 @@ const LiveScorerScreen = ({ navigation, route }) => {
     const currentRuns = currentState.score?.runs || 0;
     const newRuns = newState.score?.runs || 0;
     if (newRuns > currentRuns) return true;
+    if (newRuns < currentRuns) return false;
 
     const currentWickets = currentState.score?.wickets || 0;
     const newWickets = newState.score?.wickets || 0;
     if (newWickets > currentWickets) return true;
+    if (newWickets < currentWickets) return false;
+
+    // If legal balls, runs, and wickets are identical, check if newState has more deliveries in this over (e.g. extras like NB/WD)
+    const currentBallsCount = currentState.currentOverBalls?.length || 0;
+    const newBallsCount = newState.currentOverBalls?.length || 0;
+    if (newBallsCount > currentBallsCount) return true;
 
     if (newState.ballEvent && !currentState.ballEvent) return true;
 
@@ -464,6 +478,34 @@ const LiveScorerScreen = ({ navigation, route }) => {
     return (creatorMatch || isMatchOrganizer || scorerMatch || tournamentScorer);
   }, [liveState?.match?.creator, liveState?.match?.organizerId, liveState?.match?.scorers, liveState?.match?.tournament, currentUser?._id]);
 
+  const isBeforeFirstBall = useMemo(() => {
+    const status = liveState?.match?.status || match?.status;
+    if (['scheduled', 'toss_done'].includes(status)) return true;
+    const currentInningsNum = liveState?.inningsNumber || liveState?.currentInnings || match?.currentInnings || 1;
+    if (currentInningsNum > 1) return false;
+    const totalBalls = liveState?.score?.totalBalls !== undefined
+      ? liveState.score.totalBalls
+      : (() => {
+          const [o, b] = String(liveState?.score?.overs || '0.0').split('.');
+          return (parseInt(o || '0', 10) * 6) + parseInt(b || '0', 10);
+        })();
+    const oversStr = String(liveState?.score?.overs || '0.0');
+    const currentOverBalls = (liveState?.currentOver?.balls || []).filter(b => !b?.isDeleted);
+    return totalBalls === 0 && (oversStr === '0.0' || oversStr === '0') && currentOverBalls.length === 0;
+  }, [liveState?.match?.status, match?.status, liveState?.inningsNumber, liveState?.currentInnings, match?.currentInnings, liveState?.score?.totalBalls, liveState?.score?.overs, liveState?.currentOver?.balls]);
+
+  const tossSummaryText = useMemo(() => {
+    const m = liveState?.match || match;
+    if (!m?.toss?.winner) return null;
+    const winnerId = String(typeof m.toss.winner === 'object' ? (m.toss.winner._id || m.toss.winner.id) : m.toss.winner);
+    const teamAId = String(m.teamA?._id || m.teamA?.id || m.teamA || '');
+    const winnerName = typeof m.toss.winner === 'object' && m.toss.winner.name
+      ? m.toss.winner.name
+      : (winnerId === teamAId ? m.teamA?.name : m.teamB?.name);
+    if (!winnerName) return null;
+    return `${winnerName} won toss & elected to ${m.toss.choice || 'bat'}`;
+  }, [liveState?.match, match]);
+
   const getLocalMatchSummary = (completedReason) => {
     if (match?.result?.summary) return match.result.summary;
     if (!liveState || !match) return '';
@@ -693,6 +735,29 @@ const LiveScorerScreen = ({ navigation, route }) => {
             <Text style={styles.oversText}>{s?.overs || '0.0'} / {inningsNum >= 3 ? 1 : m?.overs} ov</Text>
           </View>
         </View>
+        {isBeforeFirstBall ? (
+          <View style={styles.tossBanner}>
+            <View style={styles.tossBannerLeft}>
+              <Icon name="hand-coin" size={15} color={colors.primary} />
+              <Text style={styles.tossBannerText} numberOfLines={1}>
+                {tossSummaryText || 'Toss completed'}
+              </Text>
+            </View>
+            {(isCreator || isScorer) && (
+              <TouchableOpacity
+                style={styles.tossBannerEditBtn}
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  setShowEditTossModal(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Icon name="pencil" size={12} color="#000" />
+                <Text style={styles.tossBannerEditBtnText}>Edit Toss</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : null}
         {inningsNum % 2 !== 0 ? (
           <View style={styles.statsPill}>
             <Text style={styles.statsPillText}>{(() => {
@@ -763,8 +828,74 @@ const LiveScorerScreen = ({ navigation, route }) => {
         ) : null}
       </TouchableOpacity>
     );
-  }, [navigation, matchId, liveState?.battingTeam, liveState?.inningsNumber, liveState?.score?.runs, liveState?.score?.wickets, liveState?.score?.overs, liveState?.requiredRunRate, liveState?.toWin, liveState?.ballsRemaining, liveState?.isDlsTarget, liveState?.dlsParScore, liveState?.match?.teamA?.name, liveState?.match?.teamB?.name, liveState?.match?.overs]);
+  }, [navigation, matchId, liveState?.battingTeam, liveState?.inningsNumber, liveState?.score?.runs, liveState?.score?.wickets, liveState?.score?.overs, liveState?.requiredRunRate, liveState?.toWin, liveState?.ballsRemaining, liveState?.isDlsTarget, liveState?.dlsParScore, liveState?.match?.teamA?.name, liveState?.match?.teamB?.name, liveState?.match?.overs, isBeforeFirstBall, tossSummaryText, isCreator, isScorer]);
 
+
+  const overCompletedStats = useMemo(() => {
+    const oversStr = String(liveState?.score?.overs || '0.0');
+    const currentTotalRuns = Number(liveState?.score?.runs ?? 0);
+    const currentTotalWickets = Number(liveState?.score?.wickets ?? 0);
+
+    const completedOverNum = Math.max(1, Math.round(parseFloat(oversStr || '1')));
+    
+    // Deliveries in this completed over
+    const ballsList = (liveState?.currentOverBalls || []).filter(b => !b?.isDeleted);
+    
+    let runsThisOver = 0;
+    let wicketsThisOver = 0;
+    let extrasThisOver = 0;
+
+    ballsList.forEach(b => {
+      runsThisOver += Number(b.runs || 0);
+      if (b.type === 'wicket' || b.display === 'W') {
+        wicketsThisOver += 1;
+      }
+      if (['wide', 'noball', 'bye', 'legbye'].includes(b.type) || (b.display && /^(Wd|Nb|B|Lb)/i.test(b.display))) {
+        extrasThisOver += 1;
+      }
+    });
+
+    const runsBeforeOver = Math.max(0, currentTotalRuns - runsThisOver);
+    const wicketsBeforeOver = Math.max(0, currentTotalWickets - wicketsThisOver);
+    const prevOverNum = Math.max(0, completedOverNum - 1);
+
+    const displayBowler = liveState?.previousBowler || liveState?.bowler;
+
+    return {
+      overNumber: completedOverNum,
+      bowlerName: displayBowler?.name || 'Bowler',
+      deliveries: ballsList,
+      runsThisOver,
+      wicketsThisOver,
+      extrasThisOver,
+      runsBeforeOver,
+      wicketsBeforeOver,
+      prevOversStr: `${prevOverNum}.0`,
+      currentTotalRuns,
+      currentTotalWickets,
+      currentOversStr: oversStr,
+    };
+  }, [liveState?.score?.overs, liveState?.score?.runs, liveState?.score?.wickets, liveState?.currentOverBalls, liveState?.bowler, liveState?.previousBowler]);
+
+  useEffect(() => {
+    if (!isScorer) return;
+    const oversStr = String(liveState?.score?.overs || '0.0');
+    const isOverComplete = (liveState?.needsBowler || !liveState?.bowler) &&
+      !liveState?.isInningsComplete &&
+      !liveState?.isMatchComplete &&
+      oversStr !== '0.0' &&
+      oversStr.endsWith('.0');
+
+    if (isOverComplete) {
+      const overKey = `${liveState?.inningsNumber || 1}_${oversStr}`;
+      if (lastOverModalShownRef.current !== overKey) {
+        lastOverModalShownRef.current = overKey;
+        setShowOverCompletedModal(true);
+      }
+    } else if (oversStr && !oversStr.endsWith('.0')) {
+      setShowOverCompletedModal(false);
+    }
+  }, [liveState?.needsBowler, liveState?.bowler, liveState?.score?.overs, liveState?.isInningsComplete, liveState?.isMatchComplete, liveState?.inningsNumber, isScorer]);
 
   if (!liveState) {
     return <View style={styles.container}><Text style={styles.loading}>Loading match...</Text></View>;
@@ -1099,6 +1230,35 @@ const LiveScorerScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleBowlerPress = () => {
+    if (!isScorer) return;
+    const hasBallsInOver = currentOverBalls && currentOverBalls.length > 0;
+    if (!hasBallsInOver) {
+      navigation.navigate('SelectBowler', { matchId });
+      return;
+    }
+
+    const displayBowler = bowler || previousBowler || liveState?.previousBowler;
+    const legalBallsInOver = (currentOverBalls || []).filter(b => !b.isWide && !b.isNoBall).length;
+    showCustomAlert(
+      'Change Bowler Mid-Over?',
+      `${displayBowler?.name || 'Current bowler'} has bowled ${legalBallsInOver} legal ball${legalBallsInOver !== 1 ? 's' : ''} in this over.\n\nDo you want to replace this bowler (due to injury or suspension) for the remaining balls of this over?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Change Bowler',
+          onPress: () => {
+            navigation.navigate('SelectBowler', {
+              matchId,
+              isMidOver: true,
+              currentBowlerId: displayBowler?._id || displayBowler,
+            });
+          }
+        }
+      ]
+    );
+  };
+
   const handleSettingsAction = async (action) => {
     if (!action) return;
 
@@ -1109,7 +1269,43 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
     setShowSettingsModal(false);
 
-    if (action === 'view_scoreboard') {
+    if (action === 'edit_match_details') {
+      setShowEditMatchModal(true);
+    } else if (action === 'change_bowler') {
+      handleBowlerPress();
+    } else if (action === 'edit_toss') {
+      setShowEditTossModal(true);
+    } else if (action === 'delete_match') {
+      showCustomAlert(
+        'Delete Match',
+        'Are you sure you want to permanently delete this match? All match statistics, live scoring, and scorecards will be deleted. This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await api.delete(`/matches/${cleanMatchId}`);
+                try { dispatch(clearLiveState()); } catch (_) {}
+                showCustomAlert('Match Deleted', 'The match has been deleted successfully.');
+                try {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'MyCricketMain', params: { tab: 'Matches' } }]
+                  });
+                } catch (_) {
+                  navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } });
+                }
+              } catch (err) {
+                console.error('Error deleting match:', err);
+                showCustomAlert('Error', err.response?.data?.message || err.message || 'Failed to delete match');
+              }
+            }
+          }
+        ]
+      );
+    } else if (action === 'view_scoreboard') {
       navigation.navigate('MatchSummary', { matchId, initialTab: 'Scorecard' });
     } else if (action === 'add_scorer') {
       setShowAddScorerModal(true);
@@ -1231,6 +1427,8 @@ const LiveScorerScreen = ({ navigation, route }) => {
   };
 
   const handleUndoBall = () => {
+    setShowOverCompletedModal(false);
+    lastOverModalShownRef.current = '';
     if (scoringLockRef.current) return;
     const currentBalls = liveState?.currentOverBalls || [];
     const isNewOverWithNoBalls = currentBalls.length === 0 && liveState?.bowler && !liveState?.needsBowler;
@@ -1449,7 +1647,12 @@ const LiveScorerScreen = ({ navigation, route }) => {
           const extra = options.extraRuns || 0;
           optimisticBallDisplay = extra > 0 ? `Wd${extra}` : 'Wd';
         } else if (options.isNoBall) {
-          optimisticBallDisplay = runs > 0 ? `Nb${runs}` : 'Nb';
+          const extra = options.extraRuns || 0;
+          if (options.isBye || options.isLegBye) {
+            optimisticBallDisplay = extra > 0 ? `Nb+${extra}B` : 'Nb';
+          } else {
+            optimisticBallDisplay = (runs > 0 || extra > 0) ? `Nb${runs || extra}` : 'Nb';
+          }
         } else if (options.isBye) {
           optimisticBallDisplay = runs > 0 ? `${runs}B` : 'B';
         } else if (options.isLegBye) {
@@ -1462,10 +1665,19 @@ const LiveScorerScreen = ({ navigation, route }) => {
           display: optimisticBallDisplay
         };
 
-        // If we are at exactly X.0 overs, the next ball is definitively the start of a new over.
-        // We wipe any stale balls from the previous over to prevent appending to them.
-        const isStartOfNewOver = currentOvers % 1 === 0;
-        const baseBalls = isStartOfNewOver ? [] : (liveState.currentOverBalls || []);
+        // Determine if this ball is truly starting a new over:
+        // An over starts fresh only if currentOverBalls is empty OR already contains a completed over (>= 6 legal deliveries).
+        // If currentOvers is X.0 but we already have extras bowled in THIS over (legal deliveries < 6),
+        // we must NOT wipe them.
+        const existingBalls = liveState.currentOverBalls || [];
+        const legalBallsInCurrentOver = existingBalls.filter(b => {
+          const isWide = b.type === 'wide' || String(b.display || '').includes('Wd');
+          const isNoBall = b.type === 'noball' || b.type === 'no_ball' || String(b.display || '').includes('Nb');
+          return !isWide && !isNoBall;
+        }).length;
+
+        const isStartOfNewOver = existingBalls.length === 0 || legalBallsInCurrentOver >= 6;
+        const baseBalls = isStartOfNewOver ? [] : existingBalls;
         const newCurrentOverBalls = [...baseBalls, optimisticBall];
 
         let isOptimisticOverComplete = false;
@@ -1616,6 +1828,14 @@ const LiveScorerScreen = ({ navigation, route }) => {
         }
 
         dispatch(setLiveState(optimisticState));
+
+        if (isOptimisticOverComplete && !isOptimisticInningsComplete) {
+          const overKey = `${liveState?.inningsNumber || 1}_${updatedOvers}`;
+          lastOverModalShownRef.current = overKey;
+          setTimeout(() => {
+            setShowOverCompletedModal(true);
+          }, 350);
+        }
       }
 
       // Display scoring toast in yellow color
@@ -1652,23 +1872,40 @@ const LiveScorerScreen = ({ navigation, route }) => {
 
       setScoringToast(scoredText);
       toastOpacity.stopAnimation();
-      Animated.timing(toastOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true
-      }).start();
+      toastTranslateY.stopAnimation();
+      toastTranslateY.setValue(6);
+      Animated.parallel([
+        Animated.timing(toastOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true
+        }),
+        Animated.timing(toastTranslateY, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true
+        })
+      ]).start();
 
       if (toastTimeoutRef.current) {
         clearTimeout(toastTimeoutRef.current);
       }
       toastTimeoutRef.current = setTimeout(() => {
-        Animated.timing(toastOpacity, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true
-        }).start(({ finished }) => {
+        Animated.parallel([
+          Animated.timing(toastOpacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true
+          }),
+          Animated.timing(toastTranslateY, {
+            toValue: -6,
+            duration: 300,
+            useNativeDriver: true
+          })
+        ]).start(({ finished }) => {
           if (finished) {
             setScoringToast(null);
+            toastTranslateY.setValue(6);
           }
         });
       }, 1700);
@@ -1708,6 +1945,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
             const isFour = ball.display ? String(ball.display).includes('4') : ball.runs === 4;
             const isSix = ball.display ? String(ball.display).includes('6') : ball.runs === 6;
             const isZero = ball.runs === 0 && !isWicket;
+            const isExtra = ball.display && (String(ball.display).includes('Wd') || String(ball.display).includes('Nb') || String(ball.display).includes('Lb') || String(ball.display).includes('B'));
 
             return (
               <View key={i} style={[
@@ -1716,14 +1954,16 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 isWicket && styles.ballWicket,
                 isFour && { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
                 isSix && { backgroundColor: colors.primary, borderColor: colors.primary },
-                isZero && { backgroundColor: colors.surfaceVariant, borderColor: colors.border }
+                isZero && { backgroundColor: colors.surfaceVariant, borderColor: colors.border },
+                isExtra && { backgroundColor: colors.surfaceVariant, borderColor: colors.primary }
               ]}>
                 <Text style={[
                   styles.ballText,
                   (isWicket || isFour) && { color: '#FFF' },
                   isSix && { color: '#000000', fontFamily: Typography.fontFamily.bold },
-                  isZero && { color: colors.textSecondary }
-                ]}>
+                  isZero && { color: colors.textSecondary },
+                  isExtra && { color: colors.primary }
+                ]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                   {ball.display}
                 </Text>
               </View>
@@ -1746,11 +1986,6 @@ const LiveScorerScreen = ({ navigation, route }) => {
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       )}
-      {scoringToast ? (
-        <Animated.View style={[styles.toastContainer, { opacity: toastOpacity }]}>
-          <Text style={styles.toastText}>{scoringToast}</Text>
-        </Animated.View>
-      ) : null}
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBackPress} style={styles.headerBackBtn}>
@@ -1804,39 +2039,105 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   {/* Left batter col */}
                   {leftBatterId ? (
                     <TouchableOpacity
-                      style={[styles.batterCol, isLeftStriker && styles.batterColStriker]}
+                      style={[
+                        styles.batterCol,
+                        isLeftStriker ? styles.batterColStriker : styles.batterColNonStriker,
+                      ]}
                       onPress={() => handleRotateStrikePress(leftBatterId, leftPlayerStats)}
                       disabled={!isScorer}
                       activeOpacity={0.75}
                     >
                       <View style={styles.batterColInner}>
-                        <Text style={[styles.batterColName, isLeftStriker && styles.batterColNameActive]} numberOfLines={1}>
-                          {isLeftStriker ? '* ' : ''}{leftPlayer?.name || 'Striker'}
-                        </Text>
-                        <Text style={[styles.batterColScore, isLeftStriker && styles.batterColScoreActive]}>
-                          {leftPlayerStats?.runs ?? 0}<Text style={styles.batterColBalls}>({leftPlayerStats?.balls ?? 0})</Text>
-                        </Text>
+                        <View style={styles.batterColLeft}>
+                          {isLeftStriker && (
+                            <Icon
+                              name="cricket"
+                              size={12}
+                              color={isDark ? '#FFD633' : '#CA8A04'}
+                              style={styles.strikerIcon}
+                            />
+                          )}
+                          <Text
+                            style={[
+                              styles.batterColName,
+                              isLeftStriker && styles.batterColNameActive,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {leftPlayer?.name || 'Striker'}
+                          </Text>
+                        </View>
+                        <View style={styles.batterColRight}>
+                          <Text
+                            style={[
+                              styles.batterColScore,
+                              isLeftStriker && styles.batterColScoreActive,
+                            ]}
+                          >
+                            {leftPlayerStats?.runs ?? 0}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.batterColBalls,
+                              isLeftStriker && styles.batterColBallsActive,
+                            ]}
+                          >
+                            ({leftPlayerStats?.balls ?? 0})
+                          </Text>
+                        </View>
                       </View>
                     </TouchableOpacity>
                   ) : <View style={{ flex: 1 }} />}
 
-                  {leftBatterId && rightBatterId ? <View style={styles.batterColDivider} /> : null}
-
                   {/* Right batter col */}
                   {rightBatterId ? (
                     <TouchableOpacity
-                      style={[styles.batterCol, isRightStriker && styles.batterColStriker]}
+                      style={[
+                        styles.batterCol,
+                        isRightStriker ? styles.batterColStriker : styles.batterColNonStriker,
+                      ]}
                       onPress={() => handleRotateStrikePress(rightBatterId, rightPlayerStats)}
                       disabled={!isScorer}
                       activeOpacity={0.75}
                     >
                       <View style={styles.batterColInner}>
-                        <Text style={[styles.batterColName, isRightStriker && styles.batterColNameActive]} numberOfLines={1}>
-                          {isRightStriker ? '* ' : ''}{rightPlayer?.name || 'Non-Striker'}
-                        </Text>
-                        <Text style={[styles.batterColScore, isRightStriker && styles.batterColScoreActive]}>
-                          {rightPlayerStats?.runs ?? 0}<Text style={styles.batterColBalls}>({rightPlayerStats?.balls ?? 0})</Text>
-                        </Text>
+                        <View style={styles.batterColLeft}>
+                          {isRightStriker && (
+                            <Icon
+                              name="cricket"
+                              size={12}
+                              color={isDark ? '#FFD633' : '#CA8A04'}
+                              style={styles.strikerIcon}
+                            />
+                          )}
+                          <Text
+                            style={[
+                              styles.batterColName,
+                              isRightStriker && styles.batterColNameActive,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {rightPlayer?.name || 'Non-Striker'}
+                          </Text>
+                        </View>
+                        <View style={styles.batterColRight}>
+                          <Text
+                            style={[
+                              styles.batterColScore,
+                              isRightStriker && styles.batterColScoreActive,
+                            ]}
+                          >
+                            {rightPlayerStats?.runs ?? 0}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.batterColBalls,
+                              isRightStriker && styles.batterColBallsActive,
+                            ]}
+                          >
+                            ({rightPlayerStats?.balls ?? 0})
+                          </Text>
+                        </View>
                       </View>
                     </TouchableOpacity>
                   ) : <View style={{ flex: 1 }} />}
@@ -1861,12 +2162,15 @@ const LiveScorerScreen = ({ navigation, route }) => {
                     return (
                       <TouchableOpacity
                         style={styles.bowlingTableRow}
-                        onPress={() => isScorer && navigation.navigate('SelectBowler', { matchId })}
+                        onPress={handleBowlerPress}
                         disabled={!isScorer || (currentOverBalls && currentOverBalls.length > 0)}
+                        activeOpacity={0.7}
                       >
-                        <Text style={[styles.bowlingTableName, { flex: 1 }]} numberOfLines={1}>
-                          {displayBowler?.name || 'Select Bowler'}
-                        </Text>
+                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={[styles.bowlingTableName, { flexShrink: 1 }]} numberOfLines={1}>
+                            {displayBowler?.name || 'Select Bowler'}
+                          </Text>
+                        </View>
                         <Text style={styles.bowlingTableCell}>
                           {displayBowlerStats?.wickets || 0}-{displayBowlerStats?.runs || 0}
                         </Text>
@@ -1880,7 +2184,9 @@ const LiveScorerScreen = ({ navigation, route }) => {
                             return balls > 0 ? ((displayBowlerStats.runs / balls) * 6).toFixed(2) : '0.00';
                           })()}
                         </Text>
-                        {isScorer && (!currentOverBalls || currentOverBalls.length === 0) ? <Icon name="chevron-right" size={16} color={colors.textTertiary} /> : null}
+                        {isScorer && (!currentOverBalls || currentOverBalls.length === 0) && !bowler ? (
+                          <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                        ) : null}
                       </TouchableOpacity>
                     );
                   })()}
@@ -1904,7 +2210,24 @@ const LiveScorerScreen = ({ navigation, route }) => {
       </KeyboardAwareScrollView>
 
       {isScorer ? (
-        <>
+        <View style={styles.scorerBottomContainer}>
+          {scoringToast ? (
+            <Animated.View
+              style={[
+                styles.toastContainer,
+                {
+                  opacity: toastOpacity,
+                  transform: [{ translateY: toastTranslateY }]
+                }
+              ]}
+              pointerEvents="none"
+            >
+              <View style={styles.toastBadge}>
+                <Text style={styles.toastText}>{scoringToast}</Text>
+              </View>
+            </Animated.View>
+          ) : null}
+
           {/* Scoring Keypad */}
           {showInningsComplete ? (
             <View style={[styles.keypad, { padding: Spacing.lg }]}>
@@ -1988,13 +2311,20 @@ const LiveScorerScreen = ({ navigation, route }) => {
             </View>
           ) : (liveState?.needsBowler || !bowler) && !batterNeeded ? (
             <View style={styles.needsBowlerCard}>
-              <View style={styles.needsBowlerIconRow}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setShowOverCompletedModal(true)}
+                style={styles.needsBowlerIconRow}
+              >
                 <Icon name="cricket" size={28} color={colors.primary} />
                 <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.needsBowlerTitle}>Over Completed</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={styles.needsBowlerTitle}>Over Completed</Text>
+                    <Text style={{ color: colors.primary, fontSize: 12, fontFamily: Typography.fontFamily.semiBold }}>View Summary ›</Text>
+                  </View>
                   <Text style={styles.needsBowlerSub}>Select bowler for next over or undo previous ball</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
               <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
                 <TouchableOpacity
                   style={[styles.keypadActionBtnSecondary, { flex: 1, height: 48, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }]}
@@ -2005,7 +2335,10 @@ const LiveScorerScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.selectBowlerBtnAction, { flex: 2, height: 48 }]}
-                  onPress={() => navigation.navigate('SelectBowler', { matchId })}
+                  onPress={() => {
+                    setShowOverCompletedModal(false);
+                    navigation.navigate('SelectBowler', { matchId });
+                  }}
                   activeOpacity={0.8}
                 >
                   <Icon name="account-plus" size={20} color="#000" />
@@ -2058,7 +2391,7 @@ const LiveScorerScreen = ({ navigation, route }) => {
               </View>
             </View>
           )}
-        </>
+        </View>
       ) : null}
 
 
@@ -2750,6 +3083,40 @@ const LiveScorerScreen = ({ navigation, route }) => {
                   <Icon name="chevron-right" size={18} color={colors.textTertiary} />
                 </TouchableOpacity>
 
+                {(isCreator || isScorer) && (
+                  <TouchableOpacity
+                    style={styles.sidebarCard}
+                    activeOpacity={0.7}
+                    onPress={() => handleSettingsAction('edit_match_details')}
+                  >
+                    <View style={[styles.sidebarCardIconBox, { backgroundColor: `${colors.primary}20` }]}>
+                      <Icon name="tune-variant" size={20} color={colors.primary} />
+                    </View>
+                    <View style={styles.sidebarCardBody}>
+                      <Text style={styles.sidebarCardTitle}>Edit Match Details</Text>
+                      <Text style={styles.sidebarCardDesc}>Edit overs, overs/bowler, wickets & format</Text>
+                    </View>
+                    <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+
+                {(isCreator || isScorer) && isBeforeFirstBall && (
+                  <TouchableOpacity
+                    style={styles.sidebarCard}
+                    activeOpacity={0.7}
+                    onPress={() => handleSettingsAction('edit_toss')}
+                  >
+                    <View style={[styles.sidebarCardIconBox, { backgroundColor: `${colors.primary}20` }]}>
+                      <Icon name="hand-coin" size={20} color={colors.primary} />
+                    </View>
+                    <View style={styles.sidebarCardBody}>
+                      <Text style={styles.sidebarCardTitle}>Edit Toss Details</Text>
+                      <Text style={styles.sidebarCardDesc}>Change toss winner & decision (before 1st ball)</Text>
+                    </View>
+                    <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+
                 {isCreator && isMatchActive ? (
                   <TouchableOpacity
                     style={styles.sidebarCard}
@@ -2797,6 +3164,25 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       <View style={styles.sidebarCardBody}>
                         <Text style={styles.sidebarCardTitle}>Retired Hurt</Text>
                         <Text style={styles.sidebarCardDesc}>Mark current batter as retired</Text>
+                      </View>
+                      <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.sidebarCard}
+                      activeOpacity={0.7}
+                      onPress={() => handleSettingsAction('change_bowler')}
+                    >
+                      <View style={[styles.sidebarCardIconBox, { backgroundColor: 'rgba(234, 179, 8, 0.12)' }]}>
+                        <Icon name="account-switch" size={20} color="#EAB308" />
+                      </View>
+                      <View style={styles.sidebarCardBody}>
+                        <Text style={styles.sidebarCardTitle}>Change Bowler (Mid-Over)</Text>
+                        <Text style={styles.sidebarCardDesc}>
+                          {currentOverBalls && currentOverBalls.length > 0
+                            ? `Replace injured bowler for remaining ${Math.max(0, 6 - currentOverBalls.filter(b => !b.isWide && !b.isNoBall).length)} balls`
+                            : 'Select or change bowler for this over'}
+                        </Text>
                       </View>
                       <Icon name="chevron-right" size={18} color={colors.textTertiary} />
                     </TouchableOpacity>
@@ -2884,6 +3270,22 @@ const LiveScorerScreen = ({ navigation, route }) => {
                       </View>
                       <Icon name="alert-circle-outline" size={18} color={colors.error} />
                     </TouchableOpacity>
+
+                    {/* Delete Match for Scorer / Creator */}
+                    <TouchableOpacity
+                      style={[styles.sidebarDangerCard, { marginTop: 10 }]}
+                      activeOpacity={0.7}
+                      onPress={() => handleSettingsAction('delete_match')}
+                    >
+                      <View style={styles.sidebarDangerIconBox}>
+                        <Icon name="trash-can-outline" size={20} color={colors.error} />
+                      </View>
+                      <View style={styles.sidebarCardBody}>
+                        <Text style={styles.sidebarDangerTitle}>Delete Match</Text>
+                        <Text style={styles.sidebarDangerDesc}>Permanently remove match and all scores</Text>
+                      </View>
+                      <Icon name="alert-circle-outline" size={18} color={colors.error} />
+                    </TouchableOpacity>
                   </>
                 ) : null}
               </KeyboardAwareScrollView>
@@ -2891,6 +3293,211 @@ const LiveScorerScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </Modal>
       ) : null}
+
+      {/* ── Over Completed Summary Modal (Bootstrap Dialog Style) ── */}
+      <Modal
+        visible={showOverCompletedModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowOverCompletedModal(false)}
+      >
+        <View style={styles.overModalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setShowOverCompletedModal(false)}
+          />
+          <View style={[styles.overModalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {/* Header */}
+            <View style={styles.overModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <View style={[styles.overModalIconBox, { backgroundColor: `${colors.primary}20` }]}>
+                  <Icon name="cricket" size={22} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.overModalTitle, { color: colors.textPrimary }]}>
+                    Over {overCompletedStats.overNumber} Completed
+                  </Text>
+                  <Text style={[styles.overModalSub, { color: colors.textSecondary }]}>
+                    Bowled by {overCompletedStats.bowlerName}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowOverCompletedModal(false)}
+                style={[styles.overModalCloseBtn, { backgroundColor: colors.surfaceVariant }]}
+                activeOpacity={0.7}
+              >
+                <Icon name="close" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Bowled Deliveries (Scrollable) */}
+            <View style={styles.overDeliveriesHeaderRow}>
+              <Text style={[styles.overModalSectionTitle, { color: colors.textTertiary }]}>
+                DELIVERIES ({overCompletedStats.deliveries.length} BALLS)
+              </Text>
+            </View>
+            <View style={[styles.overDeliveriesScrollWrapper, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#F3F4F6', borderColor: colors.border }]}>
+              <ScrollView
+                horizontal={true}
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled={true}
+                contentContainerStyle={styles.overDeliveriesRow}
+              >
+                {overCompletedStats.deliveries.map((ball, i) => {
+                  const isWicket = ball.type === 'wicket' || ball.display === 'W';
+                  const isFour = ball.display ? String(ball.display).includes('4') : ball.runs === 4;
+                  const isSix = ball.display ? String(ball.display).includes('6') : ball.runs === 6;
+                  const isZero = ball.runs === 0 && !isWicket;
+                  const isExtra = ball.display && (String(ball.display).includes('Wd') || String(ball.display).includes('Nb') || String(ball.display).includes('Lb') || String(ball.display).includes('B'));
+
+                  return (
+                    <View
+                      key={i}
+                      style={[
+                        styles.overBallCircle,
+                        isWicket && { backgroundColor: '#F44336', borderColor: '#D32F2F' },
+                        isFour && { backgroundColor: '#4CAF50', borderColor: '#388E3C' },
+                        isSix && { backgroundColor: colors.primary, borderColor: isDark ? '#E6B800' : '#D4A300' },
+                        isZero && { backgroundColor: colors.surfaceVariant, borderColor: colors.border },
+                        isExtra && { backgroundColor: colors.surfaceVariant, borderColor: colors.primary },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.overBallText,
+                          (isWicket || isFour) && { color: '#FFF' },
+                          isSix && { color: '#000', fontFamily: Typography.fontFamily.bold },
+                          isZero && { color: colors.textSecondary },
+                          isExtra && { color: colors.primary },
+                          !isWicket && !isFour && !isSix && !isZero && !isExtra && { color: colors.textPrimary }
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {ball.display}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {/* Total runs from the over */}
+            <View style={[styles.overStatsRow, { backgroundColor: colors.surfaceVariant, borderColor: colors.border, borderWidth: 1 }]}>
+              <View style={styles.overStatItem}>
+                <Text style={[styles.overStatValue, { color: colors.primary }]}>
+                  {overCompletedStats.runsThisOver} {overCompletedStats.runsThisOver === 1 ? 'Run' : 'Runs'}
+                </Text>
+                <Text style={[styles.overStatLabel, { color: colors.textSecondary }]}>From Over</Text>
+              </View>
+              <View style={[styles.overStatDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.overStatItem}>
+                <Text style={[styles.overStatValue, { color: overCompletedStats.wicketsThisOver > 0 ? '#F44336' : colors.textPrimary }]}>
+                  {overCompletedStats.wicketsThisOver} {overCompletedStats.wicketsThisOver === 1 ? 'Wkt' : 'Wkts'}
+                </Text>
+                <Text style={[styles.overStatLabel, { color: colors.textSecondary }]}>Wickets</Text>
+              </View>
+              <View style={[styles.overStatDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.overStatItem}>
+                <Text style={[styles.overStatValue, { color: colors.textPrimary }]}>
+                  {overCompletedStats.extrasThisOver}
+                </Text>
+                <Text style={[styles.overStatLabel, { color: colors.textSecondary }]}>Extras</Text>
+              </View>
+            </View>
+
+            {/* Score Comparison (Last Over Score & After This Over Score) */}
+            <View style={[styles.overScoreCompareCard, { backgroundColor: isDark ? '#141414' : '#F9FAFB', borderColor: colors.border }]}>
+              <View style={styles.overCompareRow}>
+                {/* Last Over Score */}
+                <View style={styles.overCompareCol}>
+                  <Text style={[styles.overCompareLabel, { color: colors.textTertiary }]}>LAST OVER SCORE</Text>
+                  <Text style={[styles.overCompareScore, { color: colors.textSecondary }]}>
+                    {overCompletedStats.runsBeforeOver}/{overCompletedStats.wicketsBeforeOver}
+                  </Text>
+                  <Text style={[styles.overCompareSub, { color: colors.textTertiary }]}>
+                    {overCompletedStats.prevOversStr} ov
+                  </Text>
+                </View>
+
+                {/* Arrow */}
+                <View style={styles.overCompareArrowBox}>
+                  <Icon name="arrow-right-bold" size={18} color={colors.primary} />
+                  <View style={[styles.overCompareBadge, { backgroundColor: `${colors.primary}20` }]}>
+                    <Text style={[styles.overCompareBadgeText, { color: colors.primary }]}>
+                      +{overCompletedStats.runsThisOver}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* After This Over Score */}
+                <View style={styles.overCompareCol}>
+                  <Text style={[styles.overCompareLabel, { color: colors.primary }]}>AFTER THIS OVER</Text>
+                  <Text style={[styles.overCompareScore, { color: colors.textPrimary }]}>
+                    {overCompletedStats.currentTotalRuns}/{overCompletedStats.currentTotalWickets}
+                  </Text>
+                  <Text style={[styles.overCompareSub, { color: colors.textSecondary }]}>
+                    {overCompletedStats.currentOversStr} ov
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Action Buttons: Undo Last Ball & Select Bowler */}
+            <View style={styles.overModalActions}>
+              <TouchableOpacity
+                style={[styles.overModalUndoBtn, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}
+                onPress={() => {
+                  setShowOverCompletedModal(false);
+                  handleUndoBall();
+                }}
+                activeOpacity={0.8}
+              >
+                <Icon name="undo" size={16} color={colors.textPrimary} />
+                <Text style={[styles.overModalUndoText, { color: colors.textPrimary }]}>UNDO LAST</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.overModalSelectBtn, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setShowOverCompletedModal(false);
+                  navigation.navigate('SelectBowler', { matchId });
+                }}
+                activeOpacity={0.8}
+              >
+                <Icon name="account-plus" size={18} color="#000" />
+                <Text style={styles.overModalSelectText}>SELECT BOWLER</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Match Details Modal */}
+      <EditMatchModal
+        visible={showEditMatchModal}
+        onClose={() => setShowEditMatchModal(false)}
+        match={liveState?.match || match}
+        onUpdate={() => {
+          dispatch(fetchLiveState(cleanMatchId));
+        }}
+      />
+
+      {/* Edit Toss Modal */}
+      <EditTossModal
+        visible={showEditTossModal}
+        onClose={() => setShowEditTossModal(false)}
+        match={liveState?.match || match}
+        onTossChanged={async () => {
+          setLeftBatterId(null);
+          setRightBatterId(null);
+          navLockRef.current = false;
+          try {
+            await dispatch(fetchLiveState(cleanMatchId)).unwrap();
+          } catch (_) {}
+          navigation.navigate('MatchPlayerSelection', { matchId: cleanMatchId });
+        }}
+      />
 
       {/* Penalty Modal */}
       {showPenaltyModal ? (
@@ -3609,6 +4216,46 @@ const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => S
     fontFamily: Typography.fontFamily.regular,
     textAlign: 'center',
   },
+  tossBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: `${colors.primary}14`,
+    borderColor: `${colors.primary}35`,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 8,
+    width: '100%',
+  },
+  tossBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    marginRight: 8,
+  },
+  tossBannerText: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    flex: 1,
+  },
+  tossBannerEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  tossBannerEditBtnText: {
+    color: '#000',
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+  },
   crrRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3690,17 +4337,27 @@ const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => S
   // Clean 2-column batter layout
   battingRow: {
     flexDirection: 'row',
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    gap: 8,
   },
   batterCol: {
     flex: 1,
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    justifyContent: 'center',
+  },
+  batterColNonStriker: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : '#F8FAFC',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
   },
   batterColStriker: {
-    borderLeftWidth: 2,
-    borderLeftColor: colors.primary,
+    backgroundColor: isDark ? 'rgba(255, 204, 0, 0.12)' : '#FEFCE8',
+    borderColor: isDark ? 'rgba(255, 204, 0, 0.45)' : '#FDE047',
+    borderLeftWidth: 3.5,
+    borderLeftColor: isDark ? '#FFD633' : '#EAB308',
   },
   batterColInner: {
     flexDirection: 'row',
@@ -3708,11 +4365,20 @@ const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => S
     justifyContent: 'space-between',
     gap: 6,
   },
-  batterColNameRow: {
+  batterColLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginRight: 4,
+  },
+  strikerIcon: {
+    marginRight: 4,
+  },
+  batterColRight: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
     gap: 2,
-    marginBottom: 1,
+    flexShrink: 0,
   },
   strikerAsterisk: {
     color: colors.primary,
@@ -3722,33 +4388,33 @@ const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => S
     marginRight: 1,
   },
   batterColName: {
-    fontSize: 14,
-    fontFamily: Typography.fontFamily.bold,
-    color: colors.textPrimary,
-    flexShrink: 1,
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: isDark ? colors.textSecondary : '#475569',
+    flex: 1,
   },
   batterColNameActive: {
-    color: colors.textPrimary,
+    color: isDark ? '#FFFFFF' : '#0F172A',
     fontFamily: Typography.fontFamily.bold,
   },
   batterColScore: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
-    color: colors.textSecondary,
-    flexShrink: 0,
+    color: isDark ? colors.textPrimary : '#1E293B',
   },
   batterColScoreActive: {
-    color: colors.primary,
+    color: isDark ? '#FFD633' : '#A16207',
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
   },
   batterColBalls: {
     fontSize: 11,
-    color: colors.textSecondary,
+    color: isDark ? colors.textTertiary : '#64748B',
     fontFamily: Typography.fontFamily.regular,
   },
-  batterColDivider: {
-    width: 1,
-    backgroundColor: colors.border,
-    marginVertical: 4,
+  batterColBallsActive: {
+    color: isDark ? 'rgba(255, 255, 255, 0.65)' : '#713F12',
+    fontFamily: Typography.fontFamily.medium,
   },
   // Legacy chip styles (unused but kept)
   batterChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20, backgroundColor: 'transparent', gap: 2 },
@@ -3847,6 +4513,20 @@ const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => S
     color: colors.textPrimary,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: 13,
+  },
+  midOverBadge: {
+    backgroundColor: 'rgba(234, 179, 8, 0.15)',
+    borderColor: 'rgba(234, 179, 8, 0.35)',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+  },
+  midOverBadgeText: {
+    color: isDark ? '#FFD633' : '#A16207',
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+    textTransform: 'uppercase',
   },
   bowlingTableCell: {
     width: 46,
@@ -4247,26 +4927,229 @@ const createStyles = (colors, shadows, isDark, safeTop = 0, safeBottom = 0) => S
     fontSize: 15,
     fontFamily: Typography.fontFamily.bold,
   },
+  scorerBottomContainer: {
+    position: 'relative',
+    width: '100%',
+  },
   toastContainer: {
     position: 'absolute',
-    bottom: 100,
-    alignSelf: 'center',
+    top: -46,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 99999,
+    elevation: 10,
+  },
+  toastBadge: {
     backgroundColor: '#FFD400',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 6,
-    zIndex: 10000,
-    shadowColor: '#FFD400',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 22,
+    borderRadius: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 8,
   },
   toastText: {
     color: '#000000',
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: Typography.fontFamily.bold,
     textAlign: 'center',
+  },
+
+  // ── Over Completed Modal (Bootstrap / Toast Dialog Style) ──
+  overModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  overModalContent: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 20,
+    paddingTop: 18,
+    paddingBottom: 20,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  overModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  overModalIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  overModalTitle: {
+    fontSize: 18,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  overModalSub: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: 2,
+  },
+  overModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overDeliveriesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  overModalSectionTitle: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  overDeliveriesScrollWrapper: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 12,
+  },
+  overDeliveriesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 6,
+  },
+  overBallCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  overBallText: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  overStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  overStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  overStatValue: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  overStatLabel: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: 2,
+  },
+  overStatDivider: {
+    width: 1,
+    height: 20,
+  },
+  overScoreCompareCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
+  overCompareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  overCompareCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  overCompareLabel: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  overCompareScore: {
+    fontSize: 20,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  overCompareSub: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: 1,
+  },
+  overCompareArrowBox: {
+    paddingHorizontal: 6,
+    alignItems: 'center',
+  },
+  overCompareBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+    marginTop: 2,
+  },
+  overCompareBadgeText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  overModalActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  overModalUndoBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  overModalUndoText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  overModalSelectBtn: {
+    flex: 1.5,
+    height: 46,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  overModalSelectText: {
+    color: '#000000',
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
   },
 });
 
