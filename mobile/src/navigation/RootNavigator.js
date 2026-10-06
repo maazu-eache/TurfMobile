@@ -5,7 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { logoutLocal, setGuestMode } from '../features/auth/authSlice';
 import { showCustomAlert } from '../components/CustomAlert';
 import socketService from '../services/socketService';
-import { reset } from './navigationRef';
+import { reset, checkAndExecutePendingDeepLink } from './navigationRef';
 
 import AuthNavigator from './AuthNavigator';
 import CustomerNavigator from './CustomerNavigator';
@@ -36,6 +36,9 @@ const RootNavigator = () => {
     _splashHasPlayed = true;
     splashPlayedRef.current = true;
     setShowSplash(false);
+    setTimeout(() => {
+      checkAndExecutePendingDeepLink();
+    }, 350);
   }, []);
 
   React.useEffect(() => {
@@ -43,6 +46,8 @@ const RootNavigator = () => {
       // Safety fallback: only fires if video stalls/errors — 30s gives full video time
       const timer = setTimeout(handleSplashFinished, 8000);
       return () => clearTimeout(timer);
+    } else {
+      checkAndExecutePendingDeepLink();
     }
   }, [handleSplashFinished]);
 

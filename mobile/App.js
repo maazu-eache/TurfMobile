@@ -11,7 +11,10 @@ import messaging from '@react-native-firebase/messaging';
 import { store, persistor } from './src/store';
 import RootNavigator from './src/navigation/RootNavigator';
 import { ThemeProvider, useTheme } from './src/theme/theme';
-import { navigationRef, navigate } from './src/navigation/navigationRef';
+import {
+  navigationRef, navigate, setPendingDeepLink,
+  navigateToDeepLink, checkAndExecutePendingDeepLink
+} from './src/navigation/navigationRef';
 import NotificationService from './src/services/NotificationService';
 import CustomAlert, { customAlertRef } from './src/components/CustomAlert';
 
@@ -31,6 +34,7 @@ const linking = {
       console.log('🔗 [Linking] Cold-start URL from Linking.getInitialURL():', url);
 
       if (url) {
+        setPendingDeepLink(url);
         return url;
       }
 
@@ -38,23 +42,25 @@ const linking = {
       console.log('🔔 [Linking] Cold-start notification payload:', message?.data);
 
       if (message?.data) {
+        let notifUrl = null;
         if (message.data.url) {
-          return message.data.url;
+          notifUrl = message.data.url;
+        } else if (message.data.matchId) {
+          notifUrl = `https://www.scoreverse.in/match/${message.data.matchId}`;
+        } else if (message.data.playerId) {
+          notifUrl = `https://www.scoreverse.in/player/${message.data.playerId}`;
+        } else if (message.data.turfId) {
+          notifUrl = `https://www.scoreverse.in/turf/${message.data.turfId}`;
+        } else if (message.data.tournamentId) {
+          notifUrl = `https://www.scoreverse.in/tournament/${message.data.tournamentId}`;
+        } else if (message.data.teamId) {
+          notifUrl = `https://www.scoreverse.in/team/${message.data.teamId}`;
+        } else if (message.data.type) {
+          notifUrl = `https://www.scoreverse.in/notifications`;
         }
-        if (message.data.matchId) {
-          return `https://www.scoreverse.in/match/${message.data.matchId}`;
-        }
-        if (message.data.playerId) {
-          return `https://www.scoreverse.in/player/${message.data.playerId}`;
-        }
-        if (message.data.turfId) {
-          return `https://www.scoreverse.in/turf/${message.data.turfId}`;
-        }
-        if (message.data.tournamentId) {
-          return `https://www.scoreverse.in/tournament/${message.data.tournamentId}`;
-        }
-        if (message.data.type) {
-          return `https://www.scoreverse.in/notifications`;
+        if (notifUrl) {
+          setPendingDeepLink(notifUrl);
+          return notifUrl;
         }
       }
     } catch (e) {
@@ -68,6 +74,7 @@ const linking = {
     const onReceiveURL = ({ url }) => {
       console.log('🔗 [Linking] Warm/Foreground URL received:', url);
       listener(url);
+      navigateToDeepLink(url);
     };
 
     const linkingSubscription = Linking.addEventListener('url', onReceiveURL);
@@ -77,18 +84,25 @@ const linking = {
         if (!message?.data) return;
         console.log('🔔 [Linking] Notification opened app:', message.data);
 
+        let notifUrl = null;
         if (message.data.url) {
-          listener(message.data.url);
+          notifUrl = message.data.url;
         } else if (message.data.matchId) {
-          listener(`https://www.scoreverse.in/match/${message.data.matchId}`);
+          notifUrl = `https://www.scoreverse.in/match/${message.data.matchId}`;
         } else if (message.data.playerId) {
-          listener(`https://www.scoreverse.in/player/${message.data.playerId}`);
+          notifUrl = `https://www.scoreverse.in/player/${message.data.playerId}`;
         } else if (message.data.turfId) {
-          listener(`https://www.scoreverse.in/turf/${message.data.turfId}`);
+          notifUrl = `https://www.scoreverse.in/turf/${message.data.turfId}`;
         } else if (message.data.tournamentId) {
-          listener(`https://www.scoreverse.in/tournament/${message.data.tournamentId}`);
+          notifUrl = `https://www.scoreverse.in/tournament/${message.data.tournamentId}`;
+        } else if (message.data.teamId) {
+          notifUrl = `https://www.scoreverse.in/team/${message.data.teamId}`;
         } else if (message.data.type) {
-          listener(`https://www.scoreverse.in/notifications`);
+          notifUrl = `https://www.scoreverse.in/notifications`;
+        }
+        if (notifUrl) {
+          listener(notifUrl);
+          navigateToDeepLink(notifUrl);
         }
       });
 
@@ -108,14 +122,15 @@ const linking = {
             screens: {
               TurfDetail: 'turf/:id',
               PlayerDetail: 'player/:id',
+              TeamDetail: 'team/:id',
               Notifications: 'notifications',
             },
           },
           'My Cricket': {
             initialRouteName: 'MyCricketMain',
             screens: {
-              TournamentDetail: 'tournament/:tournamentId',
               MatchSummary: 'match/:id',
+              TournamentDetail: 'tournament/:id',
               AuctionRegistration: 'tournament/:tournamentId/register',
             },
           },
@@ -180,6 +195,7 @@ const ThemedAppContent = () => {
           console.log('🧭 [Navigation] Current Active Route:', currentRoute?.name);
           console.log('🧭 [Navigation] Current Active Params:', JSON.stringify(currentRoute?.params));
           console.log('🧭 [Navigation] Full Resolved State Tree:', JSON.stringify(rootState));
+          checkAndExecutePendingDeepLink();
         }}
         onStateChange={(state) => {
           StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);

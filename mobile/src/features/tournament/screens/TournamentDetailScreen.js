@@ -23,6 +23,7 @@ import TournamentStartMatchModal from '../components/TournamentStartMatchModal';
 import TournamentLeaderboard from '../components/TournamentLeaderboard';
 import TournamentStatistics from '../components/TournamentStatistics';
 import SharePreviewModal from '../components/SharePreviewModal';
+import { isTeamVerified } from '../../../utils/teamUtils';
 import { TournamentSummaryPoster, FixturePoster, PointsTablePoster, LeaderboardPoster, FullSchedulePoster, RegistrationPoster, TeamInvitePoster } from '../components/PosterTemplates';
 
 const TOURNAMENT_FALLBACK = require('../../../assets/images/TournamentFallBack.png');
@@ -46,6 +47,12 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [matchSubTab, setMatchSubTab] = useState('Live'); // Live, Upcoming, Past
   const [selectedTeamFilter, setSelectedTeamFilter] = useState('');
   const { user } = useSelector(state => state.auth);
+
+  useEffect(() => {
+    if (route.params?.initialTab) {
+      setActiveTab(route.params.initialTab);
+    }
+  }, [route.params?.initialTab]);
 
   const lockAnim = useRef(new Animated.Value(1)).current;
 
@@ -94,6 +101,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   const [myRegistrationData, setMyRegistrationData] = useState(null);
   const [ownerData, setOwnerData] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [registeringTeamId, setRegisteringTeamId] = useState(null);
   const [myTeams, setMyTeams] = useState([]);
 
   // New Management Modals
@@ -411,6 +419,13 @@ const TournamentDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  useEffect(() => {
+    if (route.params?.refresh) {
+      fetchDashboard();
+      if (typeof fetchAuctionData === 'function') fetchAuctionData();
+    }
+  }, [route.params?.refresh]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchDashboard();
@@ -658,7 +673,9 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   };
 
   const handleRegisterTeam = async (teamId) => {
+    if (actionLoading || registeringTeamId) return;
     setActionLoading(true);
+    setRegisteringTeamId(teamId);
     try {
       await api.post(`/tournaments/${tournamentId}/register`, { teamId });
       showCustomAlert('Success', 'Team registered successfully!');
@@ -669,6 +686,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
       showCustomAlert('Error', e.response?.data?.message || 'Failed to register team');
     } finally {
       setActionLoading(false);
+      setRegisteringTeamId(null);
     }
   };
 
@@ -909,7 +927,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               <View style={{ width: '100%', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
                 <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 3, marginBottom: 10 }}>C h a m p i o n</Text>
                 <TouchableOpacity
-                  onPress={() => navigation.navigate('TeamDetail', { id: tournament.winner._id || tournament.winner })}
+                  onPress={() => navigation.navigate('TeamDetail', { id: tournament.winner._id || tournament.winner, team: tournament.winner })}
                   style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24, ...shadows.sm, shadowColor: colors.primary }}
                   activeOpacity={0.8}
                 >
@@ -920,7 +938,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             )}
             {tournament.runnerUp?.name && (
               <TouchableOpacity
-                onPress={() => navigation.navigate('TeamDetail', { id: tournament.runnerUp._id || tournament.runnerUp })}
+                onPress={() => navigation.navigate('TeamDetail', { id: tournament.runnerUp._id || tournament.runnerUp, team: tournament.runnerUp })}
                 style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', marginTop: 12 }}
                 activeOpacity={0.8}
               >
@@ -990,7 +1008,12 @@ const TournamentDetailScreen = ({ route, navigation }) => {
   );
 
   const renderTeams = () => {
-    const teamCount = tournament.registeredTeams?.length || 0;
+    const sortedTeams = [...(tournament.registeredTeams || [])].sort((a, b) => {
+      const nameA = (a?.team?.name || a?.name || '').toString().toLowerCase();
+      const nameB = (b?.team?.name || b?.name || '').toString().toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+    const teamCount = sortedTeams.length;
     const maxTeams = tournament.maxTeams || 0;
     const spotsLeft = Math.max(0, maxTeams - teamCount);
 
@@ -1069,7 +1092,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
         )}
 
         <FlatList
-          data={tournament.registeredTeams}
+          data={sortedTeams}
           keyExtractor={(item, index) => item?.team?._id || item?._id || index.toString()}
           contentContainerStyle={[styles.tabContent, { paddingTop: 8 }]}
           ListHeaderComponent={
@@ -1098,24 +1121,30 @@ const TournamentDetailScreen = ({ route, navigation }) => {
             return (
               <TouchableOpacity
                 style={styles.teamCard}
-                onPress={() => navigation.navigate('TeamDetail', { id: item.team._id })}
+                onPress={() => navigation.navigate('TeamDetail', { id: item.team._id, team: item.team })}
                 activeOpacity={0.75}
               >
                 <Text style={styles.teamRankText}>#{index + 1}</Text>
-                {item.team.logo ? (
-                  <Image
-                    source={{ uri: getImageUrl(item.team.logo) }}
-                    style={styles.teamLogo}
-                  />
-                ) : (
-                  <View style={[styles.teamLogo, { backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.12)', justifyContent: 'center', alignItems: 'center', borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(230,184,0,0.4)' }]}>
-                    <Text style={{ color: isDark ? colors.primary : '#8B6E00', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
-                      {(item.team.name || 'T').trim().charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
+                <View style={{ position: 'relative' }}>
+                  {item.team.logo ? (
+                    <Image
+                      source={{ uri: getImageUrl(item.team.logo) }}
+                      style={styles.teamLogo}
+                    />
+                  ) : (
+                    <View style={[styles.teamLogo, { backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.12)', justifyContent: 'center', alignItems: 'center', borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(230,184,0,0.4)' }]}>
+                      <Text style={{ color: isDark ? colors.primary : '#8B6E00', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                        {(item.team.name || 'T').trim().charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+
+                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.teamName}>{item.team.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={styles.teamName}>{item.team.name}</Text>
+                    {isTeamVerified(item.team) && <MCIcon name="check-decagram" size={15} color="#10B981" />}
+                  </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: 4 }}>
                     <Icon name="map-pin" size={11} color={colors.textTertiary} />
                     <Text style={styles.teamSub}>{item.team.city || 'Unknown City'}</Text>
@@ -1307,7 +1336,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                 <View style={{ width: '100%', alignItems: 'center', marginTop: 12, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border }}>
                   <Text style={{ color: isDark ? colors.primary : '#997A00', fontFamily: Typography.fontFamily.bold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 3, marginBottom: 8 }}>C h a m p i o n</Text>
                   <TouchableOpacity
-                    onPress={() => navigation.navigate('TeamDetail', { id: tournament.winner._id || tournament.winner })}
+                    onPress={() => navigation.navigate('TeamDetail', { id: tournament.winner._id || tournament.winner, team: tournament.winner })}
                     style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, ...shadows.sm, shadowColor: colors.primary }}
                     activeOpacity={0.8}
                   >
@@ -1318,7 +1347,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
               )}
               {tournament.runnerUp?.name && (
                 <TouchableOpacity
-                  onPress={() => navigation.navigate('TeamDetail', { id: tournament.runnerUp._id || tournament.runnerUp })}
+                  onPress={() => navigation.navigate('TeamDetail', { id: tournament.runnerUp._id || tournament.runnerUp, team: tournament.runnerUp })}
                   style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colors.border, marginTop: 10 }}
                   activeOpacity={0.8}
                 >
@@ -1382,7 +1411,7 @@ const TournamentDetailScreen = ({ route, navigation }) => {
 
               const accentColor = isLive ? colors.error : isCompleted ? colors.primary : colors.border;
               return (
-                <TouchableOpacity style={[styles.cardContainer, { borderLeftColor: accentColor }]} activeOpacity={0.85} onPress={() => navigation.navigate('MatchSummary', { matchId: item._id })}>
+                <TouchableOpacity style={[styles.cardContainer, { borderLeftColor: accentColor }]} activeOpacity={0.85} onPress={() => navigation.navigate('MatchSummary', { matchId: item._id, tournamentId: tournament?._id || tournamentId })}>
                   <View style={styles.cardHeader}>
                     <View style={{ flex: 1, marginRight: 8 }}>
                       {item.stage ? <Text style={styles.stagePill}>{item.stage}</Text> : null}
@@ -2409,35 +2438,128 @@ const TournamentDetailScreen = ({ route, navigation }) => {
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Your Team</Text>
-              <TouchableOpacity onPress={() => setShowRegisterModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowRegisterModal(false)}
+                disabled={Boolean(actionLoading || registeringTeamId)}
+                style={{ opacity: (actionLoading || registeringTeamId) ? 0.4 : 1 }}
+              >
                 <Icon name="x" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
+
+            {/* Indication message when registering */}
+            {registeringTeamId && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                backgroundColor: isDark ? 'rgba(234, 179, 8, 0.16)' : '#FEF3C7',
+                borderColor: colors.primary,
+                borderWidth: 1,
+                borderRadius: 12,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                marginTop: 12,
+                marginBottom: 4,
+              }}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={{
+                  fontFamily: Typography.fontFamily.bold,
+                  fontSize: 13,
+                  color: isDark ? colors.primary : '#92400E',
+                }}>
+                  Registering team... Please wait
+                </Text>
+              </View>
+            )}
+
             <FlatList
               data={myTeams}
               keyExtractor={item => item._id}
               style={{ flex: 1, marginTop: Spacing.md }}
               ListEmptyComponent={<Text style={styles.emptyText}>You do not have any teams. Create one first!</Text>}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.teamCard} onPress={() => handleRegisterTeam(item._id)} disabled={actionLoading}>
-                  {item.logo ? (
-                    <Image source={{ uri: getImageUrl(item.logo) }} style={styles.teamLogo} />
-                  ) : (
-                    <View style={[styles.teamLogo, { backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.12)', justifyContent: 'center', alignItems: 'center', borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(230,184,0,0.4)' }]}>
-                      <Text style={{ color: isDark ? colors.primary : '#8B6E00', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
-                        {(item.name || 'T').trim().charAt(0).toUpperCase()}
-                      </Text>
+              renderItem={({ item }) => {
+                const isAlreadyRegistered = (tournament?.registeredTeams || []).some(
+                  rt => (rt.team?._id || rt.team)?.toString() === item._id?.toString()
+                );
+                const isCurrentlyRegistering = registeringTeamId === item._id;
+                const isBusy = Boolean(actionLoading || registeringTeamId);
+                const isDisabled = isBusy || isAlreadyRegistered;
+
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.teamCard,
+                      isCurrentlyRegistering && {
+                        borderColor: colors.primary,
+                        borderWidth: 2,
+                        backgroundColor: isDark ? 'rgba(234, 179, 8, 0.1)' : 'rgba(234, 179, 8, 0.06)',
+                      },
+                      (isAlreadyRegistered || (isBusy && !isCurrentlyRegistering)) && {
+                        opacity: 0.5,
+                      }
+                    ]}
+                    onPress={() => handleRegisterTeam(item._id)}
+                    disabled={isDisabled}
+                    activeOpacity={0.7}
+                  >
+                    {item.logo ? (
+                      <Image source={{ uri: getImageUrl(item.logo) }} style={styles.teamLogo} />
+                    ) : (
+                      <View style={[styles.teamLogo, { backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.12)', justifyContent: 'center', alignItems: 'center', borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(230,184,0,0.4)' }]}>
+                        <Text style={{ color: isDark ? colors.primary : '#8B6E00', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                          {(item.name || 'T').trim().charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.teamName}>{item.name}</Text>
+                      <Text style={styles.teamSub}>{item.city || 'Team'}</Text>
                     </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.teamName}>{item.name}</Text>
-                    <Text style={styles.teamSub}>{item.city}</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
+
+                    {/* Action or Loading State */}
+                    {isCurrentlyRegistering ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 }}>
+                        <ActivityIndicator size="small" color={colors.primary} />
+                        <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>
+                          Registering...
+                        </Text>
+                      </View>
+                    ) : isAlreadyRegistered ? (
+                      <View style={{
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 8,
+                      }}>
+                        <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 11 }}>
+                          Already Joined
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={{
+                        backgroundColor: colors.primaryAlpha20,
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                      }}>
+                        <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 12 }}>
+                          Select
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
               ListFooterComponent={
                 <TouchableOpacity
-                  style={[styles.teamCard, { justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', backgroundColor: 'transparent' }]}
+                  style={[
+                    styles.teamCard,
+                    { justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', backgroundColor: 'transparent' },
+                    (actionLoading || registeringTeamId) && { opacity: 0.4 }
+                  ]}
+                  disabled={Boolean(actionLoading || registeringTeamId)}
                   onPress={() => {
                     setShowRegisterModal(false);
                     navigation.navigate('TeamCreate', { fromTournamentId: tournamentId });
@@ -2571,7 +2693,11 @@ const TournamentDetailScreen = ({ route, navigation }) => {
                   >
                     <Text style={{ color: completeWinnerId === '' ? colors.primary : colors.textSecondary, fontFamily: Typography.fontFamily.medium, fontSize: 13 }}>None / Skip</Text>
                   </TouchableOpacity>
-                  {(tournament?.registeredTeams || []).map((rt, idx) => {
+                  {[...(tournament?.registeredTeams || [])].sort((a, b) => {
+                    const nameA = (a?.team?.name || a?.name || '').toString().toLowerCase();
+                    const nameB = (b?.team?.name || b?.name || '').toString().toLowerCase();
+                    return nameA.localeCompare(nameB);
+                  }).map((rt, idx) => {
                     const team = rt?.team;
                     if (!team) return null;
                     const teamId = team._id || team;

@@ -1286,16 +1286,25 @@ const LiveScorerScreen = ({ navigation, route }) => {
             style: 'destructive',
             onPress: async () => {
               try {
+                const currentTourId = route.params?.tournamentId || liveState?.match?.tournament?._id || liveState?.match?.tournament;
                 await api.delete(`/matches/${cleanMatchId}`);
                 try { dispatch(clearLiveState()); } catch (_) {}
                 showCustomAlert('Match Deleted', 'The match has been deleted successfully.');
-                try {
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'MyCricketMain', params: { tab: 'Matches' } }]
-                  });
-                } catch (_) {
-                  navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } });
+
+                if (currentTourId) {
+                  const tourIdStr = socketService.cleanId(currentTourId);
+                  navigation.navigate('TournamentDetail', { tournamentId: tourIdStr, initialTab: 'Matches', refresh: Date.now() });
+                } else if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  try {
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: 'MyCricketMain', params: { tab: 'Matches' } }]
+                    });
+                  } catch (_) {
+                    navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } });
+                  }
                 }
               } catch (err) {
                 console.error('Error deleting match:', err);

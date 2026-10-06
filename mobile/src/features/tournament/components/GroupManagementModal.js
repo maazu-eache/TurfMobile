@@ -189,10 +189,14 @@ const GroupManagementModal = ({ visible, onClose, tournament, onRefresh }) => {
               });
 
               // Filter teams: only show if selected in this group, OR if not assigned to any previous group
-              const availableTeams = registeredTeams.filter(rt => {
-                const teamId = rt.team._id;
+              const availableTeams = [...registeredTeams].filter(rt => {
+                const teamId = rt.team?._id;
                 const isSelected = group.teams.some(t => t === teamId || t._id === teamId);
                 return isSelected || !assignedIds.has(String(teamId));
+              }).sort((a, b) => {
+                const nameA = (a?.team?.name || '').toString().toLowerCase();
+                const nameB = (b?.team?.name || '').toString().toLowerCase();
+                return nameA.localeCompare(nameB);
               });
 
               return (

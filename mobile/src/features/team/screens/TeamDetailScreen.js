@@ -23,6 +23,7 @@ import SharePreviewModal from '../../tournament/components/SharePreviewModal';
 import { TeamQRPoster } from '../../tournament/components/PosterTemplates';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { isTeamVerified, getValidTeamPlayers } from '../../../utils/teamUtils';
 import { getImageUrl } from '../../../api/axios';
 import api from '../../../api/axios';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
@@ -129,6 +130,21 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   followInlineBtnTextActive: {
     color: isDark ? colors.primary : colors.primaryDark,
     fontFamily: Typography.fontFamily.bold,
+  },
+  shareInlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255,204,0,0.1)' : 'rgba(230,184,0,0.12)',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,204,0,0.25)' : 'rgba(230,184,0,0.3)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  shareInlineBtnText: {
+    color: isDark ? colors.primary : '#8B6E00',
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 11,
   },
 
   // Full-width Balanced Stats Grid
@@ -1122,7 +1138,9 @@ const EmptyState = ({ icon, label, small }) => {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 const TeamDetailScreen = ({ navigation, route }) => {
-  const { id } = route.params || {};
+  const routeParams = route?.params || {};
+  const id = routeParams.id || routeParams.teamId || routeParams.team?._id || routeParams.team?.id;
+  const initialTeam = routeParams.team || null;
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
   const safeTop = Math.max(insets?.top || 0, Platform.OS === 'ios' ? 44 : 0);
@@ -1130,6 +1148,29 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
   const { selectedTeam, teamStats, isLoading, statsLoading } = useSelector(s => s.team);
   const { user } = useSelector(s => s.auth);
+
+  const [localTeam, setLocalTeam] = useState(initialTeam);
+
+  useEffect(() => {
+    if (initialTeam) {
+      setLocalTeam(prev => ({ ...(prev || {}), ...initialTeam }));
+    }
+  }, [initialTeam]);
+
+  useEffect(() => {
+    if (selectedTeam && (selectedTeam._id === id || selectedTeam.id === id || !id)) {
+      setLocalTeam(selectedTeam);
+    }
+  }, [selectedTeam, id]);
+
+  // Unified team object with graceful fallbacks: Redux > localTeam > initialTeam > empty
+  const team = (selectedTeam && selectedTeam.name && (selectedTeam._id === id || !id))
+    ? selectedTeam
+    : (localTeam?.name ? localTeam : (initialTeam?.name ? initialTeam : (selectedTeam || localTeam || initialTeam || {})));
+
+  const totalMatchesCount = team?.stats?.matches ?? teamStats?.recentMatches?.length ?? 0;
+  const totalWinsCount = team?.stats?.wins ?? (teamStats?.recentMatches?.filter(m => m.result === 'W')?.length ?? 0);
+  const winPct = totalMatchesCount > 0 ? ((totalWinsCount / totalMatchesCount) * 100).toFixed(0) : '—';
 
   const [activeTab, setActiveTab] = useState('matches');
   const tabScrollRef = useRef(null);
@@ -1188,7 +1229,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
       setIsCapturingQr(false);
 
-      const teamName = selectedTeam?.name || 'Team';
+      const teamName = team?.name || 'Team';
 
       const shareOptions = {
         title: `${teamName} QR Code`,
@@ -1205,6 +1246,11 @@ const TeamDetailScreen = ({ navigation, route }) => {
       console.log('Error sharing team QR image:', error);
     }
   };
+
+  const handleShareTeamLink = () => {
+    setShowQrModal(false);
+    setShowPosterShareModal(true);
+  };
   const [reportLoading, setReportLoading] = useState(false);
 
   const handleReportTeam = async () => {
@@ -1216,7 +1262,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
     try {
       await api.post('/ugc/report', {
         contentType: 'team',
-        contentId: selectedTeam._id,
+        contentId: team?._id || id,
         reason: reportReason,
         details: reportDetails
       });
@@ -1245,8 +1291,19 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     if (id) {
-      dispatch(clearSelectedTeam());
-      dispatch(fetchTeamById(id));
+      if (selectedTeam?._id !== id) {
+        dispatch(clearSelectedTeam());
+      }
+      dispatch(fetchTeamById(id)).unwrap().catch(async () => {
+        try {
+          const res = await api.get(`/teams/${id}`);
+          if (res.data?.data) {
+            setLocalTeam(res.data.data);
+          }
+        } catch (apiErr) {
+          console.log('Direct API team fetch fallback error:', apiErr);
+        }
+      });
       dispatch(fetchTeamStats(id));
     }
     return () => { dispatch(clearSelectedTeam()); };
@@ -1264,7 +1321,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const myPlayerId = myPlayer?._id?.toString();
   const myUserId = user?._id?.toString();
 
-  const myMembership = selectedTeam?.players?.find(p => {
+  const validPlayers = getValidTeamPlayers(team);
+
+  const myMembership = validPlayers.find(p => {
     const playerUserId = p.player?.userId?._id?.toString() || p.player?.userId?.toString();
     const playerDocId = p.player?._id?.toString();
     return playerUserId === myUserId || (myPlayerId && playerDocId === myPlayerId);
@@ -1273,7 +1332,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const isMeMember = !!myMembership;
   const isMeCaptain = myMembership?.role === 'captain';
   const isMeAdmin = myMembership?.role === 'admin';
-  const isCreator = selectedTeam?.createdBy?.toString() === myUserId || selectedTeam?.createdBy === user?._id;
+  const isCreator = team?.createdBy?.toString() === myUserId || team?.createdBy === user?._id;
   const isMeVC = myMembership?.role === 'vice_captain';
   const isManager = isMeCaptain || isMeAdmin || isMeVC;
   const canManageRoster = isMeCaptain || isMeAdmin || isMeVC;
@@ -1286,7 +1345,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
     try {
       const res = await dispatch(toggleFollowTeam(id)).unwrap();
       dispatch(fetchFollowingTeams());
-      const msg = res.isFollowing ? `You are now following ${selectedTeam?.name || 'this team'}` : `Unfollowed ${selectedTeam?.name || 'team'}`;
+      const msg = res.isFollowing ? `You are now following ${team?.name || 'this team'}` : `Unfollowed ${team?.name || 'team'}`;
       if (Platform.OS === 'android') {
         ToastAndroid.show(msg, ToastAndroid.SHORT);
       } else {
@@ -1322,7 +1381,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const handleAddPlayer = async () => {
     if (!mobile.trim()) { showCustomAlert('Validation Error', 'Mobile number is required'); return; }
     if (addRole === 'admin') {
-      const currentAdmins = selectedTeam?.players?.filter(p => p.role === 'admin') || [];
+      const currentAdmins = validPlayers.filter(p => p.role === 'admin');
       if (currentAdmins.length >= 2) {
         showCustomAlert('Limit Reached', 'A team can have a maximum of 2 Admins.');
         return;
@@ -1342,7 +1401,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const handleUpdateRole = async (newRole) => {
     if (!selectedPlayerToEdit) return;
     if (newRole === 'admin') {
-      const currentAdmins = selectedTeam?.players?.filter(p => p.role === 'admin' && (p.player?._id || p.player) !== (selectedPlayerToEdit.player?._id || selectedPlayerToEdit.player)) || [];
+      const currentAdmins = validPlayers.filter(p => p.role === 'admin' && (p.player?._id || p.player) !== (selectedPlayerToEdit.player?._id || selectedPlayerToEdit.player));
       if (currentAdmins.length >= 2) {
         showCustomAlert('Limit Reached', 'A team can have a maximum of 2 Admins.');
         return;
@@ -1359,9 +1418,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
   };
 
   const openEditModal = () => {
-    setEditName(selectedTeam?.name || '');
-    setEditCity(selectedTeam?.city || '');
-    setEditState(selectedTeam?.state || '');
+    setEditName(team?.name || '');
+    setEditCity(team?.city || '');
+    setEditState(team?.state || '');
     setEditLogo(null);
     setEditModalVisible(true);
   };
@@ -1394,11 +1453,11 @@ const TeamDetailScreen = ({ navigation, route }) => {
   };
 
   const handleLeaveTeam = () => {
-    if (isMeCaptain && selectedTeam?.players?.length > 1) {
+    if (isMeCaptain && validPlayers.length > 1) {
       showCustomAlert('Leave Team', 'Assign another captain before leaving');
       return;
     }
-    showCustomAlert('Leave Team', `Leave "${selectedTeam?.name}"?`, [
+    showCustomAlert('Leave Team', `Leave "${team?.name || 'this team'}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Leave', style: 'destructive', onPress: async () => {
@@ -1412,8 +1471,8 @@ const TeamDetailScreen = ({ navigation, route }) => {
   };
 
   const handleRemovePlayer = (member) => {
-    const isCap = member.role === 'captain' || (selectedTeam?.captain && (selectedTeam.captain._id === member.player._id || selectedTeam.captain === member.player._id));
-    const isVC = member.role === 'vice_captain' || (selectedTeam?.viceCaptain && (selectedTeam.viceCaptain._id === member.player._id || selectedTeam.viceCaptain === member.player._id));
+    const isCap = member.role === 'captain' || (team?.captain && (team.captain._id === member.player._id || team.captain === member.player._id));
+    const isVC = member.role === 'vice_captain' || (team?.viceCaptain && (team.viceCaptain._id === member.player._id || team.viceCaptain === member.player._id));
 
     if (isCap || isVC) {
       const leaderTitle = isCap ? 'Captain' : 'Vice Captain';
@@ -1470,7 +1529,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
       >
 
-        {selectedTeam?.players?.map((member, i) => {
+        {validPlayers.map((member, i) => {
           const p = member.player;
           if (!p) return null;
           const photo = p.photo || p.userId?.photo;
@@ -1673,7 +1732,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
   const renderStatsTab = () => {
     if (statsLoading && !teamStats) return <LoadingState />;
-    const s = selectedTeam?.stats || {};
+    const s = team?.stats || {};
     const winPct = s.matches > 0 ? parseFloat(((s.wins / s.matches) * 100).toFixed(1)) : 0;
     const lossPct = s.matches > 0 ? parseFloat(((s.losses / s.matches) * 100).toFixed(1)) : 0;
     const nrPct = Math.max(0, parseFloat((100 - winPct - lossPct).toFixed(1)));
@@ -2197,7 +2256,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
               <Text style={styles.lbSectionTitle}>Top Scorers</Text>
             </View>
             {topBat.length === 0 ? <EmptyState icon="cricket" label="No batting data yet" small /> : topBat.map((p, i) => {
-              const photo = p.player?.photo || p.player?.userId?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
+              const photo = p.player?.photo || p.player?.userId?.photo || team?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || team?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
               return (
                 <TouchableOpacity
                   key={p.player?._id || i}
@@ -2235,7 +2294,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
               <Text style={styles.lbSectionTitle}>Top Wicket Takers</Text>
             </View>
             {topBowl.length === 0 ? <EmptyState icon="baseball" label="No bowling data yet" small /> : topBowl.map((p, i) => {
-              const photo = p.player?.photo || p.player?.userId?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
+              const photo = p.player?.photo || p.player?.userId?.photo || team?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || team?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
               return (
                 <TouchableOpacity
                   key={p.player?._id || i}
@@ -2273,7 +2332,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
               <Text style={styles.lbSectionTitle}>Top Fielders</Text>
             </View>
             {topField.length === 0 ? <EmptyState icon="hand-back-right" label="No fielding data yet" small /> : topField.map((p, i) => {
-              const photo = p.player?.photo || p.player?.userId?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || selectedTeam?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
+              const photo = p.player?.photo || p.player?.userId?.photo || team?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.photo || team?.players?.find(m => m.player?._id?.toString() === p.player?._id?.toString())?.player?.userId?.photo;
               return (
                 <TouchableOpacity
                   key={p.player?._id || i}
@@ -2308,7 +2367,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
   };
 
   const renderAchievementsTab = () => {
-    const s = selectedTeam?.stats || {};
+    const s = team?.stats || {};
     return (
       <ScrollView
         style={{ flex: 1 }}
@@ -2353,7 +2412,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
   const renderAnalyticsTab = () => {
     if (statsLoading && !teamStats) return <LoadingState />;
 
-    const totalMatches = selectedTeam?.stats?.matches || teamStats?.recentMatches?.length || 0;
+    const totalMatches = team?.stats?.matches || teamStats?.recentMatches?.length || 0;
     if (!totalMatches) {
       return (
         <ScrollView
@@ -2678,7 +2737,7 @@ const TeamDetailScreen = ({ navigation, route }) => {
     }
   };
 
-  if (isLoading && !selectedTeam) {
+  if (isLoading && !team?.name) {
     return (
       <View style={[styles.safe, { paddingTop: safeTop }]}>
         <View style={styles.loadingFull}>
@@ -2687,9 +2746,6 @@ const TeamDetailScreen = ({ navigation, route }) => {
       </View>
     );
   }
-
-  const team = selectedTeam;
-  const winPct = team?.stats?.matches > 0 ? ((team.stats.wins / team.stats.matches) * 100).toFixed(0) : '—';
 
   return (
     <View style={[styles.safe, { paddingTop: safeTop }]}>
@@ -2703,6 +2759,9 @@ const TeamDetailScreen = ({ navigation, route }) => {
             <Icon name="arrow-left" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={styles.navActions}>
+            <TouchableOpacity style={styles.navBtn} onPress={handleShareTeamLink} activeOpacity={0.7}>
+              <Icon name="share-variant" size={20} color={colors.textPrimary} />
+            </TouchableOpacity>
             {(isMeMember || isCreator) && (
               <TouchableOpacity style={styles.navBtn} onPress={() => setShowQrModal(true)} activeOpacity={0.7}>
                 <Icon name="qrcode-scan" size={20} color={colors.primary} />
@@ -2738,9 +2797,15 @@ const TeamDetailScreen = ({ navigation, route }) => {
                 </LinearGradient>
               )
             }
+
           </View>
           <View style={styles.teamMeta}>
-            <Text style={styles.teamNameLarge} numberOfLines={1}>{team?.name || 'Team'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.teamNameLarge} numberOfLines={1}>{team?.name || 'Team'}</Text>
+              {isTeamVerified(team) && (
+                <Icon name="check-decagram" size={20} color="#10B981" />
+              )}
+            </View>
             {team?.city && (
               <View style={styles.teamCityRow}>
                 <Icon name="map-marker" size={12} color={colors.primary} />
@@ -2748,22 +2813,33 @@ const TeamDetailScreen = ({ navigation, route }) => {
               </View>
             )}
 
-            {/* Follow button below location */}
-            <TouchableOpacity
-              style={[styles.followInlineBtn, team?.isFollowing && styles.followInlineBtnActive]}
-              onPress={handleFollow}
-              activeOpacity={0.8}
-            >
-              <Icon
-                name={team?.isFollowing ? 'check' : 'plus'}
-                size={12}
-                color={team?.isFollowing ? (isDark ? colors.primary : colors.primaryDark) : colors.textPrimary}
-                style={{ marginRight: 4 }}
-              />
-              <Text style={[styles.followInlineBtnText, team?.isFollowing && styles.followInlineBtnTextActive]}>
-                {team?.isFollowing ? 'Following' : 'Follow'} {team?.followerCount ? `· ${team.followerCount}` : ''}
-              </Text>
-            </TouchableOpacity>
+            {/* Follow and Share button row */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <TouchableOpacity
+                style={[styles.followInlineBtn, team?.isFollowing && styles.followInlineBtnActive]}
+                onPress={handleFollow}
+                activeOpacity={0.8}
+              >
+                <Icon
+                  name={team?.isFollowing ? 'check' : 'plus'}
+                  size={12}
+                  color={team?.isFollowing ? (isDark ? colors.primary : colors.primaryDark) : colors.textPrimary}
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={[styles.followInlineBtnText, team?.isFollowing && styles.followInlineBtnTextActive]}>
+                  {team?.isFollowing ? 'Following' : 'Follow'} {team?.followerCount ? `· ${team.followerCount}` : ''}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.shareInlineBtn}
+                onPress={handleShareTeamLink}
+                activeOpacity={0.8}
+              >
+                <Icon name="share-variant" size={12} color={isDark ? colors.primary : '#8B6E00'} style={{ marginRight: 4 }} />
+                <Text style={styles.shareInlineBtnText}>Share</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -2771,17 +2847,17 @@ const TeamDetailScreen = ({ navigation, route }) => {
         <View style={styles.statsSummaryGrid}>
           <View style={styles.summaryStatCard}>
             <Icon name="account-group" size={16} color={colors.textSecondary} style={{ marginBottom: 3 }} />
-            <Text style={styles.summaryStatValue}>{team?.players?.length || 0}</Text>
+            <Text style={styles.summaryStatValue}>{validPlayers.length}</Text>
             <Text style={styles.summaryStatLabel}>PLAYERS</Text>
           </View>
           <View style={styles.summaryStatCard}>
             <Icon name="cricket" size={16} color={colors.textSecondary} style={{ marginBottom: 3 }} />
-            <Text style={styles.summaryStatValue}>{team?.stats?.matches || 0}</Text>
+            <Text style={styles.summaryStatValue}>{totalMatchesCount}</Text>
             <Text style={styles.summaryStatLabel}>MATCHES</Text>
           </View>
           <View style={styles.summaryStatCard}>
             <Icon name="trophy" size={16} color={colors.primary} style={{ marginBottom: 3 }} />
-            <Text style={[styles.summaryStatValue, { color: colors.primary }]}>{team?.stats?.wins || 0}</Text>
+            <Text style={[styles.summaryStatValue, { color: colors.primary }]}>{totalWinsCount}</Text>
             <Text style={styles.summaryStatLabel}>WINS</Text>
           </View>
           <View style={styles.summaryStatCard}>
@@ -3131,27 +3207,27 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
             <View style={styles.qrHeader}>
               <View style={styles.qrLogoWrap}>
-                {selectedTeam?.logo ? (
-                  <Image source={{ uri: getImageUrl(selectedTeam.logo) }} style={styles.qrLogo} />
+                {team?.logo ? (
+                  <Image source={{ uri: getImageUrl(team.logo) }} style={styles.qrLogo} />
                 ) : (
                   <View style={[styles.qrLogoFb, { backgroundColor: colors.primaryAlpha10 }]}>
                     <Text style={{ color: colors.primary, fontFamily: Typography.fontFamily.bold, fontSize: 20 }}>
-                      {(selectedTeam?.name || 'T').trim().charAt(0).toUpperCase()}
+                      {(team?.name || 'T').trim().charAt(0).toUpperCase()}
                     </Text>
                   </View>
                 )}
               </View>
-              <Text style={[styles.qrTeamTitle, { color: colors.textPrimary }]} numberOfLines={1}>{selectedTeam?.name || 'Team'}</Text>
-              {selectedTeam?.city ? (
+              <Text style={[styles.qrTeamTitle, { color: colors.textPrimary }]} numberOfLines={1}>{team?.name || 'Team'}</Text>
+              {team?.city ? (
                 <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: Typography.fontFamily.regular, marginTop: 2 }}>
-                  📍 {selectedTeam.city}{selectedTeam.state ? `, ${selectedTeam.state}` : ''}
+                  📍 {team.city}{team.state ? `, ${team.state}` : ''}
                 </Text>
               ) : null}
             </View>
 
             <View style={styles.qrCodeBox}>
               <QRCode
-                value={`SCOREVERSE_TEAM:${selectedTeam?._id || ''}`}
+                value={`SCOREVERSE_TEAM:${team?._id || id || ''}`}
                 size={180}
                 color="#000000"
                 backgroundColor="#FFFFFF"
@@ -3160,33 +3236,38 @@ const TeamDetailScreen = ({ navigation, route }) => {
 
 
             <Text style={[styles.qrInstructionText, { color: colors.textTertiary }]}>
-              Scan this QR code during match creation to quickly select {selectedTeam?.name || 'this team'}.
+              Scan this QR code during match creation to quickly select {team?.name || 'this team'}.
             </Text>
 
             <View style={{ width: '100%', gap: 10 }}>
-              <TouchableOpacity style={styles.shareQrBtn} onPress={handleShareTeamQr} disabled={isCapturingQr} activeOpacity={0.8}>
-                <LinearGradient colors={[colors.primary, colors.primaryDark || colors.primary]} style={styles.shareQrGradient}>
-                  {isCapturingQr ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <>
-                      <Icon name="share-variant" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                      <Text style={styles.shareQrText}>Share Team QR</Text>
-                    </>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-
               <TouchableOpacity
-                style={[styles.posterShareBtn, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]}
+                style={styles.shareQrBtn}
                 onPress={() => {
                   setShowQrModal(false);
                   setShowPosterShareModal(true);
                 }}
                 activeOpacity={0.8}
               >
-                <Icon name="palette-outline" size={18} color={colors.primary} style={{ marginRight: 8 }} />
-                <Text style={[styles.posterShareText, { color: colors.textPrimary }]}>Poster Themes & Share</Text>
+                <LinearGradient colors={[colors.primary, colors.primaryDark || colors.primary]} style={styles.shareQrGradient}>
+                  <Icon name="palette-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.shareQrText}>Share Poster Card</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.posterShareBtn, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]}
+                onPress={handleShareTeamQr}
+                disabled={isCapturingQr}
+                activeOpacity={0.8}
+              >
+                {isCapturingQr ? (
+                  <ActivityIndicator color={colors.primary} size="small" />
+                ) : (
+                  <>
+                    <Icon name="qrcode-scan" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+                    <Text style={[styles.posterShareText, { color: colors.textPrimary }]}>Share Simple QR</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -3194,14 +3275,14 @@ const TeamDetailScreen = ({ navigation, route }) => {
       </Modal>
 
       {/* Team Poster Share Modal */}
-      {showPosterShareModal && selectedTeam && (
+      {showPosterShareModal && team && (
         <SharePreviewModal
           visible={showPosterShareModal}
           onClose={() => setShowPosterShareModal(false)}
-          title={`${selectedTeam.name} QR Card`}
-          shareUrl={`https://scoreverse.in/team/${selectedTeam._id}`}
+          title={`${team?.name || 'Team'}`}
+          shareUrl={`https://scoreverse.in/team/${team?._id || id}`}
         >
-          <TeamQRPoster team={selectedTeam} />
+          <TeamQRPoster team={team} />
         </SharePreviewModal>
       )}
 

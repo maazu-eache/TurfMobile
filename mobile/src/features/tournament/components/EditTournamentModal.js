@@ -238,8 +238,8 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
       }
       if (response.assets && response.assets.length > 0) {
         const selected = response.assets[0];
-        if (selected.fileSize && selected.fileSize > 4 * 1024 * 1024) {
-          showCustomAlert('File Too Large', 'Please select a banner image smaller than 4MB.');
+        if (selected.fileSize && selected.fileSize > 1 * 1024 * 1024) {
+          showCustomAlert('File Too Large', 'Please select a banner image smaller than 1MB.');
           return;
         }
         setForm(f => ({ ...f, banner: selected }));
@@ -378,7 +378,22 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
       onClose();
     } catch (error) {
       console.log('Error updating tournament', error);
-      showCustomAlert('Error', error.response?.data?.message || 'Failed to update tournament details');
+      let reason = 'Failed to update tournament details';
+      if (error.response?.data) {
+        const d = error.response.data;
+        if (typeof d === 'string') {
+          reason = d;
+        } else if (d.message) {
+          reason = d.message;
+        } else if (d.error) {
+          reason = typeof d.error === 'string' ? d.error : (d.error.message || JSON.stringify(d.error));
+        } else if (Array.isArray(d.errors) && d.errors.length > 0) {
+          reason = d.errors.map(e => e.msg || e.message || String(e)).join(', ');
+        }
+      } else if (error.message) {
+        reason = error.message;
+      }
+      showCustomAlert('Update Failed', `Reason: ${reason}`);
     } finally {
       setLoading(false);
     }
@@ -432,8 +447,11 @@ const EditTournamentModal = ({ visible, onClose, tournament, onRefresh }) => {
               )}
               <TouchableOpacity style={styles.bannerUploadBtn} onPress={handleBannerSelect}>
                 <Icon name="camera" size={15} color={colors.white} style={{ marginRight: 6 }} />
-                <Text style={styles.bannerUploadBtnText}>{bannerUri ? 'Change Banner' : 'Upload Banner'}</Text>
+                <Text style={styles.bannerUploadBtnText}>{bannerUri ? 'Change Banner (Max 1MB)' : 'Upload Banner (Max 1MB)'}</Text>
               </TouchableOpacity>
+              <Text style={{ color: colors.textTertiary, fontSize: 11, marginTop: 6, fontFamily: Typography.fontFamily.regular }}>
+                Maximum image size: 1 MB (JPG or PNG)
+              </Text>
             </View>
 
             {/* Basic Information */}

@@ -377,16 +377,31 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     setExpandedInnings(prev => ({ ...prev, [index]: !currentIsExpanded }));
   };
 
-  // Fetch overall career stats when a player preview opens
+  const [playerModalTab, setPlayerModalTab] = useState('match');
+
+  const [commentary, setCommentary] = useState([]);
+  const [loadingCommentary, setLoadingCommentary] = useState(false);
+  const [scorecards, setScorecards] = useState([]);
+  const [loadingScorecards, setLoadingScorecards] = useState(false);
+
+  // Fetch overall career stats and ensure commentary & scorecards are loaded when player preview opens
   useEffect(() => {
-    if (!selectedPlayerPreview?._id) {
+    const targetPlayerId = selectedPlayerPreview?._id || selectedPlayerPreview?.id || selectedPlayerPreview?.player?._id || selectedPlayerPreview?.player;
+    if (!targetPlayerId) {
       setPlayerPreviewStats(null);
       return;
+    }
+    setPlayerModalTab('match');
+    if (!commentary || commentary.length === 0) {
+      fetchCommentary(true);
+    }
+    if (!scorecards || scorecards.length === 0) {
+      fetchScorecards(true);
     }
     let cancelled = false;
     setPlayerPreviewStats(null);
     setPlayerPreviewLoading(true);
-    api.get(`/players/${selectedPlayerPreview._id}`)
+    api.get(`/players/${targetPlayerId}`)
       .then(res => {
         if (!cancelled) {
           const p = res.data?.data || res.data;
@@ -398,6 +413,9 @@ const MatchSummaryScreen = ({ navigation, route }) => {
               ...prev,
               photo: p?.photo || prev.photo,
               userId: p?.userId || prev.userId,
+              playingRole: p?.playingRole || prev.playingRole,
+              battingStyle: p?.battingStyle || prev.battingStyle,
+              bowlingStyle: p?.bowlingStyle || prev.bowlingStyle,
             };
           });
         }
@@ -405,12 +423,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       .catch(() => { })
       .finally(() => { if (!cancelled) setPlayerPreviewLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedPlayerPreview?._id]);
+  }, [selectedPlayerPreview?._id, selectedPlayerPreview?.id, fetchCommentary, fetchScorecards]);
 
-  const [commentary, setCommentary] = useState([]);
-  const [loadingCommentary, setLoadingCommentary] = useState(false);
-  const [scorecards, setScorecards] = useState([]);
-  const [loadingScorecards, setLoadingScorecards] = useState(false);
   const [leaderboardFilter, setLeaderboardFilter] = useState('Batting');
   const [leaderboardTab, setLeaderboardTab] = useState('MVP');
   const [commentaryFilter, setCommentaryFilter] = useState('ALL');
@@ -507,6 +521,361 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     }
     return () => clearInterval(interval);
   }, [activeTab, aiReportLoading, aiReport]);
+
+  const formatDismissalText = useCallback((b) => {
+    if (!b?.dismissal) return '';
+    const type = b.dismissal.type;
+    const bowlerName = (b.dismissal.bowler?.name || 'Bowler').split(' ')[0];
+    const fielderName = (b.dismissal.fielder?.name || 'Fielder').split(' ')[0];
+
+    switch (type) {
+      case 'bowled':
+        return `b ${bowlerName}`;
+      case 'caught':
+      case 'caught_behind':
+        return `c ${fielderName} b ${bowlerName}`;
+      case 'stumped':
+        return `st ${fielderName} b ${bowlerName}`;
+      case 'lbw':
+        return `lbw b ${bowlerName}`;
+      case 'run_out':
+        return `run out (${fielderName})`;
+      case 'hit_wicket':
+        return `hw b ${bowlerName}`;
+      case 'caught_and_bowled':
+        return `c & b ${bowlerName}`;
+      default:
+        return type ? type.replace(/_/g, ' ') : '';
+    }
+  }, []);
+
+  const previewPlayerId = useMemo(() => {
+    if (!selectedPlayerPreview) return null;
+    return (selectedPlayerPreview._id || selectedPlayerPreview.id || selectedPlayerPreview.player?._id || selectedPlayerPreview.player)?.toString();
+  }, [selectedPlayerPreview]);
+
+  const previewPlayerName = useMemo(() => {
+    if (!selectedPlayerPreview) return '';
+    return (selectedPlayerPreview.name || selectedPlayerPreview.fullName || '').trim();
+  }, [selectedPlayerPreview]);
+
+  const previewPlayerTeam = useMemo(() => {
+    if (!selectedPlayerPreview) return '';
+    if (selectedPlayerPreview.team?.name) return selectedPlayerPreview.team.name;
+    const pId = previewPlayerId;
+    const pName = previewPlayerName.toLowerCase();
+    for (const sc of (scorecards || [])) {
+      const isBat = (sc.batting || []).some(b => {
+        const id = (b.player?._id || b.player)?.toString();
+        const name = (b.player?.name || '').trim().toLowerCase();
+        return (pId && id === pId) || (pName && name && name === pName);
+      });
+      if (isBat) return sc.battingTeam?.name || sc.battingTeam?.shortName || '';
+      const isBowl = (sc.bowling || []).some(b => {
+        const id = (b.player?._id || b.player)?.toString();
+        const name = (b.player?.name || '').trim().toLowerCase();
+        return (pId && id === pId) || (pName && name && name === pName);
+      });
+      if (isBowl) return sc.bowlingTeam?.name || sc.bowlingTeam?.shortName || '';
+    }
+    const currentM = liveState?.match || matchData?.match || matchData;
+    if (currentM) {
+      if ((currentM.playingXI?.teamA || []).some(p => (p._id || p)?.toString() === pId)) return currentM.teamA?.name || '';
+      if ((currentM.playingXI?.teamB || []).some(p => (p._id || p)?.toString() === pId)) return currentM.teamB?.name || '';
+    }
+    return '';
+  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, scorecards, liveState?.match, matchData]);
+
+  const matchBatting = useMemo(() => {
+    if (!selectedPlayerPreview || !scorecards || scorecards.length === 0) return null;
+    const pId = previewPlayerId;
+    const pName = previewPlayerName.toLowerCase();
+    for (const sc of scorecards) {
+      const b = (sc.batting || []).find(item => {
+        const id = (item.player?._id || item.player)?.toString();
+        const name = (item.player?.name || '').trim().toLowerCase();
+        return (pId && id === pId) || (pName && name && name === pName);
+      });
+      if (b) {
+        return {
+          ...b,
+          teamName: sc.battingTeam?.name || sc.battingTeam?.shortName,
+          inningsNumber: sc.inningsNumber
+        };
+      }
+    }
+    return null;
+  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, scorecards]);
+
+  const matchBowling = useMemo(() => {
+    if (!selectedPlayerPreview || !scorecards || scorecards.length === 0) return null;
+    const pId = previewPlayerId;
+    const pName = previewPlayerName.toLowerCase();
+    for (const sc of scorecards) {
+      const bw = (sc.bowling || []).find(item => {
+        const id = (item.player?._id || item.player)?.toString();
+        const name = (item.player?.name || '').trim().toLowerCase();
+        return (pId && id === pId) || (pName && name && name === pName);
+      });
+      if (bw) {
+        return {
+          ...bw,
+          teamName: sc.bowlingTeam?.name || sc.bowlingTeam?.shortName,
+          inningsNumber: sc.inningsNumber
+        };
+      }
+    }
+    return null;
+  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, scorecards]);
+
+  const batterBallsFaced = useMemo(() => {
+    if (!selectedPlayerPreview || !commentary || commentary.length === 0) return [];
+    const pId = previewPlayerId;
+    const pName = previewPlayerName.toLowerCase();
+
+    const balls = commentary.filter(ball => {
+      const id = (ball.batsman?._id || ball.batsman)?.toString();
+      const name = (ball.batsman?.name || '').trim().toLowerCase();
+      if (ball.isWide) return false;
+      return (pId && id === pId) || (pName && name && name === pName);
+    });
+
+    return balls.slice().sort((a, b) => {
+      if (a.sequence !== undefined && b.sequence !== undefined) return a.sequence - b.sequence;
+      if (a.overNumber !== b.overNumber) return (a.overNumber || 0) - (b.overNumber || 0);
+      return (a.ballNumber || 0) - (b.ballNumber || 0);
+    });
+  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, commentary]);
+
+  const batterMetrics = useMemo(() => {
+    if (!matchBatting && batterBallsFaced.length === 0) return null;
+    const runs = matchBatting?.runs !== undefined ? matchBatting.runs : batterBallsFaced.reduce((acc, b) => acc + (b.batsmanRuns || 0), 0);
+    const balls = matchBatting?.balls !== undefined ? matchBatting.balls : batterBallsFaced.length;
+    const fours = matchBatting?.fours !== undefined ? matchBatting.fours : batterBallsFaced.filter(b => b.isBoundary || b.batsmanRuns === 4).length;
+    const sixes = matchBatting?.sixes !== undefined ? matchBatting.sixes : batterBallsFaced.filter(b => b.isSix || b.batsmanRuns === 6).length;
+    const dots = batterBallsFaced.filter(b => (b.batsmanRuns || 0) === 0 && !b.isWicket).length;
+    const ones = batterBallsFaced.filter(b => b.batsmanRuns === 1).length;
+    const twos = batterBallsFaced.filter(b => b.batsmanRuns === 2).length;
+    const threes = batterBallsFaced.filter(b => b.batsmanRuns === 3).length;
+    const boundaryRuns = (fours * 4) + (sixes * 6);
+    const boundaryPercent = runs > 0 ? ((boundaryRuns / runs) * 100).toFixed(1) : '0';
+    const dotPercent = balls > 0 ? ((dots / balls) * 100).toFixed(1) : '0';
+    const strikeRate = matchBatting?.strikeRate !== undefined ? matchBatting.strikeRate : (balls > 0 ? ((runs / balls) * 100).toFixed(1) : '0.0');
+
+    return {
+      runs,
+      balls,
+      fours,
+      sixes,
+      dots,
+      ones,
+      twos,
+      threes,
+      boundaryRuns,
+      boundaryPercent,
+      dotPercent,
+      strikeRate,
+    };
+  }, [matchBatting, batterBallsFaced]);
+
+  const bowlerBallsBowled = useMemo(() => {
+    if (!selectedPlayerPreview || !commentary || commentary.length === 0) return [];
+    const pId = previewPlayerId;
+    const pName = previewPlayerName.toLowerCase();
+
+    const balls = commentary.filter(ball => {
+      const id = (ball.bowler?._id || ball.bowler)?.toString();
+      const name = (ball.bowler?.name || '').trim().toLowerCase();
+      return (pId && id === pId) || (pName && name && name === pName);
+    });
+
+    return balls.slice().sort((a, b) => {
+      if (a.sequence !== undefined && b.sequence !== undefined) return a.sequence - b.sequence;
+      if (a.overNumber !== b.overNumber) return (a.overNumber || 0) - (b.overNumber || 0);
+      return (a.ballNumber || 0) - (b.ballNumber || 0);
+    });
+  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, commentary]);
+
+  const bowlerOversGrouped = useMemo(() => {
+    if (bowlerBallsBowled.length === 0) return [];
+    const oversMap = {};
+    bowlerBallsBowled.forEach(ball => {
+      const ovNum = ball.overNumber !== undefined ? ball.overNumber : 0;
+      if (!oversMap[ovNum]) {
+        oversMap[ovNum] = {
+          overNumber: ovNum,
+          balls: [],
+          runs: 0,
+          wickets: 0,
+          dots: 0
+        };
+      }
+      oversMap[ovNum].balls.push(ball);
+      const bRuns = ball.totalRuns !== undefined ? ball.totalRuns : ((ball.batsmanRuns || 0) + (ball.extraRuns || 0));
+      oversMap[ovNum].runs += bRuns;
+      if (ball.isWicket) oversMap[ovNum].wickets += 1;
+      if (ball.isDotBall || (bRuns === 0 && !ball.isWide && !ball.isNoBall)) oversMap[ovNum].dots += 1;
+    });
+    return Object.values(oversMap).sort((a, b) => a.overNumber - b.overNumber);
+  }, [bowlerBallsBowled]);
+
+  const bowlerMetrics = useMemo(() => {
+    if (!matchBowling && bowlerBallsBowled.length === 0) return null;
+    const overs = matchBowling?.overs !== undefined ? `${matchBowling.overs}.${matchBowling.balls || 0}` : (bowlerOversGrouped.length > 0 ? `${bowlerOversGrouped.length}.0` : '0.0');
+    const runs = matchBowling?.runs !== undefined ? matchBowling.runs : bowlerBallsBowled.reduce((acc, b) => acc + (b.totalRuns !== undefined ? b.totalRuns : (b.batsmanRuns || 0) + (b.extraRuns || 0)), 0);
+    const wickets = matchBowling?.wickets !== undefined ? matchBowling.wickets : bowlerBallsBowled.filter(b => b.isWicket).length;
+    const maidens = matchBowling?.maidens || 0;
+    const economy = matchBowling?.economy !== undefined ? matchBowling.economy : (matchBowling?.overs > 0 ? (runs / matchBowling.overs).toFixed(1) : (runs || 0));
+    const dots = bowlerBallsBowled.filter(b => b.isDotBall || ((b.totalRuns !== undefined ? b.totalRuns : (b.batsmanRuns || 0) + (b.extraRuns || 0)) === 0 && !b.isWide && !b.isNoBall)).length;
+    const totalDeliveries = bowlerBallsBowled.length;
+    const dotPercent = totalDeliveries > 0 ? ((dots / totalDeliveries) * 100).toFixed(1) : '0';
+    const boundariesConceded = bowlerBallsBowled.filter(b => b.isBoundary || b.isSix || (b.batsmanRuns || 0) >= 4).length;
+    const extras = (matchBowling?.wides || 0) + (matchBowling?.noBalls || 0) || bowlerBallsBowled.filter(b => b.isWide || b.isNoBall).length;
+
+    return {
+      overs,
+      runs,
+      wickets,
+      maidens,
+      economy,
+      dots,
+      dotPercent,
+      boundariesConceded,
+      extras,
+      totalDeliveries
+    };
+  }, [matchBowling, bowlerBallsBowled, bowlerOversGrouped]);
+
+  const fieldingMetrics = useMemo(() => {
+    if (!selectedPlayerPreview || !scorecards || scorecards.length === 0) return null;
+    const pId = previewPlayerId;
+    const pName = previewPlayerName.toLowerCase();
+    let catches = 0;
+    let runOuts = 0;
+    let stumpings = 0;
+
+    scorecards.forEach(sc => {
+      (sc.batting || []).forEach(b => {
+        if (b.dismissal && b.dismissal.fielder) {
+          const fId = (b.dismissal.fielder?._id || b.dismissal.fielder)?.toString();
+          const fName = (b.dismissal.fielder?.name || '').trim().toLowerCase();
+          if ((pId && fId === pId) || (pName && fName && fName === pName)) {
+            if (b.dismissal.type === 'caught' || b.dismissal.type === 'caught_behind') catches++;
+            else if (b.dismissal.type === 'run_out') runOuts++;
+            else if (b.dismissal.type === 'stumped') stumpings++;
+          }
+        }
+      });
+    });
+
+    if (catches === 0 && runOuts === 0 && stumpings === 0) return null;
+    return { catches, runOuts, stumpings, total: catches + runOuts + stumpings };
+  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, scorecards]);
+
+  const isMotm = useMemo(() => {
+    if (!selectedPlayerPreview) return false;
+    const pId = previewPlayerId;
+    const pName = previewPlayerName.toLowerCase();
+    const currentM = liveState?.match || matchData?.match || matchData;
+    const mvpId = (currentM?.playerOfMatch?._id || currentM?.playerOfMatch || resolvedMvp?._id || resolvedMvp)?.toString();
+    const mvpName = (currentM?.playerOfMatch?.name || resolvedMvp?.name || '').trim().toLowerCase();
+    return (pId && mvpId && pId === mvpId) || (pName && mvpName && pName === mvpName) || !!selectedPlayerPreview.isMotm;
+  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, liveState?.match, matchData, resolvedMvp]);
+
+  const isFighter = useMemo(() => {
+    if (!selectedPlayerPreview) return false;
+    if (selectedPlayerPreview.isFighter) return true;
+    const pId = previewPlayerId;
+    const pName = previewPlayerName.toLowerCase();
+    const currentM = liveState?.match || matchData?.match || matchData;
+    if (!currentM?.result?.winner || !scorecards || scorecards.length === 0) return false;
+
+    const winnerId = (currentM.result.winner?._id || currentM.result.winner)?.toString();
+    const teamAId = (currentM.teamA?._id || currentM.teamA)?.toString();
+    const teamBId = (currentM.teamB?._id || currentM.teamB)?.toString();
+    const losingTeamId = winnerId === teamAId ? teamBId : teamAId;
+
+    const losingBatters = scorecards.find(sc => {
+      const bId = (sc.battingTeam?._id || sc.battingTeam)?.toString();
+      return bId === losingTeamId;
+    })?.batting?.filter(b => b.player) || [];
+
+    const losingBowlers = scorecards.find(sc => {
+      const bwId = (sc.bowlingTeam?._id || sc.bowlingTeam)?.toString();
+      return bwId === losingTeamId;
+    })?.bowling?.filter(b => b.player) || [];
+
+    const bestLosingBatter = losingBatters.length > 0 ? [...losingBatters].sort((a, b) => (b.runs || 0) - (a.runs || 0))[0] : null;
+    const bestLosingBowler = losingBowlers.length > 0 ? [...losingBowlers].sort((a, b) => {
+      if ((b.wickets || 0) !== (a.wickets || 0)) return (b.wickets || 0) - (a.wickets || 0);
+      return (a.economy || 0) - (b.economy || 0);
+    })[0] : null;
+
+    let fighterPlayer = null;
+    if (bestLosingBatter && bestLosingBowler) {
+      fighterPlayer = (bestLosingBowler.wickets >= 3) ? bestLosingBowler.player : bestLosingBatter.player;
+    } else if (bestLosingBatter) {
+      fighterPlayer = bestLosingBatter.player;
+    } else if (bestLosingBowler) {
+      fighterPlayer = bestLosingBowler.player;
+    }
+
+    if (!fighterPlayer) return false;
+    const fId = (fighterPlayer._id || fighterPlayer.id || fighterPlayer)?.toString();
+    const fName = (fighterPlayer.name || '').trim().toLowerCase();
+    return (pId && fId === pId) || (pName && fName && fName === pName);
+  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, liveState?.match, matchData, scorecards]);
+
+  const renderBallChip = useCallback((ball, index, isBowling = false) => {
+    let label = '0';
+    let bgColor = isDark ? '#262626' : '#E2E8F0';
+    let textColor = isDark ? '#94A3B8' : '#475569';
+    let isBoundary = false;
+
+    const runs = isBowling 
+      ? (ball.totalRuns !== undefined ? ball.totalRuns : (ball.batsmanRuns || 0) + (ball.extraRuns || 0))
+      : (ball.batsmanRuns || 0);
+
+    if (ball.isWicket) {
+      label = 'W';
+      bgColor = '#DC2626';
+      textColor = '#FFFFFF';
+    } else if (ball.isSix || runs === 6) {
+      label = '6';
+      bgColor = '#7C3AED';
+      textColor = '#FFFFFF';
+      isBoundary = true;
+    } else if (ball.isBoundary || runs === 4) {
+      label = '4';
+      bgColor = '#059669';
+      textColor = '#FFFFFF';
+      isBoundary = true;
+    } else if (ball.isWide) {
+      label = runs > 1 ? `${runs}Wd` : 'Wd';
+      bgColor = '#D97706';
+      textColor = '#FFFFFF';
+    } else if (ball.isNoBall) {
+      label = runs > 1 ? `${runs}Nb` : 'Nb';
+      bgColor = '#D97706';
+      textColor = '#FFFFFF';
+    } else if (runs > 0) {
+      label = String(runs);
+      bgColor = colors.primary;
+      textColor = '#000000';
+    }
+
+    const ovPrefix = ball.overNumber !== undefined ? Math.max(0, ball.overNumber - 1) : 0;
+    const overLabel = `${ovPrefix}.${ball.ballNumber || 1}`;
+
+    return (
+      <View key={index} style={styles.ppmBallItem}>
+        <View style={[styles.ppmBallCircle, { backgroundColor: bgColor }, isBoundary && styles.ppmBallCircleHighlight]}>
+          <Text style={[styles.ppmBallText, { color: textColor }]}>{label}</Text>
+        </View>
+        <Text style={styles.ppmBallOverText}>{overLabel}</Text>
+      </View>
+    );
+  }, [colors, isDark, styles]);
 
   const handleBackPress = useCallback(() => {
     const state = navigation.getState();
@@ -2312,7 +2681,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                   const mvpPhoto = getPlayerPhotoUrl(mvp);
                   return (
                     <TouchableOpacity
-                      onPress={() => setSelectedPlayerPreview(mvp)}
+                      onPress={() => setSelectedPlayerPreview({ ...mvp, isMotm: true })}
                       activeOpacity={0.92}
                       style={{
                         marginHorizontal: Spacing.md,
@@ -2398,7 +2767,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
                 {/* ── FIGHTER OF THE MATCH ── Landscape banner */}
                 {fighterOfTheMatch && fighterOfTheMatch._id !== mvp?._id && (
                   <TouchableOpacity
-                    onPress={() => setSelectedPlayerPreview(fighterOfTheMatch)}
+                    onPress={() => setSelectedPlayerPreview({ ...fighterOfTheMatch, isFighter: true })}
                     activeOpacity={0.85}
                     style={{
                       marginHorizontal: Spacing.md,
@@ -3655,7 +4024,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           {/* Team A Header */}
           <TouchableOpacity
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 16 }}
-            onPress={() => match.teamA?._id && navigation.navigate('TeamDetail', { id: match.teamA._id })}
+            onPress={() => match.teamA?._id && navigation.navigate('TeamDetail', { id: match.teamA._id, team: match.teamA })}
           >
             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.borderLight, justifyContent: 'center', alignItems: 'center', marginRight: 8, overflow: 'hidden' }}>
               {(match.teamA?.logo || match.teamA?.logoUrl) ? (
@@ -3674,7 +4043,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           {/* Team B Header */}
           <TouchableOpacity
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 16 }}
-            onPress={() => match.teamB?._id && navigation.navigate('TeamDetail', { id: match.teamB._id })}
+            onPress={() => match.teamB?._id && navigation.navigate('TeamDetail', { id: match.teamB._id, team: match.teamB })}
           >
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <Text style={{ fontFamily: Typography.fontFamily.bold, color: colors.textPrimary, fontSize: 12, textAlign: 'right' }} numberOfLines={2}>{match.teamB?.name}</Text>
@@ -5447,16 +5816,25 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           style: 'destructive',
           onPress: async () => {
             try {
+              const currentTourId = route.params?.tournamentId || match?.tournament?._id || match?.tournament || (liveState?.match?.tournament?._id || liveState?.match?.tournament);
               await api.delete(`/matches/${cleanMatchId}`);
               try { dispatch(clearLiveState()); } catch (_) {}
               showCustomAlert('Match Deleted', 'The match has been deleted successfully.');
-              try {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'MyCricketMain', params: { tab: 'Matches' } }]
-                });
-              } catch (_) {
-                navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } });
+
+              if (currentTourId) {
+                const tourIdStr = socketService.cleanId(currentTourId);
+                navigation.navigate('TournamentDetail', { tournamentId: tourIdStr, initialTab: 'Matches', refresh: Date.now() });
+              } else if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                try {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'MyCricketMain', params: { tab: 'Matches' } }]
+                  });
+                } catch (_) {
+                  navigation.navigate('My Cricket', { screen: 'MyCricketMain', params: { tab: 'Matches' } });
+                }
               }
             } catch (err) {
               console.error('Error deleting match:', err);
@@ -6172,89 +6550,417 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         </View>
       </Modal>
 
-      {/* Player Preview Modal — Premium Style */}
+      {/* ── CricHeroes-Style Player Match Performance Modal ── */}
       {selectedPlayerPreview && (
         <Modal
           visible
           transparent
-          animationType="fade"
+          animationType="slide"
           statusBarTranslucent
           onRequestClose={() => setSelectedPlayerPreview(null)}
         >
-          <Pressable style={styles.ppModalOverlay} onPress={() => setSelectedPlayerPreview(null)}>
-            <Pressable style={styles.ppCard} onPress={() => { }}>
-              {/* Full-width cover image */}
-              <View style={styles.ppCoverContainer}>
-                {(selectedPlayerPreview.photo || selectedPlayerPreview.userId?.photo) ? (
-                  <Image
-                    source={{ uri: getImageUrl(selectedPlayerPreview.photo || selectedPlayerPreview.userId?.photo) }}
-                    style={styles.ppCoverImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Image
-                    source={selectedPlayerPreview.playingRole === 'Bowler' ? FALLBACK_BOWLER : FALLBACK_BATTER}
-                    style={styles.ppCoverImage}
-                    resizeMode="cover"
-                  />
-                )}
-                {/* Black gradient with name */}
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.72)', 'rgba(0,0,0,0.97)']}
-                  style={styles.ppGradient}
+          <View style={styles.ppmModalOverlay}>
+            <View style={styles.ppmCard}>
+              {/* 1. Common Match Header */}
+              <View style={styles.ppmHeader}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <Icon name="cricket" size={15} color={colors.primary} />
+                    <Text style={styles.ppmMatchTeams} numberOfLines={1}>
+                      {(liveState?.match?.teamA?.name || matchData?.match?.teamA?.name || 'Team A')} vs {(liveState?.match?.teamB?.name || matchData?.match?.teamB?.name || 'Team B')}
+                    </Text>
+                  </View>
+                  <Text style={styles.ppmMatchMeta} numberOfLines={1}>
+                    {liveState?.match?.tournament?.name || matchData?.match?.tournament?.name ? `${liveState?.match?.tournament?.name || matchData?.match?.tournament?.name} • ` : ''}
+                    {(() => {
+                      const res = liveState?.match?.result || matchData?.match?.result;
+                      if (!res) return (liveState?.match?.status === 'completed' || matchData?.match?.status === 'completed') ? 'Match Finished' : 'Live Match';
+                      if (typeof res === 'string') return res;
+                      return res.summary || ((liveState?.match?.status === 'completed' || matchData?.match?.status === 'completed') ? 'Match Finished' : 'Live Match');
+                    })()}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.ppmCloseBtn}
+                  onPress={() => setSelectedPlayerPreview(null)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Text style={styles.ppName}>{selectedPlayerPreview.name}</Text>
-                  {selectedPlayerPreview.team?.name ? (
-                    <Text style={styles.ppTeam}>{selectedPlayerPreview.team.name}</Text>
-                  ) : null}
-                </LinearGradient>
-                {/* Close X */}
-                <TouchableOpacity style={styles.ppClose} onPress={() => setSelectedPlayerPreview(null)}>
-                  <Icon name="close" size={18} color="#fff" />
+                  <Icon name="close" size={20} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
 
-              {/* Overall Career Stats Row */}
-              <View style={styles.ppStatsRow}>
-                {playerPreviewLoading ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  [{
-                    label: 'Matches',
-                    value: playerPreviewStats?.career?.matches ?? '-',
-                    icon: 'cricket'
-                  }, {
-                    label: 'Runs',
-                    value: playerPreviewStats?.batting?.runs ?? '-',
-                    icon: 'run'
-                  }, {
-                    label: 'Wickets',
-                    value: playerPreviewStats?.bowling?.wickets ?? '-',
-                    icon: 'bowling'
-                  }].map((s, i) => (
-                    <View key={i} style={styles.ppStatPill}>
-                      <Text style={styles.ppStatValue}>{s.value}</Text>
-                      <Text style={styles.ppStatLabel}>{s.label}</Text>
-                    </View>
-                  ))
-                )}
+              {/* 2. Modal Tabs Bar */}
+              <View style={styles.ppmTabsBar}>
+                <TouchableOpacity
+                  style={[styles.ppmTabBtn, playerModalTab === 'match' && styles.ppmTabBtnActive]}
+                  onPress={() => setPlayerModalTab('match')}
+                >
+                  <Text style={[styles.ppmTabText, playerModalTab === 'match' && styles.ppmTabTextActive]}>Match Stats</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.ppmTabBtn, playerModalTab === 'career' && styles.ppmTabBtnActive]}
+                  onPress={() => setPlayerModalTab('career')}
+                >
+                  <Text style={[styles.ppmTabText, playerModalTab === 'career' && styles.ppmTabTextActive]}>Career Profile</Text>
+                </TouchableOpacity>
               </View>
 
-              {/* View Profile Button */}
-              <TouchableOpacity
-                style={styles.ppViewBtn}
-                activeOpacity={0.85}
-                onPress={() => {
-                  const pId = selectedPlayerPreview._id;
-                  setSelectedPlayerPreview(null);
-                  if (pId) navigation.navigate('PlayerDetail', { id: pId });
-                }}
-              >
-                <Icon name="account-arrow-right" size={18} color="#000" style={{ marginRight: 6 }} />
-                <Text style={styles.ppViewBtnText}>View Full Profile</Text>
-              </TouchableOpacity>
-            </Pressable>
-          </Pressable>
+              {/* 3. Modal Scroll Body */}
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.ppmScrollContent}>
+                {/* Player Profile Banner */}
+                <View style={styles.ppmProfileBanner}>
+                  {(selectedPlayerPreview.photo || playerPreviewStats?.photo || selectedPlayerPreview.userId?.photo) ? (
+                    <Image
+                      source={{ uri: getImageUrl(selectedPlayerPreview.photo || playerPreviewStats?.photo || selectedPlayerPreview.userId?.photo) }}
+                      style={styles.ppmAvatar}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.ppmAvatarFallback}>
+                      <Text style={styles.ppmAvatarText}>{(previewPlayerName.charAt(0) || 'P').toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <View style={styles.ppmProfileInfo}>
+                    <Text style={styles.ppmPlayerName} numberOfLines={1}>{previewPlayerName}</Text>
+                    <Text style={styles.ppmTeamRole} numberOfLines={1}>
+                      {previewPlayerTeam ? `${previewPlayerTeam} • ` : ''}{selectedPlayerPreview.playingRole || selectedPlayerPreview.role || playerPreviewStats?.playingRole || 'Player'}
+                    </Text>
+                    {(selectedPlayerPreview.battingStyle || playerPreviewStats?.battingStyle || selectedPlayerPreview.bowlingStyle || playerPreviewStats?.bowlingStyle) && (
+                      <Text style={{ fontSize: 11, color: colors.textTertiary, marginTop: 2 }} numberOfLines={1}>
+                        {[selectedPlayerPreview.battingStyle || playerPreviewStats?.battingStyle, selectedPlayerPreview.bowlingStyle || playerPreviewStats?.bowlingStyle].filter(Boolean).join(' • ')}
+                      </Text>
+                    )}
+                    <View style={styles.ppmBadgeRow}>
+                      {isMotm && (
+                        <View style={styles.ppmBadgeMotm}>
+                          <Icon name="trophy" size={12} color="#EAB308" />
+                          <Text style={styles.ppmBadgeMotmText}>Player of the Match</Text>
+                        </View>
+                      )}
+                      {isFighter && !isMotm && (
+                        <View style={styles.ppmBadgeFighter}>
+                          <Icon name="flash" size={12} color="#EC4899" />
+                          <Text style={styles.ppmBadgeFighterText}>Fighter of the Match</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+
+                {playerModalTab === 'match' ? (
+                  <>
+                    {/* Quick Match Highlights Bar */}
+                    <View style={styles.ppmQuickChipsRow}>
+                      {batterMetrics ? (
+                        <View style={styles.ppmQuickChip}>
+                          <Icon name="cricket" size={14} color={colors.primary} />
+                          <Text style={styles.ppmQuickChipText}>{batterMetrics.runs} ({batterMetrics.balls}) • SR: {batterMetrics.strikeRate}</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.ppmQuickChip, { opacity: 0.6 }]}>
+                          <Icon name="cricket" size={14} color={colors.textTertiary} />
+                          <Text style={[styles.ppmQuickChipText, { color: colors.textSecondary }]}>Did Not Bat</Text>
+                        </View>
+                      )}
+                      {bowlerMetrics ? (
+                        <View style={styles.ppmQuickChip}>
+                          <Icon name="bowling" size={14} color={colors.primary} />
+                          <Text style={styles.ppmQuickChipText}>{bowlerMetrics.wickets}/{bowlerMetrics.runs} ({bowlerMetrics.overs} ov) • ER: {bowlerMetrics.economy}</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.ppmQuickChip, { opacity: 0.6 }]}>
+                          <Icon name="bowling" size={14} color={colors.textTertiary} />
+                          <Text style={[styles.ppmQuickChipText, { color: colors.textSecondary }]}>Did Not Bowl</Text>
+                        </View>
+                      )}
+                      {fieldingMetrics && (
+                        <View style={styles.ppmQuickChip}>
+                          <Icon name="hand-back-right" size={14} color={colors.primary} />
+                          <Text style={styles.ppmQuickChipText}>{fieldingMetrics.catches} Catch{fieldingMetrics.catches === 1 ? '' : 'es'}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* ── BATTING CARD ── */}
+                    {batterMetrics ? (
+                      <View style={styles.ppmSectionCard}>
+                        <View style={styles.ppmSectionHeaderRow}>
+                          <Text style={styles.ppmSectionTitle}>Batting Performance</Text>
+                          {matchBatting?.isNotOut ? (
+                            <View style={[styles.ppmDismissalPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                              <Text style={[styles.ppmDismissalText, { color: '#10B981', fontFamily: Typography.fontFamily.bold }]}>Not Out *</Text>
+                            </View>
+                          ) : matchBatting?.dismissal ? (
+                            <View style={styles.ppmDismissalPill}>
+                              <Text style={styles.ppmDismissalText}>{formatDismissalText(matchBatting)}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+
+                        <View style={styles.ppmPrimaryScoreRow}>
+                          <Text style={styles.ppmPrimaryScore}>{batterMetrics.runs}</Text>
+                          <Text style={styles.ppmPrimaryScoreSub}>({batterMetrics.balls} balls)</Text>
+                          <Text style={[styles.ppmPrimaryScoreSub, { marginLeft: 'auto', color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+                            SR: {batterMetrics.strikeRate}
+                          </Text>
+                        </View>
+
+                        {/* Batting 6-Grid Stats */}
+                        <View style={styles.ppmStatsGrid}>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{batterMetrics.fours}</Text>
+                            <Text style={styles.ppmGridLabel}>Fours (4s)</Text>
+                          </View>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{batterMetrics.sixes}</Text>
+                            <Text style={styles.ppmGridLabel}>Sixes (6s)</Text>
+                          </View>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{batterMetrics.boundaryPercent}%</Text>
+                            <Text style={styles.ppmGridLabel}>Boundary %</Text>
+                          </View>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{batterMetrics.dots} ({batterMetrics.dotPercent}%)</Text>
+                            <Text style={styles.ppmGridLabel}>Dots (0s)</Text>
+                          </View>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{batterMetrics.ones}</Text>
+                            <Text style={styles.ppmGridLabel}>Singles (1s)</Text>
+                          </View>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{batterMetrics.twos}</Text>
+                            <Text style={styles.ppmGridLabel}>Twos (2s)</Text>
+                          </View>
+                        </View>
+
+                        {/* Ball by Ball Faced */}
+                        <Text style={styles.ppmTimelineTitle}>Deliveries Faced ({batterBallsFaced.length})</Text>
+                        {batterBallsFaced.length > 0 ? (
+                          <>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ppmBallsRow}>
+                              {batterBallsFaced.map((b, idx) => renderBallChip(b, idx, false))}
+                            </ScrollView>
+                            <View style={styles.ppmBallSummaryBar}>
+                              <Text style={styles.ppmBallSummaryText}>Dots: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{batterMetrics.dots}</Text></Text>
+                              <Text style={styles.ppmBallSummaryText}>1s: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{batterMetrics.ones}</Text></Text>
+                              <Text style={styles.ppmBallSummaryText}>2s: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{batterMetrics.twos}</Text></Text>
+                              <Text style={styles.ppmBallSummaryText}>4s: <Text style={{ color: '#059669', fontWeight: 'bold' }}>{batterMetrics.fours}</Text></Text>
+                              <Text style={styles.ppmBallSummaryText}>6s: <Text style={{ color: '#7C3AED', fontWeight: 'bold' }}>{batterMetrics.sixes}</Text></Text>
+                            </View>
+                          </>
+                        ) : (
+                          <Text style={{ fontSize: 12, color: colors.textTertiary, fontStyle: 'italic' }}>Detailed ball-by-ball commentary not available</Text>
+                        )}
+                      </View>
+                    ) : (
+                      <View style={styles.ppmEmptyCard}>
+                        <Icon name="cricket" size={24} color={colors.textTertiary} style={{ marginBottom: 4 }} />
+                        <Text style={styles.ppmEmptyText}>Did not bat in this match</Text>
+                      </View>
+                    )}
+
+                    {/* ── BOWLING CARD ── */}
+                    {bowlerMetrics ? (
+                      <View style={styles.ppmSectionCard}>
+                        <View style={styles.ppmSectionHeaderRow}>
+                          <Text style={styles.ppmSectionTitle}>Bowling Performance</Text>
+                          <View style={styles.ppmDismissalPill}>
+                            <Text style={[styles.ppmDismissalText, { color: colors.primary, fontFamily: Typography.fontFamily.bold }]}>
+                              ER: {bowlerMetrics.economy}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.ppmPrimaryScoreRow}>
+                          <Text style={styles.ppmPrimaryScore}>{bowlerMetrics.wickets}/{bowlerMetrics.runs}</Text>
+                          <Text style={styles.ppmPrimaryScoreSub}>({bowlerMetrics.overs} overs)</Text>
+                          <Text style={[styles.ppmPrimaryScoreSub, { marginLeft: 'auto', color: colors.textSecondary }]}>
+                            {bowlerMetrics.maidens} Maiden{bowlerMetrics.maidens === 1 ? '' : 's'}
+                          </Text>
+                        </View>
+
+                        {/* Bowling 6-Grid Stats */}
+                        <View style={styles.ppmStatsGrid}>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{bowlerMetrics.overs}</Text>
+                            <Text style={styles.ppmGridLabel}>Overs</Text>
+                          </View>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{bowlerMetrics.wickets}</Text>
+                            <Text style={styles.ppmGridLabel}>Wickets</Text>
+                          </View>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{bowlerMetrics.runs}</Text>
+                            <Text style={styles.ppmGridLabel}>Runs</Text>
+                          </View>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{bowlerMetrics.economy}</Text>
+                            <Text style={styles.ppmGridLabel}>Economy</Text>
+                          </View>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{bowlerMetrics.dots} ({bowlerMetrics.dotPercent}%)</Text>
+                            <Text style={styles.ppmGridLabel}>Dots</Text>
+                          </View>
+                          <View style={styles.ppmGridItem}>
+                            <Text style={styles.ppmGridVal}>{bowlerMetrics.extras}</Text>
+                            <Text style={styles.ppmGridLabel}>Extras</Text>
+                          </View>
+                        </View>
+
+                        {/* Ball by Ball Bowled */}
+                        <Text style={styles.ppmTimelineTitle}>Deliveries Bowled ({bowlerBallsBowled.length})</Text>
+                        {bowlerOversGrouped.length > 0 ? (
+                          <>
+                            {bowlerOversGrouped.map((ov, idx) => (
+                              <View key={idx} style={styles.ppmOverGroup}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                  <Text style={styles.ppmOverGroupHeader}>Over {ov.overNumber}</Text>
+                                  <Text style={{ fontSize: 11, fontFamily: Typography.fontFamily.medium, color: colors.textSecondary }}>
+                                    {ov.runs} Run{ov.runs === 1 ? '' : 's'} • {ov.wickets} Wkt{ov.wickets === 1 ? '' : 's'}
+                                  </Text>
+                                </View>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ppmBallsRow}>
+                                  {ov.balls.map((b, bIdx) => renderBallChip(b, bIdx, true))}
+                                </ScrollView>
+                              </View>
+                            ))}
+                            <View style={styles.ppmBallSummaryBar}>
+                              <Text style={styles.ppmBallSummaryText}>Dots: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{bowlerMetrics.dots}</Text></Text>
+                              <Text style={styles.ppmBallSummaryText}>Boundaries: <Text style={{ color: colors.warning, fontWeight: 'bold' }}>{bowlerMetrics.boundariesConceded}</Text></Text>
+                              <Text style={styles.ppmBallSummaryText}>Extras: <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{bowlerMetrics.extras}</Text></Text>
+                            </View>
+                          </>
+                        ) : (
+                          <Text style={{ fontSize: 12, color: colors.textTertiary, fontStyle: 'italic' }}>Detailed ball-by-ball commentary not available</Text>
+                        )}
+                      </View>
+                    ) : (
+                      <View style={styles.ppmEmptyCard}>
+                        <Icon name="bowling" size={24} color={colors.textTertiary} style={{ marginBottom: 4 }} />
+                        <Text style={styles.ppmEmptyText}>Did not bowl in this match</Text>
+                      </View>
+                    )}
+
+                    {/* ── FIELDING CARD ── */}
+                    {fieldingMetrics && (
+                      <View style={styles.ppmSectionCard}>
+                        <Text style={[styles.ppmSectionTitle, { marginBottom: 10 }]}>Fielding Performance</Text>
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                          <View style={[styles.ppmGridItem, { backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.6)', borderRadius: 10 }]}>
+                            <Text style={styles.ppmGridVal}>{fieldingMetrics.catches}</Text>
+                            <Text style={styles.ppmGridLabel}>Catches</Text>
+                          </View>
+                          <View style={[styles.ppmGridItem, { backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.6)', borderRadius: 10 }]}>
+                            <Text style={styles.ppmGridVal}>{fieldingMetrics.runOuts}</Text>
+                            <Text style={styles.ppmGridLabel}>Run Outs</Text>
+                          </View>
+                          <View style={[styles.ppmGridItem, { backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.6)', borderRadius: 10 }]}>
+                            <Text style={styles.ppmGridVal}>{fieldingMetrics.stumpings}</Text>
+                            <Text style={styles.ppmGridLabel}>Stumpings</Text>
+                          </View>
+                        </View>
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  /* ── CAREER PROFILE TAB ── */
+                  <View>
+                    {playerPreviewLoading ? (
+                      <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 30 }} />
+                    ) : playerPreviewStats ? (
+                      <>
+                        <View style={styles.ppmSectionCard}>
+                          <Text style={[styles.ppmSectionTitle, { marginBottom: 12 }]}>Career Batting</Text>
+                          <View style={styles.ppmStatsGrid}>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>{playerPreviewStats.career?.matches ?? playerPreviewStats.batting?.innings ?? '-'}</Text>
+                              <Text style={styles.ppmGridLabel}>Matches</Text>
+                            </View>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>{playerPreviewStats.batting?.runs ?? 0}</Text>
+                              <Text style={styles.ppmGridLabel}>Runs</Text>
+                            </View>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>{playerPreviewStats.batting?.highestScore ?? '-'}</Text>
+                              <Text style={styles.ppmGridLabel}>Highest</Text>
+                            </View>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>
+                                {playerPreviewStats.batting?.innings > 0 ? (playerPreviewStats.batting.runs / Math.max(1, playerPreviewStats.batting.innings - (playerPreviewStats.batting.notOuts || 0))).toFixed(1) : '-'}
+                              </Text>
+                              <Text style={styles.ppmGridLabel}>Average</Text>
+                            </View>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>
+                                {playerPreviewStats.batting?.balls > 0 ? ((playerPreviewStats.batting.runs / playerPreviewStats.batting.balls) * 100).toFixed(1) : '-'}
+                              </Text>
+                              <Text style={styles.ppmGridLabel}>Strike Rate</Text>
+                            </View>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>{(playerPreviewStats.batting?.fifties || 0) + (playerPreviewStats.batting?.hundreds || 0)}</Text>
+                              <Text style={styles.ppmGridLabel}>50s / 100s</Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        <View style={styles.ppmSectionCard}>
+                          <Text style={[styles.ppmSectionTitle, { marginBottom: 12 }]}>Career Bowling</Text>
+                          <View style={styles.ppmStatsGrid}>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>{playerPreviewStats.bowling?.wickets ?? 0}</Text>
+                              <Text style={styles.ppmGridLabel}>Wickets</Text>
+                            </View>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>{playerPreviewStats.bowling?.overs ?? 0}</Text>
+                              <Text style={styles.ppmGridLabel}>Overs</Text>
+                            </View>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>
+                                {playerPreviewStats.bowling?.overs > 0 ? (playerPreviewStats.bowling.runs / playerPreviewStats.bowling.overs).toFixed(1) : '-'}
+                              </Text>
+                              <Text style={styles.ppmGridLabel}>Economy</Text>
+                            </View>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>
+                                {playerPreviewStats.bowling?.bestWickets ? `${playerPreviewStats.bowling.bestWickets}/${playerPreviewStats.bowling.bestRuns}` : '-'}
+                              </Text>
+                              <Text style={styles.ppmGridLabel}>Best Figures</Text>
+                            </View>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>{playerPreviewStats.bowling?.maidens ?? 0}</Text>
+                              <Text style={styles.ppmGridLabel}>Maidens</Text>
+                            </View>
+                            <View style={styles.ppmGridItem}>
+                              <Text style={styles.ppmGridVal}>{playerPreviewStats.career?.points ?? '-'}</Text>
+                              <Text style={styles.ppmGridLabel}>Points</Text>
+                            </View>
+                          </View>
+                        </View>
+                      </>
+                    ) : (
+                      <View style={styles.ppmEmptyCard}>
+                        <Text style={styles.ppmEmptyText}>Career stats not available</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* View Full Profile Action Button */}
+                <TouchableOpacity
+                  style={styles.ppmFullProfileBtn}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    const pId = previewPlayerId;
+                    setSelectedPlayerPreview(null);
+                    if (pId) navigation.navigate('PlayerDetail', { id: pId });
+                  }}
+                >
+                  <Icon name="account-arrow-right" size={20} color="#000" />
+                  <Text style={styles.ppmFullProfileBtnText}>View Full Profile & Career Stats</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
         </Modal>
       )}
 
@@ -6660,126 +7366,367 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   modalBtnView: { flex: 1, paddingVertical: 13, borderRadius: BorderRadius.md, backgroundColor: colors.primary, alignItems: 'center' },
   modalBtnTextView: { color: colors.textOnPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14 },
 
-  // ── Premium Player Preview Modal ─────────────────────────────────────────────
-  ppModalOverlay: {
+  // ── CricHeroes-Style Player Match Performance Modal ─────────────────────────
+  ppmModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'flex-end',
   },
-  ppCard: {
-    width: '100%',
-    backgroundColor: colors.surface,
-    borderRadius: 20,
+  ppmCard: {
+    maxHeight: '92%',
+    backgroundColor: isDark ? '#141414' : '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.border,
-    elevation: 20,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    elevation: 25,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
   },
-  ppCoverContainer: {
-    width: '100%',
-    height: 280,
-    backgroundColor: '#1a1a1a',
-    position: 'relative',
-  },
-  ppCoverImage: {
-    width: '100%',
-    height: '100%',
-  },
-  ppCoverFallback: {
-    justifyContent: 'center',
+  ppmHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
-  },
-  ppCoverFallbackLetter: {
-    fontSize: 80,
-    fontFamily: Typography.fontFamily.bold,
-    color: colors.primary,
-    opacity: 0.4,
-  },
-  ppGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '65%',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 14,
-    gap: 3,
+    paddingVertical: 14,
+    backgroundColor: isDark ? '#1C1C1E' : '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   },
-  ppName: {
-    fontSize: 26,
+  ppmMatchTeams: {
+    fontSize: 14,
     fontFamily: Typography.fontFamily.bold,
-    color: '#fff',
-    letterSpacing: 0.4,
+    color: colors.textPrimary,
   },
-  ppTeam: {
+  ppmMatchMeta: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  ppmCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ppmTabsBar: {
+    flexDirection: 'row',
+    backgroundColor: isDark ? '#18181A' : '#F1F5F9',
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  ppmTabBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'transparent',
+  },
+  ppmTabBtnActive: {
+    borderBottomColor: colors.primary,
+  },
+  ppmTabText: {
     fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.textSecondary,
   },
-  ppClose: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ppViewBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    marginHorizontal: 16,
-    marginVertical: 16,
-    borderRadius: 12,
-    paddingVertical: 14,
-  },
-  ppViewBtnText: {
-    fontSize: 15,
+  ppmTabTextActive: {
+    color: isDark ? '#FFFFFF' : '#0F172A',
     fontFamily: Typography.fontFamily.bold,
-    color: '#000',
-    letterSpacing: 0.3,
   },
-  ppStatsRow: {
+  ppmScrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 28,
+  },
+  ppmProfileBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    backgroundColor: isDark ? colors.backgroundElevated : colors.surfaceVariant,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    backgroundColor: isDark ? '#1E1E1E' : '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
   },
-  ppStatPill: {
-    flex: 1,
+  ppmAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: isDark ? '#262626' : '#E2E8F0',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  ppmAvatarFallback: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primaryAlpha20,
+    borderWidth: 2,
+    borderColor: colors.primary,
     alignItems: 'center',
-    borderRightWidth: 1,
-    borderRightColor: colors.border,
-    paddingVertical: 4,
+    justifyContent: 'center',
   },
-  ppStatValue: {
-    fontSize: 22,
+  ppmAvatarText: {
+    fontSize: 26,
     fontFamily: Typography.fontFamily.bold,
     color: colors.primary,
   },
-  ppStatLabel: {
+  ppmProfileInfo: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  ppmPlayerName: {
+    fontSize: 17,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  ppmTeamRole: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  ppmBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  ppmBadgeMotm: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(234, 179, 8, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(234, 179, 8, 0.3)',
+  },
+  ppmBadgeMotmText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#EAB308',
+  },
+  ppmBadgeFighter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(236, 72, 153, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(236, 72, 153, 0.3)',
+  },
+  ppmBadgeFighterText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#EC4899',
+  },
+  ppmQuickChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  ppmQuickChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: isDark ? '#1E1E1E' : '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+  },
+  ppmQuickChipText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: colors.textPrimary,
+  },
+  ppmSectionCard: {
+    backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    ...shadows.sm,
+  },
+  ppmSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  ppmSectionTitle: {
+    fontSize: 15,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  ppmDismissalPill: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    maxWidth: '55%',
+  },
+  ppmDismissalText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  ppmPrimaryScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 12,
+    gap: 6,
+  },
+  ppmPrimaryScore: {
+    fontSize: 28,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  ppmPrimaryScoreSub: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  ppmStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  ppmGridItem: {
+    flex: 1,
+    minWidth: '30%',
+    backgroundColor: isDark ? '#242426' : '#F8FAFC',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  ppmGridVal: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  ppmGridLabel: {
     fontSize: 11,
     fontFamily: Typography.fontFamily.medium,
     color: colors.textSecondary,
     marginTop: 2,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    textAlign: 'center',
+  },
+  ppmTimelineTitle: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  ppmBallsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  ppmBallItem: {
+    alignItems: 'center',
+    width: 38,
+  },
+  ppmBallCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ppmBallCircleHighlight: {
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  ppmBallText: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  ppmBallOverText: {
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textTertiary,
+    marginTop: 3,
+  },
+  ppmBallSummaryBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: isDark ? '#222224' : '#F1F5F9',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    marginTop: 10,
+  },
+  ppmBallSummaryText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  ppmOverGroup: {
+    marginBottom: 10,
+    backgroundColor: isDark ? '#222224' : '#F8FAFC',
+    borderRadius: 10,
+    padding: 8,
+  },
+  ppmOverGroupHeader: {
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.primary,
+  },
+  ppmEmptyCard: {
+    backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+    borderRadius: 14,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+  },
+  ppmEmptyText: {
+    fontSize: 13,
+    fontFamily: Typography.fontFamily.medium,
+    color: colors.textTertiary,
+  },
+  ppmFullProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginTop: 4,
+    marginBottom: 10,
+    ...shadows.sm,
+  },
+  ppmFullProfileBtnText: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#000000',
+    letterSpacing: 0.2,
   },
   // ── Innings Timings Timeline Styles ──
   timelineRow: {

@@ -9,6 +9,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { isTeamVerified } from '../../../utils/teamUtils';
 import { useTheme, Typography, Spacing, BorderRadius, Shadows } from '../../../theme/theme';
 import { fetchMyMatches, updateLiveMatchScore } from '../matchSlice';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams } from '../../team/teamSlice';
@@ -677,6 +678,11 @@ const MyCricketScreen = ({ route }) => {
     }
   };
 
+  const handleShareTeamLink = () => {
+    setShowQrModal(false);
+    setShowPosterShareModal(true);
+  };
+
   useEffect(() => {
     if (!isAuthenticated && isFocused) {
       navigation.navigate('AuthModal', { screen: 'Login' });
@@ -1091,7 +1097,7 @@ const MyCricketScreen = ({ route }) => {
     }
 
     return (
-      <TouchableOpacity style={styles.teamCard} onPress={() => navigation.navigate('TeamDetail', { id: item._id })} activeOpacity={0.85}>
+      <TouchableOpacity style={styles.teamCard} onPress={() => navigation.navigate('TeamDetail', { id: item._id, team: item })} activeOpacity={0.85}>
         <View style={styles.teamLogoContainer}>
           {item.logo ? (
             <Image source={{ uri: getImageUrl(item.logo) }} style={styles.teamLogo} />
@@ -1102,10 +1108,13 @@ const MyCricketScreen = ({ route }) => {
               </Text>
             </View>
           )}
-          {item.isVerified && <View style={styles.verifiedBadge}><Icon name="check-decagram" size={16} color={colors.accent || colors.primary} /></View>}
+
         </View>
         <View style={styles.teamInfo}>
-          <Text style={styles.teamNameText2} numberOfLines={1}>{item.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={styles.teamNameText2} numberOfLines={1}>{item.name}</Text>
+            {isTeamVerified(item) && <Icon name="check-decagram" size={15} color="#10B981" />}
+          </View>
           <View style={styles.teamMetaRow}>
             <Icon name="map-marker" size={14} color={colors.textTertiary} />
             <Text style={styles.teamMetaText}>{item.city || 'Location'}</Text>
@@ -1451,29 +1460,34 @@ const MyCricketScreen = ({ route }) => {
             </Text>
 
             <View style={{ width: '100%', gap: 10 }}>
-              <TouchableOpacity style={styles.shareQrBtn} onPress={handleShareTeamQr} disabled={isCapturingQr} activeOpacity={0.8}>
-                <LinearGradient colors={[colors.primary, colors.primaryDark || colors.primary]} style={styles.shareQrGradient}>
-                  {isCapturingQr ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <>
-                      <Icon name="share-variant" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                      <Text style={styles.shareQrText}>Share Team QR</Text>
-                    </>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-
               <TouchableOpacity
-                style={[styles.posterShareBtn, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]}
+                style={styles.shareQrBtn}
                 onPress={() => {
                   setShowQrModal(false);
                   setShowPosterShareModal(true);
                 }}
                 activeOpacity={0.8}
               >
-                <Icon name="palette-outline" size={18} color={colors.primary} style={{ marginRight: 8 }} />
-                <Text style={[styles.posterShareText, { color: colors.textPrimary }]}>Poster Themes & Share</Text>
+                <LinearGradient colors={[colors.primary, colors.primaryDark || colors.primary]} style={styles.shareQrGradient}>
+                  <Icon name="palette-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.shareQrText}>Share Poster Card</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.posterShareBtn, { backgroundColor: isDark ? colors.background : colors.surfaceVariant, borderColor: colors.border }]}
+                onPress={handleShareTeamQr}
+                disabled={isCapturingQr}
+                activeOpacity={0.8}
+              >
+                {isCapturingQr ? (
+                  <ActivityIndicator color={colors.primary} size="small" />
+                ) : (
+                  <>
+                    <Icon name="qrcode-scan" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+                    <Text style={[styles.posterShareText, { color: colors.textPrimary }]}>Share Simple QR</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -1485,7 +1499,7 @@ const MyCricketScreen = ({ route }) => {
         <SharePreviewModal
           visible={showPosterShareModal}
           onClose={() => setShowPosterShareModal(false)}
-          title={`${selectedQrTeam.name} QR Card`}
+          title={`${selectedQrTeam.name}`}
           shareUrl={`https://scoreverse.in/team/${selectedQrTeam._id}`}
         >
           <TeamQRPoster team={selectedQrTeam} />

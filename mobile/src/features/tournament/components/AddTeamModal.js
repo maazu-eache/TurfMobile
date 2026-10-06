@@ -2,11 +2,14 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
+import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import api, { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 import { launchImageLibrary } from 'react-native-image-picker';
 import LocationAutocomplete from '../../../components/LocationAutocomplete';
+import TeamQRScannerModal from '../../team/components/TeamQRScannerModal';
+import { isTeamVerified } from '../../../utils/teamUtils';
 
 const TABS = ['Search', 'My Teams', 'Opponents', 'Following'];
 
@@ -17,6 +20,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [addingTeamId, setAddingTeamId] = useState(null);
+  const [showQrScanner, setShowQrScanner] = useState(false);
   
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -145,6 +149,7 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
   };
 
   const handleRegisterTeam = async (teamId) => {
+    if (actionLoading || addingTeamId) return;
     setActionLoading(true);
     setAddingTeamId(teamId);
     try {
@@ -160,6 +165,18 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
     }
   };
 
+  const handleScannedTeamId = async (scannedId) => {
+    if (!scannedId) return;
+    const isAdded = registeredTeams.some(
+      (rt) => (rt.team?._id || rt.team)?.toString() === scannedId.toString()
+    );
+    if (isAdded) {
+      showCustomAlert('Already Added', 'This team is already registered in this tournament.');
+      return;
+    }
+    await handleRegisterTeam(scannedId);
+  };
+
   const handleCreateGhostTeam = async () => {
     if (!ghostForm.teamName || !ghostForm.captainMobile) {
       showCustomAlert('Error', 'Team Name and Captain Mobile are required.');
@@ -173,6 +190,9 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
       formData.append('captainName', ghostForm.captainName);
       formData.append('city', ghostForm.city);
       formData.append('state', ghostForm.state);
+      if (playerProfile?._id) {
+        formData.append('captainPlayerId', playerProfile._id);
+      }
       if (ghostForm.logo && ghostForm.logo.uri) {
         formData.append('logo', {
           uri: ghostForm.logo.uri,
@@ -202,17 +222,23 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
     const isAdded = registeredTeams.some(rt => rt.team?._id === item._id || rt.team === item._id);
     return (
       <View style={styles.teamCard}>
-        {item.logo ? (
-          <Image source={{ uri: getImageUrl(item.logo) }} style={styles.teamLogo} />
-        ) : (
-          <View style={[styles.teamLogo, { backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.12)', justifyContent: 'center', alignItems: 'center', borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(230,184,0,0.4)' }]}>
-            <Text style={{ color: isDark ? colors.primary : '#8B6E00', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
-              {(item.name || 'T').trim().charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
+        <View style={{ position: 'relative' }}>
+          {item.logo ? (
+            <Image source={{ uri: getImageUrl(item.logo) }} style={styles.teamLogo} />
+          ) : (
+            <View style={[styles.teamLogo, { backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.12)', justifyContent: 'center', alignItems: 'center', borderColor: isDark ? 'rgba(255,204,0,0.3)' : 'rgba(230,184,0,0.4)' }]}>
+              <Text style={{ color: isDark ? colors.primary : '#8B6E00', fontFamily: Typography.fontFamily.bold, fontSize: 16 }}>
+                {(item.name || 'T').trim().charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+
+        </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.teamNameText}>{item.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={styles.teamNameText}>{item.name}</Text>
+            {isTeamVerified(item) && <MCIcon name="check-decagram" size={15} color="#10B981" />}
+          </View>
           <Text style={styles.teamSub}>{item.city || 'No City'} | Capt: {item.captain?.name || 'N/A'}</Text>
         </View>
         {isAdded ? (
@@ -220,7 +246,11 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
             <Text style={[styles.smallActionBtnText, { color: colors.textSecondary }]}>Added</Text>
           </View>
         ) : (
-          <TouchableOpacity style={styles.smallActionBtn} onPress={() => handleRegisterTeam(item._id)} disabled={actionLoading}>
+          <TouchableOpacity
+            style={[styles.smallActionBtn, Boolean(actionLoading || addingTeamId) && { opacity: 0.6 }]}
+            onPress={() => handleRegisterTeam(item._id)}
+            disabled={Boolean(actionLoading || addingTeamId)}
+          >
             {addingTeamId === item._id ? (
               <ActivityIndicator size="small" color={colors.textPrimary} />
             ) : (
@@ -233,10 +263,17 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
   };
 
   const getListData = () => {
-    if (activeTab === 'My Teams') return myTeams;
-    if (activeTab === 'Opponents') return opponents;
-    if (activeTab === 'Following') return following;
-    return searchResults;
+    let list = [];
+    if (activeTab === 'My Teams') list = myTeams;
+    else if (activeTab === 'Opponents') list = opponents;
+    else if (activeTab === 'Following') list = following;
+    else list = searchResults;
+
+    return [...(list || [])].sort((a, b) => {
+      const nameA = (a?.name || '').toString().toLowerCase();
+      const nameB = (b?.name || '').toString().toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
   };
 
   if (!visible) return null;
@@ -269,18 +306,44 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
 
           {/* Search Tab Specifics */}
           {activeTab === 'Search' && !showGhostForm && (
-            <View style={styles.searchRow}>
-              <TextInput 
-                style={styles.searchInput}
-                placeholder="Search by Mobile or Team Name"
-                placeholderTextColor={colors.textTertiary}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-              <TouchableOpacity style={styles.searchBtn} onPress={searchTeams}>
-                <Icon name="search" size={20} color={colors.white} />
+            <>
+              <View style={styles.searchRow}>
+                <TextInput 
+                  style={styles.searchInput}
+                  placeholder="Search by Mobile or Team Name"
+                  placeholderTextColor={colors.textTertiary}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onSubmitEditing={searchTeams}
+                  returnKeyType="search"
+                />
+                <TouchableOpacity style={styles.searchBtn} onPress={searchTeams} activeOpacity={0.8}>
+                  <Icon name="search" size={20} color={colors.white} />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.searchBtn, styles.qrScanBtn]} 
+                  onPress={() => setShowQrScanner(true)}
+                  activeOpacity={0.8}
+                >
+                  <MCIcon name="qrcode-scan" size={20} color="#000" />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={styles.qrBanner}
+                onPress={() => setShowQrScanner(true)}
+                activeOpacity={0.82}
+              >
+                <View style={styles.qrBannerIconWrap}>
+                  <MCIcon name="qrcode-scan" size={20} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+                  <Text style={styles.qrBannerTitle}>Scan Team QR Code</Text>
+                  <Text style={styles.qrBannerSub}>Scan a team's ScoreVerse QR code to add them instantly</Text>
+                </View>
+                <MCIcon name="chevron-right" size={20} color={colors.textTertiary} />
               </TouchableOpacity>
-            </View>
+            </>
           )}
 
           {loading ? (
@@ -399,6 +462,12 @@ const AddTeamModal = ({ visible, onClose, tournamentId, onRefresh, registeredTea
 
         </View>
       </KeyboardAvoidingView>
+
+      <TeamQRScannerModal
+        visible={showQrScanner}
+        onClose={() => setShowQrScanner(false)}
+        onScannedTeamId={handleScannedTeamId}
+      />
     </Modal>
   );
 };
@@ -419,6 +488,39 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   searchRow: { flexDirection: 'row', padding: Spacing.md, paddingBottom: 0 },
   searchInput: { flex: 1, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: Spacing.md, height: 44, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colors.border },
   searchBtn: { width: 44, height: 44, backgroundColor: colors.primary, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center', marginLeft: Spacing.sm },
+  qrScanBtn: { backgroundColor: colors.primary, marginLeft: Spacing.xs },
+
+  qrBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255,204,0,0.08)' : 'rgba(230,184,0,0.1)',
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,204,0,0.25)' : 'rgba(230,184,0,0.3)',
+  },
+  qrBannerIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  qrBannerTitle: {
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    color: colors.textPrimary,
+  },
+  qrBannerSub: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.regular,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
   
   emptySearch: { alignItems: 'center', marginTop: Spacing.xl },
   emptyText: { color: colors.textSecondary, fontFamily: Typography.fontFamily.medium, marginBottom: Spacing.md },

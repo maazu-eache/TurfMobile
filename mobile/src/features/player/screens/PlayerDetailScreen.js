@@ -18,6 +18,7 @@ import { useTheme, Typography, BorderRadius, Spacing } from '../../../theme/them
 import { showCustomAlert } from '../../../components/CustomAlert';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { isTeamVerified } from '../../../utils/teamUtils';
 import { getImageUrl } from '../../../api/axios';
 import api from '../../../api/axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -551,18 +552,27 @@ const PlayerDetailScreen = ({ navigation, route }) => {
     );
     return teams.map((team, idx) => (
       <TouchableOpacity key={team._id || idx} style={styles.teamCard} activeOpacity={0.8}
-        onPress={() => { if (team._id) navigation.navigate('TeamDetail', { id: team._id }); }}>
-        {team.logo ? (
-          <Image source={{ uri: getImageUrl(team.logo) }} style={styles.teamLogo} />
-        ) : (
-          <View style={styles.teamLogoFallback}>
-            <Text style={styles.teamLogoInitial}>
-              {(team.name || 'T').trim().charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
+        onPress={() => {
+          const teamId = team._id || team.id;
+          if (teamId) navigation.navigate('TeamDetail', { id: teamId, teamId, team });
+        }}>
+        <View style={styles.teamLogoWrap}>
+          {team.logo ? (
+            <Image source={{ uri: getImageUrl(team.logo) }} style={styles.teamLogo} />
+          ) : (
+            <View style={styles.teamLogoFallback}>
+              <Text style={styles.teamLogoInitial}>
+                {(team.name || 'T').trim().charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+
+        </View>
         <View style={{ flex: 1, marginLeft: 14 }}>
-          <Text style={styles.teamName}>{team.name || 'Unknown Team'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={styles.teamName}>{team.name || 'Unknown Team'}</Text>
+            {isTeamVerified(team) && <MCIcon name="check-decagram" size={15} color="#10B981" />}
+          </View>
           {team.category && <Text style={styles.teamCategory}>{team.category}</Text>}
         </View>
         <Icon name="chevron-forward" size={16} color={colors.textTertiary} />
@@ -1341,6 +1351,7 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
 
   // ── Team cards ────────────────────────────────────────────────────────────
   teamCard: { marginHorizontal: 16, marginBottom: 10, padding: 16, backgroundColor: colors.surface, borderRadius: BorderRadius.xl, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', ...shadows.sm },
+  teamLogoWrap: { position: 'relative' },
   teamLogo: { width: 46, height: 46, borderRadius: 23 },
   teamLogoFallback: { 
     width: 46, 

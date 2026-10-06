@@ -10,6 +10,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, toggleFollowTeam, joinTeam } from '../teamSlice';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { isTeamVerified } from '../../../utils/teamUtils';
 import { getImageUrl } from '../../../api/axios';
 import { showCustomAlert } from '../../../components/CustomAlert';
 
@@ -71,7 +72,7 @@ const TeamListScreen = ({ navigation }) => {
       <TouchableOpacity
         style={styles.teamCard}
         activeOpacity={0.88}
-        onPress={() => navigation.navigate('TeamDetail', { id: item._id })}
+        onPress={() => navigation.navigate('TeamDetail', { id: item._id, team: item })}
       >
         {/* Logo */}
         <View style={styles.logoWrap}>
@@ -83,11 +84,15 @@ const TeamListScreen = ({ navigation }) => {
               </LinearGradient>
             )
           }
+
         </View>
 
         {/* Info */}
         <View style={styles.teamInfo}>
-          <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
+            {isTeamVerified(item) && <Icon name="check-decagram" size={15} color="#10B981" />}
+          </View>
           {item.city && (
             <View style={styles.cityRow}>
               <Icon name="map-marker-outline" size={11} color={colors.textTertiary} />
@@ -116,7 +121,7 @@ const TeamListScreen = ({ navigation }) => {
       <TouchableOpacity
         style={styles.teamCard}
         activeOpacity={0.88}
-        onPress={() => navigation.navigate('TeamDetail', { id: item._id })}
+        onPress={() => navigation.navigate('TeamDetail', { id: item._id, team: item })}
       >
         {/* Logo */}
         <View style={styles.logoWrap}>
@@ -128,11 +133,15 @@ const TeamListScreen = ({ navigation }) => {
               </LinearGradient>
             )
           }
+
         </View>
 
         {/* Info */}
         <View style={styles.teamInfo}>
-          <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
+            {isTeamVerified(item) && <Icon name="check-decagram" size={15} color="#10B981" />}
+          </View>
           {item.city && (
             <View style={styles.cityRow}>
               <Icon name="map-marker-outline" size={11} color={colors.textTertiary} />

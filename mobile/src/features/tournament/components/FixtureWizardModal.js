@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Platform } from 'react-native';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Platform, PanResponder } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
@@ -27,6 +27,129 @@ const formatTimeString = (date) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+// Draggable & Reorderable Match Card
+const DraggableMatchCard = ({
+  match,
+  index,
+  totalMatches,
+  onMoveUp,
+  onMoveDown,
+  activeDragId,
+  setIsDragging,
+  setActiveDragId,
+  styles,
+  colors,
+  isDark
+}) => {
+  const moveUpRef = useRef(onMoveUp);
+  const moveDownRef = useRef(onMoveDown);
+  const dragAccumulator = useRef(0);
+
+  useEffect(() => {
+    moveUpRef.current = onMoveUp;
+    moveDownRef.current = onMoveDown;
+  });
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (evt, gestureState) => Math.abs(gestureState.dy) > 3,
+    onPanResponderGrant: () => {
+      setIsDragging(true);
+      setActiveDragId(match.previewId);
+      dragAccumulator.current = 0;
+    },
+    onPanResponderMove: (evt, gestureState) => {
+      const step = 45;
+      const diff = gestureState.dy - dragAccumulator.current;
+      if (diff >= step) {
+        moveDownRef.current?.();
+        dragAccumulator.current += step;
+      } else if (diff <= -step) {
+        moveUpRef.current?.();
+        dragAccumulator.current -= step;
+      }
+    },
+    onPanResponderRelease: () => {
+      setIsDragging(false);
+      setActiveDragId(null);
+      dragAccumulator.current = 0;
+    },
+    onPanResponderTerminate: () => {
+      setIsDragging(false);
+      setActiveDragId(null);
+      dragAccumulator.current = 0;
+    },
+  }), [match.previewId, setIsDragging, setActiveDragId]);
+
+  const isCurrentDragging = activeDragId === match.previewId;
+
+  return (
+    <View style={[
+      styles.previewCard,
+      isCurrentDragging && styles.previewCardDragging
+    ]}>
+      {/* Top Header of Card: Match Number, Scheduled Date & Time, and Reorder Controls */}
+      <View style={styles.cardHeaderRow}>
+        <View style={styles.cardHeaderLeft}>
+          <View style={styles.matchNumBadge}>
+            <Text style={styles.matchNumText}>#{index + 1}</Text>
+          </View>
+          <View style={styles.cardTimeRow}>
+            <Icon name="clock" size={12} color={colors.primary} style={{ marginRight: 4 }} />
+            <Text style={styles.previewDate}>
+              {formatDateIndian(match.scheduledAt)} at {formatTimeString(match.scheduledAt)}
+            </Text>
+          </View>
+        </View>
+
+        {/* Reorder Controls: Up / Down Arrows + Drag Handle */}
+        <View style={styles.cardReorderControls}>
+          <TouchableOpacity
+            style={[styles.reorderArrowBtn, index === 0 && styles.reorderBtnDisabled]}
+            onPress={onMoveUp}
+            disabled={index === 0}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            activeOpacity={0.7}
+          >
+            <Icon name="chevron-up" size={16} color={index === 0 ? colors.textTertiary : colors.textPrimary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.reorderArrowBtn, index === totalMatches - 1 && styles.reorderBtnDisabled]}
+            onPress={onMoveDown}
+            disabled={index === totalMatches - 1}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            activeOpacity={0.7}
+          >
+            <Icon name="chevron-down" size={16} color={index === totalMatches - 1 ? colors.textTertiary : colors.textPrimary} />
+          </TouchableOpacity>
+
+          {/* Drag Handle */}
+          <View
+            style={[styles.dragHandleBtn, isCurrentDragging && styles.dragHandleBtnActive]}
+            {...panResponder.panHandlers}
+          >
+            <MCIcon
+              name="drag-vertical"
+              size={20}
+              color={isCurrentDragging ? colors.primary : colors.textSecondary}
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* Teams Display */}
+      <View style={styles.previewTeams}>
+        <Text style={styles.previewTeamText} numberOfLines={1}>{match.teamA?.name || 'TBA'}</Text>
+        <View style={styles.vsBadge}>
+          <Text style={styles.vsBadgeText}>VS</Text>
+        </View>
+        <Text style={styles.previewTeamText} numberOfLines={1}>{match.teamB?.name || 'TBA'}</Text>
+      </View>
+    </View>
+  );
+};
+
 const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
   const { colors, shadows, isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors, shadows, isDark), [colors, shadows, isDark]);
@@ -37,6 +160,8 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
   // Preview State
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [previewMatches, setPreviewMatches] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [activeDragId, setActiveDragId] = useState(null);
 
   // Group Mode State
   const [groupSchedule, setGroupSchedule] = useState([]);
@@ -116,6 +241,8 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
     if (visible && tournament) {
       setIsPreviewMode(false);
       setPreviewMatches([]);
+      setIsDragging(false);
+      setActiveDragId(null);
       const hasGroups = tournament.groups && tournament.groups.length > 0;
       setGroupMode(hasGroups);
       if (hasGroups) {
@@ -132,6 +259,64 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
       }
     }
   }, [visible, tournament]);
+
+  // Reorder matches within a group and dynamically shift times
+  const handleMoveMatchInGroup = (groupName, fromIndex, toIndex) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+
+    setPreviewMatches(prev => {
+      const groupMatches = prev.filter(m => (m.groupName || 'Other') === groupName);
+      if (fromIndex >= groupMatches.length || toIndex >= groupMatches.length) return prev;
+
+      // Extract original sorted time slots for this group
+      const originalTimes = groupMatches.map(m => m.scheduledAt);
+
+      // Reorder items within this group
+      const reorderedGroup = [...groupMatches];
+      const [moved] = reorderedGroup.splice(fromIndex, 1);
+      reorderedGroup.splice(toIndex, 0, moved);
+
+      // Reassign times based on new position in this group
+      const updatedGroup = reorderedGroup.map((m, idx) => ({
+        ...m,
+        scheduledAt: originalTimes[idx] || m.scheduledAt
+      }));
+
+      // Reconstruct the full list preserving the order of other groups
+      let groupIdx = 0;
+      return prev.map(m => {
+        if ((m.groupName || 'Other') === groupName) {
+          const replacement = updatedGroup[groupIdx];
+          groupIdx++;
+          return replacement;
+        }
+        return m;
+      });
+    });
+  };
+
+  // Reorder matches globally when no groups and dynamically shift times
+  const handleMoveMatch = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+
+    setPreviewMatches(prev => {
+      if (fromIndex >= prev.length || toIndex >= prev.length) return prev;
+
+      // Extract original sorted time slots
+      const originalTimes = prev.map(m => m.scheduledAt);
+
+      // Reorder items
+      const reordered = [...prev];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, moved);
+
+      // Reassign times based on new position
+      return reordered.map((m, idx) => ({
+        ...m,
+        scheduledAt: originalTimes[idx] || m.scheduledAt
+      }));
+    });
+  };
 
   const handleDateChange = (event, selectedDate) => {
     if (Platform.OS === 'android') {
@@ -193,7 +378,11 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
       };
 
       const res = await api.post(`/tournaments/${tournament._id}/generate-fixtures`, payload);
-      setPreviewMatches(res.data.data);
+      const matchesWithIds = (res.data.data || []).map((m, i) => ({
+        ...m,
+        previewId: m._id || `${m.teamA?._id || m.teamA || 'a'}-${m.teamB?._id || m.teamB || 'b'}-${i}-${Date.now()}`
+      }));
+      setPreviewMatches(matchesWithIds);
       setIsPreviewMode(true);
     } catch (e) {
       console.log('Error generating fixtures preview', e);
@@ -247,7 +436,7 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
             </TouchableOpacity>
           </View>
           
-          <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" style={{ flex: 1, marginTop: Spacing.md, paddingHorizontal: Spacing.md }}>
+          <KeyboardAwareScrollView enableOnAndroid={true} extraScrollHeight={20} keyboardShouldPersistTaps="handled" scrollEnabled={!isDragging} style={{ flex: 1, marginTop: Spacing.md, paddingHorizontal: Spacing.md }}>
             {!isPreviewMode ? (
               <>
                 {/* Stats & Summary Banner */}
@@ -378,9 +567,18 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
             ) : (
               <View style={{ marginTop: Spacing.md }}>
                 <Text style={styles.sectionTitle}>Preview Generated Fixtures</Text>
-                <Text style={{ color: colors.textSecondary, marginBottom: Spacing.md, fontSize: 13 }}>
-                  Review the schedule below. If it looks good, click Confirm to finalize and overwrite any existing auto-generated league matches.
+                <Text style={{ color: colors.textSecondary, marginBottom: Spacing.xs, fontSize: 13 }}>
+                  Review the schedule below. If it looks good, click Confirm to finalize and schedule the matches.
                 </Text>
+
+                {/* Drag & Reorder Hint Banner */}
+                <View style={styles.reorderHintBox}>
+                  <MCIcon name="swap-vertical" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+                  <Text style={styles.reorderHintText}>
+                    Drag the ⠿ handle or tap ▲ / ▼ to reorder matches. Match times automatically update based on position!
+                  </Text>
+                </View>
+
                 {groupMode ? (
                   Object.entries(
                     previewMatches.reduce((acc, m) => {
@@ -390,35 +588,48 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
                       return acc;
                     }, {})
                   ).map(([groupName, matches], gIdx) => (
-                    <View key={gIdx} style={{ marginBottom: Spacing.md }}>
-                      <Text style={[styles.sectionTitle, { fontSize: 14, color: colors.primary }]}>{groupName}</Text>
+                    <View key={groupName || gIdx} style={{ marginBottom: Spacing.md }}>
+                      <View style={styles.groupHeaderRow}>
+                        <Text style={[styles.sectionTitle, { fontSize: 15, color: colors.primary, marginBottom: 0 }]}>{groupName}</Text>
+                        <Text style={{ fontSize: 11, color: colors.textTertiary }}>{matches.length} matches</Text>
+                      </View>
                       {matches.map((match, idx) => (
-                        <View key={idx} style={styles.previewCard}>
-                          <Text style={styles.previewDate}>
-                            {formatDateIndian(match.scheduledAt)} at {formatTimeString(match.scheduledAt)}
-                          </Text>
-                          <View style={styles.previewTeams}>
-                            <Text style={styles.previewTeamText} numberOfLines={1}>{match.teamA?.name || 'TBA'}</Text>
-                            <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, marginHorizontal: 8 }}>vs</Text>
-                            <Text style={styles.previewTeamText} numberOfLines={1}>{match.teamB?.name || 'TBA'}</Text>
-                          </View>
-                        </View>
+                        <DraggableMatchCard
+                          key={match.previewId || `${groupName}-${idx}`}
+                          match={match}
+                          index={idx}
+                          totalMatches={matches.length}
+                          onMoveUp={() => handleMoveMatchInGroup(groupName, idx, idx - 1)}
+                          onMoveDown={() => handleMoveMatchInGroup(groupName, idx, idx + 1)}
+                          activeDragId={activeDragId}
+                          setIsDragging={setIsDragging}
+                          setActiveDragId={setActiveDragId}
+                          styles={styles}
+                          colors={colors}
+                          isDark={isDark}
+                        />
                       ))}
                     </View>
                   ))
                 ) : (
-                  previewMatches.map((match, idx) => (
-                    <View key={idx} style={styles.previewCard}>
-                      <Text style={styles.previewDate}>
-                        {formatDateIndian(match.scheduledAt)} at {formatTimeString(match.scheduledAt)}
-                      </Text>
-                      <View style={styles.previewTeams}>
-                        <Text style={styles.previewTeamText} numberOfLines={1}>{match.teamA?.name || 'TBA'}</Text>
-                        <Text style={{ color: colors.textSecondary, fontFamily: Typography.fontFamily.bold, marginHorizontal: 8 }}>vs</Text>
-                        <Text style={styles.previewTeamText} numberOfLines={1}>{match.teamB?.name || 'TBA'}</Text>
-                      </View>
-                    </View>
-                  ))
+                  <View style={{ marginBottom: Spacing.md }}>
+                    {previewMatches.map((match, idx) => (
+                      <DraggableMatchCard
+                        key={match.previewId || `match-${idx}`}
+                        match={match}
+                        index={idx}
+                        totalMatches={previewMatches.length}
+                        onMoveUp={() => handleMoveMatch(idx, idx - 1)}
+                        onMoveDown={() => handleMoveMatch(idx, idx + 1)}
+                        activeDragId={activeDragId}
+                        setIsDragging={setIsDragging}
+                        setActiveDragId={setActiveDragId}
+                        styles={styles}
+                        colors={colors}
+                        isDark={isDark}
+                      />
+                    ))}
+                  </View>
                 )}
                 <View style={{ height: 60 }} />
               </View>
@@ -457,8 +668,15 @@ const FixtureWizardModal = ({ visible, onClose, tournament, onRefresh }) => {
                     </View>
                   )}
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={handleConfirm} disabled={loading}>
-                  {loading ? <ActivityIndicator color="#000000" size="small" /> : <Text style={styles.actionBtnText}>Confirm</Text>}
+                <TouchableOpacity style={[styles.actionBtn, { flex: 1.2 }]} onPress={handleConfirm} disabled={loading}>
+                  {loading ? (
+                    <ActivityIndicator color="#000000" size="small" />
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Icon name="check" size={16} color="#000000" style={{ marginRight: 6 }} />
+                      <Text style={styles.actionBtnText}>Confirm</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               </>
             )}
@@ -551,10 +769,146 @@ const createStyles = (colors, shadows, isDark) => StyleSheet.create({
   actionBtn: { paddingVertical: 14, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
   actionBtnText: { color: '#000000', fontFamily: Typography.fontFamily.bold, fontSize: 16 },
   
-  previewCard: { backgroundColor: colors.surface, padding: Spacing.md, borderRadius: BorderRadius.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: colors.border },
-  previewDate: { color: colors.primary, fontFamily: Typography.fontFamily.semiBold, fontSize: 12, marginBottom: Spacing.xs },
-  previewTeams: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  previewTeamText: { flex: 1, color: colors.textPrimary, fontFamily: Typography.fontFamily.bold, fontSize: 14, textAlign: 'center' }
+  reorderHintBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255,204,0,0.1)' : 'rgba(230,184,0,0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,204,0,0.25)' : 'rgba(230,184,0,0.3)',
+    marginBottom: Spacing.md,
+  },
+  reorderHintText: {
+    flex: 1,
+    color: isDark ? colors.primary : colors.primaryDark,
+    fontSize: 12,
+    fontFamily: Typography.fontFamily.medium,
+    lineHeight: 17,
+  },
+
+  groupHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+
+  previewCard: {
+    backgroundColor: colors.surface,
+    padding: 12,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  previewCardDragging: {
+    borderColor: colors.primary,
+    borderWidth: 1.5,
+    backgroundColor: isDark ? 'rgba(255,204,0,0.08)' : 'rgba(230,184,0,0.1)',
+    elevation: 6,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  matchNumBadge: {
+    backgroundColor: isDark ? 'rgba(255,204,0,0.15)' : 'rgba(230,184,0,0.15)',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,204,0,0.35)' : 'rgba(230,184,0,0.4)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  matchNumText: {
+    color: isDark ? colors.primary : colors.primaryDark,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 11,
+  },
+  cardTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  previewDate: {
+    color: colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: 12,
+  },
+
+  cardReorderControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  reorderArrowBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  reorderBtnDisabled: {
+    opacity: 0.25,
+  },
+  dragHandleBtn: {
+    width: 30,
+    height: 28,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginLeft: 2,
+  },
+  dragHandleBtnActive: {
+    backgroundColor: isDark ? 'rgba(255,204,0,0.25)' : 'rgba(230,184,0,0.25)',
+    borderColor: colors.primary,
+  },
+
+  previewTeams: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  previewTeamText: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  vsBadge: {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginHorizontal: 8,
+  },
+  vsBadgeText: {
+    color: colors.textSecondary,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 11,
+  },
 });
 
 export default FixtureWizardModal;

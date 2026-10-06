@@ -17,6 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { fetchMyTeams, fetchOpponentTeams, fetchFollowingTeams, searchGlobalTeams, fetchTeamById } from '../../team/teamSlice';
 import { useTheme, Typography, Spacing, BorderRadius } from '../../../theme/theme';
 import { getImageUrl } from '../../../api/axios';
+import { isTeamVerified } from '../../../utils/teamUtils';
 import AddTeamModal from '../../tournament/components/AddTeamModal';
 import TeamQRScannerModal from '../../team/components/TeamQRScannerModal';
 import { showCustomAlert } from '../../../components/CustomAlert';
@@ -264,9 +265,13 @@ const MatchTeamSelectionScreen = ({ navigation, route }) => {
                             {item.name ? item.name.substring(0, 1).toUpperCase() : 'T'}
                           </Text>
                         )}
+
                       </View>
                       <View style={styles.teamItemInfo}>
-                        <Text style={styles.teamItemName}>{item.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={styles.teamItemName}>{item.name}</Text>
+                          {isTeamVerified(item) && <Icon name="check-decagram" size={15} color="#10B981" />}
+                        </View>
                         {item.city && <Text style={styles.teamItemCity}>{item.city}</Text>}
                       </View>
                       {item.points !== undefined && (

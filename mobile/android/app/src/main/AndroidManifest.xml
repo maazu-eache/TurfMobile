@@ -60,7 +60,22 @@
         android:host="www.scoreverse.in" />
 </intent-filter>
 
-<!-- Custom URL scheme -->
+<!-- HTTP App Link: scoreverse.in -->
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+
+    <data
+        android:scheme="http"
+        android:host="scoreverse.in" />
+    <data
+        android:scheme="http"
+        android:host="www.scoreverse.in" />
+</intent-filter>
+
+<!-- Custom URL scheme: scoreverse and roughturf -->
 <intent-filter>
     <action android:name="android.intent.action.VIEW" />
 
@@ -68,6 +83,7 @@
     <category android:name="android.intent.category.BROWSABLE" />
 
     <data android:scheme="scoreverse" />
+    <data android:scheme="roughturf" />
 </intent-filter>
 
       </activity>
