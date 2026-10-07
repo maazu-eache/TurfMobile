@@ -526,20 +526,23 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (!b?.dismissal) return '';
     const type = b.dismissal.type;
     const bowlerName = (b.dismissal.bowler?.name || 'Bowler').split(' ')[0];
-    const fielderName = (b.dismissal.fielder?.name || 'Fielder').split(' ')[0];
+    const fielderName = b.dismissal.fielder?.name ? b.dismissal.fielder.name.split(' ')[0] : (typeof b.dismissal.fielder === 'string' && b.dismissal.fielder !== 'Fielder' ? b.dismissal.fielder : null);
+    const fielder2Name = b.dismissal.fielder2?.name ? b.dismissal.fielder2.name.split(' ')[0] : null;
 
     switch (type) {
       case 'bowled':
         return `b ${bowlerName}`;
       case 'caught':
       case 'caught_behind':
-        return `c ${fielderName} b ${bowlerName}`;
+        return `c ${fielderName || 'Sub'} b ${bowlerName}`;
       case 'stumped':
-        return `st ${fielderName} b ${bowlerName}`;
+        return `st ${fielderName || 'WK'} b ${bowlerName}`;
       case 'lbw':
         return `lbw b ${bowlerName}`;
       case 'run_out':
-        return `run out (${fielderName})`;
+        if (fielderName && fielder2Name) return `run out (${fielderName}/${fielder2Name})`;
+        if (fielderName) return `run out (${fielderName})`;
+        return 'run out';
       case 'hit_wicket':
         return `hw b ${bowlerName}`;
       case 'caught_and_bowled':
@@ -548,6 +551,75 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         return type ? type.replace(/_/g, ' ') : '';
     }
   }, []);
+
+  const currentMatchObj = liveState?.match || matchData?.match || matchData || route.params?.match;
+
+  const normalizedScorecards = useMemo(() => {
+    if (!scorecards || scorecards.length === 0) return [];
+    const inningsList = currentMatchObj?.innings || [];
+
+    return scorecards.map((sc, scIdx) => {
+      if (!sc) return sc;
+      const inn = inningsList.find(i => 
+        (i && i.inningsNumber && i.inningsNumber === sc.inningsNumber) ||
+        (i && (i._id || i)?.toString() === (sc.innings?._id || sc.innings)?.toString())
+      ) || inningsList[scIdx];
+
+      const fow = inn?.fallOfWickets || [];
+
+      const newBatting = (sc.batting || []).map(b => {
+        if (!b) return b;
+        const bId = (b.player?._id || b.player)?.toString();
+        const bName = (b.player?.name || '').trim().toLowerCase();
+        if (!bId && !bName) return b;
+
+        // Check Fall of Wickets
+        const fowEntry = fow.find(f => {
+          const fId = (f.batsman?._id || f.batsman)?.toString();
+          const fName = (f.batsman?.name || '').trim().toLowerCase();
+          return (bId && fId === bId) || (bName && fName && fName === bName);
+        });
+
+        // Check Commentary wicket deliveries
+        const wicketBall = (commentary || []).find(ball => {
+          if (!ball?.isWicket) return false;
+          const dId = (ball.wicket?.dismissedBatsman?._id || ball.wicket?.dismissedBatsman || ball.dismissedBatsmanId)?.toString();
+          const dName = (ball.wicket?.dismissedBatsman?.name || '').trim().toLowerCase();
+          return (bId && dId === bId) || (bName && dName && dName === bName);
+        });
+
+        const isActuallyOut = !!fowEntry || !!wicketBall;
+
+        if (isActuallyOut) {
+          const wType = wicketBall?.wicket?.type || (fowEntry ? 'run_out' : 'out');
+          const fielderObj = wicketBall?.wicket?.fielder || b.dismissal?.fielder;
+          const fielder2Obj = wicketBall?.wicket?.fielder2 || b.dismissal?.fielder2;
+          const bowlerObj = ['run_out', 'retired_hurt', 'retired_out', 'obstructing_field', 'cheating'].includes(wType)
+            ? null
+            : (wicketBall?.bowler || b.dismissal?.bowler);
+
+          return {
+            ...b,
+            isNotOut: false,
+            dismissal: {
+              ...(b.dismissal || {}),
+              type: (!b.dismissal?.type || b.dismissal.type === 'not_out') ? wType : b.dismissal.type,
+              fielder: fielderObj || b.dismissal?.fielder || null,
+              fielder2: fielder2Obj || b.dismissal?.fielder2 || null,
+              bowler: bowlerObj || null,
+            }
+          };
+        }
+
+        return b;
+      });
+
+      return {
+        ...sc,
+        batting: newBatting
+      };
+    });
+  }, [scorecards, currentMatchObj?.innings, commentary]);
 
   const previewPlayerId = useMemo(() => {
     if (!selectedPlayerPreview) return null;
@@ -564,7 +636,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (selectedPlayerPreview.team?.name) return selectedPlayerPreview.team.name;
     const pId = previewPlayerId;
     const pName = previewPlayerName.toLowerCase();
-    for (const sc of (scorecards || [])) {
+    for (const sc of (normalizedScorecards || [])) {
       const isBat = (sc.batting || []).some(b => {
         const id = (b.player?._id || b.player)?.toString();
         const name = (b.player?.name || '').trim().toLowerCase();
@@ -584,13 +656,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       if ((currentM.playingXI?.teamB || []).some(p => (p._id || p)?.toString() === pId)) return currentM.teamB?.name || '';
     }
     return '';
-  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, scorecards, liveState?.match, matchData]);
+  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, normalizedScorecards, liveState?.match, matchData]);
 
   const matchBatting = useMemo(() => {
-    if (!selectedPlayerPreview || !scorecards || scorecards.length === 0) return null;
+    if (!selectedPlayerPreview || !normalizedScorecards || normalizedScorecards.length === 0) return null;
     const pId = previewPlayerId;
     const pName = previewPlayerName.toLowerCase();
-    for (const sc of scorecards) {
+    for (const sc of normalizedScorecards) {
       const b = (sc.batting || []).find(item => {
         const id = (item.player?._id || item.player)?.toString();
         const name = (item.player?.name || '').trim().toLowerCase();
@@ -605,13 +677,13 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       }
     }
     return null;
-  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, scorecards]);
+  }, [selectedPlayerPreview, previewPlayerId, previewPlayerName, normalizedScorecards]);
 
   const matchBowling = useMemo(() => {
-    if (!selectedPlayerPreview || !scorecards || scorecards.length === 0) return null;
+    if (!selectedPlayerPreview || !normalizedScorecards || normalizedScorecards.length === 0) return null;
     const pId = previewPlayerId;
     const pName = previewPlayerName.toLowerCase();
-    for (const sc of scorecards) {
+    for (const sc of normalizedScorecards) {
       const bw = (sc.bowling || []).find(item => {
         const id = (item.player?._id || item.player)?.toString();
         const name = (item.player?.name || '').trim().toLowerCase();
@@ -2433,8 +2505,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     let fighterOfTheMatch = null;
     let fighterStats = null;
 
-    if (match.status === 'completed' && scorecards?.length > 0) {
-      const allBatters = scorecards.flatMap(sc => {
+    if (match.status === 'completed' && normalizedScorecards?.length > 0) {
+      const allBatters = normalizedScorecards.flatMap(sc => {
         const tName = sc.battingTeam?.name || (sc.battingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name);
         return sc.batting.map(b => ({ ...b, teamName: tName }));
       }).filter(b => b.player);
@@ -2444,7 +2516,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         bestBatter = topBatters[0];
       }
 
-      const allBowlers = scorecards.flatMap(sc => {
+      const allBowlers = normalizedScorecards.flatMap(sc => {
         const tName = sc.bowlingTeam?.name || (sc.bowlingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name);
         return sc.bowling.map(b => ({ ...b, teamName: tName }));
       }).filter(b => b.player);
@@ -2461,8 +2533,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         const losingTeamId = match.result.winner === match.teamA?._id ? match.teamB?._id : match.teamA?._id;
         const losingTeamName = match.result.winner === match.teamA?._id ? match.teamB?.name : match.teamA?.name;
 
-        const losingBatters = scorecards.find(sc => sc.battingTeam?._id === losingTeamId || sc.battingTeam === losingTeamId)?.batting?.filter(b => b.player) || [];
-        const losingBowlers = scorecards.find(sc => sc.bowlingTeam?._id === losingTeamId || sc.bowlingTeam === losingTeamId)?.bowling?.filter(b => b.player) || [];
+        const losingBatters = normalizedScorecards.find(sc => sc.battingTeam?._id === losingTeamId || sc.battingTeam === losingTeamId)?.batting?.filter(b => b.player) || [];
+        const losingBowlers = normalizedScorecards.find(sc => sc.bowlingTeam?._id === losingTeamId || sc.bowlingTeam === losingTeamId)?.bowling?.filter(b => b.player) || [];
 
         const bestLosingBatter = losingBatters.length > 0 ? [...losingBatters].sort((a, b) => b.runs - a.runs)[0] : null;
         const bestLosingBowler = losingBowlers.length > 0 ? [...losingBowlers].sort((a, b) => {
@@ -2496,7 +2568,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
           mvp = allXI.find(p => String(p._id || p) === mvpId);
 
           if (!mvp) {
-            const scorecardPlayers = scorecards.flatMap(sc => [
+            const scorecardPlayers = normalizedScorecards.flatMap(sc => [
               ...(sc.batting || []).map(b => b.player),
               ...(sc.bowling || []).map(b => b.player)
             ]).filter(Boolean);
@@ -2509,8 +2581,8 @@ const MatchSummaryScreen = ({ navigation, route }) => {
         // Fallback: Pick highest performer from winning team
         if (match.result?.winner) {
           const winningTeamId = String(match.result.winner._id || match.result.winner);
-          const winningBatters = scorecards.find(sc => String(sc.battingTeam?._id || sc.battingTeam) === winningTeamId)?.batting?.filter(b => b.player) || [];
-          const winningBowlers = scorecards.find(sc => String(sc.bowlingTeam?._id || sc.bowlingTeam) === winningTeamId)?.bowling?.filter(b => b.player) || [];
+          const winningBatters = normalizedScorecards.find(sc => String(sc.battingTeam?._id || sc.battingTeam) === winningTeamId)?.batting?.filter(b => b.player) || [];
+          const winningBowlers = normalizedScorecards.find(sc => String(sc.bowlingTeam?._id || sc.bowlingTeam) === winningTeamId)?.bowling?.filter(b => b.player) || [];
 
           const topWinningBatter = winningBatters.length > 0 ? [...winningBatters].sort((a, b) => b.runs - a.runs)[0] : null;
           const topWinningBowler = winningBowlers.length > 0 ? [...winningBowlers].sort((a, b) => b.wickets - a.wickets)[0] : null;
@@ -3400,10 +3472,11 @@ const MatchSummaryScreen = ({ navigation, route }) => {
       }
 
       // Clean active batters list when a wicket falls
-      if (item.isWicket && item.wicket?.player) {
-        activeBattersList.delete(item.wicket.player.toString());
-      } else if (item.isWicket && item.dismissedBatsmanId) {
-        activeBattersList.delete(item.dismissedBatsmanId.toString());
+      if (item.isWicket) {
+        const outPid = item.wicket?.dismissedBatsman?._id || item.wicket?.dismissedBatsman || item.wicket?.player || item.dismissedBatsmanId;
+        if (outPid) {
+          activeBattersList.delete(outPid.toString());
+        }
       }
 
       // Realtime chronological stats logging
@@ -4148,29 +4221,32 @@ const MatchSummaryScreen = ({ navigation, route }) => {
   };
 
   const getDismissalText = (b) => {
-    if (!b.dismissal) return '';
+    if (!b?.dismissal) return '';
     const type = b.dismissal.type;
     const bowlerName = (b.dismissal.bowler?.name || 'Bowler').split(' ')[0];
-    const fielderName = (b.dismissal.fielder?.name || 'Fielder').split(' ')[0];
+    const fielderName = b.dismissal.fielder?.name ? b.dismissal.fielder.name.split(' ')[0] : (typeof b.dismissal.fielder === 'string' && b.dismissal.fielder !== 'Fielder' ? b.dismissal.fielder : null);
+    const fielder2Name = b.dismissal.fielder2?.name ? b.dismissal.fielder2.name.split(' ')[0] : null;
 
     switch (type) {
       case 'bowled':
         return `b ${bowlerName}`;
       case 'caught':
       case 'caught_behind':
-        return `c ${fielderName} b ${bowlerName}`;
+        return `c ${fielderName || 'Sub'} b ${bowlerName}`;
       case 'stumped':
-        return `st ${fielderName} b ${bowlerName}`;
+        return `st ${fielderName || 'WK'} b ${bowlerName}`;
       case 'lbw':
         return `lbw b ${bowlerName}`;
       case 'run_out':
-        return `run out (${fielderName})`;
+        if (fielderName && fielder2Name) return `run out (${fielderName}/${fielder2Name})`;
+        if (fielderName) return `run out (${fielderName})`;
+        return 'run out';
       case 'hit_wicket':
         return `hw b ${bowlerName}`;
       case 'caught_and_bowled':
         return `c & b ${bowlerName}`;
       default:
-        return type.replace('_', ' ');
+        return type ? type.replace(/_/g, ' ') : '';
     }
   };
 
@@ -4178,7 +4254,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     if (loadingScorecards) {
       return <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />;
     }
-    let displayScorecards = [...(scorecards || [])];
+    let displayScorecards = [...(normalizedScorecards || [])];
 
     if (match.toss && match.toss.winner && displayScorecards.length < 2) {
       const winnerId = match.toss.winner._id || match.toss.winner;
@@ -4453,7 +4529,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     return (
       <PartnershipsView
         match={match}
-        scorecards={scorecards}
+        scorecards={normalizedScorecards}
         commentary={commentary}
         refreshControl={getRefreshControl()}
       />
@@ -5407,7 +5483,7 @@ const MatchSummaryScreen = ({ navigation, route }) => {
     const bowlersMap = {};  // pid → bowler stats
     const fieldersMap = {};  // pid → fielding stats
 
-    scorecards.forEach(sc => {
+    normalizedScorecards.forEach(sc => {
       const battingTeamName = sc.battingTeam?.name || (sc.battingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name);
       const bowlingTeamName = sc.bowlingTeam?.name || (sc.bowlingTeam === match.teamA?._id ? match.teamA?.name : match.teamB?.name);
 

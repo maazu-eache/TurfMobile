@@ -440,35 +440,19 @@
 	[
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_RNShareSpec::@e6c4c2b5aedb2ea213b7"
+			"id" : "react_codegen_VisionCameraCodeScanner::@f5025e33e86ded227cb9"
 		},
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_rnsvg::@4f40eb209d0c0b4a3b65"
+			"id" : "react_codegen_AsyncStorageSpec::@15af80695a6281ecf900"
 		},
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_RNVectorIconsSpec::@479809fae146501fd34d"
+			"id" : "react_codegen_RNDateTimePickerCGen::@59b70ddc31ba2f8ef1d2"
 		},
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_rnviewshot::@0ba03d237e60b9258a87"
-		},
-		{
-			"backtrace" : 4,
-			"id" : "react_codegen_RNCWebViewSpec::@eb48929f9f7453740a6c"
-		},
-		{
-			"backtrace" : 4,
-			"id" : "react_codegen_rnworklets::@68f58d84d4754f193387"
-		},
-		{
-			"backtrace" : 4,
-			"id" : "react_codegen_RNWorkletsSpec::@c787b30dd2b0f948dced"
-		},
-		{
-			"backtrace" : 4,
-			"id" : "react_codegen_RNQrGeneratorSpec::@a0423fadad9efeed7006"
+			"id" : "react_codegen_RNCNetInfoSpec::@c36c96bfd5b5770618a5"
 		},
 		{
 			"backtrace" : 4,
@@ -508,27 +492,43 @@
 		},
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_VisionCameraCodeScanner::@f5025e33e86ded227cb9"
-		},
-		{
-			"backtrace" : 4,
-			"id" : "react_codegen_AsyncStorageSpec::@15af80695a6281ecf900"
-		},
-		{
-			"backtrace" : 4,
-			"id" : "react_codegen_RNDateTimePickerCGen::@59b70ddc31ba2f8ef1d2"
-		},
-		{
-			"backtrace" : 4,
-			"id" : "react_codegen_RNCNetInfoSpec::@c36c96bfd5b5770618a5"
-		},
-		{
-			"backtrace" : 4,
 			"id" : "react_codegen_safeareacontext::@7984cd80db47aa7b952a"
 		},
 		{
 			"backtrace" : 4,
 			"id" : "react_codegen_rnscreens::@25bcbd507e98d3a854ad"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_RNShareSpec::@e6c4c2b5aedb2ea213b7"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_rnsvg::@4f40eb209d0c0b4a3b65"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_RNVectorIconsSpec::@479809fae146501fd34d"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_rnviewshot::@0ba03d237e60b9258a87"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_RNCWebViewSpec::@eb48929f9f7453740a6c"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_rnworklets::@68f58d84d4754f193387"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_RNWorkletsSpec::@c787b30dd2b0f948dced"
+		},
+		{
+			"backtrace" : 4,
+			"id" : "react_codegen_RNQrGeneratorSpec::@a0423fadad9efeed7006"
 		}
 	],
 	"id" : "appmodules::@6890427a1f51a3e7e1df",
